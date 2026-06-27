@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply bg-[#0a0a0a] text-gray-200 antialiased selection:bg-amber-500/30;
+  }
+
+  /* Make sure all interactive elements clearly show a pointer */
+  button, a, select, label, tr, .glass-panel {
+    cursor: pointer;
+  }
+  
+  input[type="text"], input[type="password"], input[type="email"] {
+    cursor: text;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 shadow-xl;
+  }
+}

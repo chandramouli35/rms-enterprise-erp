@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+  //url      = env("DATABASE_URL")
+}
+
+model Plant {
+  id          String    @id @default(uuid())
+  name        String
+  location    String?
+  code        String    @unique // e.g., 'PLANT-A'
+  
+  // Relations
+  users       UserPlantAccess[]
+  procurements ProcurementBatch[]
+  inventories  Inventory[]
+  
+  // Tracking
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([code])
+}
+
+model Role {
+  id          String    @id @default(uuid())
+  name        String    @unique // e.g., 'SUPER_ADMIN', 'PLANT_MANAGER', 'WEIGHBRIDGE_OPERATOR', 'ACCOUNTANT'
+  description String?
+  
+  // Relations
+  users       User[]
+  permissions RolePermission[]
+  
+  // Tracking
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+}
+
+model Permission {
+  id          String    @id @default(uuid())
+  action      String    @unique // e.g., 'read:plants', 'create:users'
+  description String?
+  
+  // Relations
+  roles       RolePermission[]
+
+  // Tracking
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+model User {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  email        String    @unique
+  passwordHash String
+  refreshToken String?
+  
+  // Relations
+  roleId       String
+  role         Role      @relation(fields: [roleId], references: [id])
+  plantAccess  UserPlantAccess[]
+
+  // Tracking
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  @@index([username])
+  @@index([email])
+  @@index([roleId])
+}
+
+model UserPlantAccess {
+  userId  String
+  plantId String
+  
+  user    User  @relation(fields: [userId], references: [id])
+  plant   Plant @relation(fields: [plantId], references: [id])
+
+  @@id([userId, plantId])
+  @@index([userId])
+  @@index([plantId])
+}
+
+// -----------------------------------------------------------------------------
+// Procurement & Inventory
+// -----------------------------------------------------------------------------
+
+model ProcurementBatch {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  gatePassId  String   @unique
+  grossWeight Float    // in MT
+  tareWeight  Float    // in MT
+  netWeight   Float    // in MT
+  status      String   @default("PENDING") // PENDING, QC_APPROVED, QC_REJECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([plantId])
+}
+
+model Inventory {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  itemType    String   // PADDY, HEAD_RICE, BROKEN_RICE, BRAN, HUSK
+  quantity    Float    // in MT
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([plantId, itemType])
+}
