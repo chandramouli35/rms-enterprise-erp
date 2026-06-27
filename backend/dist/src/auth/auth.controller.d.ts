@@ -15,6 +15,11 @@ export declare class AuthController {
             permissions: string[];
         };
     }>;
+    getPublicPlants(): Promise<{
+        id: string;
+        name: string;
+        code: string;
+    }[]>;
     refreshTokens(req: Request): Promise<{
         accessToken: string;
         refreshToken: string;

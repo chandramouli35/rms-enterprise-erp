@@ -3,7 +3,6 @@ import { PlantsService } from './plants.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @Controller('plants')
-@UseGuards(JwtAuthGuard)
 export class PlantsController {
   constructor(private readonly plantsService: PlantsService) {}
 
@@ -13,6 +12,7 @@ export class PlantsController {
   }
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   async create(@Body() data: any) {
     // In a real app we'd restrict this to SUPER_ADMIN only
     return this.plantsService.create(data);

@@ -20,4 +20,9 @@ export declare class AuthService {
         accessToken: string;
         refreshToken: string;
     }>;
+    getPublicPlants(): Promise<{
+        id: string;
+        name: string;
+        code: string;
+    }[]>;
 }

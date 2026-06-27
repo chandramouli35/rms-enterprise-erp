@@ -22,7 +22,7 @@ export const Login: React.FC = () => {
   useEffect(() => {
     const fetchPlants = async () => {
       try {
-        const res = await axios.get(`${API_URL}/plants`);
+        const res = await axios.get(`${API_URL}/auth/plants`);
         setPlants(res.data);
       } catch (err) {
         console.error('Failed to fetch plants', err);

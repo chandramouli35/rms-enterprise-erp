@@ -15,9 +15,11 @@ model Plant {
   code        String    @unique // e.g., 'PLANT-A'
   
   // Relations
-  users       UserPlantAccess[]
+  users        UserPlantAccess[]
   procurements ProcurementBatch[]
   inventories  Inventory[]
+  suppliers    Supplier[]
+  gatePasses   GatePass[]
   
   // Tracking
   createdAt   DateTime  @default(now())
@@ -106,15 +108,108 @@ model UserPlantAccess {
 // Procurement & Inventory
 // -----------------------------------------------------------------------------
 
+model Supplier {
+  id          String    @id @default(uuid())
+  name        String
+  code        String    @unique
+  phone       String?
+  email       String?
+  address     String?
+  gstNumber   String?
+  
+  plantId     String
+  plant       Plant     @relation(fields: [plantId], references: [id])
+  
+  gatePasses  GatePass[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([plantId])
+}
+
+model GatePass {
+  id              String    @id @default(uuid())
+  passNumber      String    @unique // e.g., GP-YYYYMMDD-XXXX
+  vehicleNumber   String
+  driverName      String?
+  driverLicense   String?
+  source          String    // FARMER, MANDI, VENDOR
+  
+  supplierId      String?
+  supplier        Supplier? @relation(fields: [supplierId], references: [id])
+  
+  estimatedBags   Int?
+  status          String    @default("GENERATED") // GENERATED, GROSS_WEIGHED, QC_PASSED, TARE_WEIGHED, COMPLETED, REJECTED
+  
+  plantId         String
+  plant           Plant     @relation(fields: [plantId], references: [id])
+  createdByUserId String
+  
+  qualityCheck    QualityCheck?
+  weighbridge     WeighbridgeTransaction?
+  procurement     ProcurementBatch?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  @@index([plantId])
+}
+
+model QualityCheck {
+  id                      String    @id @default(uuid())
+  gatePassId              String    @unique
+  gatePass                GatePass  @relation(fields: [gatePassId], references: [id])
+  
+  moisturePercentage      Float
+  discolorationPercentage Float
+  brokenGrainsPercentage  Float
+  foreignMatterPercentage Float
+  
+  status                  String    @default("PENDING") // APPROVED, REJECTED, ACCEPTED_WITH_DEDUCTION
+  priceDeductionPerMT     Float     @default(0)
+  
+  inspectorId             String
+  
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+}
+
+model WeighbridgeTransaction {
+  id                 String    @id @default(uuid())
+  gatePassId         String    @unique
+  gatePass           GatePass  @relation(fields: [gatePassId], references: [id])
+  
+  grossWeight        Float?    // in MT
+  tareWeight         Float?    // in MT
+  netWeight          Float?    // in MT
+  
+  grossTimestamp     DateTime?
+  tareTimestamp      DateTime?
+  
+  manualOverrideFlag Boolean   @default(false)
+  overrideReason     String?
+  approvedByUserId   String?
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
 model ProcurementBatch {
   id          String   @id @default(uuid())
   plantId     String
   plant       Plant    @relation(fields: [plantId], references: [id])
+  
   gatePassId  String   @unique
+  gatePass    GatePass @relation(fields: [gatePassId], references: [id])
+  
   grossWeight Float    // in MT
   tareWeight  Float    // in MT
   netWeight   Float    // in MT
   status      String   @default("PENDING") // PENDING, QC_APPROVED, QC_REJECTED
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

@@ -37,6 +37,7 @@ __decorate([
 ], PlantsController.prototype, "findAll", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -44,7 +45,6 @@ __decorate([
 ], PlantsController.prototype, "create", null);
 exports.PlantsController = PlantsController = __decorate([
     (0, common_1.Controller)('plants'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     __metadata("design:paramtypes", [plants_service_1.PlantsService])
 ], PlantsController);
 //# sourceMappingURL=plants.controller.js.map

@@ -105,4 +105,17 @@ export class AuthService {
       refreshToken: newRefreshToken,
     };
   }
+
+  async getPublicPlants() {
+    return this.prisma.plant.findMany({
+      select: {
+        id: true,
+        name: true,
+        code: true,
+      },
+      where: {
+        deletedAt: null
+      }
+    });
+  }
 }

@@ -4,20 +4,20 @@ export declare class PlantsController {
     constructor(plantsService: PlantsService);
     findAll(): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
         name: string;
         location: string | null;
         code: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
     }[]>;
     create(data: any): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
         name: string;
         location: string | null;
         code: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
     }>;
 }
