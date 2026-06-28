@@ -12,6 +12,10 @@ import { GatePassesList } from './pages/GatePassesList';
 import { Weighbridge } from './pages/Weighbridge';
 import { QualityControl } from './pages/QualityControl';
 import { PurchaseRegister } from './pages/PurchaseRegister';
+import MillingDashboard from './pages/MillingDashboard';
+import YieldAnalytics from './pages/YieldAnalytics';
+import InventoryMatrix from './pages/InventoryMatrix';
+import PlantTransfers from './pages/PlantTransfers';
 import { Toaster } from 'react-hot-toast';
 
 function App() {
@@ -34,6 +38,10 @@ function App() {
             <Route path="weighbridge" element={<Weighbridge />} />
             <Route path="quality-control" element={<QualityControl />} />
             <Route path="reports/purchase-register" element={<PurchaseRegister />} />
+            <Route path="milling" element={<MillingDashboard />} />
+            <Route path="yield" element={<YieldAnalytics />} />
+            <Route path="inventory" element={<InventoryMatrix />} />
+            <Route path="transfers" element={<PlantTransfers />} />
           </Route>
         </Route>
 

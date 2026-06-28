@@ -13,7 +13,6 @@ exports.DashboardService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 let DashboardService = class DashboardService {
-    prisma;
     constructor(prisma) {
         this.prisma = prisma;
     }
@@ -26,15 +25,18 @@ let DashboardService = class DashboardService {
             _sum: { netWeight: true },
             _count: { gatePassId: true },
         });
-        const inventoryAgg = await this.prisma.inventory.aggregate({
+        const inventoryAgg = await this.prisma.inventoryItem.aggregate({
             where: { plantId, itemType: 'PADDY' },
             _sum: { quantity: true },
+        });
+        const gatePassCount = await this.prisma.gatePass.count({
+            where: { plantId },
         });
         return {
             activeUsers: userCount,
             procurementMT: procurementAgg._sum.netWeight || 0,
             inventoryMT: inventoryAgg._sum.quantity || 0,
-            gatePasses: procurementAgg._count.gatePassId || 0,
+            gatePasses: gatePassCount,
         };
     }
 };

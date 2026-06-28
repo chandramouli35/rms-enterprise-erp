@@ -19,8 +19,6 @@ const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
 const plant_context_guard_1 = require("../common/guards/plant-context.guard");
 const prisma_service_1 = require("../prisma/prisma.service");
 let WeighbridgeController = class WeighbridgeController {
-    weighbridgeService;
-    prisma;
     constructor(weighbridgeService, prisma) {
         this.weighbridgeService = weighbridgeService;
         this.prisma = prisma;

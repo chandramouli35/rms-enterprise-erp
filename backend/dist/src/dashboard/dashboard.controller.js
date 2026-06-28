@@ -18,7 +18,6 @@ const dashboard_service_1 = require("./dashboard.service");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
 const plant_context_guard_1 = require("../common/guards/plant-context.guard");
 let DashboardController = class DashboardController {
-    dashboardService;
     constructor(dashboardService) {
         this.dashboardService = dashboardService;
     }

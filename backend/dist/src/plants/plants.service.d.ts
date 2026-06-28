@@ -5,12 +5,12 @@ export declare class PlantsService {
     findAll(page?: number, limit?: number, search?: string): Promise<{
         data: {
             id: string;
-            name: string;
-            location: string | null;
-            code: string;
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
+            name: string;
+            location: string | null;
+            code: string;
         }[];
         meta: {
             total: number;
@@ -21,11 +21,11 @@ export declare class PlantsService {
     }>;
     create(data: any): Promise<{
         id: string;
-        name: string;
-        location: string | null;
-        code: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        name: string;
+        location: string | null;
+        code: string;
     }>;
 }

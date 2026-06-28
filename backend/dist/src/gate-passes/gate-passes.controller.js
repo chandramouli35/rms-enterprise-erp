@@ -18,7 +18,6 @@ const gate_passes_service_1 = require("./gate-passes.service");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
 const plant_context_guard_1 = require("../common/guards/plant-context.guard");
 let GatePassesController = class GatePassesController {
-    gatePassesService;
     constructor(gatePassesService) {
         this.gatePassesService = gatePassesService;
     }

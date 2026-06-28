@@ -102,18 +102,21 @@ export const Weighbridge: React.FC = () => {
         <div className="lg:col-span-1">
           <div className="glass-panel p-6 rounded-2xl flex flex-col items-center justify-center space-y-4 border-amber-500/30">
             <h3 className="text-gray-400 font-semibold tracking-wider">LIVE INDICATOR (MT)</h3>
-            <div className="bg-black border-[4px] border-gray-800 rounded-xl p-6 w-full flex justify-center shadow-inner">
-              <span className="font-mono text-5xl md:text-6xl text-red-500 tracking-widest font-bold" style={{ textShadow: '0 0 10px rgba(239,68,68,0.8)' }}>
+            <div className="bg-black border-[4px] border-gray-800 rounded-xl w-full flex items-center justify-center min-h-[160px] shadow-inner relative overflow-hidden px-4">
+              <span className="font-mono text-4xl lg:text-5xl text-red-500 tracking-wider font-bold z-10 py-4 whitespace-nowrap" style={{ textShadow: '0 0 10px rgba(239,68,68,0.8)' }}>
                 {(currentWeight > 0 ? currentWeight : 15.45 + currentWeight).toFixed(3)}
               </span>
+              {/* Optional: Add a subtle grid or scanline effect to the LED background here if you like */}
             </div>
             {isManualOverride && (
-              <div className="w-full mt-4">
+              <div className="w-full pt-2">
+                <label className="text-xs text-gray-500 mb-1 block">MANUAL INPUT (MT)</label>
                 <input
                   type="number"
-                  className="w-full bg-[#1a1a1a] border border-red-500/50 text-red-500 font-mono text-center text-2xl py-2 rounded"
+                  className="w-full bg-[#111] border border-red-500/50 text-red-500 font-mono text-center text-3xl py-3 rounded-lg shadow-[0_0_15px_rgba(239,68,68,0.2)] focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all"
                   value={currentWeight > 0 ? currentWeight.toFixed(3) : (15.45 + currentWeight).toFixed(3)}
-                  onChange={(e) => setCurrentWeight(parseFloat(e.target.value))}
+                  onChange={(e) => setCurrentWeight(parseFloat(e.target.value) || 0)}
+                  step="0.001"
                 />
               </div>
             )}

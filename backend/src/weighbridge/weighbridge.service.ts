@@ -97,13 +97,14 @@ export class WeighbridgeService {
           }
         }),
         // Update or create Inventory
-        this.prisma.inventory.upsert({
+        this.prisma.inventoryItem.upsert({
           where: {
             plantId_itemType: { plantId, itemType: 'PADDY' }
           },
           create: {
             plantId,
             itemType: 'PADDY',
+            itemCategory: 'RAW_MATERIAL',
             quantity: netWeight
           },
           update: {

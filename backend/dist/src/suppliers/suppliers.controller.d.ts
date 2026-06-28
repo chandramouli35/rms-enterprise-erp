@@ -5,17 +5,17 @@ export declare class SuppliersController {
     private getPlantId;
     findAll(req: any, page?: string, limit?: string, search?: string): Promise<{
         data: {
-            id: string;
-            name: string;
-            code: string;
-            phone: string | null;
-            email: string | null;
-            address: string | null;
-            gstNumber: string | null;
             plantId: string;
+            id: string;
+            email: string | null;
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
+            name: string;
+            code: string;
+            phone: string | null;
+            address: string | null;
+            gstNumber: string | null;
         }[];
         meta: {
             total: number;
@@ -25,42 +25,42 @@ export declare class SuppliersController {
         };
     }>;
     create(data: any, req: any): Promise<{
-        id: string;
-        name: string;
-        code: string;
-        phone: string | null;
-        email: string | null;
-        address: string | null;
-        gstNumber: string | null;
         plantId: string;
+        id: string;
+        email: string | null;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        name: string;
+        code: string;
+        phone: string | null;
+        address: string | null;
+        gstNumber: string | null;
     }>;
     update(id: string, data: any, req: any): Promise<{
-        id: string;
-        name: string;
-        code: string;
-        phone: string | null;
-        email: string | null;
-        address: string | null;
-        gstNumber: string | null;
         plantId: string;
+        id: string;
+        email: string | null;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        name: string;
+        code: string;
+        phone: string | null;
+        address: string | null;
+        gstNumber: string | null;
     }>;
     remove(id: string, req: any): Promise<{
-        id: string;
-        name: string;
-        code: string;
-        phone: string | null;
-        email: string | null;
-        address: string | null;
-        gstNumber: string | null;
         plantId: string;
+        id: string;
+        email: string | null;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        name: string;
+        code: string;
+        phone: string | null;
+        address: string | null;
+        gstNumber: string | null;
     }>;
 }

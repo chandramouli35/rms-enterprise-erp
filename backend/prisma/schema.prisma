@@ -17,9 +17,12 @@ model Plant {
   // Relations
   users        UserPlantAccess[]
   procurements ProcurementBatch[]
-  inventories  Inventory[]
+  stockItems   InventoryItem[]
   suppliers    Supplier[]
   gatePasses   GatePass[]
+  batches      Batch[]
+  sourceTransfers PlantTransfer[] @relation("SourceTransfers")
+  targetTransfers PlantTransfer[] @relation("TargetTransfers")
   
   // Tracking
   createdAt   DateTime  @default(now())
@@ -216,14 +219,123 @@ model ProcurementBatch {
   @@index([plantId])
 }
 
-model Inventory {
-  id          String   @id @default(uuid())
-  plantId     String
-  plant       Plant    @relation(fields: [plantId], references: [id])
-  itemType    String   // PADDY, HEAD_RICE, BROKEN_RICE, BRAN, HUSK
-  quantity    Float    // in MT
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+// -----------------------------------------------------------------------------
+// Production, Yield & Inventory Management (Milestone 3)
+// -----------------------------------------------------------------------------
+
+enum MillingStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+}
+
+enum TransferStatus {
+  INITIATED
+  IN_TRANSIT
+  RECEIVED
+}
+
+enum TransactionType {
+  IN
+  OUT
+  ADJUSTMENT
+  TRANSFER
+}
+
+enum ItemCategory {
+  RAW_MATERIAL
+  FINISHED_GOOD
+  CONSUMABLE
+}
+
+enum LossType {
+  MOISTURE
+  HANDLING
+  CLEANING
+}
+
+model Batch {
+  id              String         @id @default(uuid())
+  batchNumber     String         @unique
+  plantId         String
+  plant           Plant          @relation(fields: [plantId], references: [id])
+  rawMaterialQty  Float          // Total input in Metric Tons (MT)
+  status          MillingStatus  @default(PENDING)
+  millingProcess  MillingProcess?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model MillingProcess {
+  id              String         @id @default(uuid())
+  batchId         String         @unique
+  batch           Batch          @relation(fields: [batchId], references: [id])
+  status          MillingStatus  @default(PENDING)
+  startTime       DateTime?
+  endTime         DateTime?
+  productionLogs  ProductionLog[]
+  processLosses   ProcessLoss[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model ProductionLog {
+  id               String         @id @default(uuid())
+  millingProcessId String
+  millingProcess   MillingProcess @relation(fields: [millingProcessId], references: [id])
+  itemType         String          // e.g., HEAD_RICE, BROKEN_RICE, BRAN
+  quantity         Float          // MT produced
+  shift            String?        // Shift 1, Shift 2
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model ProcessLoss {
+  id               String         @id @default(uuid())
+  millingProcessId String
+  millingProcess   MillingProcess @relation(fields: [millingProcessId], references: [id])
+  lossType         LossType
+  quantity         Float          // MT lost
+  createdAt        DateTime       @default(now())
+}
+
+model InventoryItem {
+  id           String         @id @default(uuid())
+  plantId      String
+  plant        Plant          @relation(fields: [plantId], references: [id])
+  itemCategory ItemCategory
+  itemType     String         // e.g., PADDY, HEAD_RICE, BROKEN_RICE, PACKAGING
+  quantity     Float          // In MT or Units
+  stockLedgers StockLedger[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   @@unique([plantId, itemType])
+  @@map("Inventory") // Keeps underlying data table aligned with previous milestones
+}
+
+model StockLedger {
+  id              String          @id @default(uuid())
+  inventoryItemId String
+  inventoryItem   InventoryItem   @relation(fields: [inventoryItemId], references: [id])
+  transactionType TransactionType
+  quantity        Float           // Positive for additions, negative for subtractions
+  referenceId     String?         // ID of GatePass, Batch, or Transfer triggering this
+  remarks         String?
+  createdAt       DateTime        @default(now())
+}
+
+model PlantTransfer {
+  id            String         @id @default(uuid())
+  sourcePlantId String
+  sourcePlant   Plant          @relation("SourceTransfers", fields: [sourcePlantId], references: [id])
+  targetPlantId String
+  targetPlant   Plant          @relation("TargetTransfers", fields: [targetPlantId], references: [id])
+  itemType      String
+  quantity      Float
+  status        TransferStatus @default(INITIATED)
+  initiatedBy   String
+  receivedBy    String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }

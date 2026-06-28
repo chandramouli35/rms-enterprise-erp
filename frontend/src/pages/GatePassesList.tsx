@@ -57,7 +57,7 @@ export const GatePassesList: React.FC = () => {
   // Honeywell Scanner Listener
   useEffect(() => {
     let buffer = '';
-    let timeout: NodeJS.Timeout;
+    let timeout: ReturnType<typeof setTimeout>;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if typing in an input or textarea

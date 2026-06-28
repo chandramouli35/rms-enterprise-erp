@@ -83,7 +83,7 @@ export const PurchaseRegister: React.FC = () => {
 
     const csvContent = "data:text/csv;charset=utf-8," 
       + headers.join(",") + "\n"
-      + rows.map(e => e.join(",")).join("\n");
+      + rows.map((e: string[]) => e.join(",")).join("\n");
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");

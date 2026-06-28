@@ -4,20 +4,24 @@ export declare class GatePassesService {
     constructor(prisma: PrismaService);
     create(plantId: string, userId: string, data: any): Promise<({
         supplier: {
-            name: string;
-            id: string;
             plantId: string;
+            id: string;
+            email: string | null;
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
+            name: string;
             code: string;
             phone: string | null;
-            email: string | null;
             address: string | null;
             gstNumber: string | null;
         } | null;
     } & {
+        plantId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         passNumber: string;
         vehicleNumber: string;
         driverName: string | null;
@@ -26,29 +30,29 @@ export declare class GatePassesService {
         supplierId: string | null;
         estimatedBags: number | null;
         status: string;
-        plantId: string;
         createdByUserId: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
     }) | undefined>;
     findAll(plantId: string, page?: number, limit?: number, search?: string): Promise<{
         data: ({
             supplier: {
-                name: string;
-                id: string;
                 plantId: string;
+                id: string;
+                email: string | null;
                 createdAt: Date;
                 updatedAt: Date;
                 deletedAt: Date | null;
+                name: string;
                 code: string;
                 phone: string | null;
-                email: string | null;
                 address: string | null;
                 gstNumber: string | null;
             } | null;
         } & {
+            plantId: string;
             id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            deletedAt: Date | null;
             passNumber: string;
             vehicleNumber: string;
             driverName: string | null;
@@ -57,11 +61,7 @@ export declare class GatePassesService {
             supplierId: string | null;
             estimatedBags: number | null;
             status: string;
-            plantId: string;
             createdByUserId: string;
-            createdAt: Date;
-            updatedAt: Date;
-            deletedAt: Date | null;
         })[];
         meta: {
             total: number;
@@ -72,24 +72,24 @@ export declare class GatePassesService {
     }>;
     scanBarcode(plantId: string, barcode: string): Promise<{
         supplier: {
-            name: string;
-            id: string;
             plantId: string;
+            id: string;
+            email: string | null;
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
+            name: string;
             code: string;
             phone: string | null;
-            email: string | null;
             address: string | null;
             gstNumber: string | null;
         } | null;
         qualityCheck: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             gatePassId: string;
+            status: string;
             moisturePercentage: number;
             discolorationPercentage: number;
             brokenGrainsPercentage: number;
@@ -101,18 +101,22 @@ export declare class GatePassesService {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            netWeight: number | null;
             gatePassId: string;
             grossWeight: number | null;
             tareWeight: number | null;
-            netWeight: number | null;
+            overrideReason: string | null;
             grossTimestamp: Date | null;
             tareTimestamp: Date | null;
             manualOverrideFlag: boolean;
-            overrideReason: string | null;
             approvedByUserId: string | null;
         } | null;
     } & {
+        plantId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         passNumber: string;
         vehicleNumber: string;
         driverName: string | null;
@@ -121,10 +125,6 @@ export declare class GatePassesService {
         supplierId: string | null;
         estimatedBags: number | null;
         status: string;
-        plantId: string;
         createdByUserId: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
     }>;
 }

@@ -18,16 +18,21 @@ export class DashboardService {
     });
 
     // Mock aggregation for Inventory
-    const inventoryAgg = await this.prisma.inventory.aggregate({
+    const inventoryAgg = await this.prisma.inventoryItem.aggregate({
       where: { plantId, itemType: 'PADDY' },
       _sum: { quantity: true },
+    });
+
+    // Count Gate Passes explicitly
+    const gatePassCount = await this.prisma.gatePass.count({
+      where: { plantId },
     });
 
     return {
       activeUsers: userCount,
       procurementMT: procurementAgg._sum.netWeight || 0,
       inventoryMT: inventoryAgg._sum.quantity || 0,
-      gatePasses: procurementAgg._count.gatePassId || 0,
+      gatePasses: gatePassCount,
     };
   }
 }

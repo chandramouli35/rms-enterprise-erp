@@ -13,7 +13,6 @@ exports.WeighbridgeService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 let WeighbridgeService = class WeighbridgeService {
-    prisma;
     constructor(prisma) {
         this.prisma = prisma;
     }
@@ -101,13 +100,14 @@ let WeighbridgeService = class WeighbridgeService {
                         status: 'QC_APPROVED',
                     }
                 }),
-                this.prisma.inventory.upsert({
+                this.prisma.inventoryItem.upsert({
                     where: {
                         plantId_itemType: { plantId, itemType: 'PADDY' }
                     },
                     create: {
                         plantId,
                         itemType: 'PADDY',
+                        itemCategory: 'RAW_MATERIAL',
                         quantity: netWeight
                     },
                     update: {

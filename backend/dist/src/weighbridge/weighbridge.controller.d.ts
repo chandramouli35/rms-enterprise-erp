@@ -28,7 +28,6 @@ export declare class WeighbridgeController {
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
-        status: string;
         passNumber: string;
         vehicleNumber: string;
         driverName: string | null;
@@ -36,6 +35,7 @@ export declare class WeighbridgeController {
         source: string;
         supplierId: string | null;
         estimatedBags: number | null;
+        status: string;
         createdByUserId: string;
     })[]>;
 }

@@ -17,7 +17,6 @@ const common_1 = require("@nestjs/common");
 const plants_service_1 = require("./plants.service");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
 let PlantsController = class PlantsController {
-    plantsService;
     constructor(plantsService) {
         this.plantsService = plantsService;
     }
