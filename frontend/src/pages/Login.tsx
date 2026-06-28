@@ -142,7 +142,7 @@ export const Login: React.FC = () => {
                   onChange={(e) => setPlantId(e.target.value)}
                 >
                   <option value="" disabled>Select Plant / Branch</option>
-                  {plants.map(p => (
+                  {Array.isArray(plants) && plants.map(p => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>

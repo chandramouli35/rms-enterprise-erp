@@ -5,7 +5,7 @@ import { DashboardShell } from './components/DashboardShell';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 import { Dashboard } from './pages/Dashboard';
-import { UsersList } from './pages/UsersList';
+import { UsersAndRoles } from './pages/UsersAndRoles';
 import { PlantsList } from './pages/PlantsList';
 
 function App() {
@@ -19,7 +19,7 @@ function App() {
           <Route path="/" element={<DashboardShell />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
-            <Route path="users" element={<UsersList />} />
+            <Route path="users" element={<UsersAndRoles />} />
             <Route path="plants" element={<PlantsList />} />
           </Route>
         </Route>

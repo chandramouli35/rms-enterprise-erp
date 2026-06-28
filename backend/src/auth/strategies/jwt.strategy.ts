@@ -19,7 +19,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       include: {
         role: {
           include: {
-            permissions: { include: { permission: true } },
+            modulePermissions: true,
           },
         },
       },

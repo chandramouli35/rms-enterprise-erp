@@ -1,19 +1,53 @@
-import { Controller, Get, Req, UseGuards, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PlantContextGuard } from '../common/guards/plant-context.guard';
 
+@UseGuards(JwtAuthGuard)
 @Controller('dashboard')
-@UseGuards(JwtAuthGuard, PlantContextGuard)
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
+  // The legacy endpoint to keep compatibility with old frontend (optional)
   @Get('summary')
-  async getSummary(@Req() req: any) {
-    const plantId = req.headers['x-plant-id'];
-    if (!plantId) {
-      throw new UnauthorizedException('Plant context missing');
-    }
-    return this.dashboardService.getSummary(plantId);
+  async getSummary() {
+    // Assuming plant 1 for now if no param provided in old frontend
+    const plants = await this.dashboardService['prisma'].plant.findFirst();
+    if(plants) return this.dashboardService.getMetrics(plants.id);
+    return { activeUsers: 0, procurementMT: 0, inventoryMT: 0, gatePasses: 0 };
+  }
+
+  @Get('metrics/:plantId')
+  getMetrics(@Param('plantId') plantId: string, @Query('filter') filter?: string) {
+    return this.dashboardService.getMetrics(plantId, filter);
+  }
+
+  @Get('procurement-chart')
+  getProcurementChart(@Query('filter') filter?: string) {
+    return this.dashboardService.getProcurementChart(filter);
+  }
+
+  @Get('yield-trend/:plantId')
+  getYieldTrend(@Param('plantId') plantId: string, @Query('filter') filter?: string) {
+    return this.dashboardService.getYieldTrend(plantId, filter);
+  }
+
+  @Get('stock-donut/:plantId')
+  getStockDonut(@Param('plantId') plantId: string, @Query('filter') filter?: string) {
+    return this.dashboardService.getStockDonut(plantId, filter);
+  }
+
+  @Get('recent-activities/:plantId')
+  getRecentActivities(@Param('plantId') plantId: string) {
+    return this.dashboardService.getRecentActivities(plantId);
+  }
+
+  @Get('alerts/:plantId')
+  getAlerts(@Param('plantId') plantId: string) {
+    return this.dashboardService.getAlerts(plantId);
+  }
+
+  @Get('today-summary/:plantId')
+  getTodaySummary(@Param('plantId') plantId: string) {
+    return this.dashboardService.getTodaySummary(plantId);
   }
 }

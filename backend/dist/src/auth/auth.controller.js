@@ -18,7 +18,6 @@ const auth_service_1 = require("./auth.service");
 const login_dto_1 = require("./dto/login.dto");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
 let AuthController = class AuthController {
-    authService;
     constructor(authService) {
         this.authService = authService;
     }

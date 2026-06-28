@@ -18,6 +18,10 @@ model Plant {
   users       UserPlantAccess[]
   procurements ProcurementBatch[]
   inventories  Inventory[]
+  stockLedger  StockLedger[]
+  productionLogs ProductionLog[]
+  gatePasses   GatePass[]
+  millingProcesses MillingProcess[]
   
   // Tracking
   createdAt   DateTime  @default(now())
@@ -33,8 +37,8 @@ model Role {
   description String?
   
   // Relations
-  users       User[]
-  permissions RolePermission[]
+  users             User[]
+  modulePermissions ModulePermission[]
   
   // Tracking
   createdAt   DateTime  @default(now())
@@ -42,30 +46,23 @@ model Role {
   deletedAt   DateTime?
 }
 
-model Permission {
+model ModulePermission {
   id          String    @id @default(uuid())
-  action      String    @unique // e.g., 'read:plants', 'create:users'
-  description String?
+  roleId      String
+  moduleName  String    // e.g., 'Dashboard', 'Procurement', 'Inventory'
+  canView     Boolean   @default(false)
+  canAdd      Boolean   @default(false)
+  canEdit     Boolean   @default(false)
+  canDelete   Boolean   @default(false)
+  canApprove  Boolean   @default(false)
   
-  // Relations
-  roles       RolePermission[]
-
-  // Tracking
+  role        Role      @relation(fields: [roleId], references: [id])
+  
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
-}
 
-model RolePermission {
-  roleId       String
-  permissionId String
-  
-  role         Role       @relation(fields: [roleId], references: [id])
-  permission   Permission @relation(fields: [permissionId], references: [id])
-
-  @@id([roleId, permissionId])
+  @@unique([roleId, moduleName])
   @@index([roleId])
-  @@index([permissionId])
 }
 
 model User {
@@ -74,13 +71,16 @@ model User {
   email        String    @unique
   passwordHash String
   refreshToken String?
+  isActive     Boolean   @default(true) // Added for dynamic active/inactive toggles
   
   // Relations
   roleId       String
   role         Role      @relation(fields: [roleId], references: [id])
   plantAccess  UserPlantAccess[]
+  auditLogs    SystemAuditLog[]
 
   // Tracking
+  lastLogin    DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
@@ -102,8 +102,22 @@ model UserPlantAccess {
   @@index([plantId])
 }
 
+model SystemAuditLog {
+  id          String   @id @default(uuid())
+  userId      String
+  action      String   // e.g., 'CREATED_USER', 'UPDATED_PERMISSIONS'
+  module      String   // e.g., 'Users & Roles', 'Dashboard'
+  details     String?
+  createdAt   DateTime @default(now())
+  
+  user        User     @relation(fields: [userId], references: [id])
+  
+  @@index([userId])
+  @@index([createdAt])
+}
+
 // -----------------------------------------------------------------------------
-// Procurement & Inventory
+// Operations & Inventory
 // -----------------------------------------------------------------------------
 
 model ProcurementBatch {
@@ -131,4 +145,57 @@ model Inventory {
   updatedAt   DateTime @updatedAt
 
   @@unique([plantId, itemType])
+}
+
+model StockLedger {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  transaction String   // IN, OUT
+  itemType    String   // PADDY, RICE, etc.
+  quantity    Float    // in MT
+  reference   String?  // e.g. batch id, dispatch id
+  createdAt   DateTime @default(now())
+  
+  @@index([plantId])
+  @@index([createdAt])
+}
+
+model ProductionLog {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  batchId     String
+  itemType    String   // HEAD_RICE, BRAN, HUSK
+  quantity    Float    // in MT
+  createdAt   DateTime @default(now())
+  
+  @@index([plantId])
+  @@index([createdAt])
+}
+
+model MillingProcess {
+  id             String   @id @default(uuid())
+  plantId        String
+  plant          Plant    @relation(fields: [plantId], references: [id])
+  batchId        String
+  rawMaterialQty Float    // Input Paddy in MT
+  outputQty      Float    // Output Rice in MT
+  yieldPercent   Float
+  createdAt      DateTime @default(now())
+  
+  @@index([plantId])
+  @@index([createdAt])
+}
+
+model GatePass {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  passType    String   // INWARD, OUTWARD
+  vehicleNo   String
+  status      String   @default("ACTIVE") // ACTIVE, COMPLETED
+  createdAt   DateTime @default(now())
+  
+  @@index([plantId])
 }

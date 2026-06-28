@@ -15,12 +15,13 @@ const auth_module_1 = require("./auth/auth.module");
 const plants_module_1 = require("./plants/plants.module");
 const dashboard_module_1 = require("./dashboard/dashboard.module");
 const users_module_1 = require("./users/users.module");
+const users_roles_module_1 = require("./users-roles/users-roles.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule, auth_module_1.AuthModule, plants_module_1.PlantsModule, dashboard_module_1.DashboardModule, users_module_1.UsersModule],
+        imports: [prisma_module_1.PrismaModule, auth_module_1.AuthModule, plants_module_1.PlantsModule, dashboard_module_1.DashboardModule, users_module_1.UsersModule, users_roles_module_1.UsersRolesModule],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],
     })

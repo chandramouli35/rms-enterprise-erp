@@ -24,7 +24,7 @@ export class AuthService {
       include: {
         role: {
           include: {
-            permissions: { include: { permission: true } },
+            modulePermissions: true,
           },
         },
         plantAccess: true,
@@ -71,7 +71,7 @@ export class AuthService {
         username: user.username,
         email: user.email,
         role: user.role.name,
-        permissions: user.role.permissions.map(p => p.permission.action),
+        permissions: user.role.modulePermissions.map(p => p.moduleName),
       }
     };
   }

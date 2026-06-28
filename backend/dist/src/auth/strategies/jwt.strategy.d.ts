@@ -8,19 +8,18 @@ export declare class JwtStrategy extends JwtStrategy_base {
     constructor(prisma: PrismaService);
     validate(payload: any): Promise<({
         role: {
-            permissions: ({
-                permission: {
-                    id: string;
-                    createdAt: Date;
-                    updatedAt: Date;
-                    deletedAt: Date | null;
-                    description: string | null;
-                    action: string;
-                };
-            } & {
+            modulePermissions: {
+                id: string;
                 roleId: string;
-                permissionId: string;
-            })[];
+                createdAt: Date;
+                updatedAt: Date;
+                moduleName: string;
+                canView: boolean;
+                canAdd: boolean;
+                canEdit: boolean;
+                canDelete: boolean;
+                canApprove: boolean;
+            }[];
         } & {
             id: string;
             createdAt: Date;
@@ -30,12 +29,14 @@ export declare class JwtStrategy extends JwtStrategy_base {
             description: string | null;
         };
     } & {
-        username: string;
         id: string;
+        username: string;
         email: string;
         passwordHash: string;
         refreshToken: string | null;
+        isActive: boolean;
         roleId: string;
+        lastLogin: Date | null;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;

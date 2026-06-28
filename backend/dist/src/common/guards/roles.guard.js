@@ -15,7 +15,6 @@ const core_1 = require("@nestjs/core");
 const roles_decorator_1 = require("../decorators/roles.decorator");
 const permissions_decorator_1 = require("../decorators/permissions.decorator");
 let RolesGuard = class RolesGuard {
-    reflector;
     constructor(reflector) {
         this.reflector = reflector;
     }

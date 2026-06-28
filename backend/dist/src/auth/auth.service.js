@@ -48,8 +48,6 @@ const jwt_1 = require("@nestjs/jwt");
 const prisma_service_1 = require("../prisma/prisma.service");
 const bcrypt = __importStar(require("bcrypt"));
 let AuthService = class AuthService {
-    prisma;
-    jwtService;
     constructor(prisma, jwtService) {
         this.prisma = prisma;
         this.jwtService = jwtService;
@@ -66,7 +64,7 @@ let AuthService = class AuthService {
             include: {
                 role: {
                     include: {
-                        permissions: { include: { permission: true } },
+                        modulePermissions: true,
                     },
                 },
                 plantAccess: true,
@@ -105,7 +103,7 @@ let AuthService = class AuthService {
                 username: user.username,
                 email: user.email,
                 role: user.role.name,
-                permissions: user.role.permissions.map(p => p.permission.action),
+                permissions: user.role.modulePermissions.map(p => p.moduleName),
             }
         };
     }

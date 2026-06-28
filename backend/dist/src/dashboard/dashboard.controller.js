@@ -16,31 +16,100 @@ exports.DashboardController = void 0;
 const common_1 = require("@nestjs/common");
 const dashboard_service_1 = require("./dashboard.service");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
-const plant_context_guard_1 = require("../common/guards/plant-context.guard");
 let DashboardController = class DashboardController {
-    dashboardService;
     constructor(dashboardService) {
         this.dashboardService = dashboardService;
     }
-    async getSummary(req) {
-        const plantId = req.headers['x-plant-id'];
-        if (!plantId) {
-            throw new common_1.UnauthorizedException('Plant context missing');
-        }
-        return this.dashboardService.getSummary(plantId);
+    async getSummary() {
+        const plants = await this.dashboardService['prisma'].plant.findFirst();
+        if (plants)
+            return this.dashboardService.getMetrics(plants.id);
+        return { activeUsers: 0, procurementMT: 0, inventoryMT: 0, gatePasses: 0 };
+    }
+    getMetrics(plantId, filter) {
+        return this.dashboardService.getMetrics(plantId, filter);
+    }
+    getProcurementChart(filter) {
+        return this.dashboardService.getProcurementChart(filter);
+    }
+    getYieldTrend(plantId, filter) {
+        return this.dashboardService.getYieldTrend(plantId, filter);
+    }
+    getStockDonut(plantId, filter) {
+        return this.dashboardService.getStockDonut(plantId, filter);
+    }
+    getRecentActivities(plantId) {
+        return this.dashboardService.getRecentActivities(plantId);
+    }
+    getAlerts(plantId) {
+        return this.dashboardService.getAlerts(plantId);
+    }
+    getTodaySummary(plantId) {
+        return this.dashboardService.getTodaySummary(plantId);
     }
 };
 exports.DashboardController = DashboardController;
 __decorate([
     (0, common_1.Get)('summary'),
-    __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], DashboardController.prototype, "getSummary", null);
+__decorate([
+    (0, common_1.Get)('metrics/:plantId'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __param(1, (0, common_1.Query)('filter')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], DashboardController.prototype, "getMetrics", null);
+__decorate([
+    (0, common_1.Get)('procurement-chart'),
+    __param(0, (0, common_1.Query)('filter')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], DashboardController.prototype, "getProcurementChart", null);
+__decorate([
+    (0, common_1.Get)('yield-trend/:plantId'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __param(1, (0, common_1.Query)('filter')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], DashboardController.prototype, "getYieldTrend", null);
+__decorate([
+    (0, common_1.Get)('stock-donut/:plantId'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __param(1, (0, common_1.Query)('filter')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], DashboardController.prototype, "getStockDonut", null);
+__decorate([
+    (0, common_1.Get)('recent-activities/:plantId'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], DashboardController.prototype, "getRecentActivities", null);
+__decorate([
+    (0, common_1.Get)('alerts/:plantId'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], DashboardController.prototype, "getAlerts", null);
+__decorate([
+    (0, common_1.Get)('today-summary/:plantId'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], DashboardController.prototype, "getTodaySummary", null);
 exports.DashboardController = DashboardController = __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('dashboard'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, plant_context_guard_1.PlantContextGuard),
     __metadata("design:paramtypes", [dashboard_service_1.DashboardService])
 ], DashboardController);
 //# sourceMappingURL=dashboard.controller.js.map
