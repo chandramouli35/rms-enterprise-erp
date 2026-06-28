@@ -7,6 +7,7 @@ export const Weighbridge: React.FC = () => {
   const activePlantId = usePlantStore(state => state.activePlant?.id);
   const [activeQueue, setActiveQueue] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   
   // LED Scoreboard state
   const [currentWeight, setCurrentWeight] = useState(0);
@@ -75,12 +76,24 @@ export const Weighbridge: React.FC = () => {
         <div>
           <h2 className="text-2xl font-bold text-gray-100">Live Weighbridge Control</h2>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-4">
+          <div className="relative w-64">
+            <svg className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            <input
+              type="text"
+              placeholder="Search Pass No, Vehicle..."
+              className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-amber-500 text-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center space-x-3">
           <span className="text-sm text-gray-400">Manual Override</span>
           <label className="relative inline-flex items-center cursor-pointer">
             <input type="checkbox" className="sr-only peer" checked={isManualOverride} onChange={(e) => setIsManualOverride(e.target.checked)} />
             <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
           </label>
+          </div>
         </div>
       </div>
 
@@ -126,10 +139,18 @@ export const Weighbridge: React.FC = () => {
                 <tbody>
                   {loading ? (
                     <tr><td colSpan={4} className="p-4 text-center text-gray-400">Loading queue...</td></tr>
-                  ) : activeQueue.length === 0 ? (
-                    <tr><td colSpan={4} className="p-4 text-center text-gray-400">No active vehicles</td></tr>
+                  ) : activeQueue.filter(pass => {
+                      if (!searchTerm) return true;
+                      const term = searchTerm.toLowerCase();
+                      return pass.passNumber?.toLowerCase().includes(term) || pass.vehicleNumber?.toLowerCase().includes(term);
+                    }).length === 0 ? (
+                    <tr><td colSpan={4} className="p-4 text-center text-gray-400">No matching vehicles found</td></tr>
                   ) : (
-                    activeQueue.map((pass) => (
+                    activeQueue.filter(pass => {
+                      if (!searchTerm) return true;
+                      const term = searchTerm.toLowerCase();
+                      return pass.passNumber?.toLowerCase().includes(term) || pass.vehicleNumber?.toLowerCase().includes(term);
+                    }).map((pass) => (
                       <tr key={pass.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                         <td className="p-4 font-mono text-amber-500">{pass.passNumber}</td>
                         <td className="p-4 font-bold text-gray-200">{pass.vehicleNumber}</td>

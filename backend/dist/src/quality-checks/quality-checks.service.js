@@ -24,6 +24,9 @@ let QualityChecksService = class QualityChecksService {
         if (!gatePass) {
             throw new common_1.NotFoundException('Gate Pass not found');
         }
+        if (gatePass.status !== 'GROSS_WEIGHED') {
+            throw new common_1.BadRequestException('Vehicle must complete Gross Weighing before Quality Check');
+        }
         const existingQc = await this.prisma.qualityCheck.findUnique({
             where: { gatePassId: data.gatePassId }
         });

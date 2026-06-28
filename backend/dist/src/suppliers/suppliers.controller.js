@@ -28,8 +28,10 @@ let SuppliersController = class SuppliersController {
             throw new common_1.UnauthorizedException('Plant context missing');
         return plantId;
     }
-    async findAll(req) {
-        return this.suppliersService.findAll(this.getPlantId(req));
+    async findAll(req, page, limit, search) {
+        const pageNum = parseInt(page || '1', 10);
+        const limitNum = parseInt(limit || '10', 10);
+        return this.suppliersService.findAll(this.getPlantId(req), pageNum, limitNum, search);
     }
     async create(data, req) {
         return this.suppliersService.create(this.getPlantId(req), data);
@@ -45,8 +47,11 @@ exports.SuppliersController = SuppliersController;
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('search')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String, String, String]),
     __metadata("design:returntype", Promise)
 ], SuppliersController.prototype, "findAll", null);
 __decorate([

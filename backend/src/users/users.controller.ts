@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Req, UseGuards, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, UseGuards, UnauthorizedException, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PlantContextGuard } from '../common/guards/plant-context.guard';
@@ -9,12 +9,14 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  async findAll(@Req() req: any) {
+  async findAll(@Req() req: any, @Query('page') page?: string, @Query('limit') limit?: string, @Query('search') search?: string, @Query('role') role?: string) {
     const plantId = req.headers['x-plant-id'];
     if (!plantId) {
       throw new UnauthorizedException('Plant context missing');
     }
-    return this.usersService.findAll(plantId);
+    const pageNum = parseInt(page || '1', 10);
+    const limitNum = parseInt(limit || '10', 10);
+    return this.usersService.findAll(plantId, pageNum, limitNum, search, role);
   }
 
   @Post()

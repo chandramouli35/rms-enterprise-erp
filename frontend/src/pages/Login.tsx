@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { usePlantStore } from '../store/plantStore';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { toast } from 'react-hot-toast';
 
 const API_URL = import.meta.env.VITE_RMS_BACKEND_URL || 'http://localhost:3000';
 
@@ -34,6 +35,13 @@ export const Login: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Strict validation: Require plant selection unless it's the super admin
+    if (!plantId && username !== 'admin@ricefield.com') {
+      setError('Please select a Plant / Branch to continue.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -42,10 +50,16 @@ export const Login: React.FC = () => {
       
       setAuth(user, accessToken);
       
+      let selectedPlant = null;
       if (plantId) {
-        const selected = plants.find(p => p.id === plantId);
-        if (selected) setActivePlant(selected);
+        selectedPlant = plants.find(p => p.id === plantId);
+      } else if (user.role === 'SUPER_ADMIN' || username === 'admin@ricefield.com') {
+        // Default to HQ for Admin if left blank
+        selectedPlant = plants.find(p => p.name === 'Main Plant (HQ)') || plants[0];
       }
+
+      if (selectedPlant) setActivePlant(selectedPlant);
+      
       navigate('/dashboard');
       
     } catch (err: any) {
@@ -210,7 +224,7 @@ export const Login: React.FC = () => {
                 <input type="checkbox" className="rounded bg-[#111] border-white/10 text-amber-500 focus:ring-amber-500 w-4 h-4" />
                 <span className="text-sm text-gray-400">Remember Me</span>
               </label>
-              <a href="#" className="text-sm text-amber-500 hover:text-amber-400 transition-colors">Forgot Password?</a>
+              {/*<a href="#" className="text-sm text-amber-500 hover:text-amber-400 transition-colors">Forgot Password?</a>*/}
             </div>
 
             <button
@@ -229,6 +243,7 @@ export const Login: React.FC = () => {
             
             <button
               type="button"
+              onClick={() => toast.error('Windows Active Directory Single Sign-On (SSO) is disabled for this plant context.')}
               className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium rounded-lg transition-all flex items-center justify-center gap-3"
             >
               <svg className="w-5 h-5 text-[#00a4ef]" viewBox="0 0 24 24" fill="currentColor"><path d="M0 0v11.408h11.408V0H0zm12.592 0v11.408H24V0H12.592zM0 12.592V24h11.408V12.592H0zm12.592 0V24H24V12.592H12.592z"/></svg>

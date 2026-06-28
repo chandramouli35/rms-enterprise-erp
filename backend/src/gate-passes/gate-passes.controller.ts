@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Req, UseGuards, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, UseGuards, UnauthorizedException, Query } from '@nestjs/common';
 import { GatePassesService } from './gate-passes.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PlantContextGuard } from '../common/guards/plant-context.guard';
@@ -20,8 +20,10 @@ export class GatePassesController {
   }
 
   @Get()
-  async findAll(@Req() req: any) {
-    return this.gatePassesService.findAll(this.getPlantId(req));
+  async findAll(@Req() req: any, @Query('page') page?: string, @Query('limit') limit?: string, @Query('search') search?: string) {
+    const pageNum = parseInt(page || '1', 10);
+    const limitNum = parseInt(limit || '10', 10);
+    return this.gatePassesService.findAll(this.getPlantId(req), pageNum, limitNum, search);
   }
 
   @Get('scan/:barcode')

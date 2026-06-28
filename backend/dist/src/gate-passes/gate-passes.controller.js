@@ -31,8 +31,10 @@ let GatePassesController = class GatePassesController {
     async create(data, req) {
         return this.gatePassesService.create(this.getPlantId(req), req.user.id, data);
     }
-    async findAll(req) {
-        return this.gatePassesService.findAll(this.getPlantId(req));
+    async findAll(req, page, limit, search) {
+        const pageNum = parseInt(page || '1', 10);
+        const limitNum = parseInt(limit || '10', 10);
+        return this.gatePassesService.findAll(this.getPlantId(req), pageNum, limitNum, search);
     }
     async scanBarcode(barcode, req) {
         return this.gatePassesService.scanBarcode(this.getPlantId(req), barcode);
@@ -50,8 +52,11 @@ __decorate([
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('search')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String, String, String]),
     __metadata("design:returntype", Promise)
 ], GatePassesController.prototype, "findAll", null);
 __decorate([

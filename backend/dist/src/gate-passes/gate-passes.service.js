@@ -29,7 +29,6 @@ let GatePassesService = class GatePassesService {
                     const prefix = `GP-${dateStr}-`;
                     const lastPass = await tx.gatePass.findFirst({
                         where: {
-                            plantId,
                             passNumber: { startsWith: prefix }
                         },
                         orderBy: { passNumber: 'desc' },
@@ -63,7 +62,7 @@ let GatePassesService = class GatePassesService {
                 });
             }
             catch (error) {
-                if (error.code === 'P2002' && error.meta?.target?.includes('passNumber')) {
+                if (error.code === 'P2002') {
                     retries++;
                     if (retries >= MAX_RETRIES) {
                         throw new common_1.ConflictException('Failed to generate unique Gate Pass number due to high concurrency. Please try again.');
@@ -74,12 +73,37 @@ let GatePassesService = class GatePassesService {
             }
         }
     }
-    async findAll(plantId) {
-        return this.prisma.gatePass.findMany({
-            where: { plantId, deletedAt: null },
-            orderBy: { createdAt: 'desc' },
-            include: { supplier: true }
-        });
+    async findAll(plantId, page = 1, limit = 10, search) {
+        const skip = (page - 1) * limit;
+        const where = {
+            plantId,
+            deletedAt: null
+        };
+        if (search) {
+            where.OR = [
+                { passNumber: { contains: search, mode: 'insensitive' } },
+                { vehicleNumber: { contains: search, mode: 'insensitive' } },
+            ];
+        }
+        const [total, data] = await this.prisma.$transaction([
+            this.prisma.gatePass.count({ where }),
+            this.prisma.gatePass.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: { createdAt: 'desc' },
+                include: { supplier: true }
+            })
+        ]);
+        return {
+            data,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        };
     }
     async scanBarcode(plantId, barcode) {
         const gatePass = await this.prisma.gatePass.findFirst({

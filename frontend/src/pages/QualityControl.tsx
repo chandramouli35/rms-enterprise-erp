@@ -1,15 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axiosInstance from '../api/axios';
 import { toast } from 'react-hot-toast';
 
 export const QualityControl: React.FC = () => {
   const [gatePassId, setGatePassId] = useState('');
+  const [truckContext, setTruckContext] = useState<any>(null);
   const [metrics, setMetrics] = useState({
     moisturePercentage: 14.0,
     discolorationPercentage: 2.0,
     brokenGrainsPercentage: 5.0,
     foreignMatterPercentage: 1.0,
   });
+
+  useEffect(() => {
+    if (gatePassId.length >= 5) {
+      const timeout = setTimeout(async () => {
+        try {
+          const { data } = await axiosInstance.get(`/gate-passes/scan/${gatePassId}`);
+          setTruckContext(data);
+          toast.success(`Found vehicle: ${data.vehicleNumber}`);
+        } catch (err) {
+          setTruckContext(null);
+        }
+      }, 400);
+      return () => clearTimeout(timeout);
+    } else {
+      setTruckContext(null);
+    }
+  }, [gatePassId]);
 
   // Calculate status preview based on tolerances
   const getStatusPreview = () => {
@@ -26,13 +44,18 @@ export const QualityControl: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!truckContext) {
+      toast.error('Please scan a valid vehicle first');
+      return;
+    }
     try {
       await axiosInstance.post('/quality-checks', {
-        gatePassId,
+        gatePassId: truckContext.id,
         ...metrics
       });
       toast.success('Quality Check recorded successfully');
       setGatePassId('');
+      setTruckContext(null);
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to submit QC');
     }
@@ -57,6 +80,19 @@ export const QualityControl: React.FC = () => {
                 onChange={(e) => setGatePassId(e.target.value)}
               />
             </div>
+
+            {truckContext && (
+              <div className="bg-emerald-900/30 border border-emerald-500/30 rounded-lg p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-emerald-400 font-semibold mb-1">Vehicle Identified</p>
+                  <p className="text-white text-lg font-bold">{truckContext.vehicleNumber}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-400 mb-1">Source / Supplier</p>
+                  <p className="text-gray-200">{truckContext.source} {truckContext.supplier ? `- ${truckContext.supplier.name}` : ''}</p>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-4">
               <h3 className="text-gray-300 font-semibold border-b border-white/10 pb-2">Lab Parameters</h3>

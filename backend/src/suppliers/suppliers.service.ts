@@ -5,11 +5,40 @@ import { PrismaService } from '../prisma/prisma.service';
 export class SuppliersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(plantId: string) {
-    return this.prisma.supplier.findMany({
-      where: { plantId, deletedAt: null },
-      orderBy: { name: 'asc' },
-    });
+  async findAll(plantId: string, page: number = 1, limit: number = 10, search?: string) {
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      plantId,
+      deletedAt: null
+    };
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [total, data] = await this.prisma.$transaction([
+      this.prisma.supplier.count({ where }),
+      this.prisma.supplier.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { name: 'asc' },
+      })
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
   }
 
   async create(plantId: string, data: any) {

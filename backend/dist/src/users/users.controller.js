@@ -22,12 +22,14 @@ let UsersController = class UsersController {
     constructor(usersService) {
         this.usersService = usersService;
     }
-    async findAll(req) {
+    async findAll(req, page, limit, search, role) {
         const plantId = req.headers['x-plant-id'];
         if (!plantId) {
             throw new common_1.UnauthorizedException('Plant context missing');
         }
-        return this.usersService.findAll(plantId);
+        const pageNum = parseInt(page || '1', 10);
+        const limitNum = parseInt(limit || '10', 10);
+        return this.usersService.findAll(plantId, pageNum, limitNum, search, role);
     }
     async create(data, req) {
         return this.usersService.create(data, req.user);
@@ -37,8 +39,12 @@ exports.UsersController = UsersController;
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('search')),
+    __param(4, (0, common_1.Query)('role')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "findAll", null);
 __decorate([

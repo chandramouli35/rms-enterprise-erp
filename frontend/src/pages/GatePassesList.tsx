@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import axiosInstance from '../api/axios';
 import { usePlantStore } from '../store/plantStore';
 import { toast } from 'react-hot-toast';
+import Barcode from 'react-barcode';
+import { Pagination } from '../components/Pagination';
 
 export const GatePassesList: React.FC = () => {
   const activePlantId = usePlantStore(state => state.activePlant?.id);
@@ -10,6 +12,12 @@ export const GatePassesList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [scannedBarcode, setScannedBarcode] = useState('');
+  const [slipPreview, setSlipPreview] = useState<any | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   
   const [formData, setFormData] = useState({
     vehicleNumber: '',
@@ -25,11 +33,13 @@ export const GatePassesList: React.FC = () => {
     try {
       setLoading(true);
       const [gpRes, supRes] = await Promise.all([
-        axiosInstance.get('/gate-passes'),
-        axiosInstance.get('/suppliers')
+        axiosInstance.get('/gate-passes', { params: { page, limit, search: searchTerm } }),
+        axiosInstance.get('/suppliers', { params: { limit: 1000 } })
       ]);
-      setGatePasses(gpRes.data);
-      setSuppliers(supRes.data);
+      setGatePasses(gpRes.data.data || []);
+      setTotalRecords(gpRes.data.meta?.total || 0);
+      setTotalPages(gpRes.data.meta?.totalPages || 0);
+      setSuppliers(supRes.data.data || supRes.data || []);
     } catch (err: any) {
       toast.error('Failed to load data');
     } finally {
@@ -38,8 +48,11 @@ export const GatePassesList: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData();
-  }, [activePlantId]);
+    const delayDebounceFn = setTimeout(() => {
+      loadData();
+    }, 400);
+    return () => clearTimeout(delayDebounceFn);
+  }, [activePlantId, page, limit, searchTerm]);
 
   // Honeywell Scanner Listener
   useEffect(() => {
@@ -70,14 +83,11 @@ export const GatePassesList: React.FC = () => {
 
   const handleScan = async (barcode: string) => {
     setScannedBarcode(barcode);
-    try {
-      const { data } = await axiosInstance.get(`/gate-passes/scan/${barcode}`);
-      toast.success(`Scanned: ${data.vehicleNumber} (${data.status})`);
-      // Could open a modal here with the gate pass details
-    } catch (err) {
-      toast.error(`Barcode not found: ${barcode}`);
-    }
+    setSearchTerm(barcode);
+    toast.success(`Scanned: ${barcode}`);
   };
+
+  // Client-side filtering is replaced by server-side pagination/search.
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,9 +123,22 @@ export const GatePassesList: React.FC = () => {
             <span className="text-emerald-400 text-sm font-semibold">Last Scanned Barcode</span>
             <p className="text-white text-lg">{scannedBarcode}</p>
           </div>
-          <button onClick={() => setScannedBarcode('')} className="text-gray-400 hover:text-white">Clear</button>
+          <button onClick={() => { setScannedBarcode(''); setSearchTerm(''); }} className="text-gray-400 hover:text-white">Clear</button>
         </div>
       )}
+
+      <div className="flex items-center space-x-4 mb-4">
+        <div className="relative flex-1">
+          <svg className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <input
+            type="text"
+            placeholder="Search by Pass No, Vehicle Number, or Driver Name..."
+            className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-amber-500"
+            value={searchTerm}
+            onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+          />
+        </div>
+      </div>
 
       <div className="glass-panel overflow-hidden rounded-xl">
         <div className="overflow-x-auto">
@@ -127,13 +150,14 @@ export const GatePassesList: React.FC = () => {
                 <th className="p-4 font-semibold text-gray-300">Source</th>
                 <th className="p-4 font-semibold text-gray-300">Status</th>
                 <th className="p-4 font-semibold text-gray-300">Date</th>
+                <th className="p-4 font-semibold text-gray-300">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className="p-4 text-center">Loading...</td></tr>
+                <tr><td colSpan={6} className="p-4 text-center">Loading...</td></tr>
               ) : gatePasses.length === 0 ? (
-                <tr><td colSpan={5} className="p-4 text-center text-gray-400">No gate passes generated</td></tr>
+                <tr><td colSpan={6} className="p-4 text-center text-gray-400">No matching records found</td></tr>
               ) : (
                 gatePasses.map((gp) => (
                   <tr key={gp.id} className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer">
@@ -148,13 +172,104 @@ export const GatePassesList: React.FC = () => {
                       </span>
                     </td>
                     <td className="p-4 text-sm text-gray-400">{new Date(gp.createdAt).toLocaleString()}</td>
+                    <td className="p-4">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSlipPreview(gp);
+                        }}
+                        className="bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 px-3 py-1 rounded text-sm transition-colors print:hidden"
+                      >
+                        View / Print
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
+        <Pagination 
+          currentPage={page}
+          totalPages={totalPages}
+          totalRecords={totalRecords}
+          limit={limit}
+          onPageChange={setPage}
+          onLimitChange={(l) => { setLimit(l); setPage(1); }}
+        />
       </div>
+
+      {slipPreview && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 print:p-0 print:bg-white print:block print:inset-0">
+          <style>
+            {`
+              @media print {
+                body * {
+                  visibility: hidden;
+                }
+                #print-section, #print-section * {
+                  visibility: visible;
+                }
+                #print-section {
+                  position: absolute;
+                  left: 0;
+                  top: 0;
+                  width: 100%;
+                  margin: 0;
+                  padding: 20px;
+                }
+              }
+            `}
+          </style>
+          <div id="print-section" className="bg-white text-black p-8 rounded-lg w-full max-w-sm shadow-2xl relative">
+            <div className="flex justify-between mb-6 print:hidden">
+              <h3 className="text-xl font-bold">Slip Preview</h3>
+              <button onClick={() => setSlipPreview(null)} className="text-gray-500 hover:text-gray-800">Close</button>
+            </div>
+
+            <div className="text-center border-b-2 border-dashed border-gray-300 pb-4 mb-4">
+              <h2 className="text-2xl font-black uppercase tracking-wider">MILL LOGISTICS</h2>
+              <p className="text-sm text-gray-600">Gate Pass Receipt</p>
+            </div>
+
+            <div className="space-y-2 text-sm font-medium">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Pass No:</span>
+                <span className="font-bold">{slipPreview.passNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Vehicle:</span>
+                <span className="font-bold">{slipPreview.vehicleNumber}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Source:</span>
+                <span className="font-bold">{slipPreview.source}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Date:</span>
+                <span className="font-bold">{new Date(slipPreview.createdAt).toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-center bg-white">
+              <Barcode value={slipPreview.passNumber} width={2} height={60} fontSize={14} background="#ffffff" lineColor="#000000" />
+            </div>
+
+            <div className="mt-8 text-center text-xs text-gray-400">
+              <p>Please present this barcode at the weighbridge.</p>
+            </div>
+
+            <div className="mt-8 print:hidden flex justify-center">
+              <button
+                onClick={() => window.print()}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-lg"
+              >
+                Print Slip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">

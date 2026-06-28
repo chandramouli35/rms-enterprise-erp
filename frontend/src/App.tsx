@@ -12,11 +12,14 @@ import { GatePassesList } from './pages/GatePassesList';
 import { Weighbridge } from './pages/Weighbridge';
 import { QualityControl } from './pages/QualityControl';
 import { PurchaseRegister } from './pages/PurchaseRegister';
+import { Toaster } from 'react-hot-toast';
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
+    <>
+      <Toaster position="top-right" />
+      <BrowserRouter>
+        <Routes>
         <Route path="/login" element={<Login />} />
         
         {/* Protected Routes */}
@@ -36,7 +39,8 @@ function App() {
 
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
-    </BrowserRouter>
+      </BrowserRouter>
+    </>
   );
 }
 

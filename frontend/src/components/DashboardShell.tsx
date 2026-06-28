@@ -32,10 +32,10 @@ export const DashboardShell: React.FC = () => {
       {/* Sidebar */}
       <aside className={`bg-[#0a0a0a] border-r border-white/10 transition-all duration-300 ${sidebarCollapsed ? 'w-20' : 'w-64'} flex flex-col`}>
         <div className="h-16 flex items-center justify-between px-4 border-b border-white/10">
-           <div className="flex items-center gap-3 overflow-hidden whitespace-nowrap">
+           <Link to="/dashboard" className="flex items-center gap-3 overflow-hidden whitespace-nowrap cursor-pointer hover:opacity-80 transition-opacity">
              <img src="/logo.png" alt="RMS" className="w-8 h-8 rounded-full border border-amber-500/30 flex-shrink-0" />
              {!sidebarCollapsed && <span className="font-bold text-amber-500 tracking-wider">RMS ADMIN</span>}
-           </div>
+           </Link>
            <button onClick={toggleSidebar} className="text-gray-400 hover:text-white">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sidebarCollapsed ? "M4 6h16M4 12h16M4 18h16" : "M4 6h16M4 12h8m-8 6h16"} />

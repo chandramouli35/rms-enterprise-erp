@@ -18,10 +18,9 @@ export class GatePassesService {
           const dateStr = today.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
           const prefix = `GP-${dateStr}-`;
 
-          // Find the latest gate pass for this plant today
+          // Find the latest gate pass globally for today
           const lastPass = await tx.gatePass.findFirst({
             where: {
-              plantId,
               passNumber: { startsWith: prefix }
             },
             orderBy: { passNumber: 'desc' },
@@ -56,8 +55,8 @@ export class GatePassesService {
         }, {
           isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
         });
-      } catch (error) {
-        if (error.code === 'P2002' && error.meta?.target?.includes('passNumber')) {
+      } catch (error: any) {
+        if (error.code === 'P2002') {
           retries++;
           if (retries >= MAX_RETRIES) {
             throw new ConflictException('Failed to generate unique Gate Pass number due to high concurrency. Please try again.');
@@ -69,12 +68,41 @@ export class GatePassesService {
     }
   }
 
-  async findAll(plantId: string) {
-    return this.prisma.gatePass.findMany({
-      where: { plantId, deletedAt: null },
-      orderBy: { createdAt: 'desc' },
-      include: { supplier: true }
-    });
+  async findAll(plantId: string, page: number = 1, limit: number = 10, search?: string) {
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      plantId,
+      deletedAt: null
+    };
+
+    if (search) {
+      where.OR = [
+        { passNumber: { contains: search, mode: 'insensitive' } },
+        { vehicleNumber: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [total, data] = await this.prisma.$transaction([
+      this.prisma.gatePass.count({ where }),
+      this.prisma.gatePass.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: { supplier: true }
+      })
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
   }
 
   async scanBarcode(plantId: string, barcode: string) {

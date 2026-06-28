@@ -13,6 +13,12 @@
   input[type="text"], input[type="password"], input[type="email"] {
     cursor: text;
   }
+
+  /* Dropdown option styles for dark theme */
+  select option {
+    background-color: #1a1a1a;
+    color: #e5e7eb;
+  }
 }
 
 @layer utilities {

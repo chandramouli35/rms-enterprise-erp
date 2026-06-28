@@ -16,7 +16,7 @@ api.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${accessToken}`;
   }
 
-  if (activePlant) {
+  if (activePlant && config.headers['x-plant-id'] === undefined) {
     config.headers['x-plant-id'] = activePlant.id;
   }
 

@@ -51,28 +51,49 @@ let UsersService = class UsersService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async findAll(plantId) {
-        const users = await this.prisma.user.findMany({
-            where: {
-                plantAccess: {
-                    some: { plantId }
-                }
-            },
-            include: {
-                role: true,
-                plantAccess: {
-                    include: { plant: true }
-                }
-            },
-            orderBy: { createdAt: 'desc' }
-        });
-        return users.map(user => ({
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            role: user.role.name,
-            plants: user.plantAccess.map(pa => pa.plant.name)
-        }));
+    async findAll(plantId, page = 1, limit = 10, search, role) {
+        const skip = (page - 1) * limit;
+        const where = {
+            plantAccess: {
+                some: { plantId }
+            }
+        };
+        if (search) {
+            where.username = { contains: search, mode: 'insensitive' };
+        }
+        if (role && role !== 'ALL') {
+            where.role = { name: role };
+        }
+        const [total, users] = await this.prisma.$transaction([
+            this.prisma.user.count({ where }),
+            this.prisma.user.findMany({
+                where,
+                skip,
+                take: limit,
+                include: {
+                    role: true,
+                    plantAccess: {
+                        include: { plant: true }
+                    }
+                },
+                orderBy: { createdAt: 'desc' }
+            })
+        ]);
+        return {
+            data: users.map(user => ({
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                role: user.role.name,
+                plants: user.plantAccess.map(pa => pa.plant.name)
+            })),
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        };
     }
     async create(data, reqUser) {
         const existing = await this.prisma.user.findUnique({ where: { email: data.email } });

@@ -21,8 +21,10 @@ let PlantsController = class PlantsController {
     constructor(plantsService) {
         this.plantsService = plantsService;
     }
-    async findAll() {
-        return this.plantsService.findAll();
+    async findAll(page, limit, search) {
+        const pageNum = parseInt(page || '1', 10);
+        const limitNum = parseInt(limit || '10', 10);
+        return this.plantsService.findAll(pageNum, limitNum, search);
     }
     async create(data) {
         return this.plantsService.create(data);
@@ -31,8 +33,11 @@ let PlantsController = class PlantsController {
 exports.PlantsController = PlantsController;
 __decorate([
     (0, common_1.Get)(),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('search')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], PlantsController.prototype, "findAll", null);
 __decorate([

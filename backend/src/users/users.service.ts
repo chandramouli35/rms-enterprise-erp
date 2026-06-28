@@ -6,30 +6,54 @@ import * as bcrypt from 'bcrypt';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(plantId: string) {
-    // Only return users who have access to this plant
-    const users = await this.prisma.user.findMany({
-      where: {
-        plantAccess: {
-          some: { plantId }
-        }
-      },
-      include: {
-        role: true,
-        plantAccess: {
-          include: { plant: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+  async findAll(plantId: string, page: number = 1, limit: number = 10, search?: string, role?: string) {
+    const skip = (page - 1) * limit;
 
-    return users.map(user => ({
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: user.role.name,
-      plants: user.plantAccess.map(pa => pa.plant.name)
-    }));
+    const where: any = {
+      plantAccess: {
+        some: { plantId }
+      }
+    };
+
+    if (search) {
+      where.username = { contains: search, mode: 'insensitive' };
+    }
+
+    if (role && role !== 'ALL') {
+      where.role = { name: role };
+    }
+
+    const [total, users] = await this.prisma.$transaction([
+      this.prisma.user.count({ where }),
+      this.prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          role: true,
+          plantAccess: {
+            include: { plant: true }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      })
+    ]);
+
+    return {
+      data: users.map(user => ({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role.name,
+        plants: user.plantAccess.map(pa => pa.plant.name)
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
   }
 
   async create(data: any, reqUser: any) {
