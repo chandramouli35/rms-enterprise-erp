@@ -3,7 +3,7 @@ import { PlantsService } from './plants.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @Controller('plants')
-@UseGuards(JwtAuthGuard)
+//@UseGuards(JwtAuthGuard)
 export class PlantsController {
   constructor(private readonly plantsService: PlantsService) {}
 
