@@ -21,12 +21,12 @@ export declare class UsersRolesService {
         avatar: string;
     }[]>;
     createUser(data: any): Promise<{
-        isActive: boolean;
-        id: string;
         username: string;
+        id: string;
         email: string;
         passwordHash: string;
         refreshToken: string | null;
+        isActive: boolean;
         roleId: string;
         lastLogin: Date | null;
         createdAt: Date;
@@ -34,12 +34,12 @@ export declare class UsersRolesService {
         deletedAt: Date | null;
     }>;
     toggleUserStatus(id: string): Promise<{
-        isActive: boolean;
-        id: string;
         username: string;
+        id: string;
         email: string;
         passwordHash: string;
         refreshToken: string | null;
+        isActive: boolean;
         roleId: string;
         lastLogin: Date | null;
         createdAt: Date;

@@ -40,7 +40,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Check plant access if plantId is provided
+    // Check plant access
+    if (!plantId && user.role.name !== 'SUPER_ADMIN') {
+      throw new UnauthorizedException('Please select a plant to continue');
+    }
+    
     if (plantId) {
       const hasAccess = user.plantAccess.some(access => access.plantId === plantId);
       if (!hasAccess && user.role.name !== 'SUPER_ADMIN') {

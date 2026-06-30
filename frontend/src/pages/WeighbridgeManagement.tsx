@@ -1,0 +1,940 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Search, Eye, Settings, History, Scale, ShieldCheck,
+  Save, Download, Settings2, Shield, Calendar, MapPin,
+  RefreshCw, Edit3, Link2Off
+} from 'lucide-react';
+import { usePlantStore } from '../store/plantStore';
+import api from '../api/axios';
+import { CustomModal } from '../components/CustomModal';
+
+export const WeighbridgeManagement = () => {
+  const [activeTab, setActiveTab] = useState<'capture' | 'history' | 'settings'>('capture');
+  const activePlant = usePlantStore(state => state.activePlant);
+  const plantId = activePlant?.id || '';
+
+  // Tab 1: Dynamic State
+  const [vehicleNo, setVehicleNo] = useState('');
+  const [transType, setTransType] = useState('Inward');
+  const [driverName, setDriverName] = useState('');
+  const [materialType, setMaterialType] = useState('Paddy');
+  const [supplier, setSupplier] = useState('');
+  const [challanNo, setChallanNo] = useState('');
+  const [remarks, setRemarks] = useState('');
+
+  const [weightData, setWeightData] = useState<any>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [lastReading, setLastReading] = useState<string>('-');
+  const [tareWeight, setTareWeight] = useState(3160); // Mock tare for calculation
+  const [connectionStatus, setConnectionStatus] = useState('Connected');
+
+  const [modalConfig, setModalConfig] = useState<{isOpen: boolean; title: string; content: React.ReactNode}>({ isOpen: false, title: '', content: null });
+  
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [manualWeightInput, setManualWeightInput] = useState('');
+
+  // Tab 2: History State
+  const [historyData, setHistoryData] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyTypeFilter, setHistoryTypeFilter] = useState('All Transaction Types');
+  const [historyMaterialFilter, setHistoryMaterialFilter] = useState('All Materials');
+  const [historySupplierFilter, setHistorySupplierFilter] = useState('All Suppliers');
+  const [historyStartDate, setHistoryStartDate] = useState('');
+  const [historyEndDate, setHistoryEndDate] = useState('');
+
+  useEffect(() => {
+    if (activeTab === 'history' && activePlant) {
+      const fetchHistory = async () => {
+        setIsLoadingHistory(true);
+        try {
+          const res = await api.get(`/api/weighbridge/history/${activePlant.id}`);
+          setHistoryData(res.data);
+        } catch (error) {
+          console.error("Failed to fetch history", error);
+        } finally {
+          setIsLoadingHistory(false);
+        }
+      };
+      fetchHistory();
+    }
+  }, [activeTab, activePlant]);
+
+  const uniqueTransactionTypes = ['All Transaction Types', ...Array.from(new Set(historyData.map(item => item.transactionType).filter(Boolean)))];
+  const uniqueMaterials = ['All Materials', ...Array.from(new Set(historyData.map(item => item.materialType).filter(Boolean)))];
+  const uniqueSuppliers = ['All Suppliers', ...Array.from(new Set(historyData.map(item => item.supplierName).filter(Boolean)))];
+
+  const filteredHistory = historyData.filter(item => {
+    const searchLower = historySearch.toLowerCase();
+    const matchSearch = !historySearch || 
+      (item.vehicleNo?.toLowerCase().includes(searchLower) || 
+       item.challanNo?.toLowerCase().includes(searchLower) ||
+       item.supplierName?.toLowerCase().includes(searchLower));
+    
+    const matchType = historyTypeFilter === 'All Transaction Types' || item.transactionType === historyTypeFilter;
+    const matchMaterial = historyMaterialFilter === 'All Materials' || item.materialType === historyMaterialFilter;
+    const matchSupplier = historySupplierFilter === 'All Suppliers' || item.supplierName === historySupplierFilter;
+    
+    // Date filter
+    let matchDate = true;
+    if (historyStartDate || historyEndDate) {
+      const itemDate = new Date(item.createdAt);
+      itemDate.setHours(0, 0, 0, 0);
+
+      if (historyStartDate) {
+        const start = new Date(historyStartDate);
+        start.setHours(0, 0, 0, 0);
+        if (itemDate < start) matchDate = false;
+      }
+      if (historyEndDate) {
+        const end = new Date(historyEndDate);
+        end.setHours(0, 0, 0, 0);
+        if (itemDate > end) matchDate = false;
+      }
+    }
+    
+    return matchSearch && matchType && matchMaterial && matchSupplier && matchDate;
+  });
+
+  const handleExportCSV = () => {
+    if (filteredHistory.length === 0) return;
+    
+    const headers = ['Date', 'Type', 'Vehicle No', 'Material', 'Supplier', 'Gross Wt', 'Tare Wt', 'Net Wt', 'Challan', 'Driver'];
+    const rows = filteredHistory.map(row => [
+      new Date(row.createdAt).toLocaleString(),
+      row.transactionType || '',
+      row.vehicleNo || '',
+      row.materialType || '',
+      row.supplierName || '',
+      row.grossWeight || 0,
+      row.tareWeight || 0,
+      row.netWeight || 0,
+      row.challanNo || '',
+      row.driverName || ''
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(r => r.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `weighbridge_history_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleViewDetails = (row: any) => {
+    setModalConfig({
+      isOpen: true,
+      title: 'Transaction Summary',
+      content: (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between border-b border-white/5 pb-4">
+             <div>
+               <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Vehicle No</p>
+               <p className="text-xl font-bold text-white uppercase">{row.vehicleNo}</p>
+             </div>
+             <div className="text-right">
+               <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Date & Time</p>
+               <p className="text-sm font-medium text-gray-300">{new Date(row.createdAt).toLocaleString()}</p>
+             </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-[#1a1c23] p-4 rounded-xl border border-white/5">
+               <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Transaction Type</p>
+               <span className={`px-2 py-1 rounded text-xs font-medium border inline-block mt-1 ${row.transactionType === 'Inward' ? 'text-green-400 bg-green-400/10 border-green-400/20' : row.transactionType === 'Outward' ? 'text-red-400 bg-red-400/10 border-red-400/20' : 'text-gray-400 bg-gray-400/10 border-gray-400/20'}`}>
+                 {row.transactionType || 'UNKNOWN'}
+               </span>
+            </div>
+            <div className="bg-[#1a1c23] p-4 rounded-xl border border-white/5">
+               <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Challan No</p>
+               <p className="text-sm font-medium text-white">{row.challanNo || '-'}</p>
+            </div>
+            <div className="bg-[#1a1c23] p-4 rounded-xl border border-white/5">
+               <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Material</p>
+               <p className="text-sm font-medium text-white">{row.materialType || '-'}</p>
+            </div>
+            <div className="bg-[#1a1c23] p-4 rounded-xl border border-white/5">
+               <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Supplier</p>
+               <p className="text-sm font-medium text-white truncate" title={row.supplierName}>{row.supplierName || '-'}</p>
+            </div>
+          </div>
+
+          <div className="bg-[#15171e] p-5 rounded-xl border border-white/5 shadow-inner">
+            <h4 className="text-xs text-gray-500 uppercase tracking-wider mb-4 border-b border-white/5 pb-2">Weight Details</h4>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center">
+                 <p className="text-xs text-gray-500 mb-1">Gross Wt</p>
+                 <p className="text-lg font-semibold text-white">{row.grossWeight?.toLocaleString() || 0} <span className="text-xs text-gray-500 font-normal">kg</span></p>
+              </div>
+              <div className="text-center border-l border-white/5">
+                 <p className="text-xs text-gray-500 mb-1">Tare Wt</p>
+                 <p className="text-lg font-semibold text-gray-300">{row.tareWeight?.toLocaleString() || 0} <span className="text-xs text-gray-500 font-normal">kg</span></p>
+              </div>
+              <div className="text-center border-l border-white/5">
+                 <p className="text-xs text-amber-500/70 mb-1">Net Wt</p>
+                 <p className="text-xl font-bold text-amber-500">{row.netWeight?.toLocaleString() || 0} <span className="text-xs text-amber-500/50 font-normal">kg</span></p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between text-sm text-gray-400 bg-[#1a1c23] px-4 py-3 rounded-xl border border-white/5">
+             <div className="flex items-center gap-2">
+               <span className="text-gray-500">Driver:</span> 
+               <span className="text-white font-medium">{row.driverName || '-'}</span>
+             </div>
+          </div>
+        </div>
+      )
+    });
+  };
+
+  // Tab 3: Settings State
+  const [settings, setSettings] = useState({
+    indicatorModel: 'Essae - DS2520',
+    connectionType: 'Serial Port (COM)',
+    port: 'COM1',
+    baudRate: '9600',
+    dataBits: '8',
+    stopBits: '1',
+    parity: 'None',
+    weightUnit: 'Kilogram (kg)',
+    autoCapture: true,
+    autoSave: true,
+    autoTare: false
+  });
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [testSuccess, setTestSuccess] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'settings' && activePlant) {
+      const fetchSettings = async () => {
+        try {
+          const res = await api.get(`/api/weighbridge/settings/${activePlant.id}`);
+          if (res.data) {
+            setSettings(prev => ({ ...prev, ...res.data }));
+          }
+        } catch (error) {
+          console.error("Failed to fetch settings", error);
+        }
+      };
+      fetchSettings();
+    }
+  }, [activeTab, activePlant]);
+
+  const handleSaveSettings = async () => {
+    if (!activePlant) return;
+    setIsSavingSettings(true);
+    try {
+      await api.put(`/api/weighbridge/settings/${activePlant.id}`, settings);
+      setModalConfig({ isOpen: true, title: 'Settings Saved', content: 'Weighbridge hardware integration settings have been updated successfully.' });
+    } catch (error) {
+      console.error("Failed to save settings", error);
+      setModalConfig({ isOpen: true, title: 'Error', content: 'Failed to save settings. Please try again.' });
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleSettingChange = (field: string, value: any) => {
+    setSettings(prev => ({ ...prev, [field]: value }));
+  };
+
+  const fetchLiveWeight = async () => {
+    if (!vehicleNo) {
+      setModalConfig({ isOpen: true, title: 'Validation Error', content: 'Please enter a Vehicle No.' });
+      return;
+    }
+    try {
+      setIsStreaming(true);
+      const res = await api.get(`/weighbridge/stream/${vehicleNo}`);
+      setWeightData(res.data);
+      setLastReading(new Date().toLocaleString());
+    } catch (error: any) {
+      console.error(error);
+      setIsStreaming(false);
+      setModalConfig({ 
+        isOpen: true, 
+        title: 'Error', 
+        content: error.response?.data?.message || 'Failed to stream weight. Does the vehicle have an active INWARD pass?' 
+      });
+    }
+  };
+
+  const handleSaveTransaction = async () => {
+    if (!weightData || !plantId) {
+      setModalConfig({ isOpen: true, title: 'Error', content: 'No weight data or plant context found.' });
+      return;
+    }
+    try {
+      await api.post(`/api/weighbridge/save-transaction`, {
+        plantId,
+        vehicleNo: weightData.vehicleNo,
+        transactionType: transType,
+        driverName,
+        materialType,
+        supplierName: supplier,
+        challanNo,
+        remarks,
+        grossWeight: weightData.grossWeight,
+        tareWeight: tareWeight,
+        netWeight: weightData.grossWeight - tareWeight
+      });
+      setModalConfig({ isOpen: true, title: 'Success', content: 'Transaction saved successfully!' });
+      setIsStreaming(false);
+    } catch (error: any) {
+      console.error('Failed to save transaction', error);
+      setModalConfig({ isOpen: true, title: 'Error', content: error.response?.data?.message || 'Failed to save transaction.' });
+    }
+  };
+
+  const handleReset = () => {
+    setVehicleNo('');
+    setTransType('Inward');
+    setDriverName('');
+    setMaterialType('Paddy');
+    setSupplier('');
+    setChallanNo('');
+    setRemarks('');
+    setWeightData(null);
+    setIsStreaming(false);
+    setLastReading('-');
+  };
+
+  const handleTestConnection = () => {
+    setTestSuccess(true);
+    setTimeout(() => setTestSuccess(false), 3000);
+  };
+
+  const currentWeight = weightData ? weightData.grossWeight : 0;
+
+  const handleTare = () => {
+    if (currentWeight > 0) {
+      setTareWeight(currentWeight);
+      setModalConfig({ isOpen: true, title: 'Tare Captured', content: `Tare weight set to ${currentWeight} kg.` });
+    } else {
+      setModalConfig({ isOpen: true, title: 'Error', content: 'Cannot tare 0 kg. Ensure scale is active.' });
+    }
+  };
+
+  const handleCaptureWt = () => {
+    if (currentWeight > 0) {
+      setIsStreaming(false);
+      setModalConfig({ isOpen: true, title: 'Weight Captured', content: `Gross weight locked at ${currentWeight} kg. You can now save the transaction.` });
+    } else {
+      setModalConfig({ isOpen: true, title: 'Error', content: 'No weight to capture.' });
+    }
+  };
+
+  const handleManual = () => {
+    setIsManualModalOpen(true);
+    setManualWeightInput('');
+  };
+
+  // SVG Gauge Calculations
+  const maxWeight = 20000;
+  const percentage = Math.min(Math.max(currentWeight / maxWeight, 0), 1);
+  const angle = percentage * 180;
+  const arcLength = Math.PI * 80; // 251.32
+  const dashOffset = arcLength - (percentage * arcLength);
+  const netWeight = currentWeight > 0 ? currentWeight - tareWeight : 0;
+
+  return (
+    <div className="flex flex-col h-full text-white bg-[#050505]">
+      
+      {/* Header & Tabs */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-amber-500 mb-2">Weighbridge Management</h1>
+          <p className="text-gray-400 text-sm flex items-center gap-2">
+            <MapPin size={14} /> {activePlant?.name || 'Main Plant'} Operations
+          </p>
+        </div>
+      </div>
+      
+      <div className="flex space-x-2 mb-6 border-b border-white/10 pb-4">
+        <button 
+          onClick={() => setActiveTab('capture')} 
+          className={`px-5 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2 ${activeTab === 'capture' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
+        >
+          <Scale size={18} /> Weight Capture
+        </button>
+        <button 
+          onClick={() => setActiveTab('history')} 
+          className={`px-5 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2 ${activeTab === 'history' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
+        >
+          <History size={18} /> Vehicle Weight History
+        </button>
+        <button 
+          onClick={() => setActiveTab('settings')} 
+          className={`px-5 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2 ${activeTab === 'settings' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}
+        >
+          <Settings2 size={18} /> Integration Settings
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto pb-8">
+        {/* ======================================================================
+            TAB 1: CAPTURE
+        ====================================================================== */}
+        {activeTab === 'capture' && (
+           <div className="space-y-10">
+              
+              {/* SECTION 1: Form + Weight Captured */}
+              <div className="flex flex-col">
+                <h2 className="text-xl font-bold text-white mb-4">Weight Capture</h2>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  
+                  {/* Container 1: Form */}
+                  <div className="bg-[#121212] rounded-xl border border-white/5 shadow-2xl p-5 flex flex-col">
+                    <div className="space-y-4 flex-1">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">Transaction Type <span className="text-red-500">*</span></label>
+                        <select value={transType} onChange={e => setTransType(e.target.value)} className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 appearance-none">
+                          <option>Inward</option>
+                          <option>Outward</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">Vehicle No. <span className="text-red-500">*</span></label>
+                        <div className="relative">
+                          <input type="text" value={vehicleNo} onChange={e => setVehicleNo(e.target.value)} placeholder="e.g. PB10AB1234" className="w-full bg-[#1a1c23] border border-white/10 rounded-lg pl-3 pr-10 py-2 text-sm text-white focus:outline-none focus:border-amber-500 uppercase" />
+                          <button onClick={fetchLiveWeight} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-amber-500 hover:bg-amber-500/10 rounded transition-colors">
+                            <Search size={16} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">Driver Name</label>
+                        <input type="text" value={driverName} onChange={e => setDriverName(e.target.value)} className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500" />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">Material Type</label>
+                        <select value={materialType} onChange={e => setMaterialType(e.target.value)} className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 appearance-none">
+                          <option>Paddy</option>
+                          <option>Rice</option>
+                          <option>Bran</option>
+                          <option>Husk</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">Party / Supplier</label>
+                        <select value={supplier} onChange={e => setSupplier(e.target.value)} className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 appearance-none">
+                          <option value="">Select Supplier</option>
+                          <option>Ganga Traders</option>
+                          <option>Sharma Rice Traders</option>
+                          <option>Kisan Supply Co.</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">Challan No.</label>
+                        <input type="text" value={challanNo} onChange={e => setChallanNo(e.target.value)} className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500" />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">Remarks</label>
+                        <textarea value={remarks} onChange={e => setRemarks(e.target.value)} rows={2} className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 resize-none"></textarea>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex gap-3">
+                      <button onClick={handleReset} className="flex-1 border border-white/20 hover:border-white/40 hover:bg-white/5 text-gray-300 px-3 py-2 rounded-lg font-medium transition-colors text-sm">
+                        Reset
+                      </button>
+                      <button onClick={handleSaveTransaction} className="flex-[2] bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-blue-600/20 text-sm flex items-center justify-center gap-2">
+                        <Save size={16} /> Save Transaction
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Container 2: Weight Captured */}
+                  <div className="bg-[#121212] rounded-xl border border-white/5 shadow-2xl p-5 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-sm font-medium text-white">Weight Captured</h3>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`h-2 w-2 rounded-full ${isStreaming ? 'bg-green-500' : 'bg-gray-500'}`}></span>
+                          <span className={`text-xs font-medium ${isStreaming ? 'text-green-500' : 'text-gray-500'}`}>{isStreaming ? 'Stable' : 'Offline'}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="text-center py-6">
+                        <div className="text-5xl font-black text-white tabular-nums tracking-tight">
+                          {currentWeight.toLocaleString()} <span className="text-2xl text-gray-400 font-medium ml-1">kg</span>
+                        </div>
+                        <div className="text-blue-500 font-medium mt-2">Gross Weight</div>
+                        <div className="text-gray-500 text-xs mt-3">Last Updated: {lastReading}</div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 mt-4">
+                        <div className="border border-white/10 rounded-lg p-3 text-center bg-[#1a1c23]">
+                          <div className="text-xs text-gray-400 mb-1">Tare Weight</div>
+                          <div className="text-xl font-bold text-white">{tareWeight.toLocaleString()} <span className="text-sm text-gray-500">kg</span></div>
+                        </div>
+                        <div className="border border-green-500/30 rounded-lg p-3 text-center bg-green-500/5">
+                          <div className="text-xs text-green-500 mb-1">Net Weight</div>
+                          <div className="text-xl font-bold text-green-500">{netWeight.toLocaleString()} <span className="text-sm opacity-70">kg</span></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 mt-5">
+                      <button onClick={handleTare} className="flex flex-col items-center justify-center gap-1.5 border border-white/20 hover:border-white/40 hover:bg-white/5 rounded-lg py-2 transition-colors">
+                        <Scale size={14} className="text-gray-400" />
+                        <span className="text-[11px] font-medium text-gray-300">Tare</span>
+                      </button>
+                      <button onClick={handleCaptureWt} className="flex flex-col items-center justify-center gap-1.5 bg-green-600 hover:bg-green-500 rounded-lg py-2 shadow-lg shadow-green-600/20 transition-colors">
+                        <ShieldCheck size={14} className="text-white" />
+                        <span className="text-[11px] font-medium text-white">Capture Wt</span>
+                      </button>
+                      <button onClick={handleManual} className="flex flex-col items-center justify-center gap-1.5 border border-white/20 hover:border-white/40 hover:bg-white/5 rounded-lg py-2 transition-colors">
+                        <Edit3 size={14} className="text-gray-400" />
+                        <span className="text-[11px] font-medium text-gray-300">Manual</span>
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* SECTION 2: Gauge + Status */}
+              <div className="flex flex-col">
+                <h2 className="text-xl font-bold text-white mb-4">Live Weight Indicator</h2>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  
+                  {/* Container 3: Gauge */}
+                  <div className="bg-[#121212] rounded-xl border border-white/5 shadow-2xl p-5 flex flex-col items-center justify-center relative">
+                    
+                    <div className="relative mt-8">
+                      <svg width="240" height="140" viewBox="0 0 200 120" className="drop-shadow-2xl">
+                        <defs>
+                          <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="#22c55e" />
+                            <stop offset="50%" stopColor="#eab308" />
+                            <stop offset="100%" stopColor="#ef4444" />
+                          </linearGradient>
+                          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="3" result="blur" />
+                            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                          </filter>
+                        </defs>
+                        {/* Background Arc */}
+                        <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#1f2937" strokeWidth="14" strokeLinecap="round" />
+                        
+                        {/* Value Arc (Dynamic with Dasharray) */}
+                        <path 
+                          d="M 20 100 A 80 80 0 0 1 180 100" 
+                          fill="none" 
+                          stroke="url(#gaugeGradient)" 
+                          strokeWidth="14" 
+                          strokeLinecap="round" 
+                          strokeDasharray={arcLength}
+                          strokeDashoffset={dashOffset}
+                          filter="url(#glow)"
+                          style={{ transition: 'stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1)' }}
+                        />
+                        
+                        {/* Ticks & Labels */}
+                        <text x="20" y="118" fill="#6b7280" fontSize="8" textAnchor="middle" fontWeight="bold">0</text>
+                        <text x="60" y="42" fill="#6b7280" fontSize="8" textAnchor="middle" fontWeight="bold">5000</text>
+                        <text x="100" y="12" fill="#6b7280" fontSize="8" textAnchor="middle" fontWeight="bold">10000</text>
+                        <text x="140" y="42" fill="#6b7280" fontSize="8" textAnchor="middle" fontWeight="bold">15000</text>
+                        <text x="180" y="118" fill="#6b7280" fontSize="8" textAnchor="middle" fontWeight="bold">20000</text>
+                        
+                        {/* Needle */}
+                        <g style={{ transform: `rotate(${angle - 90}deg)`, transformOrigin: '100px 100px', transition: 'transform 1s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+                          {/* Needle Body */}
+                          <polygon points="97,100 103,100 100,30" fill="#e5e7eb" />
+                          {/* Center Hub */}
+                          <circle cx="100" cy="100" r="8" fill="#1f2937" stroke="#e5e7eb" strokeWidth="2" />
+                          <circle cx="100" cy="100" r="3" fill="#22c55e" />
+                        </g>
+                      </svg>
+                    </div>
+
+                    <div className="text-center mt-2">
+                       <div className="text-3xl font-black text-green-500 tabular-nums tracking-tight">
+                         {currentWeight.toLocaleString()} <span className="text-lg opacity-80 font-medium ml-1">kg</span>
+                       </div>
+                       <div className="flex items-center justify-center gap-1.5 mt-2">
+                          <span className={`h-2 w-2 rounded-full ${isStreaming ? 'bg-green-500' : 'bg-gray-500'}`}></span>
+                          <span className={`text-xs font-medium ${isStreaming ? 'text-green-500' : 'text-gray-500'}`}>{isStreaming ? 'Stable' : 'Offline'}</span>
+                       </div>
+                    </div>
+                  </div>
+
+                  {/* Container 4: Weighbridge Status */}
+                  <div className="bg-[#121212] rounded-xl border border-white/5 shadow-2xl p-5 flex flex-col">
+                    <h3 className="text-sm font-semibold text-white mb-4">Weighbridge Status</h3>
+                    
+                    <div className="space-y-4 flex-1">
+                      <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                        <span className="text-gray-400">Connection Status</span>
+                        <span className="text-green-500 bg-green-500/10 px-2 py-0.5 rounded text-xs font-medium border border-green-500/20">{connectionStatus}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                        <span className="text-gray-400">Port / IP</span>
+                        <span className="text-white font-medium">COM3</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                        <span className="text-gray-400">Baud Rate / Speed</span>
+                        <span className="text-white font-medium">9600</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                        <span className="text-gray-400">Indicator Model</span>
+                        <span className="text-white font-medium">Essae - DS2520</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm border-b border-white/5 pb-2">
+                        <span className="text-gray-400">Last Reading</span>
+                        <span className="text-white font-medium">{lastReading}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-400">Status</span>
+                        <span className={`${isStreaming ? 'text-green-500' : 'text-gray-500'} font-medium`}>{isStreaming ? 'Stable' : 'Offline'}</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 pt-4 border-t border-white/5">
+                      <button onClick={() => { setIsStreaming(false); setConnectionStatus('Disconnected'); }} className="flex items-center justify-center gap-2 w-full py-2 border border-red-500/50 hover:bg-red-500/10 text-red-400 rounded-lg text-sm font-medium transition-colors">
+                        <Link2Off size={16} /> Disconnect
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+           </div>
+        )}
+
+        {/* ======================================================================
+            TAB 2: HISTORY
+        ====================================================================== */}
+        {activeTab === 'history' && (
+           <div className="bg-[#121212] rounded-xl border border-white/5 shadow-2xl p-6">
+              
+              <div className="flex flex-wrap items-center gap-4 mb-6 border-b border-white/5 pb-6">
+                 <div className="flex items-center bg-[#1a1c23] border border-white/10 rounded-lg px-3 py-2">
+                   <input type="date" value={historyStartDate} onChange={e => setHistoryStartDate(e.target.value)} className="bg-transparent border-none text-sm text-gray-300 focus:outline-none w-[110px] [color-scheme:dark]" />
+                   <span className="text-gray-500 mx-2">To</span>
+                   <input type="date" value={historyEndDate} onChange={e => setHistoryEndDate(e.target.value)} className="bg-transparent border-none text-sm text-gray-300 focus:outline-none w-[110px] [color-scheme:dark]" />
+                 </div>
+                 
+                 <select value={historyTypeFilter} onChange={e => setHistoryTypeFilter(e.target.value)} className="bg-[#1a1c23] border border-white/10 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+                   {uniqueTransactionTypes.map(type => <option key={type as string} value={type as string}>{type as string}</option>)}
+                 </select>
+                 
+                 <select value={historyMaterialFilter} onChange={e => setHistoryMaterialFilter(e.target.value)} className="bg-[#1a1c23] border border-white/10 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+                   {uniqueMaterials.map(mat => <option key={mat as string} value={mat as string}>{mat as string}</option>)}
+                 </select>
+
+                 <select value={historySupplierFilter} onChange={e => setHistorySupplierFilter(e.target.value)} className="bg-[#1a1c23] border border-white/10 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-amber-500">
+                   {uniqueSuppliers.map(sup => <option key={sup as string} value={sup as string}>{sup as string}</option>)}
+                 </select>
+
+                 <div className="relative flex-1 min-w-[250px]">
+                   <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                   <input value={historySearch} onChange={e => setHistorySearch(e.target.value)} type="text" placeholder="Search Vehicle No. / Challan No. / Supplier" className="w-full bg-[#1a1c23] border border-white/10 rounded-lg pl-9 pr-4 py-2 text-sm text-white focus:outline-none focus:border-amber-500" />
+                 </div>
+
+                 <button onClick={handleExportCSV} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-blue-600/20 text-sm flex items-center gap-2">
+                   <Download size={16} /> Export
+                 </button>
+              </div>
+
+              {/* Enterprise Grid */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="bg-[#161616] text-gray-400 border-b border-white/10">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">#</th>
+                      <th className="px-4 py-3 font-medium">Date & Time</th>
+                      <th className="px-4 py-3 font-medium">Transaction Type</th>
+                      <th className="px-4 py-3 font-medium">Vehicle No.</th>
+                      <th className="px-4 py-3 font-medium">Material</th>
+                      <th className="px-4 py-3 font-medium">Supplier</th>
+                      <th className="px-4 py-3 font-medium text-right">Gross Wt (kg)</th>
+                      <th className="px-4 py-3 font-medium text-right">Tare Wt (kg)</th>
+                      <th className="px-4 py-3 font-medium text-right">Net Wt (kg)</th>
+                      <th className="px-4 py-3 font-medium">Challan No.</th>
+                      <th className="px-4 py-3 font-medium">Driver Name</th>
+                      <th className="px-4 py-3 font-medium">Created By</th>
+                      <th className="px-4 py-3 font-medium text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-gray-300">
+                    {isLoadingHistory ? (
+                      <tr><td colSpan={13} className="px-4 py-8 text-center text-gray-500">Loading history...</td></tr>
+                    ) : filteredHistory.length === 0 ? (
+                      <tr><td colSpan={13} className="px-4 py-8 text-center text-gray-500">No records found</td></tr>
+                    ) : (
+                      filteredHistory.map((row, idx) => (
+                        <tr key={row.id} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="px-4 py-3">{idx + 1}</td>
+                          <td className="px-4 py-3 text-gray-400">{new Date(row.createdAt).toLocaleString()}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 rounded text-xs font-medium border ${row.transactionType === 'Inward' ? 'text-green-400 bg-green-400/10 border-green-400/20' : row.transactionType === 'Outward' ? 'text-red-400 bg-red-400/10 border-red-400/20' : 'text-gray-400 bg-gray-400/10 border-gray-400/20'}`}>
+                              {row.transactionType || 'UNKNOWN'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-medium text-white uppercase">{row.vehicleNo}</td>
+                          <td className="px-4 py-3 text-gray-400">{row.materialType || '-'}</td>
+                          <td className="px-4 py-3">{row.supplierName || '-'}</td>
+                          <td className="px-4 py-3 text-right tabular-nums">{row.grossWeight?.toLocaleString() || '-'}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-gray-400">{row.tareWeight?.toLocaleString() || '-'}</td>
+                          <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-500">{row.netWeight?.toLocaleString() || '-'}</td>
+                          <td className="px-4 py-3 text-gray-400">{row.challanNo || '-'}</td>
+                          <td className="px-4 py-3">{row.driverName || '-'}</td>
+                          <td className="px-4 py-3 text-gray-400">-</td>
+                          <td className="px-4 py-3 text-center">
+                            <button onClick={() => handleViewDetails(row)} className="text-gray-500 hover:text-amber-500 transition-colors p-1 rounded-md hover:bg-amber-500/10">
+                              <Eye size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* Footer Pagination */}
+              <div className="flex items-center justify-between mt-6 pt-4 border-t border-white/5">
+                <div className="text-sm text-gray-500">Showing 1 to {filteredHistory.length} of {filteredHistory.length} records</div>
+                <div className="flex items-center gap-1">
+                  <button className="p-2 border border-white/10 rounded hover:bg-white/5 text-gray-400 disabled:opacity-50" disabled>&larr;</button>
+                  <button className="w-8 h-8 flex items-center justify-center border border-blue-600 bg-blue-600/20 text-blue-500 rounded font-medium">1</button>
+                  <button className="p-2 border border-white/10 rounded hover:bg-white/5 text-gray-400 disabled:opacity-50" disabled>&rarr;</button>
+                </div>
+              </div>
+
+           </div>
+        )}
+
+        {/* ======================================================================
+            TAB 3: SETTINGS
+        ====================================================================== */}
+        {activeTab === 'settings' && (
+           <div className="max-w-2xl mx-auto">
+             <div className="bg-[#121212] rounded-xl border border-white/5 shadow-2xl p-8">
+                <h2 className="text-xl font-semibold text-white mb-8 border-b border-white/5 pb-4">Integration Settings</h2>
+                
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1.5">Weighbridge Indicator Model</label>
+                    <select value={settings.indicatorModel} onChange={e => handleSettingChange('indicatorModel', e.target.value)} className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none">
+                      <option>Essae - DS2520</option>
+                      <option>Mettler Toledo - IND231</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1.5">Connection Type</label>
+                    <select value={settings.connectionType} onChange={e => handleSettingChange('connectionType', e.target.value)} className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none">
+                      <option>Serial Port (COM)</option>
+                      <option>TCP/IP Network</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-400 mb-1.5">Port</label>
+                      <select value={settings.port} onChange={e => handleSettingChange('port', e.target.value)} className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none">
+                        <option>COM3</option>
+                        <option>COM1</option>
+                        <option>COM2</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-400 mb-1.5">Baud Rate</label>
+                      <select value={settings.baudRate} onChange={e => handleSettingChange('baudRate', e.target.value)} className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none">
+                        <option>9600</option>
+                        <option>4800</option>
+                        <option>19200</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-400 mb-1.5">Data Bits</label>
+                      <select value={settings.dataBits} onChange={e => handleSettingChange('dataBits', e.target.value)} className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none">
+                        <option>8</option>
+                        <option>7</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-400 mb-1.5">Stop Bits</label>
+                      <select value={settings.stopBits} onChange={e => handleSettingChange('stopBits', e.target.value)} className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none">
+                        <option>1</option>
+                        <option>2</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-400 mb-1.5">Parity</label>
+                      <select value={settings.parity} onChange={e => handleSettingChange('parity', e.target.value)} className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none">
+                        <option>None</option>
+                        <option>Odd</option>
+                        <option>Even</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1.5">Weight Unit</label>
+                    <select value={settings.weightUnit} onChange={e => handleSettingChange('weightUnit', e.target.value)} className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500 appearance-none">
+                      <option>Kilogram (kg)</option>
+                      <option>Tonne (t)</option>
+                    </select>
+                  </div>
+
+                  {/* Toggles */}
+                  <div className="space-y-4 pt-6 border-t border-white/5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <button 
+                          onClick={() => handleSettingChange('autoCapture', !settings.autoCapture)}
+                          className={`w-11 h-6 rounded-full transition-colors relative ${settings.autoCapture ? 'bg-green-500' : 'bg-gray-600'}`}
+                        >
+                          <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${settings.autoCapture ? 'translate-x-5' : 'translate-x-0'}`}></span>
+                        </button>
+                        <span className="text-sm font-medium text-white">Auto Capture Stable Weight</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-gray-400">Stable Range (kg)</span>
+                        <input type="text" defaultValue="10" className="w-16 bg-[#1a1c23] border border-white/10 rounded text-center py-1 text-sm text-white focus:border-blue-500 outline-none" />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-12">
+                      <div className="flex items-center gap-3">
+                        <button 
+                          onClick={() => handleSettingChange('autoSave', !settings.autoSave)}
+                          className={`w-11 h-6 rounded-full transition-colors relative ${settings.autoSave ? 'bg-green-500' : 'bg-gray-600'}`}
+                        >
+                          <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${settings.autoSave ? 'translate-x-5' : 'translate-x-0'}`}></span>
+                        </button>
+                        <span className="text-sm font-medium text-white">Auto Save After Capture</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button 
+                          onClick={() => handleSettingChange('autoTare', !settings.autoTare)}
+                          className={`w-11 h-6 rounded-full transition-colors relative ${settings.autoTare ? 'bg-green-500' : 'bg-gray-600'}`}
+                        >
+                          <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${settings.autoTare ? 'translate-x-5' : 'translate-x-0'}`}></span>
+                        </button>
+                        <span className="text-sm font-medium text-white">Auto Tare After Save</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center justify-between pt-8 mt-4">
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={handleTestConnection}
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-lg shadow-blue-600/20 text-sm flex items-center gap-2"
+                      >
+                        <Settings2 size={16} /> Test Connection
+                      </button>
+                      {testSuccess && (
+                        <div className="flex items-center gap-2 text-green-400 text-sm font-medium bg-green-400/10 px-3 py-2 rounded-lg border border-green-400/20">
+                          <Shield size={16} /> Connection Successful
+                        </div>
+                      )}
+                    </div>
+                    <button disabled={isSavingSettings} onClick={handleSaveSettings} className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-lg shadow-blue-600/20 text-sm flex items-center gap-2">
+                      <Save size={16} /> {isSavingSettings ? 'Saving...' : 'Save Settings'}
+                    </button>
+                  </div>
+                </div>
+
+             </div>
+           </div>
+        )}
+      </div>
+
+      <CustomModal 
+        isOpen={modalConfig.isOpen} 
+        onClose={() => setModalConfig({ ...modalConfig, isOpen: false })}
+        title={modalConfig.title}
+        footer={
+          <button 
+            onClick={() => setModalConfig({ ...modalConfig, isOpen: false })}
+            className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
+          >
+            Okay
+          </button>
+        }
+      >
+        {typeof modalConfig.content === 'string' ? (
+          <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">{modalConfig.content}</p>
+        ) : (
+          modalConfig.content
+        )}
+      </CustomModal>
+
+      {/* Manual Entry Modal */}
+      <CustomModal 
+        isOpen={isManualModalOpen} 
+        onClose={() => setIsManualModalOpen(false)}
+        title="Manual Weight Entry"
+        footer={
+          <>
+            <button 
+              onClick={() => setIsManualModalOpen(false)}
+              className="px-4 py-2 border border-white/20 text-gray-300 hover:bg-white/5 rounded-lg text-sm font-medium transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={() => {
+                const weight = parseInt(manualWeightInput, 10);
+                if (!isNaN(weight) && weight > 0) {
+                  setWeightData({ vehicleNo: vehicleNo || 'MANUAL-ENTRY', grossWeight: weight });
+                  setIsStreaming(false);
+                  setLastReading(new Date().toLocaleString() + ' (Manual Override)');
+                  setIsManualModalOpen(false);
+                } else {
+                  setModalConfig({ isOpen: true, title: 'Invalid Input', content: 'Please enter a valid numeric weight greater than 0.' });
+                }
+              }}
+              className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
+            >
+              Confirm Weight
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+             <p className="text-sm text-amber-500"><strong>Note:</strong> Manual entry overrides the live weighbridge feed. This action will be flagged in the audit logs.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1.5">Gross Weight (kg) <span className="text-red-500">*</span></label>
+            <input 
+              type="number" 
+              value={manualWeightInput} 
+              onChange={e => setManualWeightInput(e.target.value)} 
+              className="w-full bg-[#1a1c23] border border-white/10 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-amber-500 font-medium text-lg"
+              placeholder="e.g. 15000"
+              autoFocus
+            />
+          </div>
+        </div>
+      </CustomModal>
+    </div>
+  );
+};

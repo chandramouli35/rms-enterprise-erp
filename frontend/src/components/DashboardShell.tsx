@@ -1,15 +1,31 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useUiStore } from '../store/uiStore';
 import { usePlantStore } from '../store/plantStore';
+import api from '../api/axios';
 
 export const DashboardShell: React.FC = () => {
   const { user, logout } = useAuthStore();
   const { sidebarCollapsed, toggleSidebar } = useUiStore();
-  const { activePlant } = usePlantStore();
+  const { activePlant, setActivePlant, clearActivePlant } = usePlantStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const [plants, setPlants] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user?.role === 'SUPER_ADMIN') {
+      const fetchPlants = async () => {
+        try {
+          const res = await api.get('/plants');
+          setPlants(res.data);
+        } catch (err) {
+          console.error('Failed to fetch plants', err);
+        }
+      };
+      fetchPlants();
+    }
+  }, [user]);
 
   const handleLogout = () => {
     logout();
@@ -18,6 +34,9 @@ export const DashboardShell: React.FC = () => {
 
   const navItems = [
     { label: 'Dashboard', href: '/dashboard', icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'WEIGHBRIDGE_OPERATOR', 'ACCOUNTANT'] },
+    { label: 'Procurement', href: '/procurement', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'] },
+    { label: 'Weighbridge', href: '/weighbridge', icon: 'M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'WEIGHBRIDGE_OPERATOR'] },
+    { label: 'Gate Pass', href: '/gate-pass', icon: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'WEIGHBRIDGE_OPERATOR'] },
     { label: 'User and Roles', href: '/users', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'] },
     { label: 'Plants', href: '/plants', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', roles: ['SUPER_ADMIN'] },
   ];
@@ -75,9 +94,29 @@ export const DashboardShell: React.FC = () => {
       <main className="flex-1 flex flex-col min-w-0">
         <header className="h-16 bg-[#0a0a0a]/80 backdrop-blur border-b border-white/10 flex items-center justify-between px-8">
            <div>
-              <h2 className="font-semibold text-lg">
-                {activePlant ? `Context: ${activePlant.name} (${activePlant.code})` : 'Global Overview'}
-              </h2>
+              {user?.role === 'SUPER_ADMIN' ? (
+                <div className="flex items-center gap-3">
+                  <h2 className="font-semibold text-lg text-gray-400">Context:</h2>
+                  <select 
+                    className="bg-[#111] border border-white/10 rounded-lg px-3 py-1.5 text-sm font-medium text-white focus:outline-none focus:border-amber-500 cursor-pointer"
+                    value={activePlant?.id || ''}
+                    onChange={(e) => {
+                      const selected = plants.find(p => p.id === e.target.value);
+                      if (selected) setActivePlant(selected);
+                      else clearActivePlant();
+                    }}
+                  >
+                    <option value="">Global Overview</option>
+                    {plants.map(p => (
+                      <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <h2 className="font-semibold text-lg">
+                  {activePlant ? `Context: ${activePlant.name} (${activePlant.code})` : 'Global Overview'}
+                </h2>
+              )}
            </div>
            <div className="flex items-center gap-4">
               <button className="relative p-2 text-gray-400 hover:text-white">

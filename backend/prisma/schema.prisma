@@ -22,6 +22,8 @@ model Plant {
   productionLogs ProductionLog[]
   gatePasses   GatePass[]
   millingProcesses MillingProcess[]
+  weighbridgeTransactions WeighbridgeTransaction[]
+  weighbridgeSettings WeighbridgeSettings?
   
   // Tracking
   createdAt   DateTime  @default(now())
@@ -117,6 +119,44 @@ model SystemAuditLog {
 }
 
 // -----------------------------------------------------------------------------
+// Supplier Master
+// -----------------------------------------------------------------------------
+model Supplier {
+  id        String   @id @default(uuid())
+  name      String
+  contact   String?
+  email     String?
+  address   String?
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  procurements ProcurementBatch[]
+}
+
+// -----------------------------------------------------------------------------
+// Weighbridge Integration
+// -----------------------------------------------------------------------------
+model WeighbridgeSettings {
+  id              String   @id @default(uuid())
+  plantId         String   @unique
+  plant           Plant    @relation(fields: [plantId], references: [id])
+  indicatorModel  String   @default("Essae - DS2520")
+  connectionType  String   @default("Serial Port (COM)")
+  port            String   @default("COM1")
+  baudRate        String   @default("9600")
+  dataBits        String   @default("8")
+  stopBits        String   @default("1")
+  parity          String   @default("None")
+  weightUnit      String   @default("Kilogram (kg)")
+  autoCapture     Boolean  @default(true)
+  autoSave        Boolean  @default(true)
+  autoTare        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// -----------------------------------------------------------------------------
 // Operations & Inventory
 // -----------------------------------------------------------------------------
 
@@ -124,15 +164,91 @@ model ProcurementBatch {
   id          String   @id @default(uuid())
   plantId     String
   plant       Plant    @relation(fields: [plantId], references: [id])
-  gatePassId  String   @unique
-  grossWeight Float    // in MT
-  tareWeight  Float    // in MT
-  netWeight   Float    // in MT
-  status      String   @default("PENDING") // PENDING, QC_APPROVED, QC_REJECTED
+  supplierId  String?
+  supplier    Supplier? @relation(fields: [supplierId], references: [id])
+  gatePassId  String?  @unique
+  gatePass    GatePass? @relation(fields: [gatePassId], references: [id])
+  weighbridgeId String? @unique
+  weighbridge WeighbridgeTransaction? @relation(fields: [weighbridgeId], references: [id])
+  
+  grossWeight Float?   // in MT
+  tareWeight  Float?   // in MT
+  netWeight   Float?   // in MT
+  
+  amount      Float?
+  deductions  Float?
+  netAmount   Float?
+  
+  status      String   @default("PENDING") // PENDING, QC_APPROVED, QC_REJECTED, COMPLETED
+  
+  quality     QualityInspection?
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([plantId])
+  @@index([supplierId])
+}
+
+model QualityInspection {
+  id                  String   @id @default(uuid())
+  procurementBatchId  String   @unique
+  procurementBatch    ProcurementBatch @relation(fields: [procurementBatchId], references: [id])
+  moisture            Float?
+  broken              Float?
+  discoloration       Float?
+  foreignMatter       Float?
+  status              String   @default("PENDING") // APPROVED, REJECTED
+  inspectedBy         String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model WeighbridgeTransaction {
+  id              String   @id @default(uuid())
+  plantId         String
+  plant           Plant    @relation(fields: [plantId], references: [id])
+  vehicleNo       String
+  transactionType String   @default("INWARD")
+  driverName      String?
+  materialType    String?
+  supplierName    String?
+  challanNo       String?
+  remarks         String?
+  grossWeight     Float?
+  tareWeight      Float?
+  netWeight       Float?
+  grossTime       DateTime?
+  tareTime        DateTime?
+  status          String   @default("PENDING") // PENDING_TARE, COMPLETED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  procurementBatch ProcurementBatch?
+  
+  @@index([plantId])
+  @@index([vehicleNo])
+}
+
+model GatePass {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  passType    String   // INWARD, OUTWARD
+  vehicleNo   String
+  purpose     String?  // PADDY_DELIVERY, DISPATCH, etc.
+  driverName  String?
+  contactNo   String?
+  status      String   @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
+  qrCode      String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime? @updatedAt
+
+  procurementBatch ProcurementBatch?
+  
+  @@index([plantId])
+  @@index([vehicleNo])
+  @@index([status])
 }
 
 model Inventory {
@@ -186,16 +302,4 @@ model MillingProcess {
   
   @@index([plantId])
   @@index([createdAt])
-}
-
-model GatePass {
-  id          String   @id @default(uuid())
-  plantId     String
-  plant       Plant    @relation(fields: [plantId], references: [id])
-  passType    String   // INWARD, OUTWARD
-  vehicleNo   String
-  status      String   @default("ACTIVE") // ACTIVE, COMPLETED
-  createdAt   DateTime @default(now())
-  
-  @@index([plantId])
 }

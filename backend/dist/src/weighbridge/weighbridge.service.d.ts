@@ -1,0 +1,83 @@
+import { PrismaService } from '../prisma/prisma.service';
+export declare class WeighbridgeService {
+    private prisma;
+    constructor(prisma: PrismaService);
+    streamWeight(vehicleNo: string): Promise<{
+        vehicleNo: string;
+        grossWeight: number;
+        status: string;
+        timestamp: Date;
+    }>;
+    saveTransaction(data: any): Promise<{
+        id: string;
+        vehicleNo: string;
+        transactionType: string;
+        driverName: string | null;
+        materialType: string | null;
+        supplierName: string | null;
+        challanNo: string | null;
+        remarks: string | null;
+        grossWeight: number | null;
+        tareWeight: number | null;
+        netWeight: number | null;
+        grossTime: Date | null;
+        tareTime: Date | null;
+        status: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+    }>;
+    getHistory(plantId: string): Promise<{
+        id: string;
+        vehicleNo: string;
+        transactionType: string;
+        driverName: string | null;
+        materialType: string | null;
+        supplierName: string | null;
+        challanNo: string | null;
+        remarks: string | null;
+        grossWeight: number | null;
+        tareWeight: number | null;
+        netWeight: number | null;
+        grossTime: Date | null;
+        tareTime: Date | null;
+        status: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+    }[]>;
+    getSettings(plantId: string): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        indicatorModel: string;
+        connectionType: string;
+        port: string;
+        baudRate: string;
+        dataBits: string;
+        stopBits: string;
+        parity: string;
+        weightUnit: string;
+        autoCapture: boolean;
+        autoSave: boolean;
+        autoTare: boolean;
+    }>;
+    updateSettings(plantId: string, data: any): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        indicatorModel: string;
+        connectionType: string;
+        port: string;
+        baudRate: string;
+        dataBits: string;
+        stopBits: string;
+        parity: string;
+        weightUnit: string;
+        autoCapture: boolean;
+        autoSave: boolean;
+        autoTare: boolean;
+    }>;
+}

@@ -29,8 +29,8 @@ export declare class JwtStrategy extends JwtStrategy_base {
             description: string | null;
         };
     } & {
-        id: string;
         username: string;
+        id: string;
         email: string;
         passwordHash: string;
         refreshToken: string | null;

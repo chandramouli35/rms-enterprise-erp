@@ -77,6 +77,9 @@ let AuthService = class AuthService {
         if (!isPasswordValid) {
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
+        if (!plantId && user.role.name !== 'SUPER_ADMIN') {
+            throw new common_1.UnauthorizedException('Please select a plant to continue');
+        }
         if (plantId) {
             const hasAccess = user.plantAccess.some(access => access.plantId === plantId);
             if (!hasAccess && user.role.name !== 'SUPER_ADMIN') {

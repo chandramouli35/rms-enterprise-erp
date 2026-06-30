@@ -221,8 +221,8 @@ export const UsersAndRoles: React.FC = () => {
           </div>
 
           {activeTab === 'Users' && (
-            <div className="flex flex-col xl:flex-row gap-6">
-              <div className="xl:w-[60%] rounded-xl border border-[#1f1f1f] bg-[#121212] flex flex-col">
+            <div className="flex flex-col gap-6">
+              <div className="rounded-xl border border-[#1f1f1f] bg-[#121212] flex flex-col">
                 <div className="p-5 border-b border-white/5 flex justify-between items-center">
                   <h3 className="text-white font-semibold">Users List</h3>
                   <div className="flex items-center gap-3">
@@ -303,91 +303,6 @@ export const UsersAndRoles: React.FC = () => {
                       })()}
                     </tbody>
                   </table>
-                </div>
-              </div>
-
-              <div className="xl:w-[40%] flex flex-col gap-6">
-                <div className="p-5 rounded-xl border border-[#1f1f1f] bg-[#121212]">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-white font-semibold">Role Details & Permissions</h3>
-                    <div className="flex items-center gap-2">
-                      <button onClick={savePermissions} className="text-xs bg-[#e67e00] text-white hover:bg-[#cc7000] px-2 py-1 rounded hover:bg-blue-500 transition-colors">Save</button>
-                      <span className="text-xs text-gray-400 ml-2">Select Role</span>
-                      <select 
-                        className="bg-[#1a1c23] border border-white/10 rounded-lg px-2 py-1 text-sm text-gray-200 focus:outline-none focus:border-blue-500"
-                        value={selectedRole?.id || ''}
-                        onChange={(e) => {
-                          const role = roles.find(r => r.id === e.target.value);
-                          if(role) handleRoleSelect(role);
-                        }}
-                      >
-                        {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  
-                  <h4 className="text-sm font-medium text-white mb-3">Module Permissions</h4>
-                  
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm">
-                      <thead className="text-gray-400 border-b border-white/10">
-                        <tr>
-                          <th className="pb-2 font-medium">Module</th>
-                          <th className="pb-2 font-medium text-center">View</th>
-                          <th className="pb-2 font-medium text-center">Add</th>
-                          <th className="pb-2 font-medium text-center">Edit</th>
-                          <th className="pb-2 font-medium text-center">Delete</th>
-                          <th className="pb-2 font-medium text-center">Approve</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/5 text-gray-300">
-                        {permissions.length === 0 ? <tr><td colSpan={6} className="text-center py-4 text-gray-500">Select a role to view permissions</td></tr> : permissions.map((module, idx) => (
-                          <tr key={idx}>
-                            <td className="py-2.5">{module.name}</td>
-                            {['view', 'add', 'edit', 'delete', 'approve'].map((action) => (
-                               <td key={action} className="py-2.5 text-center">
-                                 <input 
-                                   type="checkbox" 
-                                   checked={module.permissions[action]} 
-                                   onChange={() => handlePermissionChange(idx, action)}
-                                   className="rounded border-gray-600 text-[#e67e00] bg-[#0a0a0a] focus:ring-[#e67e00] border-[#1f1f1f] focus:ring-offset-[#121212] cursor-pointer" 
-                                 />
-                               </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="p-5 rounded-xl border border-[#1f1f1f] bg-[#121212]">
-                  <h3 className="text-white font-semibold mb-4">Audit Access Summary</h3>
-                  <div className="grid grid-cols-4 gap-3 mb-5">
-                    <div className="p-3 bg-[#1a1c23] rounded-lg border border-white/5 text-center">
-                      <div className="flex justify-center text-blue-400 mb-1"><FileText size={18} /></div>
-                      <p className="text-xs text-gray-400">Total Logs</p>
-                      <p className="font-bold text-white text-lg">{audit?.total || 0}</p>
-                    </div>
-                    <div className="p-3 bg-[#1a1c23] rounded-lg border border-white/5 text-center">
-                      <div className="flex justify-center text-[#ffb042] mb-1"><Calendar size={18} /></div>
-                      <p className="text-xs text-gray-400">Today</p>
-                      <p className="font-bold text-white text-lg">{audit?.today || 0}</p>
-                    </div>
-                    <div className="p-3 bg-[#1a1c23] rounded-lg border border-white/5 text-center">
-                      <div className="flex justify-center text-yellow-400 mb-1"><Clock size={18} /></div>
-                      <p className="text-xs text-gray-400">Last 7d</p>
-                      <p className="font-bold text-white text-lg">{audit?.last7Days || 0}</p>
-                    </div>
-                    <div className="p-3 bg-[#1a1c23] rounded-lg border border-white/5 text-center">
-                      <div className="flex justify-center text-red-400 mb-1"><Shield size={18} /></div>
-                      <p className="text-xs text-gray-400">Last 30d</p>
-                      <p className="font-bold text-white text-lg">{audit?.last30Days || 0}</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setActiveTab('Audit Access')} className="w-full flex items-center justify-center gap-2 py-2 text-sm font-medium text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-colors">
-                    <FileText size={16} /> View Audit Logs
-                  </button>
                 </div>
               </div>
             </div>

@@ -7,6 +7,9 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Dashboard } from './pages/Dashboard';
 import { UsersAndRoles } from './pages/UsersAndRoles';
 import { PlantsList } from './pages/PlantsList';
+import { ProcurementManagement } from './pages/ProcurementManagement';
+import { WeighbridgeManagement } from './pages/WeighbridgeManagement';
+import { GatePassManagement } from './pages/GatePassManagement';
 
 function App() {
   return (
@@ -21,6 +24,9 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="users" element={<UsersAndRoles />} />
             <Route path="plants" element={<PlantsList />} />
+            <Route path="procurement" element={<ProcurementManagement />} />
+            <Route path="weighbridge" element={<WeighbridgeManagement />} />
+            <Route path="gate-pass" element={<GatePassManagement />} />
           </Route>
         </Route>
 

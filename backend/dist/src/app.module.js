@@ -16,12 +16,15 @@ const plants_module_1 = require("./plants/plants.module");
 const dashboard_module_1 = require("./dashboard/dashboard.module");
 const users_module_1 = require("./users/users.module");
 const users_roles_module_1 = require("./users-roles/users-roles.module");
+const procurement_module_1 = require("./procurement/procurement.module");
+const weighbridge_module_1 = require("./weighbridge/weighbridge.module");
+const gate_pass_module_1 = require("./gate-pass/gate-pass.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule, auth_module_1.AuthModule, plants_module_1.PlantsModule, dashboard_module_1.DashboardModule, users_module_1.UsersModule, users_roles_module_1.UsersRolesModule],
+        imports: [prisma_module_1.PrismaModule, auth_module_1.AuthModule, plants_module_1.PlantsModule, dashboard_module_1.DashboardModule, users_module_1.UsersModule, users_roles_module_1.UsersRolesModule, procurement_module_1.ProcurementModule, weighbridge_module_1.WeighbridgeModule, gate_pass_module_1.GatePassModule],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],
     })
