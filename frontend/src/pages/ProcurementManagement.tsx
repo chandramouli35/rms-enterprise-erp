@@ -105,7 +105,7 @@ export const ProcurementManagement = () => {
       setFormData({ ...defaultFormData, plantId: activePlant?.id || '' });
     } catch (error) {
       console.error('Failed to save purchase', error);
-      setModalConfig({ isOpen: true, title: 'Error', content: 'Failed to save purchase. Please try again.' });
+      alert('Failed to save purchase. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

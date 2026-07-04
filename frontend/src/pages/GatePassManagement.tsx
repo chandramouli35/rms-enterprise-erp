@@ -263,7 +263,7 @@ export const GatePassManagement = () => {
       fetchData();
       
       // Reset form but keep plant ID
-      setFormData({ ...defaultFormData, plantId: activePlant.id });
+      setFormData({ ...defaultFormData, plantId: activePlant?.id || '' });
     } catch (error: any) {
       if (error.response?.status === 409) {
         alert(error.response.data.message || 'Vehicle already has an active pass.');
