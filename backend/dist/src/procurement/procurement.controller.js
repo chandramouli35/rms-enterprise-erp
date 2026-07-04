@@ -19,8 +19,46 @@ let ProcurementController = class ProcurementController {
     constructor(procurementService) {
         this.procurementService = procurementService;
     }
-    savePurchase(data) {
-        return this.procurementService.savePurchase(data);
+    async savePurchase(data) {
+        try {
+            return await this.procurementService.savePurchase(data);
+        }
+        catch (error) {
+            console.error(error);
+            throw new common_1.HttpException(`Failed to save: ${error.message || error}`, common_1.HttpStatus.BAD_REQUEST);
+        }
+    }
+    getRecentPurchases(plantId) {
+        return this.procurementService.getRecentPurchases(plantId);
+    }
+    getBatch(batchId) {
+        return this.procurementService.getBatch(batchId);
+    }
+    updateQuality(batchId, data) {
+        return this.procurementService.updateQuality(batchId, data);
+    }
+    getSuppliers() {
+        return this.procurementService.getSuppliers();
+    }
+    createSupplier(data) {
+        return this.procurementService.createSupplier(data);
+    }
+    getAnalytics(plantId) {
+        return this.procurementService.getAnalytics(plantId);
+    }
+    getPurchaseRegister(plantId, filters) {
+        return this.procurementService.getPurchaseRegister(plantId, filters);
+    }
+    async updateBoliRate(batchId, data) {
+        try {
+            return await this.procurementService.updateBoliRate(batchId, data.newRate, data.arhtiaCorrection);
+        }
+        catch (error) {
+            throw new common_1.HttpException(error.message, common_1.HttpStatus.BAD_REQUEST);
+        }
+    }
+    getSodaPending(plantId) {
+        return this.procurementService.getSodaPending(plantId);
     }
 };
 exports.ProcurementController = ProcurementController;
@@ -29,8 +67,73 @@ __decorate([
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], ProcurementController.prototype, "savePurchase", null);
+__decorate([
+    (0, common_1.Get)('recent/:plantId'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], ProcurementController.prototype, "getRecentPurchases", null);
+__decorate([
+    (0, common_1.Get)('batch/:batchId'),
+    __param(0, (0, common_1.Param)('batchId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], ProcurementController.prototype, "getBatch", null);
+__decorate([
+    (0, common_1.Post)('quality/:batchId'),
+    __param(0, (0, common_1.Param)('batchId')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], ProcurementController.prototype, "updateQuality", null);
+__decorate([
+    (0, common_1.Get)('suppliers'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], ProcurementController.prototype, "getSuppliers", null);
+__decorate([
+    (0, common_1.Post)('suppliers'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], ProcurementController.prototype, "createSupplier", null);
+__decorate([
+    (0, common_1.Get)('analytics/:plantId'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], ProcurementController.prototype, "getAnalytics", null);
+__decorate([
+    (0, common_1.Post)('register/:plantId'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], ProcurementController.prototype, "getPurchaseRegister", null);
+__decorate([
+    (0, common_1.Post)('boli-rate/:batchId'),
+    __param(0, (0, common_1.Param)('batchId')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ProcurementController.prototype, "updateBoliRate", null);
+__decorate([
+    (0, common_1.Get)('soda-pending/:plantId'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], ProcurementController.prototype, "getSodaPending", null);
 exports.ProcurementController = ProcurementController = __decorate([
     (0, common_1.Controller)('api/procurement'),
     __metadata("design:paramtypes", [procurement_service_1.ProcurementService])

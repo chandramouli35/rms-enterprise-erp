@@ -25,6 +25,18 @@ let GatePassController = class GatePassController {
     getCampusStatus(plantId) {
         return this.gatePassService.getCampusStatus(plantId);
     }
+    getRecentGatePasses(plantId, type) {
+        return this.gatePassService.getRecentGatePasses(plantId, type || 'INWARD');
+    }
+    getGatePassByQr(qrCode) {
+        return this.gatePassService.getGatePassByQr(qrCode);
+    }
+    getAnalytics(plantId) {
+        return this.gatePassService.getAnalytics(plantId);
+    }
+    getDuplicateLogs(plantId) {
+        return this.gatePassService.getDuplicateLogs(plantId);
+    }
 };
 exports.GatePassController = GatePassController;
 __decorate([
@@ -41,6 +53,35 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], GatePassController.prototype, "getCampusStatus", null);
+__decorate([
+    (0, common_1.Get)('recent/:plantId'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __param(1, (0, common_1.Query)('type')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], GatePassController.prototype, "getRecentGatePasses", null);
+__decorate([
+    (0, common_1.Get)('scan/:qrCode'),
+    __param(0, (0, common_1.Param)('qrCode')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], GatePassController.prototype, "getGatePassByQr", null);
+__decorate([
+    (0, common_1.Get)('analytics/:plantId'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], GatePassController.prototype, "getAnalytics", null);
+__decorate([
+    (0, common_1.Get)('duplicate-logs/:plantId'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], GatePassController.prototype, "getDuplicateLogs", null);
 exports.GatePassController = GatePassController = __decorate([
     (0, common_1.Controller)('api/gate-pass'),
     __metadata("design:paramtypes", [gate_pass_service_1.GatePassService])

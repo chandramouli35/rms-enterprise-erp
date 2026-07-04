@@ -1,4 +1,4 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, HttpException, HttpStatus } from '@nestjs/common';
 import { ProcurementService } from './procurement.service';
 
 @Controller('api/procurement')
@@ -6,7 +6,61 @@ export class ProcurementController {
   constructor(private readonly procurementService: ProcurementService) {}
 
   @Post('save-purchase')
-  savePurchase(@Body() data: any) {
-    return this.procurementService.savePurchase(data);
+  async savePurchase(@Body() data: any) {
+    try {
+      return await this.procurementService.savePurchase(data);
+    } catch (error: any) {
+      console.error(error);
+      throw new HttpException(`Failed to save: ${error.message || error}`, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Get('recent/:plantId')
+  getRecentPurchases(@Param('plantId') plantId: string) {
+    return this.procurementService.getRecentPurchases(plantId);
+  }
+
+  @Get('batch/:batchId')
+  getBatch(@Param('batchId') batchId: string) {
+    return this.procurementService.getBatch(batchId);
+  }
+
+  @Post('quality/:batchId')
+  updateQuality(@Param('batchId') batchId: string, @Body() data: any) {
+    return this.procurementService.updateQuality(batchId, data);
+  }
+
+  @Get('suppliers')
+  getSuppliers() {
+    return this.procurementService.getSuppliers();
+  }
+
+  @Post('suppliers')
+  createSupplier(@Body() data: any) {
+    return this.procurementService.createSupplier(data);
+  }
+
+  @Get('analytics/:plantId')
+  getAnalytics(@Param('plantId') plantId: string) {
+    return this.procurementService.getAnalytics(plantId);
+  }
+
+  @Post('register/:plantId')
+  getPurchaseRegister(@Param('plantId') plantId: string, @Body() filters: any) {
+    return this.procurementService.getPurchaseRegister(plantId, filters);
+  }
+
+  @Post('boli-rate/:batchId')
+  async updateBoliRate(@Param('batchId') batchId: string, @Body() data: { newRate: number; arhtiaCorrection: number }) {
+    try {
+      return await this.procurementService.updateBoliRate(batchId, data.newRate, data.arhtiaCorrection);
+    } catch (error: any) {
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Get('soda-pending/:plantId')
+  getSodaPending(@Param('plantId') plantId: string) {
+    return this.procurementService.getSodaPending(plantId);
   }
 }

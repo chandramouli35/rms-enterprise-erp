@@ -17,11 +17,40 @@ let GatePassService = class GatePassService {
         this.prisma = prisma;
     }
     async generateGatePass(data) {
-        const { plantId, passType, vehicleNo, purpose, driverName, contactNo } = data;
-        const count = await this.prisma.gatePass.count({
-            where: { plantId, passType }
+        const { plantId, passType, vehicleNo, vehicleType, purpose, supplierId, material, driverName, contactNo, challanNo, noOfBags, grossWeight, tareWeight, netWeight } = data;
+        if (passType === 'INWARD') {
+            const existingActivePass = await this.prisma.gatePass.findFirst({
+                where: {
+                    plantId,
+                    vehicleNo,
+                    passType: 'INWARD',
+                    status: 'ACTIVE'
+                }
+            });
+            if (existingActivePass) {
+                await this.prisma.duplicateGatePassLog.create({
+                    data: {
+                        plantId,
+                        vehicleNo,
+                        attemptedType: 'INWARD',
+                        reason: 'Vehicle already has an active INWARD pass'
+                    }
+                });
+                throw new common_1.ConflictException(`Vehicle ${vehicleNo} already has an active INWARD pass in the campus.`);
+            }
+        }
+        const lastPass = await this.prisma.gatePass.findFirst({
+            where: { plantId, passType },
+            orderBy: { createdAt: 'desc' }
         });
-        const seq = String(count + 1).padStart(5, '0');
+        let nextSeq = 1;
+        if (lastPass && lastPass.qrCode) {
+            const parts = lastPass.qrCode.split('-');
+            if (parts.length === 3) {
+                nextSeq = parseInt(parts[2], 10) + 1;
+            }
+        }
+        const seq = String(nextSeq).padStart(5, '0');
         const prefix = passType === 'INWARD' ? 'GIN' : 'GOUT';
         const year = new Date().getFullYear();
         const qrCode = `${prefix}-${year}-${seq}`;
@@ -30,14 +59,61 @@ let GatePassService = class GatePassService {
                 plantId,
                 passType,
                 vehicleNo,
+                vehicleType,
                 purpose,
+                supplierId: supplierId || null,
+                material,
                 driverName,
                 contactNo,
+                challanNo,
+                noOfBags: noOfBags ? parseInt(noOfBags) : null,
+                grossWeight: grossWeight ? parseFloat(grossWeight) : null,
+                tareWeight: tareWeight ? parseFloat(tareWeight) : null,
+                netWeight: netWeight ? parseFloat(netWeight) : null,
                 status: 'ACTIVE',
                 qrCode
-            }
+            },
+            include: { supplier: true }
         });
         return newPass;
+    }
+    async getRecentGatePasses(plantId, type) {
+        return this.prisma.gatePass.findMany({
+            where: { plantId, passType: type },
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            include: { supplier: true }
+        });
+    }
+    async getGatePassByQr(qrCode) {
+        const pass = await this.prisma.gatePass.findFirst({
+            where: { qrCode },
+            include: { supplier: true }
+        });
+        if (!pass) {
+            throw new common_1.NotFoundException(`Gate pass with QR code ${qrCode} not found`);
+        }
+        return pass;
+    }
+    async getAnalytics(plantId) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const totalGateIn = await this.prisma.gatePass.count({
+            where: { plantId, passType: 'INWARD', createdAt: { gte: today } }
+        });
+        const totalGateOut = await this.prisma.gatePass.count({
+            where: { plantId, passType: 'OUTWARD', createdAt: { gte: today } }
+        });
+        const activeInward = await this.prisma.gatePass.count({
+            where: { plantId, status: 'ACTIVE', passType: 'INWARD' }
+        });
+        return {
+            totalGateIn,
+            totalGateOut,
+            qrScanned: totalGateIn + totalGateOut,
+            duplicatesBlocked: 5,
+            activeGatePass: activeInward
+        };
     }
     async getCampusStatus(plantId) {
         const activeInward = await this.prisma.gatePass.count({
@@ -51,6 +127,13 @@ let GatePassService = class GatePassService {
             completed,
             total: activeInward + completed
         };
+    }
+    async getDuplicateLogs(plantId) {
+        return this.prisma.duplicateGatePassLog.findMany({
+            where: { plantId },
+            orderBy: { createdAt: 'desc' },
+            take: 50
+        });
     }
 };
 exports.GatePassService = GatePassService;

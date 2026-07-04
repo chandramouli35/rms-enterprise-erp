@@ -21,9 +21,11 @@ model Plant {
   stockLedger  StockLedger[]
   productionLogs ProductionLog[]
   gatePasses   GatePass[]
+  duplicateGatePassLogs DuplicateGatePassLog[]
   millingProcesses MillingProcess[]
   weighbridgeTransactions WeighbridgeTransaction[]
   weighbridgeSettings WeighbridgeSettings?
+  paddySodaPendings PaddySodaPending[]
   
   // Tracking
   createdAt   DateTime  @default(now())
@@ -132,6 +134,8 @@ model Supplier {
   updatedAt DateTime @updatedAt
 
   procurements ProcurementBatch[]
+  gatePasses   GatePass[]
+  paddySodaPendings PaddySodaPending[]
 }
 
 // -----------------------------------------------------------------------------
@@ -159,6 +163,16 @@ model WeighbridgeSettings {
 // -----------------------------------------------------------------------------
 // Operations & Inventory
 // -----------------------------------------------------------------------------
+enum InventoryCategory {
+  OPERATIONAL
+  NON_OPERATIONAL
+}
+
+enum PurchaseType {
+  PADDY_BOLI
+  PADDY_NORMAL
+  NON_OPERATIONAL_ASSET
+}
 
 model ProcurementBatch {
   id          String   @id @default(uuid())
@@ -175,9 +189,20 @@ model ProcurementBatch {
   tareWeight  Float?   // in MT
   netWeight   Float?   // in MT
   
+  category    InventoryCategory? @default(OPERATIONAL)
+  purchaseType PurchaseType? @default(PADDY_NORMAL)
+  
+  baseRate          Float?
+  finalRate         Float?
+  arhtiaCorrection  Float?
+  nextDayCorrection Float?
+  isSettled         Boolean @default(false)
+  
   amount      Float?
   deductions  Float?
   netAmount   Float?
+  
+  paddyInwardDetails PaddyInwardDetails?
   
   status      String   @default("PENDING") // PENDING, QC_APPROVED, QC_REJECTED, COMPLETED
   
@@ -202,6 +227,71 @@ model QualityInspection {
   inspectedBy         String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+}
+
+model PaddyInwardDetails {
+  id                  String   @id @default(uuid())
+  procurementBatchId  String   @unique
+  procurementBatch    ProcurementBatch @relation(fields: [procurementBatchId], references: [id])
+  
+  gpNo                String?
+  mandiEgNo           String?
+  rstNo               String?
+  pahunchPersonName   String?
+  safaiType           String?  // Good, Patal
+  intimationToMandi   Boolean? @default(false)
+  
+  allocationType      String?  // Hoodi, Stacking
+  isUploadedToHoodiRegister Boolean? @default(false)
+  allocateUnloader    String?
+  gaddiCount          Float?
+  stackNo             String?
+  unloadingStartTime  DateTime?
+  unloadingEndTime    DateTime?
+  labourType          String?  // Inside, Outside
+  
+  originalBardanaClass String? // A_Class, B_Class
+  agencyGpBardanaClass String? // A_Class, B_Class
+  
+  bagsRecAtMill       Float?
+  bagsAtAgencyGp      Float?
+  netWtAtMill         Float?
+  requiredNetWt       Float?
+  netWtDifference     Float?
+  netWtAtParty        Float?
+  
+  shortageType        String?  // Received, Occurred, NA
+  isUpdatedInShortageRegister Boolean? @default(false)
+  balanceShortageArhtia Float?
+  
+  bhariVideoUrl       String?
+  khaliVideoUrl       String?
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model PaddySodaPending {
+  id            String   @id @default(uuid())
+  plantId       String
+  plant         Plant    @relation(fields: [plantId], references: [id])
+  supplierId    String
+  supplier      Supplier @relation(fields: [supplierId], references: [id])
+  
+  date          DateTime @default(now())
+  moisture      Float?
+  bags          Float?
+  rate          Float?
+  diff          Float?
+  payment       Float?
+  note          String?
+  finalHisabAmt Float?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([plantId])
+  @@index([supplierId])
 }
 
 model WeighbridgeTransaction {
@@ -236,9 +326,18 @@ model GatePass {
   plant       Plant    @relation(fields: [plantId], references: [id])
   passType    String   // INWARD, OUTWARD
   vehicleNo   String
+  vehicleType String?
   purpose     String?  // PADDY_DELIVERY, DISPATCH, etc.
+  supplierId  String?
+  supplier    Supplier? @relation(fields: [supplierId], references: [id])
+  material    String?
   driverName  String?
   contactNo   String?
+  challanNo   String?
+  noOfBags    Int?
+  grossWeight Float?
+  tareWeight  Float?
+  netWeight   Float?
   status      String   @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
   qrCode      String?  @unique
   createdAt   DateTime @default(now())
@@ -249,6 +348,20 @@ model GatePass {
   @@index([plantId])
   @@index([vehicleNo])
   @@index([status])
+}
+
+model DuplicateGatePassLog {
+  id            String   @id @default(uuid())
+  plantId       String
+  plant         Plant    @relation(fields: [plantId], references: [id])
+  vehicleNo     String
+  attemptedType String   // INWARD
+  reason        String   // "Vehicle already has an active INWARD pass"
+  createdAt     DateTime @default(now())
+
+  @@index([plantId])
+  @@index([vehicleNo])
+  @@index([createdAt])
 }
 
 model Inventory {
