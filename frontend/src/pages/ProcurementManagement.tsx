@@ -168,7 +168,7 @@ export const ProcurementManagement = () => {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex px-6 border-b border-white/10 shrink-0 overflow-x-auto bg-[#0f0f0f]">
+      <div className="flex px-6 border-b border-white/10 shrink-0 overflow-x-auto bg-[#0f0f0f] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         {[
           { id: 'supplier_master', icon: Users, label: 'Supplier Master' },
           { id: 'paddy_purchase', icon: Package, label: 'Paddy Purchase & Quality' },
@@ -190,7 +190,7 @@ export const ProcurementManagement = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-x-hidden overflow-y-auto p-6">
         
         {/* TAB 1: SUPPLIER MASTER */}
         {activeTab === 'supplier_master' && (
@@ -237,7 +237,7 @@ export const ProcurementManagement = () => {
         {activeTab === 'paddy_purchase' && (
           <div className="flex flex-col lg:flex-row gap-6 h-full">
             {/* Left Column (Purchase Entry) */}
-            <div className="w-full lg:w-1/3 flex flex-col gap-6">
+            <div className="w-full lg:flex-1 flex flex-col gap-6">
               <div className="bg-[#121212] border border-white/10 rounded-xl p-5 shadow-xl">
                 <h2 className="text-lg font-bold text-white mb-4 flex items-center justify-between">
                   Purchase Entry
@@ -320,7 +320,7 @@ export const ProcurementManagement = () => {
             </div>
 
             {/* Right Column (Advanced Inward Form BEAS AGRO) */}
-            <div className="w-full lg:w-2/3 bg-white text-black rounded-xl p-8 overflow-y-auto shadow-2xl relative">
+            <div className="w-full lg:flex-[2] bg-white text-black rounded-xl p-8 overflow-y-auto shadow-2xl relative">
               <div className="text-center mb-6 border-b-2 border-black pb-4">
                 <h1 className="text-4xl font-serif font-bold tracking-widest">BEAS AGRO</h1>
                 <h2 className="text-xl font-bold tracking-widest mt-1">IN/OUT</h2>
@@ -330,27 +330,27 @@ export const ProcurementManagement = () => {
                 
                 <div className="flex items-end gap-2">
                   <span className="w-24">GP No.</span>
-                  <input type="text" name="gpNo" value={formData.gpNo} onChange={handleInputChange} className="flex-1 border-b border-black border-dashed bg-transparent focus:outline-none" />
+                  <input type="text" name="gpNo" value={formData.gpNo} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none" />
                 </div>
                 
                 <div className="flex items-end gap-2">
                   <span className="w-24">Mandi e-GP / Bill No.</span>
-                  <input type="text" name="mandiEgNo" value={formData.mandiEgNo} onChange={handleInputChange} className="flex-1 border-b border-black border-dashed bg-transparent focus:outline-none" />
+                  <input type="text" name="mandiEgNo" value={formData.mandiEgNo} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none" />
                 </div>
                 
                 <div className="flex items-end gap-2">
                   <span className="w-24">Party Name</span>
-                  <input type="text" value={suppliers.find(s=>s.id===formData.supplierId)?.name || ''} readOnly className="flex-1 border-b border-black border-dashed bg-transparent focus:outline-none" />
+                  <input type="text" value={suppliers.find(s=>s.id===formData.supplierId)?.name || ''} readOnly className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none" />
                 </div>
 
                 <div className="flex items-end gap-2">
                   <span className="w-24">RST No.</span>
-                  <input type="text" name="rstNo" value={formData.rstNo} onChange={handleInputChange} className="flex-1 border-b border-black border-dashed bg-transparent focus:outline-none" />
+                  <input type="text" name="rstNo" value={formData.rstNo} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none" />
                 </div>
                 
                 <div className="flex items-end gap-2 col-span-2">
                   <span className="w-32">Pahunch Person Name</span>
-                  <input type="text" name="pahunchPersonName" value={formData.pahunchPersonName} onChange={handleInputChange} className="flex-1 border-b border-black border-dashed bg-transparent focus:outline-none" />
+                  <input type="text" name="pahunchPersonName" value={formData.pahunchPersonName} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none" />
                 </div>
                 
                 <div className="flex items-center gap-4 col-span-2 mt-2">
@@ -388,32 +388,32 @@ export const ProcurementManagement = () => {
                 
                 <div className="flex items-end gap-2">
                   <span className="whitespace-nowrap">Bags rec @ mill</span>
-                  <input type="number" name="bagsRecAtMill" value={formData.bagsRecAtMill} onChange={handleInputChange} className="flex-1 border-b border-black border-dashed bg-transparent focus:outline-none text-center font-bold" /> Bags
+                  <input type="number" name="bagsRecAtMill" value={formData.bagsRecAtMill} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none text-center font-bold" /> Bags
                 </div>
                 
                 <div className="flex items-end gap-2">
                   <span className="whitespace-nowrap">Bags @ Agency-GP</span>
-                  <input type="number" name="bagsAtAgencyGp" value={formData.bagsAtAgencyGp} onChange={handleInputChange} className="flex-1 border-b border-black border-dashed bg-transparent focus:outline-none text-center" /> Bags
+                  <input type="number" name="bagsAtAgencyGp" value={formData.bagsAtAgencyGp} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none text-center" /> Bags
                 </div>
                 
                 <div className="flex items-end gap-2">
                   <span className="whitespace-nowrap">Net Wt.@ Mill</span>
-                  <input type="number" name="netWtAtMill" value={formData.netWtAtMill} onChange={handleInputChange} className="flex-1 border-b border-black border-dashed bg-transparent focus:outline-none text-center font-bold text-red-600" /> Qtl
+                  <input type="number" name="netWtAtMill" value={formData.netWtAtMill} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none text-center font-bold text-red-600" /> Qtl
                 </div>
                 
                 <div className="flex items-end gap-2">
-                  <span className="whitespace-nowrap">Reqired net wt</span>
-                  <input type="number" name="requiredNetWt" value={formData.requiredNetWt} onChange={handleInputChange} className="flex-1 border-b border-black border-dashed bg-transparent focus:outline-none text-center" /> Qtl
+                  <span className="whitespace-nowrap">Required net wt</span>
+                  <input type="number" name="requiredNetWt" value={formData.requiredNetWt} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none text-center" /> Qtl
                 </div>
                 
                 <div className="flex items-end gap-2">
                   <span className="whitespace-nowrap font-bold">Net wt. Difference</span>
-                  <input type="number" name="netWtDifference" value={formData.netWtDifference} onChange={handleInputChange} className="flex-1 border-b border-black border-dashed bg-transparent focus:outline-none text-center text-blue-600 font-bold" /> kgs
+                  <input type="number" name="netWtDifference" value={formData.netWtDifference} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none text-center text-blue-600 font-bold" /> kgs
                 </div>
                 
                 <div className="flex items-end gap-2">
                   <span className="whitespace-nowrap">Net Wt.@ Party</span>
-                  <input type="number" name="netWtAtParty" value={formData.netWtAtParty} onChange={handleInputChange} className="flex-1 border-b border-black border-dashed bg-transparent focus:outline-none text-center" /> Qtl
+                  <input type="number" name="netWtAtParty" value={formData.netWtAtParty} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none text-center" /> Qtl
                 </div>
                 
                 <div className="flex items-center gap-4 col-span-2 mt-4 font-bold bg-gray-100 p-2 rounded">
