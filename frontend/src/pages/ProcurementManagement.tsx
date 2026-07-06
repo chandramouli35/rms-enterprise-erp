@@ -320,104 +320,104 @@ export const ProcurementManagement = () => {
             </div>
 
             {/* Right Column (Advanced Inward Form BEAS AGRO) */}
-            <div className="w-full lg:flex-[2] bg-white text-black rounded-xl p-8 overflow-y-auto shadow-2xl relative">
-              <div className="text-center mb-6 border-b-2 border-black pb-4">
-                <h1 className="text-4xl font-serif font-bold tracking-widest">BEAS AGRO</h1>
-                <h2 className="text-xl font-bold tracking-widest mt-1">IN/OUT</h2>
+            <div className="w-full lg:flex-[2] bg-[#121212] text-white border border-white/10 rounded-xl p-8 overflow-y-auto shadow-2xl relative">
+              <div className="text-center mb-6 border-b-2 border-white/20 pb-4">
+                <h1 className="text-4xl font-serif font-bold tracking-widest text-[#e67e00]">BEAS AGRO</h1>
+                <h2 className="text-xl font-bold tracking-widest mt-1 text-gray-300">IN/OUT</h2>
               </div>
               
               <div className="grid grid-cols-2 gap-x-12 gap-y-4 text-sm font-medium">
                 
                 <div className="flex items-end gap-2">
-                  <span className="w-24">GP No.</span>
-                  <input type="text" name="gpNo" value={formData.gpNo} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none" />
+                  <span className="w-24 text-gray-400">GP No.</span>
+                  <input type="text" name="gpNo" value={formData.gpNo} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-white/20 border-dashed bg-transparent focus:outline-none text-white" />
                 </div>
                 
                 <div className="flex items-end gap-2">
-                  <span className="w-24">Mandi e-GP / Bill No.</span>
-                  <input type="text" name="mandiEgNo" value={formData.mandiEgNo} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none" />
+                  <span className="w-24 text-gray-400">Mandi e-GP / Bill No.</span>
+                  <input type="text" name="mandiEgNo" value={formData.mandiEgNo} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-white/20 border-dashed bg-transparent focus:outline-none text-white" />
                 </div>
                 
                 <div className="flex items-end gap-2">
-                  <span className="w-24">Party Name</span>
-                  <input type="text" value={suppliers.find(s=>s.id===formData.supplierId)?.name || ''} readOnly className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none" />
+                  <span className="w-24 text-gray-400">Party Name</span>
+                  <input type="text" value={suppliers.find(s=>s.id===formData.supplierId)?.name || ''} readOnly className="flex-1 min-w-0 border-b border-white/20 border-dashed bg-transparent focus:outline-none text-white" />
                 </div>
 
                 <div className="flex items-end gap-2">
-                  <span className="w-24">RST No.</span>
-                  <input type="text" name="rstNo" value={formData.rstNo} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none" />
+                  <span className="w-24 text-gray-400">RST No.</span>
+                  <input type="text" name="rstNo" value={formData.rstNo} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-white/20 border-dashed bg-transparent focus:outline-none text-white" />
                 </div>
                 
                 <div className="flex items-end gap-2 col-span-2">
-                  <span className="w-32">Pahunch Person Name</span>
-                  <input type="text" name="pahunchPersonName" value={formData.pahunchPersonName} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none" />
+                  <span className="w-32 text-gray-400">Pahunch Person Name</span>
+                  <input type="text" name="pahunchPersonName" value={formData.pahunchPersonName} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-white/20 border-dashed bg-transparent focus:outline-none text-white" />
                 </div>
                 
                 <div className="flex items-center gap-4 col-span-2 mt-2">
-                  <span>Safai :</span>
+                  <span className="text-gray-400">Safai :</span>
                   <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="safaiType" value="Good" checked={formData.safaiType==='Good'} onChange={handleInputChange} /> Good</label>
                   <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="safaiType" value="Patal" checked={formData.safaiType==='Patal'} onChange={handleInputChange} /> Patal</label>
                 </div>
                 
-                <div className="flex items-center gap-8 col-span-2 mt-2 font-bold text-blue-800">
-                  <div className="flex items-center gap-2 border border-blue-200 px-3 py-1 rounded bg-blue-50 cursor-pointer hover:bg-blue-100">
+                <div className="flex items-center gap-8 col-span-2 mt-2 font-bold text-blue-400">
+                  <div className="flex items-center gap-2 border border-blue-900 px-3 py-1 rounded bg-blue-900/20 cursor-pointer hover:bg-blue-900/40 transition-colors">
                     <Upload size={16} /> Bhari video upload
                   </div>
-                  <div className="flex items-center gap-2 border border-blue-200 px-3 py-1 rounded bg-blue-50 cursor-pointer hover:bg-blue-100">
+                  <div className="flex items-center gap-2 border border-blue-900 px-3 py-1 rounded bg-blue-900/20 cursor-pointer hover:bg-blue-900/40 transition-colors">
                     <Upload size={16} /> Khali video upload
                   </div>
                 </div>
                 
                 <div className="flex items-center gap-4 col-span-2 mt-2">
-                  <span>Allocation :</span>
+                  <span className="text-gray-400">Allocation :</span>
                   <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="allocationType" value="Hoodi" checked={formData.allocationType==='Hoodi'} onChange={handleInputChange} /> Hoodi</label>
                   <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="allocationType" value="Stacking" checked={formData.allocationType==='Stacking'} onChange={handleInputChange} /> Stacking</label>
                 </div>
                 
                 <div className="flex items-center gap-6 col-span-2 mt-2">
-                  <span className="font-bold">Original Bardana :</span>
+                  <span className="font-bold text-gray-300">Original Bardana :</span>
                   <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="originalBardanaClass" value="A_Class" checked={formData.originalBardanaClass==='A_Class'} onChange={handleInputChange} /> A class</label>
                   <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="originalBardanaClass" value="B_Class" checked={formData.originalBardanaClass==='B_Class'} onChange={handleInputChange} /> B class</label>
                 </div>
                 
                 <div className="flex items-center gap-6 col-span-2 mt-1 mb-4">
-                  <span className="font-bold text-gray-600">AGENCY-GP Bardana :</span>
-                  <label className="flex items-center gap-1 cursor-pointer text-gray-600"><input type="radio" name="agencyGpBardanaClass" value="A_Class" checked={formData.agencyGpBardanaClass==='A_Class'} onChange={handleInputChange} /> A class</label>
-                  <label className="flex items-center gap-1 cursor-pointer text-gray-600"><input type="radio" name="agencyGpBardanaClass" value="B_Class" checked={formData.agencyGpBardanaClass==='B_Class'} onChange={handleInputChange} /> B class</label>
+                  <span className="font-bold text-gray-400">AGENCY-GP Bardana :</span>
+                  <label className="flex items-center gap-1 cursor-pointer text-gray-400"><input type="radio" name="agencyGpBardanaClass" value="A_Class" checked={formData.agencyGpBardanaClass==='A_Class'} onChange={handleInputChange} /> A class</label>
+                  <label className="flex items-center gap-1 cursor-pointer text-gray-400"><input type="radio" name="agencyGpBardanaClass" value="B_Class" checked={formData.agencyGpBardanaClass==='B_Class'} onChange={handleInputChange} /> B class</label>
                 </div>
                 
                 <div className="flex items-end gap-2">
-                  <span className="whitespace-nowrap">Bags rec @ mill</span>
-                  <input type="number" name="bagsRecAtMill" value={formData.bagsRecAtMill} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none text-center font-bold" /> Bags
+                  <span className="whitespace-nowrap text-gray-400">Bags rec @ mill</span>
+                  <input type="number" name="bagsRecAtMill" value={formData.bagsRecAtMill} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-white/20 border-dashed bg-transparent focus:outline-none text-center font-bold text-white" /> <span className="text-gray-400">Bags</span>
                 </div>
                 
                 <div className="flex items-end gap-2">
-                  <span className="whitespace-nowrap">Bags @ Agency-GP</span>
-                  <input type="number" name="bagsAtAgencyGp" value={formData.bagsAtAgencyGp} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none text-center" /> Bags
+                  <span className="whitespace-nowrap text-gray-400">Bags @ Agency-GP</span>
+                  <input type="number" name="bagsAtAgencyGp" value={formData.bagsAtAgencyGp} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-white/20 border-dashed bg-transparent focus:outline-none text-center text-white" /> <span className="text-gray-400">Bags</span>
                 </div>
                 
                 <div className="flex items-end gap-2">
-                  <span className="whitespace-nowrap">Net Wt.@ Mill</span>
-                  <input type="number" name="netWtAtMill" value={formData.netWtAtMill} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none text-center font-bold text-red-600" /> Qtl
+                  <span className="whitespace-nowrap text-gray-400">Net Wt.@ Mill</span>
+                  <input type="number" name="netWtAtMill" value={formData.netWtAtMill} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-white/20 border-dashed bg-transparent focus:outline-none text-center font-bold text-red-400" /> <span className="text-gray-400">Qtl</span>
                 </div>
                 
                 <div className="flex items-end gap-2">
-                  <span className="whitespace-nowrap">Required net wt</span>
-                  <input type="number" name="requiredNetWt" value={formData.requiredNetWt} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none text-center" /> Qtl
+                  <span className="whitespace-nowrap text-gray-400">Required net wt</span>
+                  <input type="number" name="requiredNetWt" value={formData.requiredNetWt} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-white/20 border-dashed bg-transparent focus:outline-none text-center text-white" /> <span className="text-gray-400">Qtl</span>
                 </div>
                 
                 <div className="flex items-end gap-2">
-                  <span className="whitespace-nowrap font-bold">Net wt. Difference</span>
-                  <input type="number" name="netWtDifference" value={formData.netWtDifference} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none text-center text-blue-600 font-bold" /> kgs
+                  <span className="whitespace-nowrap font-bold text-gray-300">Net wt. Difference</span>
+                  <input type="number" name="netWtDifference" value={formData.netWtDifference} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-white/20 border-dashed bg-transparent focus:outline-none text-center text-blue-400 font-bold" /> <span className="text-gray-400">kgs</span>
                 </div>
                 
                 <div className="flex items-end gap-2">
-                  <span className="whitespace-nowrap">Net Wt.@ Party</span>
-                  <input type="number" name="netWtAtParty" value={formData.netWtAtParty} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-black border-dashed bg-transparent focus:outline-none text-center" /> Qtl
+                  <span className="whitespace-nowrap text-gray-400">Net Wt.@ Party</span>
+                  <input type="number" name="netWtAtParty" value={formData.netWtAtParty} onChange={handleInputChange} className="flex-1 min-w-0 border-b border-white/20 border-dashed bg-transparent focus:outline-none text-center text-white" /> <span className="text-gray-400">Qtl</span>
                 </div>
                 
-                <div className="flex items-center gap-4 col-span-2 mt-4 font-bold bg-gray-100 p-2 rounded">
-                  <span>Shortage:</span>
+                <div className="flex items-center gap-4 col-span-2 mt-4 font-bold bg-white/5 p-2 rounded">
+                  <span className="text-gray-300">Shortage:</span>
                   <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="shortageType" value="Received" checked={formData.shortageType==='Received'} onChange={handleInputChange} /> received</label>
                   <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="shortageType" value="Occurred" checked={formData.shortageType==='Occurred'} onChange={handleInputChange} /> occurred</label>
                   <label className="flex items-center gap-1 cursor-pointer"><input type="radio" name="shortageType" value="NA" checked={formData.shortageType==='NA'} onChange={handleInputChange} /> N.A</label>
