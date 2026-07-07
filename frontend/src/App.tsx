@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import { DashboardShell } from './components/DashboardShell';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { ToastContainer } from './components/ToastContainer';
 
 import { Dashboard } from './pages/Dashboard';
 import { UsersAndRoles } from './pages/UsersAndRoles';
@@ -18,6 +19,7 @@ import { InterPlantTransfer } from './pages/InterPlantTransfer';
 function App() {
   return (
     <BrowserRouter>
+      <ToastContainer />
       <Routes>
         <Route path="/login" element={<Login />} />
         

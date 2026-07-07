@@ -1,8 +1,44 @@
 @import "tailwindcss";
 
 @layer base {
+  :root {
+    color-scheme: dark;
+    /* Dark Theme (Default) */
+    --bg-base: #0a0a0a;
+    --bg-panel: #121212;
+    --bg-panel-hover: #161616;
+    --bg-panel-alt: #1a1a1a;
+    
+    --text-main: #ffffff;
+    --text-muted: #d1d5db; /* gray-300 */
+    --text-muted-alt: #9ca3af; /* gray-400 */
+    
+    --border-subtle: rgba(255, 255, 255, 0.1);
+    --border-subtle-alt: rgba(255, 255, 255, 0.05);
+    
+    --glass-bg: rgba(255, 255, 255, 0.05);
+  }
+
+  .light-mode {
+    color-scheme: light;
+    /* Light Theme */
+    --bg-base: #f3f4f6; /* gray-100 */
+    --bg-panel: #ffffff; /* white */
+    --bg-panel-hover: #f9fafb; /* gray-50 */
+    --bg-panel-alt: #e5e7eb; /* gray-200 */
+    
+    --text-main: #111827; /* gray-900 */
+    --text-muted: #374151; /* gray-700 */
+    --text-muted-alt: #4b5563; /* gray-600 */
+    
+    --border-subtle: rgba(0, 0, 0, 0.1);
+    --border-subtle-alt: rgba(0, 0, 0, 0.05);
+    
+    --glass-bg: rgba(255, 255, 255, 0.7);
+  }
+
   body {
-    @apply bg-[#0a0a0a] text-gray-200 antialiased selection:bg-amber-500/30;
+    @apply bg-[var(--bg-base)] text-[var(--text-main)] antialiased selection:bg-amber-500/30 transition-colors duration-300;
   }
 
   /* Make sure all interactive elements clearly show a pointer */
@@ -15,8 +51,30 @@
   }
 }
 
+/* Custom Scrollbar for Webkit */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-subtle-alt);
+}
+
+/* Custom Scrollbar for Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-subtle) transparent;
+}
+
 @layer utilities {
   .glass-panel {
-    @apply bg-white/5 backdrop-blur-md border border-white/10 shadow-xl;
+    @apply bg-[var(--bg-panel)] backdrop-blur-md border-[var(--border-subtle)] shadow-xl;
   }
 }

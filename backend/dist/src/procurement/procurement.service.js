@@ -178,9 +178,13 @@ let ProcurementService = class ProcurementService {
         });
     }
     async createSupplier(data) {
+        const { name, contact, email, address } = data;
         return this.prisma.supplier.create({
             data: {
-                ...data,
+                name,
+                contact,
+                email,
+                address,
                 status: 'Active'
             }
         });

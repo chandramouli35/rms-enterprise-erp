@@ -206,9 +206,13 @@ export class ProcurementService {
   }
 
   async createSupplier(data: { name: string; contact?: string; email?: string; address?: string }) {
+    const { name, contact, email, address } = data;
     return this.prisma.supplier.create({
       data: {
-        ...data,
+        name,
+        contact,
+        email,
+        address,
         status: 'Active'
       }
     });
