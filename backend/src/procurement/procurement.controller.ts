@@ -63,4 +63,13 @@ export class ProcurementController {
   getSodaPending(@Param('plantId') plantId: string) {
     return this.procurementService.getSodaPending(plantId);
   }
+
+  @Post('settle-hisab')
+  async settleHisab(@Body() data: any) {
+    try {
+      return await this.procurementService.settleHisab(data);
+    } catch (error: any) {
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
 }

@@ -32,8 +32,10 @@ async function main() {
   console.log(`🏭 Found ${existingPlants.length} plants. Directing heavy metric footprints to: ${mainPlant.name}`);
 
   console.log('🧼 Clearing old metric rows to prevent record duplication constraints...');
-  await prisma.productionLog.deleteMany({});
-  await prisma.millingProcess.deleteMany({});
+  await prisma.processLoss.deleteMany({});
+  await prisma.byProduct.deleteMany({});
+  await prisma.yieldReport.deleteMany({});
+  await prisma.productionBatch.deleteMany({});
   await prisma.procurementBatch.deleteMany({});
   await prisma.stockLedger.deleteMany({});
   await prisma.gatePass.deleteMany({});
@@ -115,28 +117,44 @@ async function main() {
       const outputFinishedRice = parseFloat(((inputPaddyVolume * simulatedYieldPercent) / 100).toFixed(3));
       const processingLossAndByproducts = inputPaddyVolume - outputFinishedRice;
 
-      const mp = await prisma.millingProcess.create({
+      const mp = await prisma.productionBatch.create({
         data: {
           plantId: mainPlant.id,
-          batchId: `B-RUN-${loopDate.getFullYear()}${(loopDate.getMonth() + 1).toString().padStart(2, '0')}${loopDate.getDate().toString().padStart(2, '0')}-0${run}`,
-          rawMaterialQty: inputPaddyVolume,
-          outputQty: outputFinishedRice,
-          yieldPercent: simulatedYieldPercent,
+          batchNo: `B-RUN-${loopDate.getFullYear()}${(loopDate.getMonth() + 1).toString().padStart(2, '0')}${loopDate.getDate().toString().padStart(2, '0')}-0${run}`,
+          date: loopDate,
+          shift: 'Day',
+          productionLine: 'Line 1',
+          paddyType: 'PR-11',
+          variety: 'Sugandha',
+          paddyUsedQty: inputPaddyVolume,
+          riceProducedQty: outputFinishedRice,
+          status: 'COMPLETED',
+          progress: 100,
           createdAt: loopDate
         }
       });
 
-      await prisma.productionLog.create({
-        data: { plantId: mainPlant.id, batchId: mp.id, itemType: 'HEAD_RICE', quantity: outputFinishedRice, createdAt: loopDate }
+      await prisma.yieldReport.create({
+        data: {
+          productionBatchId: mp.id,
+          plantId: mainPlant.id,
+          overallRecovery: simulatedYieldPercent,
+          headRicePercent: simulatedYieldPercent,
+          brokenRicePercent: (processingLossAndByproducts * 0.4 / inputPaddyVolume) * 100,
+          branPercent: (processingLossAndByproducts * 0.3 / inputPaddyVolume) * 100,
+          huskPercent: (processingLossAndByproducts * 0.3 / inputPaddyVolume) * 100,
+          lossPercent: 0
+        }
       });
-      await prisma.productionLog.create({
-        data: { plantId: mainPlant.id, batchId: mp.id, itemType: 'BROKEN_RICE', quantity: processingLossAndByproducts * 0.4, createdAt: loopDate }
+
+      await prisma.byProduct.create({
+        data: { productionBatchId: mp.id, name: 'BROKEN_RICE', quantity: processingLossAndByproducts * 0.4 }
       });
-      await prisma.productionLog.create({
-        data: { plantId: mainPlant.id, batchId: mp.id, itemType: 'BRAN', quantity: processingLossAndByproducts * 0.3, createdAt: loopDate }
+      await prisma.byProduct.create({
+        data: { productionBatchId: mp.id, name: 'BRAN', quantity: processingLossAndByproducts * 0.3 }
       });
-      await prisma.productionLog.create({
-        data: { plantId: mainPlant.id, batchId: mp.id, itemType: 'HUSK', quantity: processingLossAndByproducts * 0.3, createdAt: loopDate }
+      await prisma.byProduct.create({
+        data: { productionBatchId: mp.id, name: 'HUSK', quantity: processingLossAndByproducts * 0.3 }
       });
 
       await prisma.stockLedger.create({

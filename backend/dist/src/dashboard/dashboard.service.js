@@ -48,13 +48,13 @@ let DashboardService = class DashboardService {
                 where: { plantId, transaction: 'IN', ...dateFilter },
                 _sum: { quantity: true }
             }),
-            this.prisma.productionLog.aggregate({
+            this.prisma.productionBatch.aggregate({
                 where: { plantId, ...dateFilter },
-                _sum: { quantity: true }
+                _sum: { riceProducedQty: true }
             }),
-            this.prisma.millingProcess.aggregate({
+            this.prisma.productionBatch.aggregate({
                 where: { plantId, ...dateFilter },
-                _sum: { outputQty: true, rawMaterialQty: true }
+                _sum: { riceProducedQty: true, paddyUsedQty: true }
             }),
             this.prisma.inventory.aggregate({
                 where: { plantId },
@@ -65,9 +65,9 @@ let DashboardService = class DashboardService {
             })
         ]);
         const paddyProcured = stockIn._sum.quantity || 0;
-        const totalProduction = production._sum.quantity || 0;
-        const avgYield = milling._sum.rawMaterialQty
-            ? ((milling._sum.outputQty || 0) / milling._sum.rawMaterialQty) * 100
+        const totalProduction = production._sum.riceProducedQty || 0;
+        const avgYield = milling._sum.paddyUsedQty
+            ? ((milling._sum.riceProducedQty || 0) / milling._sum.paddyUsedQty) * 100
             : 0;
         const totalStock = inventory._sum.quantity || 0;
         return {
@@ -118,13 +118,14 @@ let DashboardService = class DashboardService {
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
             whereClause.createdAt = { gte: thirtyDaysAgo };
         }
-        const processes = await this.prisma.millingProcess.findMany({
+        const processes = await this.prisma.productionBatch.findMany({
             where: whereClause,
-            orderBy: { createdAt: 'asc' }
+            orderBy: { createdAt: 'asc' },
+            include: { yieldReport: true }
         });
         return processes.map(p => ({
             name: p.createdAt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
-            value: p.yieldPercent
+            value: p.yieldReport?.overallRecovery || 0
         }));
     }
     async getStockDonut(plantId, filter) {
@@ -154,12 +155,12 @@ let DashboardService = class DashboardService {
         const [ledgers, passes, batches] = await Promise.all([
             this.prisma.stockLedger.findMany({ where: { plantId }, orderBy: { createdAt: 'desc' }, take: 5 }),
             this.prisma.gatePass.findMany({ where: { plantId }, orderBy: { createdAt: 'desc' }, take: 5 }),
-            this.prisma.productionLog.findMany({ where: { plantId }, orderBy: { createdAt: 'desc' }, take: 5 })
+            this.prisma.productionBatch.findMany({ where: { plantId }, orderBy: { createdAt: 'desc' }, take: 5 })
         ]);
         const combined = [
             ...ledgers.map(l => ({ type: 'Stock', title: `${l.transaction} - ${l.itemType}`, time: l.createdAt, details: `${l.quantity} MT` })),
             ...passes.map(p => ({ type: 'GatePass', title: `${p.passType} Gate Pass`, time: p.createdAt, details: p.vehicleNo })),
-            ...batches.map(b => ({ type: 'Production', title: `Batch ${b.batchId}`, time: b.createdAt, details: `Produced ${b.quantity} MT of ${b.itemType}` }))
+            ...batches.map(b => ({ type: 'Production', title: `Batch ${b.batchNo}`, time: b.createdAt, details: `Produced ${b.riceProducedQty} MT of Rice` }))
         ].sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 10);
         return combined.map(c => ({
             title: c.title,
@@ -181,16 +182,17 @@ let DashboardService = class DashboardService {
                 });
             }
         });
-        const recentYields = await this.prisma.millingProcess.findMany({
+        const recentYields = await this.prisma.productionBatch.findMany({
             where: { plantId },
             orderBy: { createdAt: 'desc' },
+            include: { yieldReport: true },
             take: 1
         });
-        if (recentYields.length && recentYields[0].yieldPercent < 60) {
+        if (recentYields.length && recentYields[0].yieldReport && recentYields[0].yieldReport.overallRecovery < 60) {
             alerts.push({
                 type: 'YieldDrop',
                 title: 'Yield Alert',
-                details: `Yield ${recentYields[0].yieldPercent}% is below target`,
+                details: `Yield ${recentYields[0].yieldReport.overallRecovery}% is below target`,
                 time: recentYields[0].createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             });
         }
@@ -204,13 +206,13 @@ let DashboardService = class DashboardService {
                 where: { plantId, transaction: 'IN', createdAt: { gte: today } },
                 _sum: { quantity: true }
             }),
-            this.prisma.productionLog.aggregate({
+            this.prisma.productionBatch.aggregate({
                 where: { plantId, createdAt: { gte: today } },
-                _sum: { quantity: true }
+                _sum: { riceProducedQty: true }
             }),
-            this.prisma.millingProcess.aggregate({
+            this.prisma.productionBatch.aggregate({
                 where: { plantId, createdAt: { gte: today } },
-                _sum: { rawMaterialQty: true, outputQty: true }
+                _sum: { paddyUsedQty: true, riceProducedQty: true }
             }),
             this.prisma.stockLedger.aggregate({
                 where: { plantId, transaction: 'OUT', createdAt: { gte: today } },
@@ -220,10 +222,10 @@ let DashboardService = class DashboardService {
                 where: { plantId, status: 'ACTIVE' }
             })
         ]);
-        const avgYield = milling._sum.rawMaterialQty
-            ? ((milling._sum.outputQty || 0) / milling._sum.rawMaterialQty) * 100
+        const avgYield = milling._sum.paddyUsedQty
+            ? ((milling._sum.riceProducedQty || 0) / milling._sum.paddyUsedQty) * 100
             : 0;
-        const prodQty = production._sum.quantity || 0;
+        const prodQty = production._sum.riceProducedQty || 0;
         return {
             paddyProcured: procurement._sum.quantity || 0,
             production: prodQty,

@@ -19,6 +19,7 @@ export declare class GatePassService {
         createdAt: Date;
         updatedAt: Date | null;
         passType: string;
+        status: string;
         vehicleNo: string;
         vehicleType: string | null;
         purpose: string | null;
@@ -31,7 +32,6 @@ export declare class GatePassService {
         grossWeight: number | null;
         tareWeight: number | null;
         netWeight: number | null;
-        status: string;
         qrCode: string | null;
     }>;
     getRecentGatePasses(plantId: string, type: string): Promise<({
@@ -51,6 +51,7 @@ export declare class GatePassService {
         createdAt: Date;
         updatedAt: Date | null;
         passType: string;
+        status: string;
         vehicleNo: string;
         vehicleType: string | null;
         purpose: string | null;
@@ -63,7 +64,6 @@ export declare class GatePassService {
         grossWeight: number | null;
         tareWeight: number | null;
         netWeight: number | null;
-        status: string;
         qrCode: string | null;
     })[]>;
     getGatePassByQr(qrCode: string): Promise<{
@@ -83,6 +83,7 @@ export declare class GatePassService {
         createdAt: Date;
         updatedAt: Date | null;
         passType: string;
+        status: string;
         vehicleNo: string;
         vehicleType: string | null;
         purpose: string | null;
@@ -95,7 +96,6 @@ export declare class GatePassService {
         grossWeight: number | null;
         tareWeight: number | null;
         netWeight: number | null;
-        status: string;
         qrCode: string | null;
     }>;
     getAnalytics(plantId: string): Promise<{

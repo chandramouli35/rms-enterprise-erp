@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
   engineType = "library"
 }
 
@@ -9,85 +9,85 @@ datasource db {
 }
 
 model Plant {
-  id          String    @id @default(uuid())
-  name        String
-  location    String?
-  code        String    @unique // e.g., 'PLANT-A'
-  
+  id       String  @id @default(uuid())
+  name     String
+  location String?
+  code     String  @unique // e.g., 'PLANT-A'
+
   // Relations
-  users       UserPlantAccess[]
-  procurements ProcurementBatch[]
-  inventories  Inventory[]
-  stockLedger  StockLedger[]
-  productionLogs ProductionLog[]
-  gatePasses   GatePass[]
-  duplicateGatePassLogs DuplicateGatePassLog[]
-  millingProcesses MillingProcess[]
+  users                   UserPlantAccess[]
+  procurements            ProcurementBatch[]
+  inventories             Inventory[]
+  stockLedger             StockLedger[]
+  productionBatches       ProductionBatch[]
+  yieldReports            YieldReport[]
+  gatePasses              GatePass[]
+  duplicateGatePassLogs   DuplicateGatePassLog[]
   weighbridgeTransactions WeighbridgeTransaction[]
-  weighbridgeSettings WeighbridgeSettings?
-  paddySodaPendings PaddySodaPending[]
-  
+  weighbridgeSettings     WeighbridgeSettings?
+  paddySodaPendings       PaddySodaPending[]
+
   // Tracking
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   @@index([code])
 }
 
 model Role {
-  id          String    @id @default(uuid())
-  name        String    @unique // e.g., 'SUPER_ADMIN', 'PLANT_MANAGER', 'WEIGHBRIDGE_OPERATOR', 'ACCOUNTANT'
+  id          String  @id @default(uuid())
+  name        String  @unique // e.g., 'SUPER_ADMIN', 'PLANT_MANAGER', 'WEIGHBRIDGE_OPERATOR', 'ACCOUNTANT'
   description String?
-  
+
   // Relations
   users             User[]
   modulePermissions ModulePermission[]
-  
+
   // Tracking
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 }
 
 model ModulePermission {
-  id          String    @id @default(uuid())
-  roleId      String
-  moduleName  String    // e.g., 'Dashboard', 'Procurement', 'Inventory'
-  canView     Boolean   @default(false)
-  canAdd      Boolean   @default(false)
-  canEdit     Boolean   @default(false)
-  canDelete   Boolean   @default(false)
-  canApprove  Boolean   @default(false)
-  
-  role        Role      @relation(fields: [roleId], references: [id])
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id         String  @id @default(uuid())
+  roleId     String
+  moduleName String // e.g., 'Dashboard', 'Procurement', 'Inventory'
+  canView    Boolean @default(false)
+  canAdd     Boolean @default(false)
+  canEdit    Boolean @default(false)
+  canDelete  Boolean @default(false)
+  canApprove Boolean @default(false)
+
+  role Role @relation(fields: [roleId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([roleId, moduleName])
   @@index([roleId])
 }
 
 model User {
-  id           String    @id @default(uuid())
-  username     String    @unique
-  email        String    @unique
+  id           String  @id @default(uuid())
+  username     String  @unique
+  email        String  @unique
   passwordHash String
   refreshToken String?
-  isActive     Boolean   @default(true) // Added for dynamic active/inactive toggles
-  
+  isActive     Boolean @default(true) // Added for dynamic active/inactive toggles
+
   // Relations
-  roleId       String
-  role         Role      @relation(fields: [roleId], references: [id])
-  plantAccess  UserPlantAccess[]
-  auditLogs    SystemAuditLog[]
+  roleId      String
+  role        Role              @relation(fields: [roleId], references: [id])
+  plantAccess UserPlantAccess[]
+  auditLogs   SystemAuditLog[]
 
   // Tracking
-  lastLogin    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  lastLogin DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   @@index([username])
   @@index([email])
@@ -97,9 +97,9 @@ model User {
 model UserPlantAccess {
   userId  String
   plantId String
-  
-  user    User  @relation(fields: [userId], references: [id])
-  plant   Plant @relation(fields: [plantId], references: [id])
+
+  user  User  @relation(fields: [userId], references: [id])
+  plant Plant @relation(fields: [plantId], references: [id])
 
   @@id([userId, plantId])
   @@index([userId])
@@ -107,15 +107,15 @@ model UserPlantAccess {
 }
 
 model SystemAuditLog {
-  id          String   @id @default(uuid())
-  userId      String
-  action      String   // e.g., 'CREATED_USER', 'UPDATED_PERMISSIONS'
-  module      String   // e.g., 'Users & Roles', 'Dashboard'
-  details     String?
-  createdAt   DateTime @default(now())
-  
-  user        User     @relation(fields: [userId], references: [id])
-  
+  id        String   @id @default(uuid())
+  userId    String
+  action    String // e.g., 'CREATED_USER', 'UPDATED_PERMISSIONS'
+  module    String // e.g., 'Users & Roles', 'Dashboard'
+  details   String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
   @@index([userId])
   @@index([createdAt])
 }
@@ -133,8 +133,8 @@ model Supplier {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  procurements ProcurementBatch[]
-  gatePasses   GatePass[]
+  procurements      ProcurementBatch[]
+  gatePasses        GatePass[]
   paddySodaPendings PaddySodaPending[]
 }
 
@@ -142,22 +142,22 @@ model Supplier {
 // Weighbridge Integration
 // -----------------------------------------------------------------------------
 model WeighbridgeSettings {
-  id              String   @id @default(uuid())
-  plantId         String   @unique
-  plant           Plant    @relation(fields: [plantId], references: [id])
-  indicatorModel  String   @default("Essae - DS2520")
-  connectionType  String   @default("Serial Port (COM)")
-  port            String   @default("COM1")
-  baudRate        String   @default("9600")
-  dataBits        String   @default("8")
-  stopBits        String   @default("1")
-  parity          String   @default("None")
-  weightUnit      String   @default("Kilogram (kg)")
-  autoCapture     Boolean  @default(true)
-  autoSave        Boolean  @default(true)
-  autoTare        Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(uuid())
+  plantId        String   @unique
+  plant          Plant    @relation(fields: [plantId], references: [id])
+  indicatorModel String   @default("Essae - DS2520")
+  connectionType String   @default("Serial Port (COM)")
+  port           String   @default("COM1")
+  baudRate       String   @default("9600")
+  dataBits       String   @default("8")
+  stopBits       String   @default("1")
+  parity         String   @default("None")
+  weightUnit     String   @default("Kilogram (kg)")
+  autoCapture    Boolean  @default(true)
+  autoSave       Boolean  @default(true)
+  autoTare       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 // -----------------------------------------------------------------------------
@@ -175,109 +175,109 @@ enum PurchaseType {
 }
 
 model ProcurementBatch {
-  id          String   @id @default(uuid())
-  plantId     String
-  plant       Plant    @relation(fields: [plantId], references: [id])
-  supplierId  String?
-  supplier    Supplier? @relation(fields: [supplierId], references: [id])
-  gatePassId  String?  @unique
-  gatePass    GatePass? @relation(fields: [gatePassId], references: [id])
-  weighbridgeId String? @unique
-  weighbridge WeighbridgeTransaction? @relation(fields: [weighbridgeId], references: [id])
-  
-  grossWeight Float?   // in MT
-  tareWeight  Float?   // in MT
-  netWeight   Float?   // in MT
-  
-  category    InventoryCategory? @default(OPERATIONAL)
-  purchaseType PurchaseType? @default(PADDY_NORMAL)
-  
+  id            String                  @id @default(uuid())
+  plantId       String
+  plant         Plant                   @relation(fields: [plantId], references: [id])
+  supplierId    String?
+  supplier      Supplier?               @relation(fields: [supplierId], references: [id])
+  gatePassId    String?                 @unique
+  gatePass      GatePass?               @relation(fields: [gatePassId], references: [id])
+  weighbridgeId String?                 @unique
+  weighbridge   WeighbridgeTransaction? @relation(fields: [weighbridgeId], references: [id])
+
+  grossWeight Float? // in MT
+  tareWeight  Float? // in MT
+  netWeight   Float? // in MT
+
+  category     InventoryCategory? @default(OPERATIONAL)
+  purchaseType PurchaseType?      @default(PADDY_NORMAL)
+
   baseRate          Float?
   finalRate         Float?
   arhtiaCorrection  Float?
   nextDayCorrection Float?
   isSettled         Boolean @default(false)
-  
-  amount      Float?
-  deductions  Float?
-  netAmount   Float?
-  
+
+  amount     Float?
+  deductions Float?
+  netAmount  Float?
+
   paddyInwardDetails PaddyInwardDetails?
-  
-  status      String   @default("PENDING") // PENDING, QC_APPROVED, QC_REJECTED, COMPLETED
-  
-  quality     QualityInspection?
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  status String @default("PENDING") // PENDING, QC_APPROVED, QC_REJECTED, COMPLETED
+
+  quality QualityInspection?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([plantId])
   @@index([supplierId])
 }
 
 model QualityInspection {
-  id                  String   @id @default(uuid())
-  procurementBatchId  String   @unique
-  procurementBatch    ProcurementBatch @relation(fields: [procurementBatchId], references: [id])
-  moisture            Float?
-  broken              Float?
-  discoloration       Float?
-  foreignMatter       Float?
-  status              String   @default("PENDING") // APPROVED, REJECTED
-  inspectedBy         String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                 String           @id @default(uuid())
+  procurementBatchId String           @unique
+  procurementBatch   ProcurementBatch @relation(fields: [procurementBatchId], references: [id])
+  moisture           Float?
+  broken             Float?
+  discoloration      Float?
+  foreignMatter      Float?
+  status             String           @default("PENDING") // APPROVED, REJECTED
+  inspectedBy        String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 }
 
 model PaddyInwardDetails {
-  id                  String   @id @default(uuid())
-  procurementBatchId  String   @unique
-  procurementBatch    ProcurementBatch @relation(fields: [procurementBatchId], references: [id])
-  
-  gpNo                String?
-  mandiEgNo           String?
-  rstNo               String?
-  pahunchPersonName   String?
-  safaiType           String?  // Good, Patal
-  intimationToMandi   Boolean? @default(false)
-  
-  allocationType      String?  // Hoodi, Stacking
-  isUploadedToHoodiRegister Boolean? @default(false)
-  allocateUnloader    String?
-  gaddiCount          Float?
-  stackNo             String?
-  unloadingStartTime  DateTime?
-  unloadingEndTime    DateTime?
-  labourType          String?  // Inside, Outside
-  
+  id                 String           @id @default(uuid())
+  procurementBatchId String           @unique
+  procurementBatch   ProcurementBatch @relation(fields: [procurementBatchId], references: [id])
+
+  gpNo              String?
+  mandiEgNo         String?
+  rstNo             String?
+  pahunchPersonName String?
+  safaiType         String? // Good, Patal
+  intimationToMandi Boolean? @default(false)
+
+  allocationType            String? // Hoodi, Stacking
+  isUploadedToHoodiRegister Boolean?  @default(false)
+  allocateUnloader          String?
+  gaddiCount                Float?
+  stackNo                   String?
+  unloadingStartTime        DateTime?
+  unloadingEndTime          DateTime?
+  labourType                String? // Inside, Outside
+
   originalBardanaClass String? // A_Class, B_Class
   agencyGpBardanaClass String? // A_Class, B_Class
-  
-  bagsRecAtMill       Float?
-  bagsAtAgencyGp      Float?
-  netWtAtMill         Float?
-  requiredNetWt       Float?
-  netWtDifference     Float?
-  netWtAtParty        Float?
-  
-  shortageType        String?  // Received, Occurred, NA
+
+  bagsRecAtMill   Float?
+  bagsAtAgencyGp  Float?
+  netWtAtMill     Float?
+  requiredNetWt   Float?
+  netWtDifference Float?
+  netWtAtParty    Float?
+
+  shortageType                String? // Received, Occurred, NA
   isUpdatedInShortageRegister Boolean? @default(false)
-  balanceShortageArhtia Float?
-  
-  bhariVideoUrl       String?
-  khaliVideoUrl       String?
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  balanceShortageArhtia       Float?
+
+  bhariVideoUrl String?
+  khaliVideoUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model PaddySodaPending {
-  id            String   @id @default(uuid())
-  plantId       String
-  plant         Plant    @relation(fields: [plantId], references: [id])
-  supplierId    String
-  supplier      Supplier @relation(fields: [supplierId], references: [id])
-  
+  id         String   @id @default(uuid())
+  plantId    String
+  plant      Plant    @relation(fields: [plantId], references: [id])
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+
   date          DateTime @default(now())
   moisture      Float?
   bags          Float?
@@ -286,20 +286,20 @@ model PaddySodaPending {
   payment       Float?
   note          String?
   finalHisabAmt Float?
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([plantId])
   @@index([supplierId])
 }
 
 model WeighbridgeTransaction {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   plantId         String
-  plant           Plant    @relation(fields: [plantId], references: [id])
+  plant           Plant     @relation(fields: [plantId], references: [id])
   vehicleNo       String
-  transactionType String   @default("INWARD")
+  transactionType String    @default("INWARD")
   driverName      String?
   materialType    String?
   supplierName    String?
@@ -310,24 +310,24 @@ model WeighbridgeTransaction {
   netWeight       Float?
   grossTime       DateTime?
   tareTime        DateTime?
-  status          String   @default("PENDING") // PENDING_TARE, COMPLETED
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  status          String    @default("PENDING") // PENDING_TARE, COMPLETED
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   procurementBatch ProcurementBatch?
-  
+
   @@index([plantId])
   @@index([vehicleNo])
 }
 
 model GatePass {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   plantId     String
-  plant       Plant    @relation(fields: [plantId], references: [id])
-  passType    String   // INWARD, OUTWARD
+  plant       Plant     @relation(fields: [plantId], references: [id])
+  passType    String // INWARD, OUTWARD
   vehicleNo   String
   vehicleType String?
-  purpose     String?  // PADDY_DELIVERY, DISPATCH, etc.
+  purpose     String? // PADDY_DELIVERY, DISPATCH, etc.
   supplierId  String?
   supplier    Supplier? @relation(fields: [supplierId], references: [id])
   material    String?
@@ -338,13 +338,13 @@ model GatePass {
   grossWeight Float?
   tareWeight  Float?
   netWeight   Float?
-  status      String   @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
-  qrCode      String?  @unique
-  createdAt   DateTime @default(now())
+  status      String    @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
+  qrCode      String?   @unique
+  createdAt   DateTime  @default(now())
   updatedAt   DateTime? @updatedAt
 
   procurementBatch ProcurementBatch?
-  
+
   @@index([plantId])
   @@index([vehicleNo])
   @@index([status])
@@ -355,8 +355,8 @@ model DuplicateGatePassLog {
   plantId       String
   plant         Plant    @relation(fields: [plantId], references: [id])
   vehicleNo     String
-  attemptedType String   // INWARD
-  reason        String   // "Vehicle already has an active INWARD pass"
+  attemptedType String // INWARD
+  reason        String // "Vehicle already has an active INWARD pass"
   createdAt     DateTime @default(now())
 
   @@index([plantId])
@@ -365,54 +365,170 @@ model DuplicateGatePassLog {
 }
 
 model Inventory {
-  id          String   @id @default(uuid())
-  plantId     String
-  plant       Plant    @relation(fields: [plantId], references: [id])
-  itemType    String   // PADDY, HEAD_RICE, BROKEN_RICE, BRAN, HUSK
-  quantity    Float    // in MT
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id      String @id @default(uuid())
+  plantId String
+  plant   Plant  @relation(fields: [plantId], references: [id])
 
-  @@unique([plantId, itemType])
+  itemType String // e.g. PADDY, RICE, BRAN, HUSK, CONSUMABLES
+  category String? // Operational, Non-Operational
+  variety  String? // IR-64, Swarna, MTU-7029
+  godown   String? // Godown A, Godown B
+
+  quantity Float // Total Stock in MT/Qty
+  usable   Float @default(0)
+  reserved Float @default(0)
+  damaged  Float @default(0)
+
+  unit       String @default("MT")
+  stockValue Float  @default(0) // Total value in ₹
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([plantId, itemType, variety, godown])
 }
 
 model StockLedger {
   id          String   @id @default(uuid())
   plantId     String
   plant       Plant    @relation(fields: [plantId], references: [id])
-  transaction String   // IN, OUT
-  itemType    String   // PADDY, RICE, etc.
-  quantity    Float    // in MT
-  reference   String?  // e.g. batch id, dispatch id
+  transaction String // IN, OUT, TRANSFER, ADJUSTMENT
+  itemType    String // PADDY, RICE, etc.
+  quantity    Float // in MT
+  reference   String? // e.g. batch id, dispatch id, transfer id
+  remarks     String?
   createdAt   DateTime @default(now())
-  
+
   @@index([plantId])
   @@index([createdAt])
 }
 
-model ProductionLog {
-  id          String   @id @default(uuid())
-  plantId     String
-  plant       Plant    @relation(fields: [plantId], references: [id])
-  batchId     String
-  itemType    String   // HEAD_RICE, BRAN, HUSK
-  quantity    Float    // in MT
-  createdAt   DateTime @default(now())
-  
+// -----------------------------------------------------------------------------
+// Production & Yield
+// -----------------------------------------------------------------------------
+
+model ProductionBatch {
+  id      String @id @default(uuid())
+  plantId String
+  plant   Plant  @relation(fields: [plantId], references: [id])
+
+  batchNo        String   @unique
+  date           DateTime
+  shift          String // Day, Night
+  productionLine String
+  paddyType      String
+  variety        String
+  paddySource    String?
+
+  paddyUsedQty    Float // in MT
+  riceProducedQty Float? // in MT
+
+  status   String  @default("In Progress") // In Progress, Completed
+  progress Int     @default(0) // 0-100%
+  remarks  String?
+
+  processLoss ProcessLoss?
+  byProducts  ByProduct[]
+  yieldReport YieldReport?
+
+  startTime DateTime? @default(now())
+  endTime   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([plantId])
-  @@index([createdAt])
+  @@index([batchNo])
 }
 
-model MillingProcess {
-  id             String   @id @default(uuid())
-  plantId        String
-  plant          Plant    @relation(fields: [plantId], references: [id])
-  batchId        String
-  rawMaterialQty Float    // Input Paddy in MT
-  outputQty      Float    // Output Rice in MT
-  yieldPercent   Float
-  createdAt      DateTime @default(now())
-  
+model ProcessLoss {
+  id                String          @id @default(uuid())
+  productionBatchId String          @unique
+  batch             ProductionBatch @relation(fields: [productionBatchId], references: [id])
+
+  cleaningLoss  Float @default(0) // in MT
+  dryingLoss    Float @default(0)
+  huskingLoss   Float @default(0)
+  polishingLoss Float @default(0)
+  brokenLoss    Float @default(0)
+
+  totalLoss Float @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ByProduct {
+  id                String          @id @default(uuid())
+  productionBatchId String
+  batch             ProductionBatch @relation(fields: [productionBatchId], references: [id])
+
+  name        String // Bran, Rice Husk, Broken Rice, Rice Germ
+  quantity    Float // in MT
+  unit        String  @default("MT")
+  utilization String? // Destination/Usage
+  remarks     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productionBatchId])
+}
+
+model YieldReport {
+  id                String          @id @default(uuid())
+  productionBatchId String          @unique
+  batch             ProductionBatch @relation(fields: [productionBatchId], references: [id])
+  plantId           String
+
+  headRicePercent   Float
+  brokenRicePercent Float
+  branPercent       Float
+  huskPercent       Float
+  lossPercent       Float
+
+  overallRecovery Float
+  yieldTarget     Float?
+  targetAchieved  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  plant     Plant    @relation(fields: [plantId], references: [id])
+
   @@index([plantId])
-  @@index([createdAt])
+}
+
+// -----------------------------------------------------------------------------
+// Inter-Plant Transfer
+// -----------------------------------------------------------------------------
+model InterPlantTransfer {
+  id        String @id @default(uuid())
+  requestNo String @unique
+
+  fromPlantId String
+  toPlantId   String
+
+  date     DateTime @default(now())
+  item     String
+  variety  String?
+  quantity Float // in MT
+
+  estimatedValue   Float?
+  expectedDelivery DateTime?
+
+  vehicleNo  String?
+  driverName String?
+  remarks    String?
+
+  status String @default("Approved") // Approved, In Transit, Delivered, Cancelled
+
+  dispatchedOn DateTime?
+  receivedOn   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([fromPlantId])
+  @@index([toPlantId])
+  @@index([requestNo])
 }

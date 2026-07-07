@@ -290,6 +290,36 @@ let ProcurementService = class ProcurementService {
             finalHisabAmt: p.finalHisabAmt
         }));
     }
+    async settleHisab(data) {
+        return await this.prisma.$transaction(async (tx) => {
+            const pending = await tx.paddySodaPending.findUnique({
+                where: { id: data.id },
+                include: { supplier: true }
+            });
+            if (!pending) {
+                throw new Error('Pending Hisab record not found');
+            }
+            const updated = await tx.paddySodaPending.update({
+                where: { id: data.id },
+                data: {
+                    payment: data.payment,
+                    note: data.note,
+                    finalHisabAmt: data.finalHisabAmt
+                }
+            });
+            if (data.userId) {
+                await tx.systemAuditLog.create({
+                    data: {
+                        userId: data.userId,
+                        action: 'SETTLE_HISAB',
+                        module: 'Procurement',
+                        details: `Settled Hisab for Supplier: ${pending.supplier.name}. Payment: ${data.payment}, Final Hisab Amt: ${data.finalHisabAmt}, Notes: ${data.note}`
+                    }
+                });
+            }
+            return updated;
+        });
+    }
 };
 exports.ProcurementService = ProcurementService;
 exports.ProcurementService = ProcurementService = __decorate([

@@ -60,6 +60,14 @@ let ProcurementController = class ProcurementController {
     getSodaPending(plantId) {
         return this.procurementService.getSodaPending(plantId);
     }
+    async settleHisab(data) {
+        try {
+            return await this.procurementService.settleHisab(data);
+        }
+        catch (error) {
+            throw new common_1.HttpException(error.message, common_1.HttpStatus.BAD_REQUEST);
+        }
+    }
 };
 exports.ProcurementController = ProcurementController;
 __decorate([
@@ -134,6 +142,13 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], ProcurementController.prototype, "getSodaPending", null);
+__decorate([
+    (0, common_1.Post)('settle-hisab'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], ProcurementController.prototype, "settleHisab", null);
 exports.ProcurementController = ProcurementController = __decorate([
     (0, common_1.Controller)('api/procurement'),
     __metadata("design:paramtypes", [procurement_service_1.ProcurementService])
