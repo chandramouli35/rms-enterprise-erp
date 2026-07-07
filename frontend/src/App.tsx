@@ -10,6 +10,10 @@ import { PlantsList } from './pages/PlantsList';
 import { ProcurementManagement } from './pages/ProcurementManagement';
 import { WeighbridgeManagement } from './pages/WeighbridgeManagement';
 import { GatePassManagement } from './pages/GatePassManagement';
+import { ProductionManagement } from './pages/ProductionManagement';
+import { YieldManagement } from './pages/YieldManagement';
+import { InventoryManagement } from './pages/InventoryManagement';
+import { InterPlantTransfer } from './pages/InterPlantTransfer';
 
 function App() {
   return (
@@ -25,6 +29,10 @@ function App() {
             <Route path="users" element={<UsersAndRoles />} />
             <Route path="plants" element={<PlantsList />} />
             <Route path="procurement" element={<ProcurementManagement />} />
+            <Route path="production" element={<ProductionManagement />} />
+            <Route path="yield" element={<YieldManagement />} />
+            <Route path="inventory" element={<InventoryManagement />} />
+            <Route path="transfer" element={<InterPlantTransfer />} />
             <Route path="weighbridge" element={<WeighbridgeManagement />} />
             <Route path="gate-pass" element={<GatePassManagement />} />
           </Route>
