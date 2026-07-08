@@ -15,6 +15,7 @@ import { ProductionManagement } from './pages/ProductionManagement';
 import { YieldManagement } from './pages/YieldManagement';
 import { InventoryManagement } from './pages/InventoryManagement';
 import { InterPlantTransfer } from './pages/InterPlantTransfer';
+import { ProductManagement } from './pages/ProductManagement';
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
             <Route path="transfer" element={<InterPlantTransfer />} />
             <Route path="weighbridge" element={<WeighbridgeManagement />} />
             <Route path="gate-pass" element={<GatePassManagement />} />
+            <Route path="products" element={<ProductManagement />} />
           </Route>
         </Route>
 

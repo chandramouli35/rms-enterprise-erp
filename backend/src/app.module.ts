@@ -14,9 +14,10 @@ import { ProductionModule } from './production/production.module';
 import { YieldModule } from './yield/yield.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { TransferModule } from './transfer/transfer.module';
+import { ProductsModule } from './products/products.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, PlantsModule, DashboardModule, UsersModule, UsersRolesModule, ProcurementModule, WeighbridgeModule, GatePassModule, ProductionModule, YieldModule, InventoryModule, TransferModule],
+  imports: [PrismaModule, AuthModule, PlantsModule, DashboardModule, UsersModule, UsersRolesModule, ProcurementModule, WeighbridgeModule, GatePassModule, ProductionModule, YieldModule, InventoryModule, TransferModule, ProductsModule],
   controllers: [AppController],
   providers: [AppService],
 })
