@@ -18,11 +18,9 @@ export const ProductionManagement = () => {
  const [loading, setLoading] = useState(false);
  const [batches, setBatches] = useState<any[]>([]);
  const [metricsData, setMetricsData] = useState<any>(null);
-
- const generateBatchNo = () => `BATCH-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
  
  const [formData, setFormData] = useState({
- batchNo: generateBatchNo(),
+ batchNo: '',
  date: new Date().toISOString().split('T')[0],
  shift: 'Day Shift',
  productionLine: 'Line 1',
@@ -100,7 +98,7 @@ export const ProductionManagement = () => {
  
  setFormData(prev => ({
  ...prev,
- batchNo: generateBatchNo(),
+ batchNo: '',
  paddyUsedQty: ''
  }));
  } catch (error) {
@@ -213,7 +211,7 @@ export const ProductionManagement = () => {
  <div className="grid grid-cols-2 gap-4">
  <div>
  <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Batch No. <span className="text-red-500">*</span></label>
- <input type="text" name="batchNo" value={formData.batchNo} readOnly className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
+ <input type="text" name="batchNo" value={formData.batchNo} onChange={handleInputChange} placeholder="Enter Batch No." className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
  </div>
  <div>
  <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Batch Date <span className="text-red-500">*</span></label>
@@ -265,7 +263,7 @@ export const ProductionManagement = () => {
  </div>
  </div>
  <div className="flex gap-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
- <button onClick={() => setFormData(prev => ({...prev, paddyUsedQty: '', batchNo: generateBatchNo()}))} className="flex-1 py-2 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded font-bold text-sm transition-colors border border-[var(--border-subtle)]">Reset</button>
+ <button onClick={() => setFormData(prev => ({...prev, paddyUsedQty: '', batchNo: ''}))} className="flex-1 py-2 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded font-bold text-sm transition-colors border border-[var(--border-subtle)]">Reset</button>
  <button onClick={handleCreateBatch} disabled={loading} className="flex-[2] py-2 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded font-bold text-sm transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50">
  {loading ? 'Creating...' : 'Create Batch'}
  </button>

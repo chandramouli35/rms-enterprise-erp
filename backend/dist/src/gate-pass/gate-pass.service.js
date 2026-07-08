@@ -17,7 +17,7 @@ let GatePassService = class GatePassService {
         this.prisma = prisma;
     }
     async generateGatePass(data) {
-        const { plantId, passType, vehicleNo, vehicleType, purpose, supplierId, material, driverName, contactNo, challanNo, noOfBags, grossWeight, tareWeight, netWeight } = data;
+        const { plantId, passType, vehicleNo, vehicleType, purpose, supplierId, material, driverName, contactNo, challanNo, noOfBags, grossWeight, tareWeight, netWeight, emptyVideoTime, loadedVideoTime, partyName, ntWtParty, sodaNo, remarks } = data;
         if (passType === 'INWARD') {
             const existingActivePass = await this.prisma.gatePass.findFirst({
                 where: {
@@ -39,9 +39,15 @@ let GatePassService = class GatePassService {
                 throw new common_1.ConflictException(`Vehicle ${vehicleNo} already has an active INWARD pass in the campus.`);
             }
         }
+        const prefix = passType === 'INWARD' ? 'GIN' : 'GOUT';
+        const year = new Date().getFullYear();
         const lastPass = await this.prisma.gatePass.findFirst({
-            where: { plantId, passType },
-            orderBy: { createdAt: 'desc' }
+            where: {
+                plantId,
+                passType,
+                qrCode: { startsWith: `${prefix}-${year}-` }
+            },
+            orderBy: { qrCode: 'desc' }
         });
         let nextSeq = 1;
         if (lastPass && lastPass.qrCode) {
@@ -51,8 +57,6 @@ let GatePassService = class GatePassService {
             }
         }
         const seq = String(nextSeq).padStart(5, '0');
-        const prefix = passType === 'INWARD' ? 'GIN' : 'GOUT';
-        const year = new Date().getFullYear();
         const qrCode = `${prefix}-${year}-${seq}`;
         const newPass = await this.prisma.gatePass.create({
             data: {
@@ -70,30 +74,69 @@ let GatePassService = class GatePassService {
                 grossWeight: grossWeight ? parseFloat(grossWeight) : null,
                 tareWeight: tareWeight ? parseFloat(tareWeight) : null,
                 netWeight: netWeight ? parseFloat(netWeight) : null,
+                emptyVideoTime,
+                loadedVideoTime,
+                partyName,
+                ntWtParty: ntWtParty ? parseFloat(ntWtParty) : null,
+                sodaNo,
+                remarks,
                 status: 'ACTIVE',
                 qrCode
             },
-            include: { supplier: true }
+            include: {
+                supplier: true,
+                procurementBatch: {
+                    include: {
+                        quality: true,
+                        weighbridge: true,
+                        paddyInwardDetails: true
+                    }
+                }
+            }
         });
         return newPass;
     }
     async getRecentGatePasses(plantId, type) {
+        const whereClause = { plantId };
+        if (type !== 'ALL') {
+            whereClause.passType = type;
+        }
         return this.prisma.gatePass.findMany({
-            where: { plantId, passType: type },
+            where: whereClause,
             orderBy: { createdAt: 'desc' },
-            take: 5,
+            take: type === 'ALL' ? 50 : 5,
             include: { supplier: true }
         });
     }
     async getGatePassByQr(qrCode) {
         const pass = await this.prisma.gatePass.findFirst({
             where: { qrCode },
-            include: { supplier: true }
+            include: {
+                supplier: true,
+                procurementBatch: {
+                    include: {
+                        quality: true,
+                        weighbridge: true,
+                        paddyInwardDetails: true
+                    }
+                }
+            }
         });
         if (!pass) {
             throw new common_1.NotFoundException(`Gate pass with QR code ${qrCode} not found`);
         }
-        return pass;
+        const latestWeighbridge = await this.prisma.weighbridgeTransaction.findFirst({
+            where: {
+                plantId: pass.plantId,
+                vehicleNo: pass.vehicleNo,
+                createdAt: { gte: pass.createdAt }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        return {
+            ...pass,
+            latestWeighbridge
+        };
     }
     async getAnalytics(plantId) {
         const today = new Date();

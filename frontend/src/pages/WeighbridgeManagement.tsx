@@ -23,6 +23,7 @@ export const WeighbridgeManagement = () => {
  const [supplier, setSupplier] = useState('');
  const [challanNo, setChallanNo] = useState('');
  const [remarks, setRemarks] = useState('');
+ const [gatePassId, setGatePassId] = useState('');
 
  const [weightData, setWeightData] = useState<any>(null);
  const [isStreaming, setIsStreaming] = useState(false);
@@ -270,6 +271,30 @@ export const WeighbridgeManagement = () => {
  }
  };
 
+  const fetchGatePassDetails = async () => {
+    if (!gatePassId) {
+      setModalConfig({ isOpen: true, title: 'Validation Error', content: 'Please enter a Gate Pass ID / QR.' });
+      return;
+    }
+    try {
+      const res = await api.get(`/api/gate-pass/scan/${gatePassId}`);
+      if (res.data) {
+        if (res.data.vehicleNo) setVehicleNo(res.data.vehicleNo);
+        if (res.data.driverName) setDriverName(res.data.driverName);
+        if (res.data.material || res.data.purpose) setMaterialType(res.data.material || res.data.purpose || 'Paddy');
+        if (res.data.supplier?.name) setSupplier(res.data.supplier.name);
+        setTransType(res.data.type === 'OUTWARD' ? 'Outward' : 'Inward');
+      }
+    } catch (error: any) {
+      console.error(error);
+      setModalConfig({ 
+        isOpen: true, 
+        title: 'Error', 
+        content: error.response?.data?.message || 'Failed to fetch gate pass details.' 
+      });
+    }
+  };
+
  const handleSaveTransaction = async () => {
  if (!weightData || !plantId) {
  setModalConfig({ isOpen: true, title: 'Error', content: 'No weight data or plant context found.' });
@@ -285,6 +310,7 @@ export const WeighbridgeManagement = () => {
  supplierName: supplier,
  challanNo,
  remarks,
+ gatePassId,
  grossWeight: weightData.grossWeight,
  tareWeight: tareWeight,
  netWeight: weightData.grossWeight - tareWeight
@@ -305,6 +331,7 @@ export const WeighbridgeManagement = () => {
  setSupplier('');
  setChallanNo('');
  setRemarks('');
+ setGatePassId('');
  setWeightData(null);
  setIsStreaming(false);
  setLastReading('-');
@@ -391,6 +418,16 @@ export const WeighbridgeManagement = () => {
  <div className="relative">
  <input type="text" value={vehicleNo} onChange={e => setVehicleNo(e.target.value)} placeholder="e.g. PB10AB1234" className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg pl-3 pr-10 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 uppercase" />
  <button onClick={fetchLiveWeight} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted-alt)] hover:text-amber-500 hover:bg-amber-500/10 rounded transition-colors">
+ <Search size={16} />
+ </button>
+ </div>
+ </div>
+
+ <div>
+ <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Gate Pass ID / QR</label>
+ <div className="relative">
+ <input type="text" value={gatePassId} onChange={e => setGatePassId(e.target.value)} onKeyDown={e => e.key === 'Enter' && fetchGatePassDetails()} placeholder="e.g. GIN-2026-00004" className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg pl-3 pr-10 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 uppercase" />
+ <button onClick={fetchGatePassDetails} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted-alt)] hover:text-amber-500 hover:bg-amber-500/10 rounded transition-colors">
  <Search size={16} />
  </button>
  </div>

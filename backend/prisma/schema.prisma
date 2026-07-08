@@ -235,6 +235,7 @@ model PaddyInwardDetails {
   procurementBatch   ProcurementBatch @relation(fields: [procurementBatchId], references: [id])
 
   gpNo              String?
+  mandi             String?
   mandiEgNo         String?
   rstNo             String?
   pahunchPersonName String?
@@ -286,6 +287,7 @@ model PaddySodaPending {
   payment       Float?
   note          String?
   finalHisabAmt Float?
+  riceCategory  String? @default("ANY")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -315,6 +317,9 @@ model WeighbridgeTransaction {
   updatedAt       DateTime  @updatedAt
 
   procurementBatch ProcurementBatch?
+  
+  gatePassId      String?
+  gatePass        GatePass? @relation(fields: [gatePassId], references: [id])
 
   @@index([plantId])
   @@index([vehicleNo])
@@ -340,10 +345,19 @@ model GatePass {
   netWeight   Float?
   status      String    @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
   qrCode      String?   @unique
+  
+  emptyVideoTime String?
+  loadedVideoTime String?
+  partyName       String?
+  ntWtParty       Float?
+  sodaNo          String?
+  remarks         String?
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime? @updatedAt
 
   procurementBatch ProcurementBatch?
+  weighbridgeTransactions WeighbridgeTransaction[]
 
   @@index([plantId])
   @@index([vehicleNo])

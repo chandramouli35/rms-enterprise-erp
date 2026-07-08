@@ -25,6 +25,7 @@ export declare class ProcurementService {
         deductions: number | null;
         netAmount: number | null;
     }>;
+    getOccupiedStacks(plantId: string): Promise<(string | null)[]>;
     getRecentPurchases(plantId: string): Promise<{
         purchaseNo: any;
         date: any;
@@ -61,6 +62,7 @@ export declare class ProcurementService {
             grossWeight: number | null;
             tareWeight: number | null;
             netWeight: number | null;
+            gatePassId: string | null;
             transactionType: string;
             materialType: string | null;
             supplierName: string | null;
@@ -180,6 +182,7 @@ export declare class ProcurementService {
     }>;
     getSodaPending(plantId: string): Promise<{
         id: string;
+        supplierId: string;
         partyMandi: string;
         date: Date;
         mc: number | null;
@@ -189,7 +192,40 @@ export declare class ProcurementService {
         payment: number | null;
         note: string | null;
         finalHisabAmt: number | null;
+        riceCategory: string | null;
     }[]>;
+    createSodaPending(data: any): Promise<{
+        plantId: string;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        date: Date;
+        supplierId: string;
+        moisture: number | null;
+        bags: number | null;
+        rate: number | null;
+        diff: number | null;
+        payment: number | null;
+        note: string | null;
+        finalHisabAmt: number | null;
+        riceCategory: string | null;
+    }>;
+    updateSodaPending(id: string, data: any): Promise<{
+        plantId: string;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        date: Date;
+        supplierId: string;
+        moisture: number | null;
+        bags: number | null;
+        rate: number | null;
+        diff: number | null;
+        payment: number | null;
+        note: string | null;
+        finalHisabAmt: number | null;
+        riceCategory: string | null;
+    }>;
     settleHisab(data: {
         id: string;
         payment: number;
@@ -210,5 +246,6 @@ export declare class ProcurementService {
         payment: number | null;
         note: string | null;
         finalHisabAmt: number | null;
+        riceCategory: string | null;
     }>;
 }

@@ -36,11 +36,18 @@ export const GatePassManagement = () => {
  driverMobile: '',
  purpose: 'Paddy Purchase',
  supplierId: '',
+ material: 'PADDY',
  challanNo: '',
  noOfBags: '',
+ weightInputType: 'GROSS',
  grossWeight: '',
  tareWeight: '',
  netWeight: 0,
+ emptyVideoTime: '',
+ loadedVideoTime: '',
+ partyName: '',
+ ntWtParty: '',
+ sodaNo: '',
  remarks: '',
  scanQr: ''
  };
@@ -131,6 +138,17 @@ export const GatePassManagement = () => {
  <div><div class="label">Tare Weight</div><div class="value">${selectedPass.tareWeight ? selectedPass.tareWeight + ' MT' : 'N/A'}</div></div>
  <div><div class="label">Net Weight</div><div class="value">${selectedPass.netWeight ? selectedPass.netWeight + ' MT' : 'N/A'}</div></div>
  <div><div class="label">Remarks</div><div class="value">${selectedPass.remarks || 'None'}</div></div>
+ ${selectedPass.procurementBatch?.quality ? `
+  <div style="grid-column: span 2; margin-top: 10px; border-top: 1px solid #ccc; padding-top: 10px;">
+  <div style="font-weight: bold; font-size: 12px; margin-bottom: 5px;">Quality & Weighbridge Info</div>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+  <div><div class="label">Moisture</div><div class="value">${selectedPass.procurementBatch.quality.moisture || 0}%</div></div>
+  <div><div class="label">Broken</div><div class="value">${selectedPass.procurementBatch.quality.broken || 0}%</div></div>
+  <div><div class="label">Discoloration</div><div class="value">${selectedPass.procurementBatch.quality.discoloration || 0}%</div></div>
+  <div><div class="label">Foreign Matter</div><div class="value">${selectedPass.procurementBatch.quality.foreignMatter || 0}%</div></div>
+  </div>
+  </div>
+  ` : ''}
  </div>
  <div class="qr-code">
  ${qrDataUrl ? `<img src="${qrDataUrl}" alt="QR Code" />` : ''}
@@ -157,29 +175,59 @@ export const GatePassManagement = () => {
  }
  };
 
- const handleDownload = () => {
- if (!selectedPass) return;
- 
- // Convert the data we need to CSV
- const headers = ['Pass No', 'Entry Time', 'Vehicle No', 'Vehicle Type', 'Driver Name', 'Driver Mobile', 'Supplier', 'Material', 'Gross Weight', 'Tare Weight', 'Net Weight', 'No of Bags', 'Remarks'];
- const row = [
- selectedPass.qrCode,
- new Date(selectedPass.createdAt).toLocaleString(),
- selectedPass.vehicleNo,
- selectedPass.vehicleType || 'N/A',
- selectedPass.driverName,
- selectedPass.contactNo || 'N/A',
- selectedPass.supplier?.name || 'N/A',
- selectedPass.material || selectedPass.purpose || 'N/A',
- selectedPass.grossWeight || 0,
- selectedPass.tareWeight || 0,
- selectedPass.netWeight || 0,
- selectedPass.noOfBags || 0,
- selectedPass.remarks || 'None'
- ];
- 
- const csvContent = headers.join(',') + '\n' + row.map(v => `"${v}"`).join(',');
- const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const handleDownload = () => {
+  if (activeTab === 'report_summary') {
+  if (recentEntries.length === 0) return;
+  const headers = ['S.No.', 'Type', 'Empty Video Time', 'Loaded Video Time', 'GP No', 'Truck No', 'Party', 'Item', 'Bags', 'Net Weight', 'Soda No.', 'Note'];
+  const rows = recentEntries.map((entry, idx) => [
+  idx + 1,
+  entry.passType,
+  entry.emptyVideoTime || '',
+  entry.loadedVideoTime || '',
+  entry.qrCode,
+  entry.vehicleNo,
+  entry.partyName || entry.supplier?.name || '',
+  entry.material || entry.purpose || '',
+  entry.noOfBags || '',
+  entry.netWeight || '',
+  entry.sodaNo || '',
+  entry.remarks || ''
+  ]);
+  const csvContent = headers.join(',') + '\n' + rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `gate_pass_report_${new Date().getTime()}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  return;
+  }
+
+  if (!selectedPass) return;
+  
+  // Convert the data we need to CSV
+  const headers = ['Pass No', 'Entry Time', 'Vehicle No', 'Vehicle Type', 'Driver Name', 'Driver Mobile', 'Supplier', 'Material', 'Gross Weight', 'Tare Weight', 'Net Weight', 'No of Bags', 'Remarks'];
+  const row = [
+  selectedPass.qrCode,
+  new Date(selectedPass.createdAt).toLocaleString(),
+  selectedPass.vehicleNo,
+  selectedPass.vehicleType || 'N/A',
+  selectedPass.driverName,
+  selectedPass.contactNo || 'N/A',
+  selectedPass.supplier?.name || 'N/A',
+  selectedPass.material || selectedPass.purpose || 'N/A',
+  selectedPass.grossWeight || 0,
+  selectedPass.tareWeight || 0,
+  selectedPass.netWeight || 0,
+  selectedPass.noOfBags || 0,
+  selectedPass.remarks || 'None'
+  ];
+  
+  const csvContent = headers.join(',') + '\n' + row.map(v => `"${v}"`).join(',');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
  const link = document.createElement('a');
  const url = URL.createObjectURL(blob);
  link.setAttribute('href', url);
@@ -202,7 +250,7 @@ export const GatePassManagement = () => {
  try {
  const [resAnalytics, resRecent, resSuppliers, resLogs] = await Promise.all([
  axios.get(`${API_URL}/gate-pass/analytics/${activePlant.id}`),
- axios.get(`${API_URL}/gate-pass/recent/${activePlant.id}?type=${activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}`),
+ axios.get(`${API_URL}/gate-pass/recent/${activePlant.id}?type=${activeTab === 'report_summary' ? 'ALL' : activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}`),
  axios.get(`${API_URL}/procurement/suppliers`),
  axios.get(`${API_URL}/gate-pass/duplicate-logs/${activePlant.id}`)
  ]);
@@ -241,8 +289,8 @@ export const GatePassManagement = () => {
  const response = await axios.post(`${API_URL}/gate-pass/generate`, {
  ...formData,
  passType: type,
- grossWeight: formData.grossWeight ? parseFloat(formData.grossWeight as any) : null,
- tareWeight: formData.tareWeight ? parseFloat(formData.tareWeight as any) : null,
+ grossWeight: formData.weightInputType === 'GROSS' && formData.grossWeight ? parseFloat(formData.grossWeight as any) : null,
+ tareWeight: formData.weightInputType === 'TARE' && formData.tareWeight ? parseFloat(formData.tareWeight as any) : null,
  netWeight: formData.netWeight ? parseFloat(formData.netWeight as any) : null,
  noOfBags: formData.noOfBags ? parseInt(formData.noOfBags as any) : null
  });
@@ -259,7 +307,8 @@ export const GatePassManagement = () => {
  supplier: supplierName,
  material: pass.material,
  netWeight: pass.netWeight || 0,
- noOfBags: pass.noOfBags || '0'
+ noOfBags: pass.noOfBags || '0',
+ procurementBatch: pass.procurementBatch
  });
  
  // Refresh Data
@@ -415,22 +464,33 @@ export const GatePassManagement = () => {
  </div>
  <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Driver Mobile</label>
- <input type="text" name="driverMobile" value={formData.driverMobile} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
+ <input type="tel" pattern="[0-9]{10}" maxLength={10} title="10 digit mobile number" name="driverMobile" value={formData.driverMobile} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
  </div>
  </div>
 
- <div className="grid grid-cols-2 gap-4">
- <div>
- <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Purpose / Material <span className="text-red-500">*</span></label>
- <select name="purpose" value={formData.purpose} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none">
- <option value="Paddy Purchase">Paddy Purchase</option>
- <option value="Dispatch">Dispatch</option>
- <option value="Inter-Plant">Inter-Plant</option>
- </select>
- </div>
- <div>
- <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">{activeTab === 'gate_in' ? 'From (Supplier / Party)' : 'To (Party)'} <span className="text-red-500">*</span></label>
- <select name="supplierId" value={formData.supplierId} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none" required>
+  <div className="grid grid-cols-3 gap-4">
+  <div>
+  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Purpose <span className="text-red-500">*</span></label>
+  <select name="purpose" value={formData.purpose} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none">
+  <option value="Paddy Purchase">Paddy Purchase</option>
+  <option value="Dispatch">Dispatch</option>
+  <option value="Inter-Plant">Inter-Plant</option>
+  </select>
+  </div>
+  <div>
+  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Item / Product <span className="text-red-500">*</span></label>
+  <select name="material" value={formData.material} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none">
+  <option value="PADDY">PADDY</option>
+  <option value="RICE">RICE</option>
+  <option value="BRAN">BRAN</option>
+  <option value="HUSK">HUSK</option>
+  <option value="BROKEN">BROKEN</option>
+  <option value="OTHER">OTHER</option>
+  </select>
+  </div>
+  <div>
+  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">{activeTab === 'gate_in' ? 'From (Supplier / Party)' : 'To (Party)'} <span className="text-red-500">*</span></label>
+  <select name="supplierId" value={formData.supplierId} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none" required>
  <option value="">Select Account</option>
  {suppliers.map(s => (
  <option key={s.id} value={s.id}>{s.name}</option>
@@ -450,22 +510,61 @@ export const GatePassManagement = () => {
  </div>
  </div>
 
- <div className="grid grid-cols-3 gap-3">
+ <div className="grid grid-cols-2 gap-4">
  <div>
- <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Gross Wt (MT)</label>
- <input type="number" step="0.001" name="grossWeight" value={formData.grossWeight} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" min="0" />
- </div>
- <div>
- <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Tare Wt (MT)</label>
- <input type="number" step="0.001" name="tareWeight" value={formData.tareWeight} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" min="0" />
+ <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Party Name (if not in list)</label>
+ <input type="text" name="partyName" value={formData.partyName} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
  </div>
  <div>
- <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Net Wt (MT)</label>
- <div className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] font-medium bg-opacity-50 text-center">
- {formData.netWeight.toFixed(3)}
+ <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Sauda / Contract No.</label>
+ <input type="text" name="sodaNo" value={formData.sodaNo} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
  </div>
  </div>
+
+ <div className="grid grid-cols-2 gap-3">
+ <div>
+ <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Empty Video Time</label>
+ <input type="time" name="emptyVideoTime" value={formData.emptyVideoTime} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
  </div>
+ <div>
+ <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Loaded Video Time</label>
+ <input type="time" name="loadedVideoTime" value={formData.loadedVideoTime} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
+ </div>
+ </div>
+
+ <div className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] p-3 rounded-lg">
+  <div className="flex items-center gap-4 mb-3">
+  <label className="text-xs text-[var(--text-muted-alt)] font-medium">Weight Entry Mode:</label>
+  <div className="flex items-center gap-4">
+  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+  <input type="radio" name="weightInputType" value="GROSS" checked={formData.weightInputType === 'GROSS'} onChange={handleInputChange} className="accent-[#e67e00]" /> Gross Weight
+  </label>
+  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+  <input type="radio" name="weightInputType" value="TARE" checked={formData.weightInputType === 'TARE'} onChange={handleInputChange} className="accent-[#e67e00]" /> Tare Weight
+  </label>
+  </div>
+  </div>
+  
+  <div className="grid grid-cols-2 gap-3">
+  {formData.weightInputType === 'GROSS' ? (
+  <div>
+  <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Gross Wt (MT)</label>
+  <input type="number" step="0.001" name="grossWeight" value={formData.grossWeight} onChange={handleInputChange} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle-alt)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" min="0" />
+  </div>
+  ) : (
+  <div>
+  <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Tare Wt (MT)</label>
+  <input type="number" step="0.001" name="tareWeight" value={formData.tareWeight} onChange={handleInputChange} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle-alt)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" min="0" />
+  </div>
+  )}
+  <div>
+  <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Net Wt (MT)</label>
+  <div className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle-alt)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] font-medium bg-opacity-50 flex items-center h-[38px]">
+  {formData.netWeight.toFixed(3)}
+  </div>
+  </div>
+  </div>
+  </div>
 
  <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Remarks</label>
@@ -616,11 +715,11 @@ export const GatePassManagement = () => {
 
  <div className="mt-auto pt-4 border-t border-dashed border-gray-300 flex items-center justify-between">
  <div className="p-2 bg-gray-50 rounded-lg">
- <QRCodeCanvas 
- value={`Gate Pass : ${generatedPass.passNo}\nVehicle : ${generatedPass.vehicleNo || 'N/A'}\nDriver : ${generatedPass.driverName || 'N/A'}\nMaterial : ${generatedPass.material || 'N/A'}\nSupplier : ${generatedPass.supplier || 'N/A'}\nDate : ${generatedPass.date}\nType : ${activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}`} 
- size={64} 
- level="M" 
- />
+  <QRCodeCanvas 
+  value={`Gate Pass : ${generatedPass.passNo}\nVehicle : ${generatedPass.vehicleNo || 'N/A'}\nDriver : ${generatedPass.driverName || 'N/A'}\nMaterial : ${generatedPass.material || 'N/A'}\nSupplier : ${generatedPass.supplier || 'N/A'}\nDate : ${generatedPass.date}\nType : ${activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}${generatedPass.procurementBatch?.quality ? `\nMoisture : ${generatedPass.procurementBatch.quality.moisture || 0}%\nBroken : ${generatedPass.procurementBatch.quality.broken || 0}%\nDiscoloration : ${generatedPass.procurementBatch.quality.discoloration || 0}%\nForeign Matter : ${generatedPass.procurementBatch.quality.foreignMatter || 0}%` : ''}`} 
+  size={64} 
+  level="M" 
+  />
  </div>
  <div className="text-right flex-1 pl-4">
  <p className="text-[11px] text-[var(--text-muted-alt)] font-medium leading-tight">Scan at Gate {activeTab === 'gate_in' ? 'Out' : 'In'}<br/>for verification</p>
@@ -742,6 +841,62 @@ export const GatePassManagement = () => {
  </div>
  </div>
  )}
+
+  {/* REPORT SUMMARY TAB */}
+  {activeTab === 'report_summary' && (
+  <div className="flex-1 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle-alt)] p-5 overflow-x-auto">
+  <div className="flex items-center justify-between mb-6">
+  <h2 className="text-xl font-bold text-[var(--text-main)]">Gate Pass In / Out Report Summary</h2>
+  <button onClick={handleDownload} className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--glass-bg-hover)] transition-colors text-sm font-medium">
+  <Download size={16} /> Export CSV
+  </button>
+  </div>
+  <table className="w-full text-left border-collapse whitespace-nowrap">
+  <thead>
+  <tr className="border-b border-[var(--border-subtle-alt)]">
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">S.No.</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Type</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Empty Video Time</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Loaded Video Time</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">GP No</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Truck No</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Party</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Item</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Bags</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Nt Wt Mill</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Soda No.</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Note</th>
+  </tr>
+  </thead>
+  <tbody>
+  {recentEntries.length === 0 ? (
+  <tr>
+  <td colSpan={13} className="py-8 text-center text-[var(--text-muted-alt)]">No records found</td>
+  </tr>
+  ) : recentEntries.map((entry, idx) => (
+  <tr key={entry.id} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)] transition-colors">
+  <td className="py-3 text-sm">{idx + 1}</td>
+  <td className="py-3 text-sm">
+  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${entry.passType === 'INWARD' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
+  {entry.passType}
+  </span>
+  </td>
+  <td className="py-3 text-sm">{entry.emptyVideoTime || '-'}</td>
+  <td className="py-3 text-sm">{entry.loadedVideoTime || '-'}</td>
+  <td className="py-3 text-sm font-medium">{entry.qrCode}</td>
+  <td className="py-3 text-sm font-medium">{entry.vehicleNo}</td>
+  <td className="py-3 text-sm">{entry.partyName || entry.supplier?.name || '-'}</td>
+  <td className="py-3 text-sm">{entry.material || entry.purpose || '-'}</td>
+  <td className="py-3 text-sm">{entry.noOfBags || '-'}</td>
+  <td className="py-3 text-sm font-bold">{entry.netWeight || '-'}</td>
+  <td className="py-3 text-sm">{entry.sodaNo || '-'}</td>
+  <td className="py-3 text-sm text-[var(--text-muted-alt)] truncate max-w-[150px]">{entry.remarks || '-'}</td>
+  </tr>
+  ))}
+  </tbody>
+  </table>
+  </div>
+  )}
 
  {/* PLACEHOLDER TABS */}
  {activeTab === 'qr_barcode' && (
@@ -887,13 +1042,58 @@ export const GatePassManagement = () => {
  <p className="text-xs text-[var(--text-muted-alt)] font-medium">Remarks</p>
  <p className="font-semibold text-[var(--text-main)]">{selectedPass.remarks || 'None'}</p>
  </div>
+  
+  {selectedPass.latestWeighbridge && (
+  <>
+  <div className="col-span-2 mt-2 pt-2 border-t border-[var(--border-subtle-alt)]">
+  <p className="text-sm text-[#e67e00] font-bold mb-2">Weighbridge Data</p>
+  </div>
+  <div>
+  <p className="text-xs text-[var(--text-muted-alt)] font-medium">Gross Weight</p>
+  <p className="font-semibold text-[var(--text-main)]">{selectedPass.latestWeighbridge.grossWeight || 'N/A'} MT</p>
+  </div>
+  <div>
+  <p className="text-xs text-[var(--text-muted-alt)] font-medium">Tare Weight</p>
+  <p className="font-semibold text-[var(--text-main)]">{selectedPass.latestWeighbridge.tareWeight || 'N/A'} MT</p>
+  </div>
+  <div>
+  <p className="text-xs text-[var(--text-muted-alt)] font-medium">Net Weight</p>
+  <p className="font-semibold text-[#e67e00]">{selectedPass.latestWeighbridge.netWeight || 'N/A'} MT</p>
+  </div>
+  </>
+  )}
+
+  {/* Additional Info from Procurement Batch */}
+  {selectedPass.procurementBatch?.quality && (
+  <>
+  <div className="col-span-2 mt-2 pt-2 border-t border-[var(--border-subtle-alt)]">
+  <p className="text-sm text-[#e67e00] font-bold mb-2">Quality Info</p>
+  </div>
+  <div>
+  <p className="text-xs text-[var(--text-muted-alt)] font-medium">Moisture</p>
+  <p className="font-semibold text-[var(--text-main)]">{selectedPass.procurementBatch.quality.moisture || 0}%</p>
+  </div>
+  <div>
+  <p className="text-xs text-[var(--text-muted-alt)] font-medium">Broken</p>
+  <p className="font-semibold text-[var(--text-main)]">{selectedPass.procurementBatch.quality.broken || 0}%</p>
+  </div>
+  <div>
+  <p className="text-xs text-[var(--text-muted-alt)] font-medium">Discoloration</p>
+  <p className="font-semibold text-[var(--text-main)]">{selectedPass.procurementBatch.quality.discoloration || 0}%</p>
+  </div>
+  <div>
+  <p className="text-xs text-[var(--text-muted-alt)] font-medium">Foreign Matter</p>
+  <p className="font-semibold text-[var(--text-main)]">{selectedPass.procurementBatch.quality.foreignMatter || 0}%</p>
+  </div>
+  </>
+  )}
  </div>
  
  <div className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-xl p-4 flex flex-col items-center justify-center shrink-0 w-full md:w-48 self-stretch">
  <div className="bg-white p-2 rounded-lg mb-3">
  <QRCodeCanvas 
  id="modal-qr" 
- value={`Gate Pass : ${selectedPass.qrCode}\nVehicle : ${selectedPass.vehicleNo || 'N/A'}\nDriver : ${selectedPass.driverName || 'N/A'}\nMaterial : ${selectedPass.material || selectedPass.purpose || 'N/A'}\nSupplier : ${selectedPass.supplier?.name || 'N/A'}\nDate : ${new Date(selectedPass.createdAt).toLocaleString()}\nType : ${activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}`} 
+ value={`Gate Pass : ${selectedPass.qrCode}\nVehicle : ${selectedPass.vehicleNo || 'N/A'}\nDriver : ${selectedPass.driverName || 'N/A'}\nMaterial : ${selectedPass.material || selectedPass.purpose || 'N/A'}\nSupplier : ${selectedPass.supplier?.name || 'N/A'}\nDate : ${new Date(selectedPass.createdAt).toLocaleString()}\nType : ${activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}${selectedPass.latestWeighbridge ? `\nWB Gross : ${selectedPass.latestWeighbridge.grossWeight || 'N/A'} MT\nWB Tare : ${selectedPass.latestWeighbridge.tareWeight || 'N/A'} MT\nWB Net : ${selectedPass.latestWeighbridge.netWeight || 'N/A'} MT` : ''}${selectedPass.procurementBatch?.quality ? `\nMoisture : ${selectedPass.procurementBatch.quality.moisture || 0}%\nBroken : ${selectedPass.procurementBatch.quality.broken || 0}%\nDiscoloration : ${selectedPass.procurementBatch.quality.discoloration || 0}%\nForeign Matter : ${selectedPass.procurementBatch.quality.foreignMatter || 0}%` : ''}`} 
  size={120} 
  level="M" 
  />

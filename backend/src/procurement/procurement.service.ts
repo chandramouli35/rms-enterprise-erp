@@ -91,7 +91,8 @@ export class ProcurementService {
         data: {
           procurementBatchId: batch.id,
           gpNo: data.gpNo,
-          mandiEgNo: data.mandiEgNo,
+          mandiEgNo: data.mandiEgpNo || data.mandiEgNo,
+          mandi: data.mandi,
           rstNo: data.rstNo,
           pahunchPersonName: data.pahunchPersonName,
           safaiType: data.safaiType,
@@ -127,6 +128,16 @@ export class ProcurementService {
 
       return batch;
     });
+  }
+  async getOccupiedStacks(plantId: string) {
+    const details = await this.prisma.paddyInwardDetails.findMany({
+      where: {
+        procurementBatch: { plantId },
+        stackNo: { not: null }
+      },
+      select: { stackNo: true }
+    });
+    return [...new Set(details.map(d => d.stackNo))].filter(Boolean);
   }
 
   async getRecentPurchases(plantId: string) {
@@ -333,6 +344,7 @@ export class ProcurementService {
     
     return pending.map(p => ({
       id: p.id,
+      supplierId: p.supplierId,
       partyMandi: p.supplier.name,
       date: p.date,
       mc: p.moisture,
@@ -341,8 +353,46 @@ export class ProcurementService {
       diff: p.diff,
       payment: p.payment,
       note: p.note,
-      finalHisabAmt: p.finalHisabAmt
+      finalHisabAmt: p.finalHisabAmt,
+      riceCategory: p.riceCategory
     }));
+  }
+
+  async createSodaPending(data: any) {
+    return this.prisma.paddySodaPending.create({
+      data: {
+        plantId: data.plantId,
+        supplierId: data.supplierId,
+        date: data.date ? new Date(data.date) : new Date(),
+        moisture: parseFloat(data.moisture) || 0,
+        bags: parseFloat(data.bags) || 0,
+        rate: parseFloat(data.rate) || 0,
+        diff: parseFloat(data.diff) || 0,
+        payment: parseFloat(data.payment) || 0,
+        finalHisabAmt: parseFloat(data.finalHisabAmt) || 0,
+        note: data.note || '',
+        riceCategory: data.riceCategory || 'ANY'
+      }
+    });
+  }
+
+  async updateSodaPending(id: string, data: any) {
+    return this.prisma.paddySodaPending.update({
+      where: { id },
+      data: {
+        plantId: data.plantId,
+        supplierId: data.supplierId,
+        date: data.date ? new Date(data.date) : undefined,
+        moisture: parseFloat(data.moisture) || 0,
+        bags: parseFloat(data.bags) || 0,
+        rate: parseFloat(data.rate) || 0,
+        diff: parseFloat(data.diff) || 0,
+        payment: parseFloat(data.payment) || 0,
+        finalHisabAmt: parseFloat(data.finalHisabAmt) || 0,
+        note: data.note || '',
+        riceCategory: data.riceCategory || 'ANY'
+      }
+    });
   }
 
   async settleHisab(data: { id: string; payment: number; note: string; finalHisabAmt: number; userId?: string }) {

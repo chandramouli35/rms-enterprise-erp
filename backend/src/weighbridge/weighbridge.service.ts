@@ -27,8 +27,18 @@ export class WeighbridgeService {
   async saveTransaction(data: any) {
     const { 
       plantId, vehicleNo, grossWeight, tareWeight, netWeight,
-      transactionType, driverName, materialType, supplierName, challanNo, remarks
+      transactionType, driverName, materialType, supplierName, challanNo, remarks, gatePassId
     } = data;
+    
+    let resolvedGatePassId: string | null = null;
+    if (gatePassId) {
+      const gp = await this.prisma.gatePass.findFirst({
+        where: { qrCode: gatePassId, plantId }
+      });
+      if (gp) {
+        resolvedGatePassId = gp.id;
+      }
+    }
     
     const transaction = await this.prisma.weighbridgeTransaction.create({
       data: {
@@ -40,6 +50,7 @@ export class WeighbridgeService {
         supplierName,
         challanNo,
         remarks,
+        gatePassId: resolvedGatePassId,
         grossWeight,
         tareWeight,
         netWeight,

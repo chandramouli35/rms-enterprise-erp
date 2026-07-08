@@ -31,6 +31,9 @@ let ProcurementController = class ProcurementController {
     getRecentPurchases(plantId) {
         return this.procurementService.getRecentPurchases(plantId);
     }
+    getOccupiedStacks(plantId) {
+        return this.procurementService.getOccupiedStacks(plantId);
+    }
     getBatch(batchId) {
         return this.procurementService.getBatch(batchId);
     }
@@ -60,6 +63,22 @@ let ProcurementController = class ProcurementController {
     getSodaPending(plantId) {
         return this.procurementService.getSodaPending(plantId);
     }
+    async createSodaPending(data) {
+        try {
+            return await this.procurementService.createSodaPending(data);
+        }
+        catch (error) {
+            throw new common_1.HttpException(error.message, common_1.HttpStatus.BAD_REQUEST);
+        }
+    }
+    async updateSodaPending(id, data) {
+        try {
+            return await this.procurementService.updateSodaPending(id, data);
+        }
+        catch (error) {
+            throw new common_1.HttpException(error.message, common_1.HttpStatus.BAD_REQUEST);
+        }
+    }
     async settleHisab(data) {
         try {
             return await this.procurementService.settleHisab(data);
@@ -84,6 +103,13 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], ProcurementController.prototype, "getRecentPurchases", null);
+__decorate([
+    (0, common_1.Get)('occupied-stacks/:plantId'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], ProcurementController.prototype, "getOccupiedStacks", null);
 __decorate([
     (0, common_1.Get)('batch/:batchId'),
     __param(0, (0, common_1.Param)('batchId')),
@@ -142,6 +168,21 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], ProcurementController.prototype, "getSodaPending", null);
+__decorate([
+    (0, common_1.Post)('soda-pending'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], ProcurementController.prototype, "createSodaPending", null);
+__decorate([
+    (0, common_1.Put)('soda-pending/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ProcurementController.prototype, "updateSodaPending", null);
 __decorate([
     (0, common_1.Post)('settle-hisab'),
     __param(0, (0, common_1.Body)()),

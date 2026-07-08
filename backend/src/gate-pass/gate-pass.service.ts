@@ -9,7 +9,8 @@ export class GatePassService {
     const { 
       plantId, passType, vehicleNo, vehicleType, purpose, 
       supplierId, material, driverName, contactNo, 
-      challanNo, noOfBags, grossWeight, tareWeight, netWeight 
+      challanNo, noOfBags, grossWeight, tareWeight, netWeight,
+      emptyVideoTime, loadedVideoTime, partyName, ntWtParty, sodaNo, remarks
     } = data;
     
     // Duplicate prevention for INWARD passes
@@ -37,10 +38,17 @@ export class GatePassService {
       }
     }
     
+    const prefix = passType === 'INWARD' ? 'GIN' : 'GOUT';
+    const year = new Date().getFullYear();
+
     // Generate sequential ticket (e.g. GIN-2026-00046)
     const lastPass = await this.prisma.gatePass.findFirst({
-      where: { plantId, passType },
-      orderBy: { createdAt: 'desc' }
+      where: { 
+        plantId, 
+        passType,
+        qrCode: { startsWith: `${prefix}-${year}-` }
+      },
+      orderBy: { qrCode: 'desc' }
     });
     
     let nextSeq = 1;
@@ -51,8 +59,6 @@ export class GatePassService {
       }
     }
     const seq = String(nextSeq).padStart(5, '0');
-    const prefix = passType === 'INWARD' ? 'GIN' : 'GOUT';
-    const year = new Date().getFullYear();
     const qrCode = `${prefix}-${year}-${seq}`;
 
     const newPass = await this.prisma.gatePass.create({
@@ -71,19 +77,39 @@ export class GatePassService {
         grossWeight: grossWeight ? parseFloat(grossWeight) : null,
         tareWeight: tareWeight ? parseFloat(tareWeight) : null,
         netWeight: netWeight ? parseFloat(netWeight) : null,
+        emptyVideoTime,
+        loadedVideoTime,
+        partyName,
+        ntWtParty: ntWtParty ? parseFloat(ntWtParty) : null,
+        sodaNo,
+        remarks,
         status: 'ACTIVE',
         qrCode
       },
-      include: { supplier: true }
+      include: { 
+        supplier: true,
+        procurementBatch: {
+          include: {
+            quality: true,
+            weighbridge: true,
+            paddyInwardDetails: true
+          }
+        }
+      }
     });
     return newPass;
   }
 
   async getRecentGatePasses(plantId: string, type: string) {
+    const whereClause: any = { plantId };
+    if (type !== 'ALL') {
+      whereClause.passType = type;
+    }
+    
     return this.prisma.gatePass.findMany({
-      where: { plantId, passType: type },
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
-      take: 5,
+      take: type === 'ALL' ? 50 : 5,
       include: { supplier: true }
     });
   }
@@ -91,12 +117,35 @@ export class GatePassService {
   async getGatePassByQr(qrCode: string) {
     const pass = await this.prisma.gatePass.findFirst({
       where: { qrCode },
-      include: { supplier: true }
+      include: { 
+        supplier: true,
+        procurementBatch: {
+          include: {
+            quality: true,
+            weighbridge: true,
+            paddyInwardDetails: true
+          }
+        }
+      }
     });
     if (!pass) {
       throw new NotFoundException(`Gate pass with QR code ${qrCode} not found`);
     }
-    return pass;
+
+    // Try to find a weighbridge transaction for this vehicle created after the gate pass
+    const latestWeighbridge = await this.prisma.weighbridgeTransaction.findFirst({
+      where: {
+        plantId: pass.plantId,
+        vehicleNo: pass.vehicleNo,
+        createdAt: { gte: pass.createdAt }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return {
+      ...pass,
+      latestWeighbridge
+    };
   }
 
   async getAnalytics(plantId: string) {
