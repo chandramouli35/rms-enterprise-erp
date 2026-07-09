@@ -8,10 +8,13 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.YieldController = void 0;
 const common_1 = require("@nestjs/common");
+const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
+const permissions_guard_1 = require("../common/guards/permissions.guard");
 let YieldController = class YieldController {
 };
 exports.YieldController = YieldController;
 exports.YieldController = YieldController = __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
     (0, common_1.Controller)('yield')
 ], YieldController);
 //# sourceMappingURL=yield.controller.js.map

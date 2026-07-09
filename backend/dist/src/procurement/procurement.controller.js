@@ -15,6 +15,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProcurementController = void 0;
 const common_1 = require("@nestjs/common");
 const procurement_service_1 = require("./procurement.service");
+const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
+const permissions_guard_1 = require("../common/guards/permissions.guard");
+const require_permission_decorator_1 = require("../common/decorators/require-permission.decorator");
 let ProcurementController = class ProcurementController {
     constructor(procurementService) {
         this.procurementService = procurementService;
@@ -91,6 +94,7 @@ let ProcurementController = class ProcurementController {
 exports.ProcurementController = ProcurementController;
 __decorate([
     (0, common_1.Post)('save-purchase'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canAdd'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -98,6 +102,7 @@ __decorate([
 ], ProcurementController.prototype, "savePurchase", null);
 __decorate([
     (0, common_1.Get)('recent/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -105,6 +110,7 @@ __decorate([
 ], ProcurementController.prototype, "getRecentPurchases", null);
 __decorate([
     (0, common_1.Get)('occupied-stacks/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -112,6 +118,7 @@ __decorate([
 ], ProcurementController.prototype, "getOccupiedStacks", null);
 __decorate([
     (0, common_1.Get)('batch/:batchId'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
     __param(0, (0, common_1.Param)('batchId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -119,6 +126,7 @@ __decorate([
 ], ProcurementController.prototype, "getBatch", null);
 __decorate([
     (0, common_1.Post)('quality/:batchId'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canEdit'),
     __param(0, (0, common_1.Param)('batchId')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -127,12 +135,14 @@ __decorate([
 ], ProcurementController.prototype, "updateQuality", null);
 __decorate([
     (0, common_1.Get)('suppliers'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], ProcurementController.prototype, "getSuppliers", null);
 __decorate([
     (0, common_1.Post)('suppliers'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canAdd'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -140,6 +150,7 @@ __decorate([
 ], ProcurementController.prototype, "createSupplier", null);
 __decorate([
     (0, common_1.Get)('analytics/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -147,6 +158,7 @@ __decorate([
 ], ProcurementController.prototype, "getAnalytics", null);
 __decorate([
     (0, common_1.Post)('register/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -155,6 +167,7 @@ __decorate([
 ], ProcurementController.prototype, "getPurchaseRegister", null);
 __decorate([
     (0, common_1.Post)('boli-rate/:batchId'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canEdit'),
     __param(0, (0, common_1.Param)('batchId')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -163,6 +176,7 @@ __decorate([
 ], ProcurementController.prototype, "updateBoliRate", null);
 __decorate([
     (0, common_1.Get)('soda-pending/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -170,6 +184,7 @@ __decorate([
 ], ProcurementController.prototype, "getSodaPending", null);
 __decorate([
     (0, common_1.Post)('soda-pending'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canAdd'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -177,6 +192,7 @@ __decorate([
 ], ProcurementController.prototype, "createSodaPending", null);
 __decorate([
     (0, common_1.Put)('soda-pending/:id'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canEdit'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -185,12 +201,14 @@ __decorate([
 ], ProcurementController.prototype, "updateSodaPending", null);
 __decorate([
     (0, common_1.Post)('settle-hisab'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canEdit'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], ProcurementController.prototype, "settleHisab", null);
 exports.ProcurementController = ProcurementController = __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
     (0, common_1.Controller)('api/procurement'),
     __metadata("design:paramtypes", [procurement_service_1.ProcurementService])
 ], ProcurementController);

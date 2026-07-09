@@ -18,6 +18,8 @@ const production_service_1 = require("./production.service");
 const create_batch_dto_1 = require("./dto/create-batch.dto");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
 const plant_context_guard_1 = require("../common/guards/plant-context.guard");
+const permissions_guard_1 = require("../common/guards/permissions.guard");
+const require_permission_decorator_1 = require("../common/decorators/require-permission.decorator");
 let ProductionController = class ProductionController {
     constructor(productionService) {
         this.productionService = productionService;
@@ -35,6 +37,7 @@ let ProductionController = class ProductionController {
 exports.ProductionController = ProductionController;
 __decorate([
     (0, common_1.Get)('metrics'),
+    (0, require_permission_decorator_1.RequirePermission)('Production', 'canView'),
     __param(0, (0, common_1.Query)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -42,6 +45,7 @@ __decorate([
 ], ProductionController.prototype, "getMetrics", null);
 __decorate([
     (0, common_1.Get)('batches'),
+    (0, require_permission_decorator_1.RequirePermission)('Production', 'canView'),
     __param(0, (0, common_1.Query)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -49,13 +53,14 @@ __decorate([
 ], ProductionController.prototype, "getBatches", null);
 __decorate([
     (0, common_1.Post)('batches'),
+    (0, require_permission_decorator_1.RequirePermission)('Production', 'canAdd'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [create_batch_dto_1.CreateBatchDto]),
     __metadata("design:returntype", void 0)
 ], ProductionController.prototype, "createBatch", null);
 exports.ProductionController = ProductionController = __decorate([
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, plant_context_guard_1.PlantContextGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, plant_context_guard_1.PlantContextGuard, permissions_guard_1.PermissionsGuard),
     (0, common_1.Controller)('production'),
     __metadata("design:paramtypes", [production_service_1.ProductionService])
 ], ProductionController);

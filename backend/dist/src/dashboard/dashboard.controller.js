@@ -16,6 +16,8 @@ exports.DashboardController = void 0;
 const common_1 = require("@nestjs/common");
 const dashboard_service_1 = require("./dashboard.service");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
+const permissions_guard_1 = require("../common/guards/permissions.guard");
+const require_permission_decorator_1 = require("../common/decorators/require-permission.decorator");
 let DashboardController = class DashboardController {
     constructor(dashboardService) {
         this.dashboardService = dashboardService;
@@ -51,12 +53,14 @@ let DashboardController = class DashboardController {
 exports.DashboardController = DashboardController;
 __decorate([
     (0, common_1.Get)('summary'),
+    (0, require_permission_decorator_1.RequirePermission)('Dashboard', 'canView'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], DashboardController.prototype, "getSummary", null);
 __decorate([
     (0, common_1.Get)('metrics/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Dashboard', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __param(1, (0, common_1.Query)('filter')),
     __metadata("design:type", Function),
@@ -65,6 +69,7 @@ __decorate([
 ], DashboardController.prototype, "getMetrics", null);
 __decorate([
     (0, common_1.Get)('procurement-chart'),
+    (0, require_permission_decorator_1.RequirePermission)('Dashboard', 'canView'),
     __param(0, (0, common_1.Query)('filter')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -72,6 +77,7 @@ __decorate([
 ], DashboardController.prototype, "getProcurementChart", null);
 __decorate([
     (0, common_1.Get)('yield-trend/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Dashboard', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __param(1, (0, common_1.Query)('filter')),
     __metadata("design:type", Function),
@@ -80,6 +86,7 @@ __decorate([
 ], DashboardController.prototype, "getYieldTrend", null);
 __decorate([
     (0, common_1.Get)('stock-donut/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Dashboard', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __param(1, (0, common_1.Query)('filter')),
     __metadata("design:type", Function),
@@ -88,6 +95,7 @@ __decorate([
 ], DashboardController.prototype, "getStockDonut", null);
 __decorate([
     (0, common_1.Get)('recent-activities/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Dashboard', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -95,6 +103,7 @@ __decorate([
 ], DashboardController.prototype, "getRecentActivities", null);
 __decorate([
     (0, common_1.Get)('alerts/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Dashboard', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -102,13 +111,14 @@ __decorate([
 ], DashboardController.prototype, "getAlerts", null);
 __decorate([
     (0, common_1.Get)('today-summary/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Dashboard', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], DashboardController.prototype, "getTodaySummary", null);
 exports.DashboardController = DashboardController = __decorate([
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
     (0, common_1.Controller)('dashboard'),
     __metadata("design:paramtypes", [dashboard_service_1.DashboardService])
 ], DashboardController);

@@ -12,11 +12,69 @@ export declare class AuthController {
             username: string;
             email: string;
             role: string;
-            permissions: string[];
+            permissions: {
+                id: string;
+                roleId: string;
+                createdAt: Date;
+                updatedAt: Date;
+                moduleName: string;
+                canView: boolean;
+                canAdd: boolean;
+                canEdit: boolean;
+                canDelete: boolean;
+                canApprove: boolean;
+            }[];
         };
     }>;
     refreshTokens(req: Request): Promise<{
         accessToken: string;
         refreshToken: string;
     }>;
+    getMe(req: Request): Promise<({
+        role: {
+            modulePermissions: {
+                id: string;
+                roleId: string;
+                createdAt: Date;
+                updatedAt: Date;
+                moduleName: string;
+                canView: boolean;
+                canAdd: boolean;
+                canEdit: boolean;
+                canDelete: boolean;
+                canApprove: boolean;
+            }[];
+        } & {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            deletedAt: Date | null;
+            name: string;
+            description: string | null;
+        };
+    } & {
+        username: string;
+        id: string;
+        email: string;
+        passwordHash: string;
+        refreshToken: string | null;
+        isActive: boolean;
+        roleId: string;
+        lastLogin: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+    }) | null>;
+    testPermissions(): Promise<{
+        id: string;
+        roleId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        moduleName: string;
+        canView: boolean;
+        canAdd: boolean;
+        canEdit: boolean;
+        canDelete: boolean;
+        canApprove: boolean;
+    }[] | undefined>;
 }

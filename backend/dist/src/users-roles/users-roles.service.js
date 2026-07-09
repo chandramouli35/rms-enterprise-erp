@@ -80,7 +80,9 @@ let UsersRolesService = class UsersRolesService {
             fullname: user.username,
             email: user.email,
             role: user.role.name,
+            roleId: user.roleId,
             plant: user.plantAccess.length > 0 ? user.plantAccess.map(pa => pa.plant.name).join(', ') : 'None',
+            plantId: user.plantAccess.length > 0 ? user.plantAccess[0].plantId : '',
             status: user.isActive ? 'Active' : 'Inactive',
             lastLogin: user.lastLogin ? user.lastLogin.toLocaleDateString() : 'Never',
             avatar: `https://ui-avatars.com/api/?name=${user.username}`
@@ -119,6 +121,61 @@ let UsersRolesService = class UsersRolesService {
             data: { isActive: !user.isActive }
         });
     }
+    async updateUser(id, data) {
+        const { email, roleId, plantId, newPassword, currentPassword } = data;
+        let updateData = {
+            email,
+            roleId
+        };
+        if (newPassword) {
+            if (!currentPassword) {
+                throw new common_1.BadRequestException('Current password is required to set a new password');
+            }
+            const targetUser = await this.prisma.user.findUnique({ where: { id } });
+            if (!targetUser)
+                throw new Error('User not found');
+            const isValid = await bcrypt.compare(currentPassword, targetUser.passwordHash);
+            if (!isValid) {
+                throw new common_1.UnauthorizedException('Invalid current password');
+            }
+            updateData.passwordHash = await bcrypt.hash(newPassword, 10);
+        }
+        const user = await this.prisma.user.update({
+            where: { id },
+            data: updateData
+        });
+        if (plantId) {
+            await this.prisma.userPlantAccess.deleteMany({ where: { userId: id } });
+            await this.prisma.userPlantAccess.create({
+                data: { userId: id, plantId }
+            });
+        }
+        await this.prisma.systemAuditLog.create({
+            data: {
+                userId: user.id,
+                action: 'UPDATED_USER',
+                module: 'Users & Roles',
+                details: `User ${user.username} updated.`
+            }
+        });
+        return user;
+    }
+    async deleteUser(id) {
+        const user = await this.prisma.user.findUnique({ where: { id } });
+        if (!user)
+            throw new Error('User not found');
+        await this.prisma.userPlantAccess.deleteMany({ where: { userId: id } });
+        await this.prisma.user.delete({ where: { id } });
+        await this.prisma.systemAuditLog.create({
+            data: {
+                userId: user.id,
+                action: 'DELETED_USER',
+                module: 'Users & Roles',
+                details: `User ${user.username} deleted.`
+            }
+        });
+        return { message: 'User deleted successfully' };
+    }
     async getRoles() {
         return this.prisma.role.findMany();
     }
@@ -131,7 +188,7 @@ let UsersRolesService = class UsersRolesService {
         });
     }
     async getRolePermissions(roleId) {
-        const modules = ['Dashboard', 'Procurement', 'Weighbridge', 'Production', 'Inventory', 'Gate Pass', 'Dispatch', 'Reports', 'User Management', 'Settings'];
+        const modules = ['Dashboard', 'Procurement', 'Weighbridge', 'Production', 'Inventory', 'Gate Pass', 'Dispatch', 'Reports', 'User Management', 'Products', 'Settings'];
         const existing = await this.prisma.modulePermission.findMany({
             where: { roleId }
         });
@@ -150,17 +207,18 @@ let UsersRolesService = class UsersRolesService {
         });
     }
     async updateRolePermissions(roleId, permissions) {
+        const permsArray = Array.isArray(permissions) ? permissions : permissions?.permissions || [];
         await this.prisma.modulePermission.deleteMany({ where: { roleId } });
-        const dataToInsert = permissions.map(p => ({
-            roleId,
-            moduleName: p.name,
-            canView: p.permissions.view,
-            canAdd: p.permissions.add,
-            canEdit: p.permissions.edit,
-            canDelete: p.permissions.delete,
-            canApprove: p.permissions.approve
-        }));
-        if (dataToInsert.length > 0) {
+        if (permsArray && permsArray.length > 0) {
+            const dataToInsert = permsArray.map((p) => ({
+                roleId,
+                moduleName: p.name || p.moduleName,
+                canView: p.permissions?.view ?? p.canView ?? false,
+                canAdd: p.permissions?.add ?? p.canAdd ?? false,
+                canEdit: p.permissions?.edit ?? p.canEdit ?? false,
+                canDelete: p.permissions?.delete ?? p.canDelete ?? false,
+                canApprove: p.permissions?.approve ?? p.canApprove ?? false
+            }));
             await this.prisma.modulePermission.createMany({
                 data: dataToInsert
             });

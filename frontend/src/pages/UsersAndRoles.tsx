@@ -38,6 +38,10 @@ export const UsersAndRoles: React.FC = () => {
  const [isAddRoleModalOpen, setIsAddRoleModalOpen] = useState(false);
  const [newRoleForm, setNewRoleForm] = useState({ name: '', description: '' });
 
+ // Edit User Modal State
+ const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
+ const [editUserForm, setEditUserForm] = useState({ id: '', fullName: '', email: '', currentPassword: '', newPassword: '', confirmPassword: '', roleId: '', plantId: '' });
+
  useEffect(() => {
  fetchInitialData();
  }, []);
@@ -145,6 +149,65 @@ export const UsersAndRoles: React.FC = () => {
  }
  };
 
+  const handleEditUserClick = (user: any) => {
+    setEditUserForm({
+      id: user.id,
+      fullName: user.fullname || user.username || '',
+      email: user.email || '',
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+      roleId: user.roleId || '',
+      plantId: user.plantId || ''
+    });
+    setIsEditUserModalOpen(true);
+  };
+
+  const handleEditUserSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  if (editUserForm.newPassword || editUserForm.currentPassword || editUserForm.confirmPassword) {
+    if (!editUserForm.currentPassword) {
+      setModalConfig({ isOpen: true, title: 'Error', content: 'Current password is required to set a new password.' });
+      return;
+    }
+    if (editUserForm.newPassword !== editUserForm.confirmPassword) {
+      setModalConfig({ isOpen: true, title: 'Error', content: 'New password and confirm password do not match.' });
+      return;
+    }
+  }
+
+  try {
+  await api.patch(`/users-roles/users/${editUserForm.id}`, editUserForm);
+  setIsEditUserModalOpen(false);
+  setModalConfig({ isOpen: true, title: 'Success', content: 'User updated successfully!' });
+  fetchInitialData();
+  } catch (err: any) {
+  console.error('Failed to update user', err);
+  setModalConfig({ isOpen: true, title: 'Error', content: err.response?.data?.message || 'Failed to update user. Please try again.' });
+  }
+  };
+
+ const handleDeleteUser = async (id: string) => {
+ if(!window.confirm('Are you sure you want to delete this user?')) return;
+ try {
+ await api.delete(`/users-roles/users/${id}`);
+ setModalConfig({ isOpen: true, title: 'Success', content: 'User deleted successfully!' });
+ fetchInitialData();
+ } catch (err) {
+ console.error('Failed to delete user', err);
+ setModalConfig({ isOpen: true, title: 'Error', content: 'Failed to delete user. Please try again.' });
+ }
+ };
+
+  const getNotApplicableActions = (moduleName: string) => {
+    const name = moduleName.toLowerCase();
+    if (name.includes('dashboard') || name.includes('report')) return ['add', 'edit', 'delete', 'approve'];
+    if (name.includes('setting')) return ['add', 'delete', 'approve'];
+    if (name.includes('product')) return ['approve'];
+    return [];
+  };
+
  return (
  <div className="space-y-6 max-w-[1600px] mx-auto text-[var(--text-muted)] bg-[var(--bg-base)] min-h-screen">
  
@@ -209,8 +272,16 @@ export const UsersAndRoles: React.FC = () => {
  {activeTab === 'Users' && (
  <div className="flex flex-col gap-6">
  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] flex flex-col">
- <div className="p-5 border-b border-[var(--border-subtle-alt)] flex justify-between items-center">
- <h3 className="text-[var(--text-main)] font-semibold">Users List</h3>
+ <div className="flex justify-between items-center mb-6">
+ <h3 className="text-[var(--text-main)] font-semibold text-lg">Users List</h3>
+ <button 
+ onClick={() => setIsAddUserModalOpen(true)}
+ className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] hover:border-[var(--border-subtle)] text-[var(--text-muted)] px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors"
+ >
+ <Plus size={16} /> Add User
+ </button>
+ </div>
+ <div className="flex items-center justify-between mb-4">
  <div className="flex items-center gap-3">
  <div className="relative">
  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted-alt)]" />
@@ -280,8 +351,8 @@ export const UsersAndRoles: React.FC = () => {
  <td className="px-3 py-3 text-[var(--text-muted-alt)]">{user.lastLogin}</td>
  <td className="px-3 py-3">
  <div className="flex items-center justify-center gap-2">
- <button className="p-1.5 text-[var(--text-muted-alt)] hover:text-[#e67e00] hover:bg-[#e67e00]/10 rounded transition-colors"><Edit2 size={14} /></button>
- <button className="p-1.5 text-[var(--text-muted-alt)] hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"><Trash2 size={14} /></button>
+ <button onClick={() => handleEditUserClick(user)} className="p-1.5 text-[var(--text-muted-alt)] hover:text-[#e67e00] hover:bg-[#e67e00]/10 rounded transition-colors"><Edit2 size={14} /></button>
+ <button onClick={() => handleDeleteUser(user.id)} className="p-1.5 text-[var(--text-muted-alt)] hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"><Trash2 size={14} /></button>
  </div>
  </td>
  </tr>
@@ -293,6 +364,8 @@ export const UsersAndRoles: React.FC = () => {
  </div>
  </div>
  )}
+
+
 
  {activeTab === 'Roles' && (
  <div className="p-6 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)]">
@@ -373,18 +446,27 @@ export const UsersAndRoles: React.FC = () => {
  <tbody className="divide-y divide-white/5 text-[var(--text-muted)]">
  {permissions.length === 0 ? <tr><td colSpan={6} className="text-center py-8 text-[var(--text-muted-alt)]">Loading matrix...</td></tr> : permissions.map((module, idx) => (
  <tr key={idx} className="hover:bg-[var(--glass-bg)] transition-colors">
- <td className="px-6 py-4 font-medium">{module.name}</td>
- {['view', 'add', 'edit', 'delete', 'approve'].map((action) => (
- <td key={action} className="px-6 py-4 text-center">
- <input 
- type="checkbox" 
- checked={module.permissions[action]} 
- onChange={() => handlePermissionChange(idx, action)}
- className="w-4 h-4 rounded border-gray-600 text-[#e67e00] bg-[var(--bg-base)] focus:ring-[#e67e00] border-[var(--border-subtle)] focus:ring-offset-[#121212] cursor-pointer" 
- />
- </td>
- ))}
- </tr>
+  <td className="px-6 py-4 font-medium">{module.name}</td>
+  {['view', 'add', 'edit', 'delete', 'approve'].map((action) => {
+  const isNA = getNotApplicableActions(module.name).includes(action);
+  return (
+  <td key={action} className="px-6 py-4 text-center">
+  {isNA ? (
+    <div title="Not applicable for this module" className="flex justify-center text-[var(--text-muted-alt)]/30 cursor-not-allowed">
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+    </div>
+  ) : (
+    <input 
+    type="checkbox" 
+    checked={module.permissions[action]} 
+    onChange={() => handlePermissionChange(idx, action)}
+    className="w-4 h-4 rounded border-gray-600 text-[#e67e00] bg-[var(--bg-base)] focus:ring-[#e67e00] border-[var(--border-subtle)] focus:ring-offset-[#121212] cursor-pointer" 
+    />
+  )}
+  </td>
+  );
+  })}
+  </tr>
  ))}
  </tbody>
  </table>
@@ -513,6 +595,104 @@ export const UsersAndRoles: React.FC = () => {
  <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3">
  <button onClick={() => setIsAddUserModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
  <button form="realAddUserForm" type="submit" className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">Create User</button>
+ </div>
+ </div>
+ </div>
+ )}
+
+ {/* Edit User Modal */}
+ {isEditUserModalOpen && (
+ <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+ <div className="relative w-full max-w-md bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-hidden">
+ <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)]">
+ <h2 className="text-lg font-semibold text-[var(--text-main)]">Edit User</h2>
+ <button onClick={() => setIsEditUserModalOpen(false)} className="text-[var(--text-muted-alt)] hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)] p-1.5 rounded-lg transition-colors">
+ <X size={20} />
+ </button>
+ </div>
+ <div className="p-6">
+ <form id="realEditUserForm" onSubmit={handleEditUserSubmit} className="space-y-4">
+ <div>
+ <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Full Name</label>
+ <input required type="text" value={editUserForm.fullName} onChange={e => setEditUserForm({...editUserForm, fullName: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors" placeholder="e.g. John Doe" />
+ </div>
+ 
+ <div>
+ <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Email Address</label>
+ <input required type="email" value={editUserForm.email} onChange={e => setEditUserForm({...editUserForm, email: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors" placeholder="e.g. john@example.com" />
+ </div>
+
+ <div>
+ <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Current Password (Required for changing password)</label>
+ <div className="relative">
+ <input 
+ type={showPassword ? "text" : "password"} 
+ value={editUserForm.currentPassword} 
+ onChange={e => setEditUserForm({...editUserForm, currentPassword: e.target.value})} 
+ className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 pr-10 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors" 
+ placeholder="Enter current password" 
+ />
+ </div>
+ </div>
+
+ <div>
+ <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">New Password</label>
+ <div className="relative">
+ <input 
+ type={showPassword ? "text" : "password"} 
+ value={editUserForm.newPassword} 
+ onChange={e => setEditUserForm({...editUserForm, newPassword: e.target.value})} 
+ className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 pr-10 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors" 
+ placeholder="Leave blank to keep current password" 
+ />
+ <button 
+ type="button" 
+ onClick={() => setShowPassword(!showPassword)} 
+ className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors"
+ >
+ {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+ </button>
+ </div>
+ </div>
+
+ <div>
+ <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Confirm New Password</label>
+ <div className="relative">
+ <input 
+ type={showPassword ? "text" : "password"} 
+ value={editUserForm.confirmPassword} 
+ onChange={e => setEditUserForm({...editUserForm, confirmPassword: e.target.value})} 
+ className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors" 
+ placeholder="Confirm new password" 
+ />
+ </div>
+ </div>
+
+ <div className="grid grid-cols-2 gap-4">
+ <div>
+ <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Assign Role</label>
+ <select required value={editUserForm.roleId} onChange={e => setEditUserForm({...editUserForm, roleId: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer appearance-none">
+ <option value="">Select Role</option>
+ {roles.map((r: any) => (
+ <option key={r.id} value={r.id}>{r.name}</option>
+ ))}
+ </select>
+ </div>
+ <div>
+ <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Primary Plant</label>
+ <select required value={editUserForm.plantId} onChange={e => setEditUserForm({...editUserForm, plantId: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer appearance-none">
+ <option value="">Select Plant</option>
+ {plants.map((p: any) => (
+ <option key={p.id} value={p.id}>{p.name}</option>
+ ))}
+ </select>
+ </div>
+ </div>
+ </form>
+ </div>
+ <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3">
+ <button onClick={() => setIsEditUserModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
+ <button form="realEditUserForm" type="submit" className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">Save Changes</button>
  </div>
  </div>
  </div>

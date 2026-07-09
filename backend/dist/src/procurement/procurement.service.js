@@ -318,7 +318,7 @@ let ProcurementService = class ProcurementService {
                 rate: parseFloat(data.rate) || 0,
                 diff: parseFloat(data.diff) || 0,
                 payment: parseFloat(data.payment) || 0,
-                finalHisabAmt: parseFloat(data.finalHisabAmt) || 0,
+                finalHisabAmt: data.finalHisabAmt ? parseFloat(data.finalHisabAmt) : ((parseFloat(data.bags) || 0) * 0.375 * (parseFloat(data.diff) || 0)),
                 note: data.note || '',
                 riceCategory: data.riceCategory || 'ANY'
             }
@@ -336,7 +336,7 @@ let ProcurementService = class ProcurementService {
                 rate: parseFloat(data.rate) || 0,
                 diff: parseFloat(data.diff) || 0,
                 payment: parseFloat(data.payment) || 0,
-                finalHisabAmt: parseFloat(data.finalHisabAmt) || 0,
+                finalHisabAmt: data.finalHisabAmt ? parseFloat(data.finalHisabAmt) : ((parseFloat(data.bags) || 0) * 0.375 * (parseFloat(data.diff) || 0)),
                 note: data.note || '',
                 riceCategory: data.riceCategory || 'ANY'
             }

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -20,5 +20,37 @@ export class AuthController {
     const userId = user?.sub;
     const refreshToken = req.body['refreshToken'];
     return this.authService.refreshTokens(userId, refreshToken);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  async getMe(@Req() req: Request) {
+    const userId = (req.user as any)?.sub;
+    const user = await this.authService['prisma'].user.findUnique({
+      where: { id: userId },
+      include: {
+        role: {
+          include: {
+            modulePermissions: true,
+          },
+        },
+      },
+    });
+    return user;
+  }
+
+  @Get('test-permissions')
+  async testPermissions() {
+    const user = await this.authService['prisma'].user.findFirst({
+      where: { email: 'cm@yopmail.com' },
+      include: {
+        role: {
+          include: {
+            modulePermissions: true,
+          },
+        },
+      },
+    });
+    return user?.role?.modulePermissions;
   }
 }

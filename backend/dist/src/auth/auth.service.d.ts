@@ -13,7 +13,18 @@ export declare class AuthService {
             username: string;
             email: string;
             role: string;
-            permissions: string[];
+            permissions: {
+                id: string;
+                roleId: string;
+                createdAt: Date;
+                updatedAt: Date;
+                moduleName: string;
+                canView: boolean;
+                canAdd: boolean;
+                canEdit: boolean;
+                canDelete: boolean;
+                canApprove: boolean;
+            }[];
         };
     }>;
     refreshTokens(userId: string, refreshToken: string): Promise<{

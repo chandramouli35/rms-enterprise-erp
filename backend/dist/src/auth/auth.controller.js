@@ -30,6 +30,33 @@ let AuthController = class AuthController {
         const refreshToken = req.body['refreshToken'];
         return this.authService.refreshTokens(userId, refreshToken);
     }
+    async getMe(req) {
+        const userId = req.user?.sub;
+        const user = await this.authService['prisma'].user.findUnique({
+            where: { id: userId },
+            include: {
+                role: {
+                    include: {
+                        modulePermissions: true,
+                    },
+                },
+            },
+        });
+        return user;
+    }
+    async testPermissions() {
+        const user = await this.authService['prisma'].user.findFirst({
+            where: { email: 'cm@yopmail.com' },
+            include: {
+                role: {
+                    include: {
+                        modulePermissions: true,
+                    },
+                },
+            },
+        });
+        return user?.role?.modulePermissions;
+    }
 };
 exports.AuthController = AuthController;
 __decorate([
@@ -47,6 +74,20 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "refreshTokens", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Get)('me'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "getMe", null);
+__decorate([
+    (0, common_1.Get)('test-permissions'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "testPermissions", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)('auth'),
     __metadata("design:paramtypes", [auth_service_1.AuthService])

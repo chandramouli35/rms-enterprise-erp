@@ -15,7 +15,9 @@ export declare class UsersRolesController {
         fullname: string;
         email: string;
         role: string;
+        roleId: string;
         plant: string;
+        plantId: string;
         status: string;
         lastLogin: string;
         avatar: string;
@@ -45,6 +47,22 @@ export declare class UsersRolesController {
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+    }>;
+    updateUser(id: string, body: any): Promise<{
+        username: string;
+        id: string;
+        email: string;
+        passwordHash: string;
+        refreshToken: string | null;
+        isActive: boolean;
+        roleId: string;
+        lastLogin: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+    }>;
+    deleteUser(id: string): Promise<{
+        message: string;
     }>;
     getRoles(): Promise<{
         id: string;

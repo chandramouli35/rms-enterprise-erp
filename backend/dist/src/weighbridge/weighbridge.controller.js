@@ -15,6 +15,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.WeighbridgeController = void 0;
 const common_1 = require("@nestjs/common");
 const weighbridge_service_1 = require("./weighbridge.service");
+const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
+const permissions_guard_1 = require("../common/guards/permissions.guard");
+const require_permission_decorator_1 = require("../common/decorators/require-permission.decorator");
 let WeighbridgeController = class WeighbridgeController {
     constructor(weighbridgeService) {
         this.weighbridgeService = weighbridgeService;
@@ -38,6 +41,7 @@ let WeighbridgeController = class WeighbridgeController {
 exports.WeighbridgeController = WeighbridgeController;
 __decorate([
     (0, common_1.Get)('stream/:vehicleNo'),
+    (0, require_permission_decorator_1.RequirePermission)('Weighbridge', 'canView'),
     __param(0, (0, common_1.Param)('vehicleNo')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -45,6 +49,7 @@ __decorate([
 ], WeighbridgeController.prototype, "streamWeight", null);
 __decorate([
     (0, common_1.Post)('save-transaction'),
+    (0, require_permission_decorator_1.RequirePermission)('Weighbridge', 'canAdd'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -52,6 +57,7 @@ __decorate([
 ], WeighbridgeController.prototype, "saveTransaction", null);
 __decorate([
     (0, common_1.Get)('history/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Weighbridge', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -59,6 +65,7 @@ __decorate([
 ], WeighbridgeController.prototype, "getHistory", null);
 __decorate([
     (0, common_1.Get)('settings/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Weighbridge', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -66,6 +73,7 @@ __decorate([
 ], WeighbridgeController.prototype, "getSettings", null);
 __decorate([
     (0, common_1.Put)('settings/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Weighbridge', 'canEdit'),
     __param(0, (0, common_1.Param)('plantId')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -73,6 +81,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], WeighbridgeController.prototype, "updateSettings", null);
 exports.WeighbridgeController = WeighbridgeController = __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
     (0, common_1.Controller)('api/weighbridge'),
     __metadata("design:paramtypes", [weighbridge_service_1.WeighbridgeService])
 ], WeighbridgeController);

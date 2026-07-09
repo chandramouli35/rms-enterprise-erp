@@ -40,6 +40,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    /*
     // Check plant access
     if (!plantId && user.role.name !== 'SUPER_ADMIN') {
       throw new UnauthorizedException('Please select a plant to continue');
@@ -51,11 +52,13 @@ export class AuthService {
          throw new UnauthorizedException('Access denied to this plant');
       }
     }
+    */
 
     const payload = { 
       sub: user.id, 
       username: user.username, 
       role: user.role.name,
+      permissions: user.role.modulePermissions,
       plantId: plantId // Contextual plant
     };
     
@@ -64,9 +67,14 @@ export class AuthService {
 
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { refreshToken: await bcrypt.hash(refreshToken, 10) },
+      data: { 
+        refreshToken: await bcrypt.hash(refreshToken, 10),
+        lastLogin: new Date()
+      },
     });
 
+    console.log('LOGIN RETURN:', user.role.name, user.role.modulePermissions);
+    
     return {
       accessToken,
       refreshToken,
@@ -75,7 +83,7 @@ export class AuthService {
         username: user.username,
         email: user.email,
         role: user.role.name,
-        permissions: user.role.modulePermissions.map(p => p.moduleName),
+        permissions: user.role.modulePermissions,
       }
     };
   }
@@ -83,7 +91,13 @@ export class AuthService {
   async refreshTokens(userId: string, refreshToken: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { role: true }
+      include: { 
+        role: {
+          include: {
+            modulePermissions: true,
+          }
+        }
+      }
     });
     
     if (!user || !user.refreshToken) {
@@ -95,7 +109,13 @@ export class AuthService {
       throw new UnauthorizedException('Access Denied');
     }
 
-    const payload = { sub: user.id, username: user.username, role: user.role.name };
+    const payload = { 
+      sub: user.id, 
+      username: user.username, 
+      role: user.role.name,
+      permissions: user.role.modulePermissions
+    };
+    
     const newAccessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
     const newRefreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
 

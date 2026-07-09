@@ -77,27 +77,23 @@ let AuthService = class AuthService {
         if (!isPasswordValid) {
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
-        if (!plantId && user.role.name !== 'SUPER_ADMIN') {
-            throw new common_1.UnauthorizedException('Please select a plant to continue');
-        }
-        if (plantId) {
-            const hasAccess = user.plantAccess.some(access => access.plantId === plantId);
-            if (!hasAccess && user.role.name !== 'SUPER_ADMIN') {
-                throw new common_1.UnauthorizedException('Access denied to this plant');
-            }
-        }
         const payload = {
             sub: user.id,
             username: user.username,
             role: user.role.name,
+            permissions: user.role.modulePermissions,
             plantId: plantId
         };
         const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
         const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
         await this.prisma.user.update({
             where: { id: user.id },
-            data: { refreshToken: await bcrypt.hash(refreshToken, 10) },
+            data: {
+                refreshToken: await bcrypt.hash(refreshToken, 10),
+                lastLogin: new Date()
+            },
         });
+        console.log('LOGIN RETURN:', user.role.name, user.role.modulePermissions);
         return {
             accessToken,
             refreshToken,
@@ -106,14 +102,20 @@ let AuthService = class AuthService {
                 username: user.username,
                 email: user.email,
                 role: user.role.name,
-                permissions: user.role.modulePermissions.map(p => p.moduleName),
+                permissions: user.role.modulePermissions,
             }
         };
     }
     async refreshTokens(userId, refreshToken) {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
-            include: { role: true }
+            include: {
+                role: {
+                    include: {
+                        modulePermissions: true,
+                    }
+                }
+            }
         });
         if (!user || !user.refreshToken) {
             throw new common_1.UnauthorizedException('Access Denied');
@@ -122,7 +124,12 @@ let AuthService = class AuthService {
         if (!refreshTokenMatches) {
             throw new common_1.UnauthorizedException('Access Denied');
         }
-        const payload = { sub: user.id, username: user.username, role: user.role.name };
+        const payload = {
+            sub: user.id,
+            username: user.username,
+            role: user.role.name,
+            permissions: user.role.modulePermissions
+        };
         const newAccessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
         const newRefreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
         await this.prisma.user.update({

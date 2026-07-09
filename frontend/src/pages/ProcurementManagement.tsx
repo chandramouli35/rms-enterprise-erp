@@ -35,9 +35,7 @@ export const ProcurementManagement = () => {
  bagsRecAtMill: 0,
   gatePassId: '',
   weighbridgeId: '',
-  supplierId: '',
   category: 'OPERATIONAL',
-  purchaseType: 'PADDY_NORMAL',
   baseRate: 0,
   finalRate: 0,
   arhtiaCorrection: 0,
@@ -1007,7 +1005,13 @@ export const ProcurementManagement = () => {
         </div>
         <div>
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Bags</label>
-          <input type="number" value={paddyPurchaseModal.bags} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, bags: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
+          <input type="number" value={paddyPurchaseModal.bags} onChange={e => {
+            const bags = e.target.value;
+            const b = parseFloat(bags) || 0;
+            const d = parseFloat(paddyPurchaseModal.diff) || 0;
+            const finalAmt = (b * 0.375 * d).toFixed(2);
+            setPaddyPurchaseModal({...paddyPurchaseModal, bags, finalHisabAmt: finalAmt});
+          }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
         </div>
         <div>
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Rate</label>
@@ -1015,7 +1019,13 @@ export const ProcurementManagement = () => {
         </div>
         <div>
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Diff</label>
-          <input type="number" step="0.01" value={paddyPurchaseModal.diff} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, diff: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+          <input type="number" step="0.01" value={paddyPurchaseModal.diff} onChange={e => {
+            const diff = e.target.value;
+            const b = parseFloat(paddyPurchaseModal.bags) || 0;
+            const d = parseFloat(diff) || 0;
+            const finalAmt = (b * 0.375 * d).toFixed(2);
+            setPaddyPurchaseModal({...paddyPurchaseModal, diff, finalHisabAmt: finalAmt});
+          }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
         </div>
         <div>
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Payment</label>

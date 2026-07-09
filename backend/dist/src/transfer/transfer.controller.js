@@ -18,6 +18,8 @@ const transfer_service_1 = require("./transfer.service");
 const create_transfer_dto_1 = require("./dto/create-transfer.dto");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
 const plant_context_guard_1 = require("../common/guards/plant-context.guard");
+const permissions_guard_1 = require("../common/guards/permissions.guard");
+const require_permission_decorator_1 = require("../common/decorators/require-permission.decorator");
 let TransferController = class TransferController {
     constructor(transferService) {
         this.transferService = transferService;
@@ -38,6 +40,7 @@ let TransferController = class TransferController {
 exports.TransferController = TransferController;
 __decorate([
     (0, common_1.Get)('metrics'),
+    (0, require_permission_decorator_1.RequirePermission)('Dispatch', 'canView'),
     __param(0, (0, common_1.Query)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -45,6 +48,7 @@ __decorate([
 ], TransferController.prototype, "getMetrics", null);
 __decorate([
     (0, common_1.Get)(),
+    (0, require_permission_decorator_1.RequirePermission)('Dispatch', 'canView'),
     __param(0, (0, common_1.Query)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -52,6 +56,7 @@ __decorate([
 ], TransferController.prototype, "getAllTransfers", null);
 __decorate([
     (0, common_1.Post)(),
+    (0, require_permission_decorator_1.RequirePermission)('Dispatch', 'canAdd'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [create_transfer_dto_1.CreateTransferDto]),
@@ -59,6 +64,7 @@ __decorate([
 ], TransferController.prototype, "createTransfer", null);
 __decorate([
     (0, common_1.Patch)(':id/status'),
+    (0, require_permission_decorator_1.RequirePermission)('Dispatch', 'canEdit'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -66,7 +72,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], TransferController.prototype, "updateStatus", null);
 exports.TransferController = TransferController = __decorate([
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, plant_context_guard_1.PlantContextGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, plant_context_guard_1.PlantContextGuard, permissions_guard_1.PermissionsGuard),
     (0, common_1.Controller)('transfer'),
     __metadata("design:paramtypes", [transfer_service_1.TransferService])
 ], TransferController);

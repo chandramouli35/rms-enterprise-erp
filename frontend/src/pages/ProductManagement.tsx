@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, Box } from 'lucide-react';
 import api from '../api/axios';
 
+import { HasPermission } from '../components/HasPermission';
+
 export const ProductManagement = () => {
   const [products, setProducts] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -74,9 +76,11 @@ export const ProductManagement = () => {
     <div className="flex flex-col h-full bg-[var(--bg-base)] text-[var(--text-main)]">
       <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-subtle)] shrink-0 bg-[var(--bg-panel)] mb-4 shadow-sm">
         <h1 className="text-lg font-bold">Product Master</h1>
-        <button onClick={openAddModal} className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black rounded-lg font-bold text-sm shadow-lg shadow-amber-500/20 transition-colors">
-          <Plus size={16} /> Add Product
-        </button>
+        <HasPermission moduleName="Products" action="canAdd">
+          <button onClick={openAddModal} className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black rounded-lg font-bold text-sm shadow-lg shadow-amber-500/20 transition-colors">
+            <Plus size={16} /> Add Product
+          </button>
+        </HasPermission>
       </div>
 
       <div className="px-6 flex-1 overflow-y-auto pb-6">
@@ -112,8 +116,12 @@ export const ProductManagement = () => {
                     <td className="px-6 py-4 text-[var(--text-muted)]">{p.description || '-'}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => openEditModal(p)} className="p-1.5 text-blue-400 hover:bg-blue-400/10 rounded-md transition-colors"><Edit2 size={16} /></button>
-                        <button onClick={() => handleDelete(p.id)} className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-md transition-colors"><Trash2 size={16} /></button>
+                        <HasPermission moduleName="Products" action="canEdit">
+                          <button onClick={() => openEditModal(p)} className="p-1.5 text-blue-400 hover:bg-blue-400/10 rounded-md transition-colors"><Edit2 size={16} /></button>
+                        </HasPermission>
+                        <HasPermission moduleName="Products" action="canDelete">
+                          <button onClick={() => handleDelete(p.id)} className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-md transition-colors"><Trash2 size={16} /></button>
+                        </HasPermission>
                       </div>
                     </td>
                   </tr>

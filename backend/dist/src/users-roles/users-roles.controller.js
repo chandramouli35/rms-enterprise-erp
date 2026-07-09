@@ -16,6 +16,8 @@ exports.UsersRolesController = void 0;
 const common_1 = require("@nestjs/common");
 const users_roles_service_1 = require("./users-roles.service");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
+const permissions_guard_1 = require("../common/guards/permissions.guard");
+const require_permission_decorator_1 = require("../common/decorators/require-permission.decorator");
 let UsersRolesController = class UsersRolesController {
     constructor(service) {
         this.service = service;
@@ -31,6 +33,12 @@ let UsersRolesController = class UsersRolesController {
     }
     toggleStatus(id) {
         return this.service.toggleUserStatus(id);
+    }
+    updateUser(id, body) {
+        return this.service.updateUser(id, body);
+    }
+    deleteUser(id) {
+        return this.service.deleteUser(id);
     }
     getRoles() {
         return this.service.getRoles();
@@ -54,18 +62,21 @@ let UsersRolesController = class UsersRolesController {
 exports.UsersRolesController = UsersRolesController;
 __decorate([
     (0, common_1.Get)('summary-metrics'),
+    (0, require_permission_decorator_1.RequirePermission)('Users and Roles', 'canView'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], UsersRolesController.prototype, "getStats", null);
 __decorate([
     (0, common_1.Get)('list'),
+    (0, require_permission_decorator_1.RequirePermission)('Users and Roles', 'canView'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], UsersRolesController.prototype, "getUsersList", null);
 __decorate([
     (0, common_1.Post)('create'),
+    (0, require_permission_decorator_1.RequirePermission)('Users and Roles', 'canAdd'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -73,19 +84,39 @@ __decorate([
 ], UsersRolesController.prototype, "createUser", null);
 __decorate([
     (0, common_1.Patch)('users/:id/status'),
+    (0, require_permission_decorator_1.RequirePermission)('Users and Roles', 'canEdit'),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], UsersRolesController.prototype, "toggleStatus", null);
 __decorate([
+    (0, common_1.Patch)('users/:id'),
+    (0, require_permission_decorator_1.RequirePermission)('Users and Roles', 'canEdit'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], UsersRolesController.prototype, "updateUser", null);
+__decorate([
+    (0, common_1.Delete)('users/:id'),
+    (0, require_permission_decorator_1.RequirePermission)('Users and Roles', 'canDelete'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], UsersRolesController.prototype, "deleteUser", null);
+__decorate([
     (0, common_1.Get)('roles'),
+    (0, require_permission_decorator_1.RequirePermission)('Users and Roles', 'canView'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], UsersRolesController.prototype, "getRoles", null);
 __decorate([
     (0, common_1.Post)('roles'),
+    (0, require_permission_decorator_1.RequirePermission)('Users and Roles', 'canAdd'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -93,6 +124,7 @@ __decorate([
 ], UsersRolesController.prototype, "createRole", null);
 __decorate([
     (0, common_1.Get)('roles/:roleId/permissions'),
+    (0, require_permission_decorator_1.RequirePermission)('Users and Roles', 'canView'),
     __param(0, (0, common_1.Param)('roleId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -100,6 +132,7 @@ __decorate([
 ], UsersRolesController.prototype, "getRolePermissions", null);
 __decorate([
     (0, common_1.Post)('roles/:roleId/permissions'),
+    (0, require_permission_decorator_1.RequirePermission)('Users and Roles', 'canEdit'),
     __param(0, (0, common_1.Param)('roleId')),
     __param(1, (0, common_1.Body)('permissions')),
     __metadata("design:type", Function),
@@ -108,18 +141,20 @@ __decorate([
 ], UsersRolesController.prototype, "updateRolePermissions", null);
 __decorate([
     (0, common_1.Get)('audit-summary'),
+    (0, require_permission_decorator_1.RequirePermission)('Users and Roles', 'canView'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], UsersRolesController.prototype, "getAuditLogs", null);
 __decorate([
     (0, common_1.Get)('audit-list'),
+    (0, require_permission_decorator_1.RequirePermission)('Users and Roles', 'canView'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], UsersRolesController.prototype, "getAuditList", null);
 exports.UsersRolesController = UsersRolesController = __decorate([
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
     (0, common_1.Controller)('users-roles'),
     __metadata("design:paramtypes", [users_roles_service_1.UsersRolesService])
 ], UsersRolesController);

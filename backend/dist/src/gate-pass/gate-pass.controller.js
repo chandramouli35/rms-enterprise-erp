@@ -15,6 +15,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.GatePassController = void 0;
 const common_1 = require("@nestjs/common");
 const gate_pass_service_1 = require("./gate-pass.service");
+const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
+const permissions_guard_1 = require("../common/guards/permissions.guard");
+const require_permission_decorator_1 = require("../common/decorators/require-permission.decorator");
 let GatePassController = class GatePassController {
     constructor(gatePassService) {
         this.gatePassService = gatePassService;
@@ -41,6 +44,7 @@ let GatePassController = class GatePassController {
 exports.GatePassController = GatePassController;
 __decorate([
     (0, common_1.Post)('generate'),
+    (0, require_permission_decorator_1.RequirePermission)('Gate Pass', 'canAdd'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -48,6 +52,7 @@ __decorate([
 ], GatePassController.prototype, "generateGatePass", null);
 __decorate([
     (0, common_1.Get)('campus-status/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Gate Pass', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -55,6 +60,7 @@ __decorate([
 ], GatePassController.prototype, "getCampusStatus", null);
 __decorate([
     (0, common_1.Get)('recent/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Gate Pass', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __param(1, (0, common_1.Query)('type')),
     __metadata("design:type", Function),
@@ -63,6 +69,7 @@ __decorate([
 ], GatePassController.prototype, "getRecentGatePasses", null);
 __decorate([
     (0, common_1.Get)('scan/:qrCode'),
+    (0, require_permission_decorator_1.RequirePermission)('Gate Pass', 'canView'),
     __param(0, (0, common_1.Param)('qrCode')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -70,6 +77,7 @@ __decorate([
 ], GatePassController.prototype, "getGatePassByQr", null);
 __decorate([
     (0, common_1.Get)('analytics/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Gate Pass', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -77,12 +85,14 @@ __decorate([
 ], GatePassController.prototype, "getAnalytics", null);
 __decorate([
     (0, common_1.Get)('duplicate-logs/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Gate Pass', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], GatePassController.prototype, "getDuplicateLogs", null);
 exports.GatePassController = GatePassController = __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
     (0, common_1.Controller)('api/gate-pass'),
     __metadata("design:paramtypes", [gate_pass_service_1.GatePassService])
 ], GatePassController);

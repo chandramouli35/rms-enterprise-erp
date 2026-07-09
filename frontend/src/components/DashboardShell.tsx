@@ -30,19 +30,37 @@ export const DashboardShell: React.FC = () => {
  }
  }, [isDarkMode]);
 
- useEffect(() => {
- if (user?.role === 'SUPER_ADMIN') {
- const fetchPlants = async () => {
- try {
- const res = await api.get('/plants');
- setPlants(res.data);
- } catch (err) {
- console.error('Failed to fetch plants', err);
- }
- };
- fetchPlants();
- }
- }, [user]);
+  useEffect(() => {
+    if (user?.role === 'SUPER_ADMIN') {
+      const fetchPlants = async () => {
+        try {
+          const res = await api.get('/plants');
+          setPlants(res.data);
+        } catch (err) {
+          console.error('Failed to fetch plants', err);
+        }
+      };
+      fetchPlants();
+    }
+    
+    // Automatically re-fetch user's role permissions on mount to ensure fresh state
+    if (user?.role !== 'SUPER_ADMIN' && user?.role) {
+      const refreshPermissions = async () => {
+        try {
+          const res = await api.get(`/auth/me`);
+          if (res.data && res.data.role && res.data.role.modulePermissions) {
+            useAuthStore.getState().setAuth({
+              ...user,
+              permissions: res.data.role.modulePermissions
+            }, useAuthStore.getState().accessToken!);
+          }
+        } catch (err) {
+          console.error('Failed to refresh permissions', err);
+        }
+      };
+      refreshPermissions();
+    }
+  }, [user?.role]);
 
  const handleLogout = () => {
  logout();
@@ -86,7 +104,7 @@ export const DashboardShell: React.FC = () => {
  { label: 'QR Barcode', tab: 'qr_barcode' },
  { label: 'Duplicate Prevention', tab: 'duplicate_prevention' }
  ]},
- { label: 'User and Roles', href: '/users', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
+ { label: 'Users and Roles', href: '/users', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
  { label: 'Users', tab: 'Users' },
  { label: 'Roles', tab: 'Roles' },
  { label: 'Permissions', tab: 'Permissions' },
@@ -111,6 +129,42 @@ export const DashboardShell: React.FC = () => {
  const searchParams = new URLSearchParams(location.search);
  const currentTab = searchParams.get('tab');
 
+  const hasPermission = (itemLabel: string, itemRoles: string[]) => {
+    if (user?.role === 'SUPER_ADMIN') return true;
+    
+    const labelToModule: Record<string, string> = {
+      'Users and Roles': 'User Management',
+      'Yield Mgmt': 'Production',
+      'Transfer': 'Inventory',
+      'Plants': 'Settings',
+    };
+    
+    const moduleName = labelToModule[itemLabel] || itemLabel;
+    
+    if (user?.permissions && Array.isArray(user.permissions) && user.permissions.length > 0) {
+      // Handle array of strings case
+      if (typeof user.permissions[0] === 'string') {
+        return user.permissions.some(p => p.toLowerCase() === moduleName.toLowerCase());
+      }
+      
+      const perm = user.permissions.find((p: any) => {
+        const pModName = p.moduleName || p.name || '';
+        return pModName.toLowerCase() === moduleName.toLowerCase();
+      });
+      
+      if (perm) {
+        const allowed = perm.canView === true || perm.view === true || (perm.permissions && perm.permissions.view === true) || String(perm.canView) === 'true' || String(perm.view) === 'true';
+        console.log(`Checking perm for ${moduleName}: found=`, perm, `allowed=`, allowed);
+        return allowed;
+      }
+    }
+    
+    // Fallback to hardcoded roles if no explicit permission record exists
+    const fallback = itemRoles.includes(user?.role || '');
+    console.log(`Checking fallback for ${moduleName}:`, fallback);
+    return fallback;
+  };
+
  return (
  <div className="flex h-screen bg-[var(--bg-base)] text-[var(--text-muted)] font-sans">
  {/* Sidebar */}
@@ -128,7 +182,7 @@ export const DashboardShell: React.FC = () => {
  </div>
 
  <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto">
- {navItems.filter(item => item.roles.includes(user?.role || '')).map((item, index) => {
+ {navItems.filter(item => hasPermission(item.label, item.roles)).map((item, index) => {
  const isActive = location.pathname.startsWith(item.href);
  const isExpanded = expandedItems[item.label] || false;
  
@@ -195,11 +249,11 @@ export const DashboardShell: React.FC = () => {
  </div>
  )}
  </div>
- <button onClick={handleLogout} className={`flex items-center gap-2 text-[var(--text-muted-alt)] hover:text-red-400 transition-colors ${sidebarCollapsed ? 'justify-center w-full' : ''}`}>
- <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
- {!sidebarCollapsed && <span>Logout</span>}
- </button>
- </div>
+          <button onClick={handleLogout} className={`flex items-center gap-2 text-[var(--text-muted-alt)] hover:text-red-400 transition-colors ${sidebarCollapsed ? 'justify-center w-full' : ''}`}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            {!sidebarCollapsed && <span>Logout</span>}
+          </button>
+        </div>
  </aside>
 
  {/* Main Content */}
