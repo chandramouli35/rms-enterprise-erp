@@ -67,7 +67,11 @@ let AuthService = class AuthService {
                         modulePermissions: true,
                     },
                 },
-                plantAccess: true,
+                plantAccess: {
+                    include: {
+                        plant: true,
+                    }
+                },
             },
         });
         if (!user || !user.passwordHash) {
@@ -81,8 +85,7 @@ let AuthService = class AuthService {
             sub: user.id,
             username: user.username,
             role: user.role.name,
-            permissions: user.role.modulePermissions,
-            plantId: plantId
+            permissions: user.role.modulePermissions
         };
         const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
         const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
@@ -103,6 +106,7 @@ let AuthService = class AuthService {
                 email: user.email,
                 role: user.role.name,
                 permissions: user.role.modulePermissions,
+                plantAccess: user.plantAccess,
             }
         };
     }

@@ -279,9 +279,27 @@ export const DashboardShell: React.FC = () => {
  </select>
  </div>
  ) : (
- <h2 className="font-semibold text-lg">
+ user?.plantAccess && user.plantAccess.length > 1 ? (
+ <div className="flex items-center gap-3">
+ <h2 className="font-semibold text-lg text-[var(--text-muted-alt)]">Context:</h2>
+ <select 
+ className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--text-main)] focus:outline-none focus:border-amber-500 cursor-pointer"
+ value={activePlant?.id || ''}
+ onChange={(e) => {
+ const selectedAccess = user.plantAccess.find((pa: any) => pa.plant.id === e.target.value);
+ if (selectedAccess) setActivePlant(selectedAccess.plant);
+ }}
+ >
+ {user.plantAccess.map((pa: any) => (
+ <option key={pa.plant.id} value={pa.plant.id}>{pa.plant.name} ({pa.plant.code})</option>
+ ))}
+ </select>
+ </div>
+ ) : (
+ <h2 className="font-semibold text-lg text-[var(--text-muted-alt)]">
  {activePlant ? `Context: ${activePlant.name} (${activePlant.code})` : 'Global Overview'}
  </h2>
+ )
  )}
  </div>
  <div className="flex items-center gap-4">

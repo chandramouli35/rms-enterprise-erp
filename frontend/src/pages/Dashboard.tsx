@@ -62,20 +62,19 @@ export const Dashboard: React.FC = () => {
 
  useEffect(() => {
  const fetchDashboardData = async () => {
- if (!activePlant) return;
- 
+ const currentPlantId = activePlant?.id || 'global';
  try {
  setLoading(true);
  const [
  metricsRes, barRes, lineRes, pieRes, actRes, alertsRes, todayRes
  ] = await Promise.all([
- api.get(`/dashboard/metrics/${activePlant.id}?filter=${globalFilter}`),
+ api.get(`/dashboard/metrics/${currentPlantId}?filter=${globalFilter}`),
  api.get(`/dashboard/procurement-chart?filter=${procurementFilter}`),
- api.get(`/dashboard/yield-trend/${activePlant.id}?filter=${yieldFilter}`),
- api.get(`/dashboard/stock-donut/${activePlant.id}?filter=${stockFilter}`),
- api.get(`/dashboard/recent-activities/${activePlant.id}`),
- api.get(`/dashboard/alerts/${activePlant.id}`),
- api.get(`/dashboard/today-summary/${activePlant.id}`)
+ api.get(`/dashboard/yield-trend/${currentPlantId}?filter=${yieldFilter}`),
+ api.get(`/dashboard/stock-donut/${currentPlantId}?filter=${stockFilter}`),
+ api.get(`/dashboard/recent-activities/${currentPlantId}`),
+ api.get(`/dashboard/alerts/${currentPlantId}`),
+ api.get(`/dashboard/today-summary/${currentPlantId}`)
  ]);
 
  setMetrics(metricsRes.data);
@@ -95,9 +94,9 @@ export const Dashboard: React.FC = () => {
  fetchDashboardData();
  }, [activePlant, globalFilter, procurementFilter, yieldFilter, stockFilter]);
 
- if (!activePlant) {
- return <div className="p-8 text-center text-[var(--text-muted-alt)]">Please select a plant to view the dashboard.</div>;
- }
+ // if (!activePlant) {
+ // return <div className="p-8 text-center text-[var(--text-muted-alt)]">Please select a plant to view the dashboard.</div>;
+ // }
 
  return (
  <div className="space-y-6 max-w-7xl mx-auto text-[var(--text-muted)] bg-[var(--bg-base)] min-h-screen">

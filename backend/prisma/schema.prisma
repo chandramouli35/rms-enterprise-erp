@@ -283,6 +283,7 @@ model PaddySodaPending {
   moisture      Float?
   bags          Float?
   rate          Float?
+  govtRate      Float?
   diff          Float?
   payment       Float?
   note          String?

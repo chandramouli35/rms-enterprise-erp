@@ -101,6 +101,7 @@ export const ProcurementManagement = () => {
     date: new Date().toISOString().split('T')[0],
     moisture: '',
     bags: '',
+    govtRate: '',
     rate: '',
     diff: '',
     payment: '',
@@ -913,6 +914,7 @@ export const ProcurementManagement = () => {
  <th className="border-b border-[var(--border-subtle)] p-3 text-left font-medium">Date</th>
  <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">Mc</th>
  <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">Bags</th>
+ <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">Govt Rate</th>
  <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">Rate</th>
  <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">Diff</th>
  <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">Payment</th>
@@ -928,6 +930,7 @@ export const ProcurementManagement = () => {
  <td className="p-3">{new Date(p.date).toLocaleDateString()}</td>
  <td className="p-3 text-right">{p.mc}</td>
  <td className="p-3 text-right font-bold text-[var(--text-muted)]">{p.bags}</td>
+ <td className="p-3 text-right text-[var(--text-muted)]">{p.govtRate || '-'}</td>
  <td className="p-3 text-right font-bold text-[var(--text-muted)]">{p.rate}</td>
  <td className="p-3 text-right text-red-400 font-medium">{p.diff}</td>
  <td className="p-3 text-right">{p.payment}</td>
@@ -951,7 +954,7 @@ export const ProcurementManagement = () => {
  ))}
  {sodaPending.length === 0 && (
  <tr>
- <td colSpan={10} className="p-6 text-center text-[var(--text-muted-alt)] font-medium italic border-b border-[var(--border-subtle-alt)]">
+ <td colSpan={11} className="p-6 text-center text-[var(--text-muted-alt)] font-medium italic border-b border-[var(--border-subtle-alt)]">
  No outstanding pending Hisabs found. Try adding a Boli purchase!
  </td>
  </tr>
@@ -1007,8 +1010,34 @@ export const ProcurementManagement = () => {
           }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
         </div>
         <div>
-          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Rate</label>
-          <input type="number" step="0.01" value={paddyPurchaseModal.rate} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, rate: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
+          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Govt Rate</label>
+          <input type="number" step="0.01" value={paddyPurchaseModal.govtRate || ''} onChange={e => {
+            const govtRate = e.target.value;
+            const g = parseFloat(govtRate) || 0;
+            const r = parseFloat(paddyPurchaseModal.rate) || 0;
+            const diff = (g && r) ? (g - r).toFixed(2) : paddyPurchaseModal.diff;
+            
+            const b = parseFloat(paddyPurchaseModal.bags) || 0;
+            const d = parseFloat(diff) || 0;
+            const finalAmt = (b * 0.375 * d).toFixed(2);
+            
+            setPaddyPurchaseModal({...paddyPurchaseModal, govtRate, diff, finalHisabAmt: finalAmt});
+          }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+        </div>
+        <div>
+          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Rate (Boli)</label>
+          <input type="number" step="0.01" value={paddyPurchaseModal.rate} onChange={e => {
+            const rate = e.target.value;
+            const r = parseFloat(rate) || 0;
+            const g = parseFloat(paddyPurchaseModal.govtRate) || 0;
+            const diff = (g && r) ? (g - r).toFixed(2) : paddyPurchaseModal.diff;
+            
+            const b = parseFloat(paddyPurchaseModal.bags) || 0;
+            const d = parseFloat(diff) || 0;
+            const finalAmt = (b * 0.375 * d).toFixed(2);
+            
+            setPaddyPurchaseModal({...paddyPurchaseModal, rate, diff, finalHisabAmt: finalAmt});
+          }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
         </div>
         <div>
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Diff</label>
@@ -1027,6 +1056,13 @@ export const ProcurementManagement = () => {
         <div>
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Final Hisab Amt</label>
           <input type="number" step="0.01" value={paddyPurchaseModal.finalHisabAmt} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, finalHisabAmt: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+          {paddyPurchaseModal.bags && paddyPurchaseModal.diff && (
+            <div className="mt-2 text-xs text-[var(--text-muted)] bg-blue-900/10 p-2 rounded border border-blue-900/20 text-blue-400">
+              <span className="font-semibold block mb-1">Calculation Breakdown:</span>
+              (Bags &times; 0.375) &times; Diff<br/>
+              ({paddyPurchaseModal.bags} &times; 0.375) &times; {paddyPurchaseModal.diff} = <span className="font-bold">{(parseFloat(paddyPurchaseModal.bags) * 0.375 * parseFloat(paddyPurchaseModal.diff)).toFixed(2)}</span>
+            </div>
+          )}
         </div>
         <div className="col-span-2">
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Note</label>

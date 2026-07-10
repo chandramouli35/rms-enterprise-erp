@@ -24,6 +24,20 @@ export declare class AuthController {
                 canDelete: boolean;
                 canApprove: boolean;
             }[];
+            plantAccess: ({
+                plant: {
+                    id: string;
+                    createdAt: Date;
+                    updatedAt: Date;
+                    deletedAt: Date | null;
+                    name: string;
+                    location: string | null;
+                    code: string;
+                };
+            } & {
+                plantId: string;
+                userId: string;
+            })[];
         };
     }>;
     refreshTokens(req: Request): Promise<{

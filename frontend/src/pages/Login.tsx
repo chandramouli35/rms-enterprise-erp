@@ -7,10 +7,8 @@ import axios from 'axios';
 const API_URL = import.meta.env.VITE_RMS_BACKEND_URL || 'http://localhost:3000';
 
 export const Login: React.FC = () => {
- const [plants, setPlants] = useState<any[]>([]);
  const [username, setUsername] = useState('');
  const [password, setPassword] = useState('');
- const [plantId, setPlantId] = useState('');
  const [error, setError] = useState('');
  const [loading, setLoading] = useState(false);
  const [showPassword, setShowPassword] = useState(false); 
@@ -20,15 +18,7 @@ export const Login: React.FC = () => {
  const navigate = useNavigate();
 
  useEffect(() => {
- const fetchPlants = async () => {
- try {
- const res = await axios.get(`${API_URL}/plants`);
- setPlants(res.data);
- } catch (err) {
- console.error('Failed to fetch plants', err);
- }
- };
- fetchPlants();
+ // Initial setup if needed
  }, []);
 
  const handleLogin = async (e: React.FormEvent) => {
@@ -37,14 +27,16 @@ export const Login: React.FC = () => {
  setLoading(true);
 
  try {
- const res = await axios.post(`${API_URL}/auth/login`, { username, password, plantId });
+ const res = await axios.post(`${API_URL}/auth/login`, { username, password });
  const { user, accessToken } = res.data;
  
  setAuth(user, accessToken);
  
- if (plantId) {
- const selected = plants.find(p => p.id === plantId);
- if (selected) setActivePlant(selected);
+ if (user.role !== 'SUPER_ADMIN' && user.plantAccess && user.plantAccess.length > 0) {
+ setActivePlant(user.plantAccess[0].plant);
+ } else {
+ // Super admin or users without specific plant access default to global view
+ usePlantStore.getState().clearActivePlant();
  }
  navigate('/dashboard');
  
@@ -130,27 +122,7 @@ export const Login: React.FC = () => {
  </div>
  )}
 
- <div>
- <label className="block text-amber-500 text-sm font-medium mb-1">Select Plant</label>
- <div className="relative">
- <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
- <svg className="h-5 w-5 text-[var(--text-muted-alt)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
- </div>
- <select
- className="w-full pl-11 pr-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-main)] appearance-none focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
- value={plantId}
- onChange={(e) => setPlantId(e.target.value)}
- >
- <option value="">Select Plant (Optional for Super Admin)</option>
- {Array.isArray(plants) && plants.map(p => (
- <option key={p.id} value={p.id}>{p.name}</option>
- ))}
- </select>
- <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
- <svg className="h-4 w-4 text-[var(--text-muted-alt)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
- </div>
- </div>
- </div>
+
 
  <div>
  <label className="block text-amber-500 text-sm font-medium mb-1">Username</label>

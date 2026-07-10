@@ -204,6 +204,7 @@ export declare class ProcurementService {
         moisture: number | null;
         bags: number | null;
         rate: number | null;
+        govtRate: number | null;
         diff: number | null;
         payment: number | null;
         note: string | null;
@@ -220,6 +221,7 @@ export declare class ProcurementService {
         moisture: number | null;
         bags: number | null;
         rate: number | null;
+        govtRate: number | null;
         diff: number | null;
         payment: number | null;
         note: string | null;
@@ -242,6 +244,7 @@ export declare class ProcurementService {
         moisture: number | null;
         bags: number | null;
         rate: number | null;
+        govtRate: number | null;
         diff: number | null;
         payment: number | null;
         note: string | null;

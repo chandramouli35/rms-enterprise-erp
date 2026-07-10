@@ -43,25 +43,26 @@ let DashboardService = class DashboardService {
     }
     async getMetrics(plantId, filter) {
         const dateFilter = getDateFilter(filter);
+        const pFilter = plantId !== 'global' ? { plantId } : {};
         const [stockIn, production, milling, inventory, dispatch] = await Promise.all([
             this.prisma.stockLedger.aggregate({
-                where: { plantId, transaction: 'IN', ...dateFilter },
+                where: { ...pFilter, transaction: 'IN', ...dateFilter },
                 _sum: { quantity: true }
             }),
             this.prisma.productionBatch.aggregate({
-                where: { plantId, ...dateFilter },
+                where: { ...pFilter, ...dateFilter },
                 _sum: { riceProducedQty: true }
             }),
             this.prisma.productionBatch.aggregate({
-                where: { plantId, ...dateFilter },
+                where: { ...pFilter, ...dateFilter },
                 _sum: { riceProducedQty: true, paddyUsedQty: true }
             }),
             this.prisma.inventory.aggregate({
-                where: { plantId },
+                where: { ...pFilter },
                 _sum: { quantity: true }
             }),
             this.prisma.gatePass.count({
-                where: { plantId, passType: 'OUTWARD', ...dateFilter }
+                where: { ...pFilter, passType: 'OUTWARD', ...dateFilter }
             })
         ]);
         const paddyProcured = stockIn._sum.quantity || 0;
@@ -109,7 +110,7 @@ let DashboardService = class DashboardService {
     }
     async getYieldTrend(plantId, filter) {
         const dateFilter = getDateFilter(filter);
-        const whereClause = { plantId };
+        const whereClause = plantId !== 'global' ? { plantId } : {};
         if (Object.keys(dateFilter).length > 0) {
             whereClause.createdAt = dateFilter.createdAt;
         }
@@ -129,7 +130,7 @@ let DashboardService = class DashboardService {
         }));
     }
     async getStockDonut(plantId, filter) {
-        const whereClause = { plantId };
+        const whereClause = plantId !== 'global' ? { plantId } : {};
         if (filter && filter !== 'All Items') {
             whereClause.itemType = filter;
         }
@@ -152,10 +153,11 @@ let DashboardService = class DashboardService {
         }));
     }
     async getRecentActivities(plantId) {
+        const pFilter = plantId !== 'global' ? { plantId } : {};
         const [ledgers, passes, batches] = await Promise.all([
-            this.prisma.stockLedger.findMany({ where: { plantId }, orderBy: { createdAt: 'desc' }, take: 5 }),
-            this.prisma.gatePass.findMany({ where: { plantId }, orderBy: { createdAt: 'desc' }, take: 5 }),
-            this.prisma.productionBatch.findMany({ where: { plantId }, orderBy: { createdAt: 'desc' }, take: 5 })
+            this.prisma.stockLedger.findMany({ where: pFilter, orderBy: { createdAt: 'desc' }, take: 5 }),
+            this.prisma.gatePass.findMany({ where: pFilter, orderBy: { createdAt: 'desc' }, take: 5 }),
+            this.prisma.productionBatch.findMany({ where: pFilter, orderBy: { createdAt: 'desc' }, take: 5 })
         ]);
         const combined = [
             ...ledgers.map(l => ({ type: 'Stock', title: `${l.transaction} - ${l.itemType}`, time: l.createdAt, details: `${l.quantity} MT` })),
@@ -171,7 +173,8 @@ let DashboardService = class DashboardService {
     }
     async getAlerts(plantId) {
         const alerts = [];
-        const inventory = await this.prisma.inventory.findMany({ where: { plantId } });
+        const pFilter = plantId !== 'global' ? { plantId } : {};
+        const inventory = await this.prisma.inventory.findMany({ where: pFilter });
         inventory.forEach(item => {
             if (item.quantity < 50) {
                 alerts.push({
@@ -183,7 +186,7 @@ let DashboardService = class DashboardService {
             }
         });
         const recentYields = await this.prisma.productionBatch.findMany({
-            where: { plantId },
+            where: pFilter,
             orderBy: { createdAt: 'desc' },
             include: { yieldReport: true },
             take: 1
@@ -201,25 +204,26 @@ let DashboardService = class DashboardService {
     async getTodaySummary(plantId) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+        const pFilter = plantId !== 'global' ? { plantId } : {};
         const [procurement, production, milling, dispatch, activeGatePassesCount] = await Promise.all([
             this.prisma.stockLedger.aggregate({
-                where: { plantId, transaction: 'IN', createdAt: { gte: today } },
+                where: { ...pFilter, transaction: 'IN', createdAt: { gte: today } },
                 _sum: { quantity: true }
             }),
             this.prisma.productionBatch.aggregate({
-                where: { plantId, createdAt: { gte: today } },
+                where: { ...pFilter, createdAt: { gte: today } },
                 _sum: { riceProducedQty: true }
             }),
             this.prisma.productionBatch.aggregate({
-                where: { plantId, createdAt: { gte: today } },
+                where: { ...pFilter, createdAt: { gte: today } },
                 _sum: { paddyUsedQty: true, riceProducedQty: true }
             }),
             this.prisma.stockLedger.aggregate({
-                where: { plantId, transaction: 'OUT', createdAt: { gte: today } },
+                where: { ...pFilter, transaction: 'OUT', createdAt: { gte: today } },
                 _sum: { quantity: true }
             }),
             this.prisma.gatePass.count({
-                where: { plantId, status: 'ACTIVE' }
+                where: { ...pFilter, status: 'ACTIVE' }
             })
         ]);
         const avgYield = milling._sum.paddyUsedQty

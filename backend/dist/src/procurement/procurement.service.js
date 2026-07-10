@@ -105,7 +105,7 @@ let ProcurementService = class ProcurementService {
                         rate: finalRate,
                         diff: parsedRate - finalRate,
                         payment: 0,
-                        finalHisabAmt: baseAmount,
+                        finalHisabAmt: (parseFloat(data.bagsRecAtMill) || 0) * 0.375 * (parsedRate - finalRate),
                         note: 'Initial Entry'
                     }
                 });
@@ -316,6 +316,7 @@ let ProcurementService = class ProcurementService {
                 moisture: parseFloat(data.moisture) || 0,
                 bags: parseFloat(data.bags) || 0,
                 rate: parseFloat(data.rate) || 0,
+                govtRate: parseFloat(data.govtRate) || 0,
                 diff: parseFloat(data.diff) || 0,
                 payment: parseFloat(data.payment) || 0,
                 finalHisabAmt: data.finalHisabAmt ? parseFloat(data.finalHisabAmt) : ((parseFloat(data.bags) || 0) * 0.375 * (parseFloat(data.diff) || 0)),
@@ -334,6 +335,7 @@ let ProcurementService = class ProcurementService {
                 moisture: parseFloat(data.moisture) || 0,
                 bags: parseFloat(data.bags) || 0,
                 rate: parseFloat(data.rate) || 0,
+                govtRate: parseFloat(data.govtRate) || 0,
                 diff: parseFloat(data.diff) || 0,
                 payment: parseFloat(data.payment) || 0,
                 finalHisabAmt: data.finalHisabAmt ? parseFloat(data.finalHisabAmt) : ((parseFloat(data.bags) || 0) * 0.375 * (parseFloat(data.diff) || 0)),

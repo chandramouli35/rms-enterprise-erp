@@ -27,7 +27,11 @@ export class AuthService {
             modulePermissions: true,
           },
         },
-        plantAccess: true,
+        plantAccess: {
+          include: {
+            plant: true,
+          }
+        },
       },
     });
 
@@ -58,8 +62,7 @@ export class AuthService {
       sub: user.id, 
       username: user.username, 
       role: user.role.name,
-      permissions: user.role.modulePermissions,
-      plantId: plantId // Contextual plant
+      permissions: user.role.modulePermissions
     };
     
     const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
@@ -84,6 +87,7 @@ export class AuthService {
         email: user.email,
         role: user.role.name,
         permissions: user.role.modulePermissions,
+        plantAccess: user.plantAccess,
       }
     };
   }
