@@ -286,11 +286,11 @@ export const DashboardShell: React.FC = () => {
  className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--text-main)] focus:outline-none focus:border-amber-500 cursor-pointer"
  value={activePlant?.id || ''}
  onChange={(e) => {
- const selectedAccess = user.plantAccess.find((pa: any) => pa.plant.id === e.target.value);
+ const selectedAccess = user.plantAccess?.find((pa: any) => pa.plant.id === e.target.value);
  if (selectedAccess) setActivePlant(selectedAccess.plant);
  }}
  >
- {user.plantAccess.map((pa: any) => (
+ {user.plantAccess?.map((pa: any) => (
  <option key={pa.plant.id} value={pa.plant.id}>{pa.plant.name} ({pa.plant.code})</option>
  ))}
  </select>

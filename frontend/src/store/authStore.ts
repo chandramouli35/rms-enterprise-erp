@@ -7,6 +7,7 @@ interface User {
   email: string;
   role: string;
   permissions: any[];
+  plantAccess?: any[];
 }
 
 interface AuthState {
