@@ -36,8 +36,8 @@ export declare class AuthService {
                     code: string;
                 };
             } & {
-                plantId: string;
                 userId: string;
+                plantId: string;
             })[];
         };
     }>;

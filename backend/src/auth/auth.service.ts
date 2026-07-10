@@ -12,7 +12,7 @@ export class AuthService {
   ) {}
 
   async login(loginDto: LoginDto) {
-    const { username, password, plantId } = loginDto;
+    const { username, password, plantId, rememberMe } = loginDto;
     
     const user = await this.prisma.user.findFirst({
       where: {
@@ -65,7 +65,8 @@ export class AuthService {
       permissions: user.role.modulePermissions
     };
     
-    const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
+    const expiry = rememberMe ? '7d' : '1d';
+    const accessToken = this.jwtService.sign(payload, { expiresIn: expiry });
     const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
 
     await this.prisma.user.update({

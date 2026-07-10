@@ -53,7 +53,7 @@ let AuthService = class AuthService {
         this.jwtService = jwtService;
     }
     async login(loginDto) {
-        const { username, password, plantId } = loginDto;
+        const { username, password, plantId, rememberMe } = loginDto;
         const user = await this.prisma.user.findFirst({
             where: {
                 OR: [
@@ -87,7 +87,8 @@ let AuthService = class AuthService {
             role: user.role.name,
             permissions: user.role.modulePermissions
         };
-        const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
+        const expiry = rememberMe ? '7d' : '1d';
+        const accessToken = this.jwtService.sign(payload, { expiresIn: expiry });
         const refreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });
         await this.prisma.user.update({
             where: { id: user.id },
