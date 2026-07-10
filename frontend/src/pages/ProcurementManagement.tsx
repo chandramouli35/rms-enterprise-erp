@@ -980,14 +980,7 @@ export const ProcurementManagement = () => {
             ))}
           </select>
         </div>
-        <div>
-          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Rice Category</label>
-          <select value={paddyPurchaseModal.riceCategory} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, riceCategory: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]">
-            <option value="ANY">ANY</option>
-            <option value="BASMATI">BASMATI</option>
-            <option value="NON_BASMATI">NON BASMATI</option>
-          </select>
-        </div>
+
         <div>
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Party - Mandi</label>
           <select value={paddyPurchaseModal.supplierId} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, supplierId: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required>
