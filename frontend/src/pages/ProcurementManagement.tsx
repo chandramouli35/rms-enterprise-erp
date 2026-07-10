@@ -54,23 +54,25 @@ export const ProcurementManagement = () => {
  const [plants, setPlants] = useState<any[]>([]);
 
  // Stack Selection State
- const [isStackModalOpen, setIsStackModalOpen] = useState(false);
- const [occupiedStacks, setOccupiedStacks] = useState<string[]>([]);
+  const [isStackModalOpen, setIsStackModalOpen] = useState(false);
+  const [occupiedStacks, setOccupiedStacks] = useState<Record<string, any>>({});
 
  // Inward Form States
- const [inwardFormData, setInwardFormData] = useState<any>({
- gpNo: '', date: '', timeIn: '', timeOut: '', truckNo: '', mandiEgpNo: '', rstNo: '', supplierId: '',
- mandi: '', pahunchPersonName: '',
- moisture: '', safai: 'Good', mandiIntimation: 'N.A.', remarks: '',
- allocationType: 'Hoodi', hoodiUpload: 'N.A.', allocateUnloader: '', stackNo: '', unloaderTruckCount: '', labour: 'Inside', unloadingStartTime: '', unloadingFinishTime: '',
- origBagsRec: 0, origAClass: 0, origBClass: 0, origAClassAg: 0, origBClassAg: 0,
- agencyBagsRec: 0, agencyAClass: 0, agencyBClass: 0, agencyAClassAg: 0, agencyBClassAg: 0,
- netWtMill: 0, reqNetWt: 0, netWtParty: 0, netWtDiff: 0,
- shortageType: 'Shortage Received', updateShortageReg: 'Yes', balanceShortage: 0, discrepancy: '',
- driverName: '', mobileNumber: '',
- driverSign: '', unloaderSign: '', pahunchPersonSign: '',
- bhariVideoUpload: 'Yes', khaliVideoUpload: 'Yes'
- });
+  const defaultInwardFormData = {
+    gpNo: '', date: '', timeIn: '', timeOut: '', truckNo: '', mandiEgpNo: '', rstNo: '', supplierId: '',
+    mandi: '', pahunchPersonName: '',
+    moisture: '', safai: 'Good', mandiIntimation: 'N.A.', remarks: '',
+    allocationType: 'Hoodi', hoodiUpload: 'N.A.', allocateUnloader: '', stackNo: '', bagType: '', unloaderTruckCount: '', labour: 'Inside', unloadingStartTime: '', unloadingFinishTime: '',
+    origBagsRec: 0, origAClass: 0, origBClass: 0, origAClassAg: 0, origBClassAg: 0,
+    agencyBagsRec: 0, agencyAClass: 0, agencyBClass: 0, agencyAClassAg: 0, agencyBClassAg: 0,
+    netWtMill: 0, reqNetWt: 0, netWtParty: 0, netWtDiff: 0,
+    shortageType: 'Shortage Received', updateShortageReg: 'Yes', balanceShortage: 0, discrepancy: '',
+    driverName: '', mobileNumber: '',
+    driverSign: '', unloaderSign: '', pahunchPersonSign: '',
+    bhariVideoUpload: 'Yes', khaliVideoUpload: 'Yes'
+  };
+
+  const [inwardFormData, setInwardFormData] = useState<any>(defaultInwardFormData);
  const [dhanakLots, setDhanakLots] = useState([{ id: 1, sNo: '', bags: 0, moisture: 0, bardanaClass: '' }]);
 
  const handleInwardChange = (e: any) => {
@@ -239,24 +241,43 @@ export const ProcurementManagement = () => {
     }
     setIsStackModalOpen(true);
   };
+  const handleInwardSubmit = async () => {
+    try {
+      setIsSubmitting(true);
+      
+      const parsedOrigA = parseFloat(inwardFormData.origAClass as any) || 0;
+      const parsedOrigB = parseFloat(inwardFormData.origBClass as any) || 0;
+      const parsedAgencyA = parseFloat(inwardFormData.agencyAClass as any) || 0;
+      const parsedAgencyB = parseFloat(inwardFormData.agencyBClass as any) || 0;
+      const computedBagsRecAtMill = parsedOrigA + parsedOrigB + parsedAgencyA + parsedAgencyB;
 
- const handleInwardSubmit = async () => {
- console.log("handleInwardSubmit triggered!");
- try {
- setIsSubmitting(true);
- // We merge formData to ensure we send necessary base fields if they started here
- await api.post('/api/procurement/save-purchase', { ...formData, ...inwardFormData, category, plantId: activePlant?.id });
- useUiStore.getState().addToast('Paddy Inward (Goods Receipt) Saved Successfully!', 'success');
- setInwardFormData((prev: any) => ({ ...prev, truckNo: '', gpNo: '' })); // clear some fields
- fetchSodaPending();
- fetchRecentPurchases();
- } catch (error) {
- console.error('Failed to save inward', error);
- useUiStore.getState().addToast('Failed to save inward data.', 'error');
- } finally {
- setIsSubmitting(false);
- }
- };
+      const parsedOrigAAg = parseFloat(inwardFormData.origAClassAg as any) || 0;
+      const parsedOrigBAg = parseFloat(inwardFormData.origBClassAg as any) || 0;
+      const parsedAgencyAAg = parseFloat(inwardFormData.agencyAClassAg as any) || 0;
+      const parsedAgencyBAg = parseFloat(inwardFormData.agencyBClassAg as any) || 0;
+      const computedBagsAtAgencyGp = parsedOrigAAg + parsedOrigBAg + parsedAgencyAAg + parsedAgencyBAg;
+
+      const payload = {
+        ...formData,
+        ...inwardFormData,
+        bagsRecAtMill: computedBagsRecAtMill,
+        bagsAtAgencyGp: computedBagsAtAgencyGp,
+        category,
+        plantId: activePlant?.id
+      };
+
+      await api.post('/api/procurement/save-purchase', payload);
+      useUiStore.getState().addToast('Paddy Inward (Goods Receipt) Saved Successfully!', 'success');
+      setInwardFormData({ ...defaultInwardFormData }); // clear all fields
+      fetchSodaPending();
+      fetchRecentPurchases();
+    } catch (error) {
+      console.error('Failed to save inward', error);
+      useUiStore.getState().addToast('Failed to save inward data.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
  const handleInspect = async (e: React.FormEvent) => {
  e.preventDefault();
@@ -1165,15 +1186,16 @@ export const ProcurementManagement = () => {
  )}
  </CustomModal>
 
- <StackSelectionModal 
-        isOpen={isStackModalOpen} 
-        onClose={() => setIsStackModalOpen(false)} 
-        onSelect={(stack) => {
-          setInwardFormData((prev: any) => ({ ...prev, stackNo: stack }));
-          setIsStackModalOpen(false);
-        }}
-        occupiedStacks={occupiedStacks}
-      />
+  <StackSelectionModal 
+    isOpen={isStackModalOpen} 
+    onClose={() => setIsStackModalOpen(false)} 
+    onSelect={(stack, bagType) => {
+      setInwardFormData((prev: any) => ({ ...prev, stackNo: stack, bagType }));
+      setIsStackModalOpen(false);
+    }} 
+    occupiedStacks={occupiedStacks}
+    currentMoisture={parseFloat(inwardFormData.moisture) || 0}
+  />
     </div>
   );
 };

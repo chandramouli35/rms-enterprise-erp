@@ -3,18 +3,11 @@ export declare class ProcurementController {
     private readonly procurementService;
     constructor(procurementService: ProcurementService);
     savePurchase(data: any): Promise<{
-        plantId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        status: string;
-        category: import(".prisma/client").$Enums.InventoryCategory | null;
-        supplierId: string | null;
         grossWeight: number | null;
         tareWeight: number | null;
         netWeight: number | null;
-        gatePassId: string | null;
-        weighbridgeId: string | null;
+        category: import(".prisma/client").$Enums.InventoryCategory | null;
         purchaseType: import(".prisma/client").$Enums.PurchaseType | null;
         baseRate: number | null;
         finalRate: number | null;
@@ -24,6 +17,13 @@ export declare class ProcurementController {
         amount: number | null;
         deductions: number | null;
         netAmount: number | null;
+        status: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        supplierId: string | null;
+        gatePassId: string | null;
+        weighbridgeId: string | null;
     }>;
     getRecentPurchases(plantId: string): Promise<{
         purchaseNo: any;
@@ -37,63 +37,56 @@ export declare class ProcurementController {
         status: any;
         qcStatus: any;
     }[]>;
-    getOccupiedStacks(plantId: string): Promise<(string | null)[]>;
+    getOccupiedStacks(plantId: string): Promise<Record<string, any>>;
     getBatch(batchId: string): Promise<({
         supplier: {
             id: string;
-            email: string | null;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
             name: string;
-            status: string;
             contact: string | null;
+            email: string | null;
             address: string | null;
         } | null;
         weighbridge: {
-            plantId: string;
             id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            remarks: string | null;
-            status: string;
-            vehicleNo: string;
-            driverName: string | null;
-            challanNo: string | null;
             grossWeight: number | null;
             tareWeight: number | null;
             netWeight: number | null;
+            status: string;
+            createdAt: Date;
+            updatedAt: Date;
+            plantId: string;
             gatePassId: string | null;
+            vehicleNo: string;
             transactionType: string;
+            driverName: string | null;
             materialType: string | null;
             supplierName: string | null;
+            challanNo: string | null;
+            remarks: string | null;
             grossTime: Date | null;
             tareTime: Date | null;
         } | null;
         quality: {
             id: string;
+            status: string;
             createdAt: Date;
             updatedAt: Date;
-            status: string;
+            procurementBatchId: string;
             moisture: number | null;
             broken: number | null;
             discoloration: number | null;
             foreignMatter: number | null;
             inspectedBy: string | null;
-            procurementBatchId: string;
         } | null;
     } & {
-        plantId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        status: string;
-        category: import(".prisma/client").$Enums.InventoryCategory | null;
-        supplierId: string | null;
         grossWeight: number | null;
         tareWeight: number | null;
         netWeight: number | null;
-        gatePassId: string | null;
-        weighbridgeId: string | null;
+        category: import(".prisma/client").$Enums.InventoryCategory | null;
         purchaseType: import(".prisma/client").$Enums.PurchaseType | null;
         baseRate: number | null;
         finalRate: number | null;
@@ -103,37 +96,44 @@ export declare class ProcurementController {
         amount: number | null;
         deductions: number | null;
         netAmount: number | null;
+        status: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        supplierId: string | null;
+        gatePassId: string | null;
+        weighbridgeId: string | null;
     }) | null>;
     updateQuality(batchId: string, data: any): Promise<{
         id: string;
+        status: string;
         createdAt: Date;
         updatedAt: Date;
-        status: string;
+        procurementBatchId: string;
         moisture: number | null;
         broken: number | null;
         discoloration: number | null;
         foreignMatter: number | null;
         inspectedBy: string | null;
-        procurementBatchId: string;
     }>;
     getSuppliers(): Promise<{
         id: string;
-        email: string | null;
+        status: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
-        status: string;
         contact: string | null;
+        email: string | null;
         address: string | null;
     }[]>;
     createSupplier(data: any): Promise<{
         id: string;
-        email: string | null;
+        status: string;
         createdAt: Date;
         updatedAt: Date;
         name: string;
-        status: string;
         contact: string | null;
+        email: string | null;
         address: string | null;
     }>;
     getAnalytics(plantId: string): Promise<{
@@ -156,18 +156,11 @@ export declare class ProcurementController {
         newRate: number;
         arhtiaCorrection: number;
     }): Promise<{
-        plantId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        status: string;
-        category: import(".prisma/client").$Enums.InventoryCategory | null;
-        supplierId: string | null;
         grossWeight: number | null;
         tareWeight: number | null;
         netWeight: number | null;
-        gatePassId: string | null;
-        weighbridgeId: string | null;
+        category: import(".prisma/client").$Enums.InventoryCategory | null;
         purchaseType: import(".prisma/client").$Enums.PurchaseType | null;
         baseRate: number | null;
         finalRate: number | null;
@@ -177,6 +170,13 @@ export declare class ProcurementController {
         amount: number | null;
         deductions: number | null;
         netAmount: number | null;
+        status: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        supplierId: string | null;
+        gatePassId: string | null;
+        weighbridgeId: string | null;
     }>;
     getSodaPending(plantId: string): Promise<{
         id: string;
@@ -193,13 +193,13 @@ export declare class ProcurementController {
         riceCategory: string | null;
     }[]>;
     createSodaPending(data: any): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        date: Date;
+        plantId: string;
         supplierId: string;
         moisture: number | null;
+        date: Date;
         bags: number | null;
         rate: number | null;
         govtRate: number | null;
@@ -210,13 +210,13 @@ export declare class ProcurementController {
         riceCategory: string | null;
     }>;
     updateSodaPending(id: string, data: any): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        date: Date;
+        plantId: string;
         supplierId: string;
         moisture: number | null;
+        date: Date;
         bags: number | null;
         rate: number | null;
         govtRate: number | null;
@@ -227,13 +227,13 @@ export declare class ProcurementController {
         riceCategory: string | null;
     }>;
     settleHisab(data: any): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        date: Date;
+        plantId: string;
         supplierId: string;
         moisture: number | null;
+        date: Date;
         bags: number | null;
         rate: number | null;
         govtRate: number | null;

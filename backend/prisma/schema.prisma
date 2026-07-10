@@ -250,6 +250,7 @@ model PaddyInwardDetails {
   unloadingStartTime        DateTime?
   unloadingEndTime          DateTime?
   labourType                String? // Inside, Outside
+  bagType                   String? @default("NEW")
 
   originalBardanaClass String? // A_Class, B_Class
   agencyGpBardanaClass String? // A_Class, B_Class

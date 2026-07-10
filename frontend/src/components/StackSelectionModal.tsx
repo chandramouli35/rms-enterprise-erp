@@ -1,25 +1,29 @@
 import React, { useState } from 'react';
-import { X, Info, Plus } from 'lucide-react';
+import { X, Info, Plus, AlertTriangle } from 'lucide-react';
+import { CustomModal } from './CustomModal';
+
+interface StackData {
+  moisture: number;
+  bags: number;
+  type: string;
+  capacity: number;
+  maxMoisture: number;
+  minMoisture: number;
+}
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (stack: string) => void;
-  occupiedStacks: string[];
+  onSelect: (stack: string, bagType: string) => void;
+  occupiedStacks: Record<string, StackData>;
+  currentMoisture?: number;
 }
 
-// Mock Stack Data for Demonstration of Colors & Tooltips
-const MOCK_STACK_DATA: Record<string, { moisture: number, bags: number, type: 'NEW' | 'OLD', capacity: number, maxMoisture: number, minMoisture: number }> = {
-  'A1': { moisture: 21, bags: 1200, type: 'OLD', capacity: 2467, maxMoisture: 22, minMoisture: 20 },
-  'A5': { moisture: 19, bags: 2400, type: 'NEW', capacity: 2467, maxMoisture: 19.5, minMoisture: 18.5 },
-  'B2': { moisture: 16, bags: 500, type: 'NEW', capacity: 2467, maxMoisture: 16.5, minMoisture: 15.8 },
-  'C10': { moisture: 13, bags: 2467, type: 'OLD', capacity: 2467, maxMoisture: 14, minMoisture: 12.5 },
-};
-
-export default function StackSelectionModal({ isOpen, onClose, onSelect, occupiedStacks }: Props) {
+export default function StackSelectionModal({ isOpen, onClose, onSelect, occupiedStacks, currentMoisture = 0 }: Props) {
   const [hoveredStack, setHoveredStack] = useState<string | null>(null);
   const [initStack, setInitStack] = useState<string | null>(null);
   const [initForm, setInitForm] = useState({ moistureRange: 'Medium', bagType: 'NEW' });
+  const [confirmStack, setConfirmStack] = useState<{ stack: string, warning: string, type: string, bags: number } | null>(null);
 
   // Make sections dynamic so "Add Stack" can increase the count
   const [sections, setSections] = useState([
@@ -47,29 +51,61 @@ export default function StackSelectionModal({ isOpen, onClose, onSelect, occupie
   };
 
   const handleStackClick = (stack: string) => {
-    const isOccupied = occupiedStacks.includes(stack) || MOCK_STACK_DATA[stack];
+    const isOccupied = !!occupiedStacks[stack];
     if (isOccupied) {
-      alert(`Stack History for ${stack}\nWill display ledger details here.`);
+      const stackData = occupiedStacks[stack];
+      
+      // Determine categories
+      const getCat = (m: number) => {
+        if (m > 20) return 'High';
+        if (m >= 18) return 'Medium';
+        if (m >= 14.5) return 'Low';
+        return 'Dryer';
+      };
+
+      const stackCat = getCat(stackData.moisture);
+      const truckCat = getCat(currentMoisture);
+      
+      let warning = '';
+      if (currentMoisture > 0 && stackCat !== truckCat) {
+        warning = `\n\n⚠️ WARNING: MISMATCH DETECTED ⚠️\nYou are assigning ${truckCat} moisture paddy (${currentMoisture}%) to a ${stackCat} moisture stack (${stackData.moisture}%).\nThis is against standard handling practices.`;
+      }
+
+      const msg = `Stack ${stack} is active with ${stackData.bags} bags (${stackData.type}).${warning}\n\nDo you want to assign this inward entry to this stack?`;
+      
+      setConfirmStack({
+        stack,
+        warning,
+        type: stackData.type,
+        bags: stackData.bags
+      });
     } else {
       setInitStack(stack);
+    }
+  };
+
+  const handleConfirmAssignment = () => {
+    if (confirmStack) {
+      onSelect(confirmStack.stack, confirmStack.type);
+      setConfirmStack(null);
     }
   };
 
   const handleInitSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (initStack) {
-      onSelect(initStack);
+      onSelect(initStack, initForm.bagType);
       setInitStack(null);
     }
   };
 
   const renderStack = (stack: string) => {
-    const data = MOCK_STACK_DATA[stack];
-    const isOccupied = occupiedStacks.includes(stack) || !!data;
-    // For dynamically occupied stacks (via props), we don't have moisture data yet, so we show it as standard OCC
-    const colorClass = isOccupied && !data 
-      ? 'bg-gray-700/50 border-gray-500/80 text-gray-300 cursor-not-allowed' 
-      : getMoistureColor(data?.moisture);
+    const data = occupiedStacks[stack];
+    const isOccupied = !!data;
+    
+    const colorClass = isOccupied 
+      ? getMoistureColor(data?.moisture)
+      : 'bg-blue-900/20 border-blue-500/30 text-blue-300'; // Available
 
     return (
       <div 
@@ -86,9 +122,6 @@ export default function StackSelectionModal({ isOpen, onClose, onSelect, occupie
           <span>{stack}</span>
           {data && (
             <span className="text-[8px] bg-black/50 px-1 rounded mt-1">{data.type}</span>
-          )}
-          {isOccupied && !data && (
-            <span className="text-[8px] bg-black/50 px-1 rounded mt-1">OCC</span>
           )}
         </button>
 
@@ -152,43 +185,69 @@ export default function StackSelectionModal({ isOpen, onClose, onSelect, occupie
       </div>
 
       {/* Stack Initialization Modal */}
-      {initStack && (
-        <div className="fixed inset-0 bg-black/80 z-[110] flex items-center justify-center p-4">
-          <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] shadow-2xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-[var(--text-main)] mb-4">Start New Stack: {initStack}</h3>
-            <form onSubmit={handleInitSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Expected Moisture Range</label>
-                <select 
-                  value={initForm.moistureRange} 
-                  onChange={e => setInitForm({...initForm, moistureRange: e.target.value})}
-                  className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
-                >
-                  <option value="High">High (&gt;20%)</option>
-                  <option value="Medium">Medium (18-20%)</option>
-                  <option value="Low">Low (14.5-18%)</option>
-                  <option value="Dryer">Dryer (&lt;14.5%)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Bag Type</label>
-                <select 
-                  value={initForm.bagType} 
-                  onChange={e => setInitForm({...initForm, bagType: e.target.value})}
-                  className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
-                >
-                  <option value="NEW">New Bags</option>
-                  <option value="OLD">Old Bags</option>
-                </select>
-              </div>
-              <div className="flex justify-end gap-2 pt-4">
-                <button type="button" onClick={() => setInitStack(null)} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)]">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700">Confirm & Start Stack</button>
-              </div>
-            </form>
+      <CustomModal 
+        isOpen={!!initStack} 
+        onClose={() => setInitStack(null)} 
+        title={`Start New Stack: ${initStack}`}
+      >
+        <form onSubmit={handleInitSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Expected Moisture Range</label>
+            <select 
+              value={initForm.moistureRange} 
+              onChange={e => setInitForm({...initForm, moistureRange: e.target.value})}
+              className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
+            >
+              <option value="High">High (&gt;20%)</option>
+              <option value="Medium">Medium (18-20%)</option>
+              <option value="Low">Low (14.5-18%)</option>
+              <option value="Dryer">Dryer (&lt;14.5%)</option>
+            </select>
           </div>
-        </div>
-      )}
+          <div>
+            <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Bag Type</label>
+            <select 
+              value={initForm.bagType} 
+              onChange={e => setInitForm({...initForm, bagType: e.target.value})}
+              className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
+            >
+              <option value="NEW">New Bags</option>
+              <option value="OLD">Old Bags</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <button type="button" onClick={() => setInitStack(null)} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
+            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition-colors shadow-lg">Confirm & Start Stack</button>
+          </div>
+        </form>
+      </CustomModal>
+
+      {/* Confirmation Modal */}
+      <CustomModal
+        isOpen={!!confirmStack}
+        onClose={() => setConfirmStack(null)}
+        title="Confirm Stack Assignment"
+      >
+        {confirmStack && (
+          <div className="space-y-4">
+            <p className="text-[var(--text-main)]">
+              Stack <strong className="text-blue-400">{confirmStack.stack}</strong> is active with <strong>{confirmStack.bags}</strong> bags ({confirmStack.type}).
+            </p>
+            {confirmStack.warning && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded p-3 flex gap-3 items-start">
+                <AlertTriangle className="text-red-400 shrink-0 mt-0.5" size={18} />
+                <p className="text-red-400 text-sm whitespace-pre-line leading-relaxed">{confirmStack.warning.replace('\n\n⚠️ WARNING: MISMATCH DETECTED ⚠️\n', '')}</p>
+              </div>
+            )}
+            <p className="text-[var(--text-muted)] text-sm">Do you want to assign this inward entry to this stack?</p>
+            
+            <div className="flex justify-end gap-2 pt-4">
+              <button type="button" onClick={() => setConfirmStack(null)} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
+              <button type="button" onClick={handleConfirmAssignment} className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition-colors shadow-lg">Confirm Assignment</button>
+            </div>
+          </div>
+        )}
+      </CustomModal>
     </div>
   );
 }

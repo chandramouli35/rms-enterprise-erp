@@ -34,6 +34,7 @@ export declare class GatePassController {
                 unloadingStartTime: Date | null;
                 unloadingEndTime: Date | null;
                 labourType: string | null;
+                bagType: string | null;
                 originalBardanaClass: string | null;
                 agencyGpBardanaClass: string | null;
                 bagsRecAtMill: number | null;
@@ -225,6 +226,7 @@ export declare class GatePassController {
                 unloadingStartTime: Date | null;
                 unloadingEndTime: Date | null;
                 labourType: string | null;
+                bagType: string | null;
                 originalBardanaClass: string | null;
                 agencyGpBardanaClass: string | null;
                 bagsRecAtMill: number | null;

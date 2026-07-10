@@ -97,6 +97,8 @@ export class ProcurementService {
           pahunchPersonName: data.pahunchPersonName,
           safaiType: data.safaiType,
           allocationType: data.allocationType,
+          stackNo: data.stackNo,
+          bagType: data.bagType,
           originalBardanaClass: data.originalBardanaClass,
           agencyGpBardanaClass: data.agencyGpBardanaClass,
           bagsRecAtMill: parseFloat(data.bagsRecAtMill) || 0,
@@ -129,16 +131,7 @@ export class ProcurementService {
       return batch;
     });
   }
-  async getOccupiedStacks(plantId: string) {
-    const details = await this.prisma.paddyInwardDetails.findMany({
-      where: {
-        procurementBatch: { plantId },
-        stackNo: { not: null }
-      },
-      select: { stackNo: true }
-    });
-    return [...new Set(details.map(d => d.stackNo))].filter(Boolean);
-  }
+
 
   async getRecentPurchases(plantId: string) {
     const batches = await this.prisma.procurementBatch.findMany({
@@ -227,6 +220,64 @@ export class ProcurementService {
         status: 'Active'
       }
     });
+  }
+
+  async getOccupiedStacks(plantId: string) {
+    const batches = await this.prisma.paddyInwardDetails.findMany({
+      where: {
+        stackNo: { not: null },
+        procurementBatch: { plantId, category: 'OPERATIONAL' }
+      },
+      include: {
+        procurementBatch: {
+          include: { quality: true }
+        }
+      }
+    });
+
+    const stackMap: Record<string, any> = {};
+
+    batches.forEach(b => {
+      const stack = b.stackNo;
+      if (!stack) return;
+
+      if (!stackMap[stack]) {
+        stackMap[stack] = {
+          bags: 0,
+          totalMoisture: 0,
+          moistureCount: 0,
+          maxMoisture: 0,
+          minMoisture: 999,
+          type: b.bagType || 'NEW',
+          capacity: 2467,
+          moisture: 0
+        };
+      }
+
+      stackMap[stack].bags += b.bagsRecAtMill || 0;
+      
+      const m = b.procurementBatch?.quality?.moisture;
+      if (m) {
+        stackMap[stack].totalMoisture += m;
+        stackMap[stack].moistureCount += 1;
+        if (m > stackMap[stack].maxMoisture) stackMap[stack].maxMoisture = m;
+        if (m < stackMap[stack].minMoisture) stackMap[stack].minMoisture = m;
+      }
+    });
+
+    Object.keys(stackMap).forEach(key => {
+      if (stackMap[key].moistureCount > 0) {
+        stackMap[key].moisture = Number((stackMap[key].totalMoisture / stackMap[key].moistureCount).toFixed(2));
+      } else {
+        stackMap[key].minMoisture = 0;
+      }
+      if (stackMap[key].minMoisture === 999) stackMap[key].minMoisture = 0;
+      
+      delete stackMap[key].totalMoisture;
+      delete stackMap[key].moistureCount;
+    });
+
+    return stackMap;
   }
 
   async getAnalytics(plantId: string) {

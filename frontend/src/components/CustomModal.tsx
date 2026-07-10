@@ -37,10 +37,10 @@ export const CustomModal: React.FC<CustomModalProps> = ({ isOpen, onClose, title
  
  {/* Modal Box */}
  <div 
- className={`relative w-full max-w-md bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-300 ${isOpen ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
+ className={`relative w-full max-w-md max-h-[95vh] flex flex-col bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-300 ${isOpen ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
  >
  {/* Header */}
- <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)]">
+ <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] shrink-0">
  <h2 className="text-lg font-semibold text-[var(--text-main)]">{title}</h2>
  <button 
  onClick={onClose}
@@ -51,13 +51,13 @@ export const CustomModal: React.FC<CustomModalProps> = ({ isOpen, onClose, title
  </div>
  
  {/* Body */}
- <div className="p-6 text-[var(--text-muted)]">
+ <div className="p-6 text-[var(--text-muted)] overflow-y-auto">
  {children}
  </div>
 
  {/* Footer */}
  {footer && (
- <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3">
+ <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3 shrink-0">
  {footer}
  </div>
  )}
