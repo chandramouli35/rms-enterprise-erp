@@ -120,7 +120,7 @@ export class ProcurementService {
             rate: finalRate,
             diff: parsedRate - finalRate,
             payment: 0,
-            finalHisabAmt: baseAmount,
+            finalHisabAmt: (parseFloat(data.bagsRecAtMill) || 0) * 0.375 * (parsedRate - finalRate),
             note: 'Initial Entry'
           }
         });
