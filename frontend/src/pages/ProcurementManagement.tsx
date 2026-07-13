@@ -419,7 +419,9 @@ export const ProcurementManagement = () => {
         <button 
           onClick={() => setPaddyPurchaseModal({
             isOpen: true, id: '', plantId: activePlant?.id || '', supplierId: '', riceCategory: 'ANY',
-            date: new Date().toISOString().split('T')[0], moisture: '', bags: '', rate: '', diff: '', payment: '', note: '', finalHisabAmt: ''
+            date: new Date().toISOString().split('T')[0], 
+            bolis: [{ moisture: '', bags: '', rate: '' }],
+            govtRate: '', diff: '', payment: '', note: '', finalHisabAmt: ''
           })}
           className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
         >
@@ -457,7 +459,10 @@ export const ProcurementManagement = () => {
                 <td className="p-3 text-right">
                   <button onClick={() => setPaddyPurchaseModal({
                     isOpen: true, id: p.id, plantId: activePlant?.id || '', supplierId: p.supplierId, riceCategory: p.riceCategory || 'ANY',
-                    date: new Date(p.date).toISOString().split('T')[0], moisture: p.mc || '', bags: p.bags || '', rate: p.rate || '', diff: p.diff || '', payment: p.payment || '', note: p.note || '', finalHisabAmt: p.finalHisabAmt || ''
+                    date: new Date(p.date).toISOString().split('T')[0], 
+                    bolis: p.bolis && p.bolis.length > 0 ? p.bolis : [{ moisture: p.mc || '', bags: p.bags || '', rate: p.rate || '' }],
+                    diff: p.diff || '', payment: p.payment || '', note: p.note || '', finalHisabAmt: p.finalHisabAmt || '',
+                    govtRate: p.govtRate || ''
                   })} className="text-blue-400 hover:text-blue-300">
                     <Edit className="w-4 h-4" />
                   </button>
