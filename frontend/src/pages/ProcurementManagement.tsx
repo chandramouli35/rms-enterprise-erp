@@ -624,7 +624,7 @@ export const ProcurementManagement = () => {
  <input type="text" name="allocateUnloader" value={inwardFormData.allocateUnloader} onChange={e => {
  handleInwardChange(e);
  if (e.target.value) {
- setInwardFormData(prev => ({...prev, unloaderTruckCount: Math.floor(Math.random() * 5) + 1}));
+  setInwardFormData((prev: any) => ({...prev, unloaderTruckCount: Math.floor(Math.random() * 5) + 1}));
  }
  }} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 pl-8 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Scan barcode..." />
  <ScanBarcode size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
