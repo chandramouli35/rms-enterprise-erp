@@ -17,7 +17,48 @@ let YieldService = class YieldService {
         this.prisma = prisma;
     }
     async saveCalculatorData(plantId, data) {
-        return { success: true, data };
+        if (!data.batchNo) {
+            return { success: false, message: 'Batch number is required to save yield report' };
+        }
+        const batch = await this.prisma.productionBatch.findUnique({
+            where: { batchNo: data.batchNo }
+        });
+        if (!batch) {
+            return { success: false, message: 'Batch not found' };
+        }
+        await this.prisma.productionBatch.update({
+            where: { id: batch.id },
+            data: {
+                riceProducedQty: data.riceProduced || 0,
+                status: 'Completed',
+                progress: 100
+            }
+        });
+        const yieldReport = await this.prisma.yieldReport.upsert({
+            where: { productionBatchId: batch.id },
+            create: {
+                productionBatchId: batch.id,
+                plantId: plantId,
+                headRicePercent: data.headRicePercent || 0,
+                brokenRicePercent: data.brokenRicePercent || 0,
+                branPercent: data.branPercent || 0,
+                huskPercent: data.huskPercent || 0,
+                lossPercent: data.lossPercent || 0,
+                overallRecovery: data.overallRecovery || 0,
+                yieldTarget: 67,
+                targetAchieved: (data.overallRecovery || 0) >= 67
+            },
+            update: {
+                headRicePercent: data.headRicePercent || 0,
+                brokenRicePercent: data.brokenRicePercent || 0,
+                branPercent: data.branPercent || 0,
+                huskPercent: data.huskPercent || 0,
+                lossPercent: data.lossPercent || 0,
+                overallRecovery: data.overallRecovery || 0,
+                targetAchieved: (data.overallRecovery || 0) >= 67
+            }
+        });
+        return { success: true, data: yieldReport };
     }
     async getAnalytics(plantId) {
         const yieldReports = await this.prisma.yieldReport.findMany({
@@ -64,8 +105,8 @@ let YieldService = class YieldService {
             averageYield,
             predictedYield: averageYield,
             latestBatch: latest.batch.batchNo,
-            batchStart: latest.batch.startTime?.toLocaleString() || '-',
-            batchEnd: latest.batch.endTime?.toLocaleString() || '-',
+            batchStart: latest.batch.date?.toLocaleString() || '-',
+            batchEnd: '-',
             batchPaddy: latest.batch.paddyUsedQty.toFixed(3),
             batchRice: latest.batch.riceProducedQty?.toFixed(3) || '0.000',
             batchByProducts: ((latest.branPercent + latest.huskPercent) / 100 * latest.batch.paddyUsedQty).toFixed(3),

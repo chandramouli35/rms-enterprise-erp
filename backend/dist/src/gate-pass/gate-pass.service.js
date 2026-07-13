@@ -82,6 +82,7 @@ let GatePassService = class GatePassService {
                 ntWtParty: ntWtParty ? parseFloat(ntWtParty) : null,
                 sodaNo,
                 remarks,
+                biometricData: data.biometricData || null,
                 status: 'ACTIVE',
                 qrCode
             },

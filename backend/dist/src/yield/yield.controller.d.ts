@@ -4,7 +4,26 @@ export declare class YieldController {
     constructor(yieldService: YieldService);
     saveCalculatorData(data: any, plantId: string): Promise<{
         success: boolean;
-        data: any;
+        message: string;
+        data?: undefined;
+    } | {
+        success: boolean;
+        data: {
+            id: string;
+            productionBatchId: string;
+            plantId: string;
+            headRicePercent: number;
+            brokenRicePercent: number;
+            branPercent: number;
+            huskPercent: number;
+            lossPercent: number;
+            overallRecovery: number;
+            yieldTarget: number | null;
+            targetAchieved: boolean;
+            createdAt: Date;
+            updatedAt: Date;
+        };
+        message?: undefined;
     }>;
     getAnalytics(plantId: string): Promise<{
         bestPlant: string;
@@ -47,31 +66,29 @@ export declare class YieldController {
     }>;
     getHistorical(plantId: string, dateFrom?: string, dateTo?: string, variety?: string): Promise<({
         batch: {
-            plantId: string;
             id: string;
+            plantId: string;
             createdAt: Date;
             updatedAt: Date;
-            riceProducedQty: number | null;
-            paddyUsedQty: number;
-            progress: number;
-            shift: string;
-            remarks: string | null;
             batchNo: string;
             date: Date;
+            shift: string;
             productionLine: string;
             paddyType: string;
             variety: string;
             paddySource: string | null;
+            paddyUsedQty: number;
+            riceProducedQty: number | null;
             status: string;
+            progress: number;
+            remarks: string | null;
             startTime: Date | null;
             endTime: Date | null;
         };
     } & {
-        plantId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         productionBatchId: string;
+        plantId: string;
         headRicePercent: number;
         brokenRicePercent: number;
         branPercent: number;
@@ -80,5 +97,7 @@ export declare class YieldController {
         overallRecovery: number;
         yieldTarget: number | null;
         targetAchieved: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     })[]>;
 }

@@ -186,6 +186,7 @@ model ProcurementBatch {
   gatePass      GatePass?               @relation(fields: [gatePassId], references: [id])
   weighbridgeId String?                 @unique
   weighbridge   WeighbridgeTransaction? @relation(fields: [weighbridgeId], references: [id])
+  biometricData String? // Store fingerprint XML/PID data
 
   grossWeight Float? // in MT
   tareWeight  Float? // in MT
@@ -382,6 +383,7 @@ model GatePass {
   ntWtParty       Float?
   sodaNo          String?
   remarks         String?
+  biometricData   String? // Store fingerprint XML/PID data
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime? @updatedAt

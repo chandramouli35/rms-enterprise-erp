@@ -6,6 +6,7 @@ import { CustomModal } from '../components/CustomModal';
 import { usePlantStore } from '../store/plantStore';
 import { useUiStore } from '../store/uiStore';
 import { useAuthStore } from '../store/authStore';
+import { biometricService } from '../services/biometricService';
 import StackSelectionModal from '../components/StackSelectionModal';
 
 export const ProcurementManagement = () => {
@@ -56,6 +57,7 @@ export const ProcurementManagement = () => {
  const [sodaPending, setSodaPending] = useState<any[]>([]);
  const [recentPurchases, setRecentPurchases] = useState<any[]>([]);
  const [isSubmitting, setIsSubmitting] = useState(false);
+ const [isScanningFingerprint, setIsScanningFingerprint] = useState(false);
  const [plants, setPlants] = useState<any[]>([]);
 
  // Stack Selection State
@@ -67,15 +69,24 @@ export const ProcurementManagement = () => {
     gpNo: '', date: '', timeIn: '', timeOut: '', truckNo: '', mandiEgpNo: '', rstNo: '', supplierId: '',
     mandi: '', pahunchPersonName: '',
     moisture: '', safai: 'Good', mandiIntimation: 'N.A.', remarks: '',
-    allocationType: 'Hoodi', hoodiUpload: 'N.A.', allocateUnloader: '', stackNo: '', bagType: '', unloaderTruckCount: '', labour: 'Inside', unloadingStartTime: '', unloadingFinishTime: '',
+    allocationType: 'Hoodi',
     origBagsRec: 0, origAClass: 0, origBClass: 0, origAClassAg: 0, origBClassAg: 0,
     shortageAClass: 0, shortageBClass: 0,
     qualityCutType: 'NONE', qualityCutValue: 0, qualityCutReason: '',
     agencyBagsRec: 0, agencyAClass: 0, agencyBClass: 0, agencyAClassAg: 0, agencyBClassAg: 0,
     netWtMill: 0, reqNetWt: 0, netWtParty: 0, netWtDiff: 0,
-    shortageType: 'Shortage Received', updateShortageReg: 'Yes', balanceShortage: 0, discrepancy: '',
+    shortageType: 'Shortage Received', updateShortageReg: 'Yes', allocatedUnloader: '',
+    unloaderTruckCount: 0,
+    stackNo: '',
+    hoodiUpload: 'N.A.',
+    allocateUnloader: '',
     driverName: '', mobileNumber: '',
-    driverSign: '', unloaderSign: '', pahunchPersonSign: '',
+    // Signatures
+    driverSign: '',
+    unloaderSign: '',
+    pahunchPersonSign: '',
+    // Biometric Data
+    biometricData: '',
     bhariVideoUpload: 'Yes', khaliVideoUpload: 'Yes'
   };
 
@@ -632,12 +643,14 @@ export const ProcurementManagement = () => {
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between">Stack No. <ScanBarcode size={14} className="text-[#e67e00]" /></label>
- <div className="relative">
- <button type="button" onClick={openStackModal} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 pl-8 outline-none focus:border-[#e67e00] text-left flex justify-between items-center ${inwardFormData.stackNo ? 'text-[var(--text-main)] font-bold' : 'text-[var(--text-muted)]'}`}>
- {inwardFormData.stackNo ? `Stack: ${inwardFormData.stackNo}` : 'Scan or Select Stack'}
+ <div className="flex gap-2">
+ <div className="relative flex-1">
+ <input type="text" name="stackNo" value={inwardFormData.stackNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 pl-8 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Scan stack barcode..." />
+ <ScanBarcode size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+ </div>
+ <button type="button" onClick={openStackModal} className="px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded text-[var(--text-main)] hover:bg-[var(--glass-bg)]" title="Select Manually">
  <Layers size={16} />
  </button>
- <ScanBarcode size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
  </div>
  </div>
  <div>
@@ -743,7 +756,7 @@ export const ProcurementManagement = () => {
  )}
 
  {/* 5. Bardana Details & 6. Weight Details */}
- <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+ <div className="flex flex-col gap-6 mt-6">
  {/* 5. Bardana */}
  <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">5. Bardana (Bag) Details</div>
@@ -931,11 +944,17 @@ export const ProcurementManagement = () => {
  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">11. Authentication (Biometric)</div>
  <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 items-center text-sm">
  <div className="flex items-center gap-3">
- <div className="text-[var(--text-muted-alt)] font-bold bg-[var(--glass-bg)] px-3 py-1.5 rounded flex items-center gap-2">
- <ShieldCheck size={16} /> Pending
- </div>
- <div className="w-8 h-8 shrink-0 rounded bg-[var(--glass-bg)] flex items-center justify-center border border-[var(--border-subtle)]">
- <svg className="w-4 h-4 text-[#e67e00]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+ {inwardFormData.biometricData ? (
+   <div className="text-green-400 font-bold bg-green-900/10 border border-green-900/20 px-3 py-1.5 rounded flex items-center gap-2">
+     <ShieldCheck size={16} /> Authenticated
+   </div>
+ ) : (
+   <div className="text-[var(--text-muted-alt)] font-bold bg-[var(--glass-bg)] px-3 py-1.5 rounded flex items-center gap-2">
+     <ShieldCheck size={16} /> Pending
+   </div>
+ )}
+ <div className={`w-8 h-8 shrink-0 rounded ${inwardFormData.biometricData ? 'bg-green-900/20 border-green-500/50' : 'bg-[var(--glass-bg)] border-[var(--border-subtle)]'} flex items-center justify-center border`}>
+ <svg className={`w-4 h-4 ${inwardFormData.biometricData ? 'text-green-500' : 'text-[#e67e00]'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
  <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1" strokeDasharray="2,2"/>
  <path d="M12 7c-1.5 0-3 1.5-3 3 0 2 2 3 2 5" stroke="currentColor" strokeWidth="1"/>
@@ -943,14 +962,33 @@ export const ProcurementManagement = () => {
  <path d="M9 10c0 1.5 1.5 3 3 3" stroke="currentColor" strokeWidth="1"/>
  </svg>
  </div>
+ {!inwardFormData.biometricData && (
+   <button type="button" 
+     disabled={isScanningFingerprint}
+     onClick={async () => {
+       try {
+         setIsScanningFingerprint(true);
+         const xmlData = await biometricService.captureFingerprint();
+         setInwardFormData((prev: any) => ({...prev, biometricData: xmlData}));
+         useUiStore.getState().addToast('Fingerprint captured successfully', 'success');
+       } catch (err: any) {
+         useUiStore.getState().addToast(err.message, 'error');
+       } finally {
+         setIsScanningFingerprint(false);
+       }
+     }}
+     className="px-3 py-1.5 bg-[#e67e00] text-black font-bold rounded text-xs hover:bg-[#cc7000] disabled:opacity-50">
+     {isScanningFingerprint ? 'Scanning...' : 'Scan Fingerprint'}
+   </button>
+ )}
  </div>
  <div className="sm:text-center">
  <div className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wider mb-0.5">Authenticated By</div>
- <div className="text-[var(--text-main)] font-medium">-</div>
+ <div className="text-[var(--text-main)] font-medium">{inwardFormData.biometricData ? 'System (Verified)' : '-'}</div>
  </div>
  <div className="sm:text-right">
  <div className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wider mb-0.5">Date & Time</div>
- <div className="text-[var(--text-main)] font-medium">-</div>
+ <div className="text-[var(--text-main)] font-medium">{inwardFormData.biometricData ? new Date().toLocaleString() : '-'}</div>
  </div>
  </div>
  </div>

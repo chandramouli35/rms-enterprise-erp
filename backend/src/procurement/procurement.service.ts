@@ -11,7 +11,7 @@ export class ProcurementService {
       plantId, supplierId, gatePassId, weighbridgeId, 
       netWeight, ratePerQuintal, transportCharges, otherCharges,
       moisture, broken, discoloration, foreignMatter, inspectedBy,
-      category, purchaseType, bugs, godown
+      category, purchaseType, bugs, godown, biometricData
     } = data;
 
     const parsedNetWeight = parseFloat(netWeight) || 0;
@@ -59,6 +59,7 @@ export class ProcurementService {
           amount: baseAmount,
           deductions: parsedRate - finalRate, // Tracking the rate deduction
           netAmount: totalAmount,
+          biometricData: biometricData || null,
           status: 'PENDING',
         }
       });

@@ -18,6 +18,8 @@ export const ProductionManagement = () => {
  
  const [loading, setLoading] = useState(false);
  const [batches, setBatches] = useState<any[]>([]);
+ const [selectedBatchId, setSelectedBatchId] = useState<string>('');
+ const [selectedBatchDetails, setSelectedBatchDetails] = useState<any>(null);
  const [metricsData, setMetricsData] = useState<any>(null);
  const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', status: '' });
  
@@ -43,23 +45,42 @@ export const ProductionManagement = () => {
  }
  };
 
- const fetchBatches = async () => {
- if (!activePlant?.id) return;
- try {
- setLoading(true);
- const query = new URLSearchParams({ plantId: activePlant.id });
- if (filters.dateFrom) query.append('dateFrom', filters.dateFrom);
- if (filters.dateTo) query.append('dateTo', filters.dateTo);
- if (filters.status) query.append('status', filters.status);
- 
- const res = await api.get(`/production/batches?${query.toString()}`);
- setBatches(res.data);
- } catch (error) {
- console.error('Error fetching batches', error);
- } finally {
- setLoading(false);
- }
- };
+  const fetchBatches = async () => {
+    if (!activePlant?.id) return;
+    try {
+      setLoading(true);
+      const query = new URLSearchParams({ plantId: activePlant.id });
+      if (filters.dateFrom) query.append('dateFrom', filters.dateFrom);
+      if (filters.dateTo) query.append('dateTo', filters.dateTo);
+      if (filters.status) query.append('status', filters.status);
+      
+      const res = await api.get(`/production/batches?${query.toString()}`);
+      setBatches(res.data);
+      if (res.data.length > 0 && !selectedBatchId) {
+        setSelectedBatchId(res.data[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching batches', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedBatchId) {
+      const fetchBatchDetails = async () => {
+        try {
+          const res = await api.get(`/production/batches/${selectedBatchId}`);
+          setSelectedBatchDetails(res.data);
+        } catch (error) {
+          console.error("Failed to fetch batch details", error);
+        }
+      };
+      fetchBatchDetails();
+    } else {
+      setSelectedBatchDetails(null);
+    }
+  }, [selectedBatchId]);
 
  useEffect(() => {
  fetchMetrics();
@@ -152,15 +173,15 @@ export const ProductionManagement = () => {
  const byProducts = batchesToday.flatMap(b => b.byProducts || []);
  const totalByProducts = byProducts.reduce((acc: number, curr: any) => acc + (curr.quantity || 0), 0);
 
- const selectedBatch = batches[0]; 
- 
- const yieldBreakdownData = selectedBatch?.yieldReport ? [
- { name: 'Rice (Head)', value: selectedBatch.yieldReport.headRicePercent || 0, color: '#22c55e' },
- { name: 'Broken Rice', value: selectedBatch.yieldReport.brokenRicePercent || 0, color: '#f59e0b' },
- { name: 'Bran', value: selectedBatch.yieldReport.branPercent || 0, color: '#8b5cf6' },
- { name: 'Husk', value: selectedBatch.yieldReport.huskPercent || 0, color: '#06b6d4' },
- { name: 'Loss', value: selectedBatch.yieldReport.lossPercent || 0, color: '#ef4444' }
- ].filter(d => d.value > 0) : [];
+  const selectedBatch = selectedBatchDetails; 
+  
+  const yieldBreakdownData = selectedBatch?.yieldReport ? [
+    { name: 'Rice (Head)', value: selectedBatch.yieldReport.headRicePercent || 0, color: '#22c55e' },
+    { name: 'Rice (Broken)', value: selectedBatch.yieldReport.brokenRicePercent || 0, color: '#eab308' },
+    { name: 'Bran', value: selectedBatch.yieldReport.branPercent || 0, color: '#f97316' },
+    { name: 'Husk', value: selectedBatch.yieldReport.huskPercent || 0, color: '#8b5cf6' },
+    { name: 'Process Loss', value: selectedBatch.yieldReport.lossPercent || 0, color: '#ef4444' }
+  ].filter(d => d.value > 0) : [];
 
  return (
  <div className="flex flex-col h-full bg-[var(--bg-base)] text-[var(--text-muted)] relative">
@@ -281,9 +302,11 @@ export const ProductionManagement = () => {
  <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-5 flex flex-col h-full">
  <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border-subtle)]">
  <h2 className="text-lg font-bold text-[var(--text-main)]">2. Batch Summary</h2>
- {batches.length > 0 ? (
- <select className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-xs px-2 py-1 rounded text-[var(--text-main)] outline-none focus:border-[#e67e00]">
- <option>{selectedBatch?.batchNo}</option>
+          {batches.length > 0 ? (
+            <select id="batchSummarySelect" name="batchSummarySelect" autoComplete="off" data-lpignore="true" value={selectedBatchId || ''} onChange={e => setSelectedBatchId(e.target.value)} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-xs px-2 py-1 rounded text-[var(--text-main)] outline-none focus:border-[#e67e00]">
+              {batches.map(b => (
+   <option key={b.id} value={b.id}>{b.batchNo}</option>
+ ))}
  </select>
  ) : (
  <span className="text-xs text-[var(--text-muted-alt)]">No batches</span>
@@ -337,9 +360,11 @@ export const ProductionManagement = () => {
  <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-5 flex flex-col w-full">
  <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border-subtle)]">
  <h2 className="text-lg font-bold text-[var(--text-main)]">3. Yield Breakdown</h2>
- {batches.length > 0 && (
- <select className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-xs px-2 py-1 rounded text-[var(--text-main)] outline-none focus:border-[#e67e00]">
- <option>{selectedBatch?.batchNo}</option>
+          {batches.length > 0 && (
+            <select id="yieldBreakdownSelect" name="yieldBreakdownSelect" autoComplete="off" data-lpignore="true" value={selectedBatchId || ''} onChange={e => setSelectedBatchId(e.target.value)} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-xs px-2 py-1 rounded text-[var(--text-main)] outline-none focus:border-[#e67e00]">
+              {batches.map(b => (
+   <option key={b.id} value={b.id}>{b.batchNo}</option>
+ ))}
  </select>
  )}
  </div>
@@ -395,8 +420,9 @@ export const ProductionManagement = () => {
  </div>
  </>
  ) : (
- <div className="flex-1 flex items-center justify-center text-[var(--text-muted-alt)] py-12">
- No yield data yet.
+ <div className="flex flex-col items-center justify-center gap-2 flex-1 text-[var(--text-muted-alt)] py-12">
+   <p>No yield data yet.</p>
+   <p className="text-xs opacity-60">Register output above to calculate yield.</p>
  </div>
  )}
  </div>

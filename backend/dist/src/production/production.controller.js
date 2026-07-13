@@ -30,6 +30,9 @@ let ProductionController = class ProductionController {
     getBatches(plantId, status, dateFrom, dateTo) {
         return this.productionService.getBatches(plantId, status, dateFrom, dateTo);
     }
+    getBatchDetails(id) {
+        return this.productionService.getBatchDetails(id);
+    }
     createBatch(createBatchDto) {
         return this.productionService.createBatch(createBatchDto);
     }
@@ -57,6 +60,14 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], ProductionController.prototype, "getBatches", null);
+__decorate([
+    (0, common_1.Get)('batches/:id'),
+    (0, require_permission_decorator_1.RequirePermission)('Production', 'canView'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], ProductionController.prototype, "getBatchDetails", null);
 __decorate([
     (0, common_1.Post)('batches'),
     (0, require_permission_decorator_1.RequirePermission)('Production', 'canAdd'),

@@ -22,9 +22,18 @@ export const YieldManagement = () => {
  const [plantYieldData, setPlantYieldData] = useState<any[]>([]);
  const [batchYieldData, setBatchYieldData] = useState<any[]>([]);
  const [historicalReports, setHistoricalReports] = useState<any[]>([]);
+ const [batches, setBatches] = useState<any[]>([]);
+ const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
  
+ useEffect(() => {
+   if (notification) {
+     const timer = setTimeout(() => setNotification(null), 3000);
+     return () => clearTimeout(timer);
+   }
+ }, [notification]);
+
  const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', variety: '' });
- const [calcBatchInfo, setCalcBatchInfo] = useState({ batchNo: '', variety: '' });
+ const [calcBatchInfo, setCalcBatchInfo] = useState<{batchNo: string, variety: string, date?: string}>({ batchNo: '', variety: '', date: '' });
 
  const [calcData, setCalcData] = useState({
    paddy: '',
@@ -55,26 +64,46 @@ export const YieldManagement = () => {
    } catch(e) {}
  };
 
- useEffect(() => {
-   const fetchData = async () => {
-     try {
-       const analyticsRes = await api.get(`/yield/analytics?plantId=${activePlant?.id || ''}`);
-       setMetricsData(analyticsRes.data || {});
-       setYieldTrendData(analyticsRes.data.chartData || []);
-       setPlantYieldData(analyticsRes.data.chartData || []); // Mocking mapping for now
-       setBatchYieldData(analyticsRes.data.chartData || []);
-       
-       fetchHistorical();
-     } catch (err) {
-       console.error("Failed to fetch yield data", err);
-     }
-   };
-   if (activePlant) fetchData();
- }, [activePlant, filters]);
+  useEffect(() => {
+    if (!activePlant) return;
+    
+    if (activeTab === 'yield_calculator') {
+      const fetchBatchesOnly = async () => {
+        try {
+          const batchesRes = await api.get(`/production/batches?plantId=${activePlant.id}`);
+          setBatches(batchesRes.data || []);
+        } catch (err) {
+          console.error("Failed to fetch batches data", err);
+        }
+      };
+      fetchBatchesOnly();
+    }
+    
+    if (activeTab === 'yield_analytics') {
+      const fetchAnalyticsOnly = async () => {
+        try {
+          const analyticsRes = await api.get(`/yield/analytics?plantId=${activePlant.id}`);
+          setMetricsData(analyticsRes.data.metrics || {});
+          setYieldTrendData(analyticsRes.data.chartData || []);
+          setPlantYieldData(analyticsRes.data.chartData || []);
+          setBatchYieldData(analyticsRes.data.chartData || []);
+        } catch (err) {
+          console.error("Failed to fetch yield analytics", err);
+        }
+      };
+      fetchAnalyticsOnly();
+    }
+    
+    if (activeTab === 'historical_reports') {
+      fetchHistorical();
+    }
+  }, [activePlant, activeTab, filters]);
 
  const handleCalculateYield = async () => {
    try {
      const payload = {
+       batchNo: calcBatchInfo.batchNo,
+       riceProduced: Number(calcData.headRice),
        overallRecovery: calcRecovery,
        headRicePercent: Number(calcData.headRice) / Number(calcData.paddy) * 100,
        brokenRicePercent: Number(calcData.brokenRice) / Number(calcData.paddy) * 100,
@@ -83,9 +112,11 @@ export const YieldManagement = () => {
        lossPercent: Number(calcData.loss) / Number(calcData.paddy) * 100
      };
      await api.post(`/yield/calculator/save?plantId=${activePlant?.id || ''}`, payload);
-     alert("Yield calculation saved successfully!");
+     setNotification({ message: 'Yield calculation saved successfully!', type: 'success' });
+     setCalcData({ paddy: '', headRice: '', brokenRice: '', bran: '', husk: '', loss: '' });
    } catch(e) {
      console.error(e);
+     setNotification({ message: 'Failed to save yield calculation', type: 'error' });
    }
  };
 
@@ -106,6 +137,15 @@ export const YieldManagement = () => {
 
  return (
  <div className="flex flex-col h-full bg-[var(--bg-base)] text-[var(--text-muted)]">
+   {/* Custom Toast Notification */}
+   {notification && (
+     <div className={`fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg border flex items-center gap-3 z-50 animate-in fade-in slide-in-from-top-2 ${
+       notification.type === 'success' ? 'bg-[var(--bg-panel)] border-green-500/30 text-green-400' : 'bg-[var(--bg-panel)] border-red-500/30 text-red-400'
+     }`}>
+       <span className="font-medium text-sm">{notification.message}</span>
+     </div>
+   )}
+
  {/* Header & Tabs */}
  <div className="flex items-center justify-between px-6 py-2 border-b border-[var(--border-subtle)] shrink-0 bg-[var(--bg-panel)]">
  <div className="flex items-center gap-2">
@@ -150,20 +190,41 @@ export const YieldManagement = () => {
      <div className="grid grid-cols-2 gap-6">
      <div>
      <label className="block text-xs uppercase font-bold text-[var(--text-muted-alt)] mb-2">Batch No.</label>
-     <select className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-4 py-2.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none">
+     <select id="calcBatchSelect" name="calcBatchSelect" autoComplete="off" data-lpignore="true" value={calcBatchInfo.batchNo} onChange={async (e) => {
+       const selectedBatchNo = e.target.value;
+       const selectedBatch = batches.find(b => b.batchNo === selectedBatchNo);
+       if (selectedBatch) {
+         try {
+           const res = await api.get(`/production/batches/${selectedBatch.id}`);
+           const fullBatch = res.data;
+           setCalcBatchInfo({ 
+             batchNo: fullBatch.batchNo, 
+             variety: fullBatch.variety,
+             date: fullBatch.date ? new Date(fullBatch.date).toISOString().split('T')[0] : ''
+           });
+           setCalcData(prev => ({ ...prev, paddy: String(fullBatch.paddyUsedQty || '') }));
+         } catch (err) {
+           console.error("Failed to fetch batch details", err);
+         }
+       } else {
+         setCalcBatchInfo({ batchNo: '', variety: '', date: '' });
+         setCalcData(prev => ({ ...prev, paddy: '' }));
+       }
+     }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-4 py-2.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none">
      <option value="">Select Batch...</option>
+     {batches.map(b => (
+       <option key={b.id} value={b.batchNo}>{b.batchNo}</option>
+     ))}
      </select>
      </div>
      <div>
      <label className="block text-xs uppercase font-bold text-[var(--text-muted-alt)] mb-2">Date</label>
-     <input type="date" defaultValue="" className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-4 py-2.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none " />
+     <input type="date" value={calcBatchInfo.date || ''} readOnly className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-4 py-2.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none opacity-80 cursor-not-allowed" />
      </div>
      </div>
      <div>
      <label className="block text-xs uppercase font-bold text-[var(--text-muted-alt)] mb-2">Variety</label>
-     <select className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-4 py-2.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none">
-     <option value="">Select Variety...</option>
-     </select>
+     <input type="text" value={calcBatchInfo.variety || ''} readOnly placeholder="Auto-filled from batch" className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-4 py-2.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none opacity-80 cursor-not-allowed" />
      </div>
      </div>
 

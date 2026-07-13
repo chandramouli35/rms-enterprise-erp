@@ -19,7 +19,7 @@ let ProcurementService = class ProcurementService {
         this.inventoryService = inventoryService;
     }
     async savePurchase(data) {
-        const { plantId, supplierId, gatePassId, weighbridgeId, netWeight, ratePerQuintal, transportCharges, otherCharges, moisture, broken, discoloration, foreignMatter, inspectedBy, category, purchaseType, bugs, godown } = data;
+        const { plantId, supplierId, gatePassId, weighbridgeId, netWeight, ratePerQuintal, transportCharges, otherCharges, moisture, broken, discoloration, foreignMatter, inspectedBy, category, purchaseType, bugs, godown, biometricData } = data;
         const parsedNetWeight = parseFloat(netWeight) || 0;
         const parsedRate = parseFloat(ratePerQuintal) || 0;
         const parsedTransport = parseFloat(transportCharges) || 0;
@@ -53,6 +53,7 @@ let ProcurementService = class ProcurementService {
                     amount: baseAmount,
                     deductions: parsedRate - finalRate,
                     netAmount: totalAmount,
+                    biometricData: biometricData || null,
                     status: 'PENDING',
                 }
             });

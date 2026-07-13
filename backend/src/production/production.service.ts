@@ -79,13 +79,22 @@ export class ProductionService {
     }
     return this.prisma.productionBatch.findMany({
       where,
-      orderBy: { date: 'desc' },
+      orderBy: { date: 'desc' }
+    });
+  }
+
+  async getBatchDetails(id: string) {
+    const batch = await this.prisma.productionBatch.findUnique({
+      where: { id },
       include: {
         processLoss: true,
         byProducts: true,
         yieldReport: true,
       },
     });
+    
+    if (!batch) throw new NotFoundException('Batch not found');
+    return batch;
   }
 
   async createBatch(dto: CreateBatchDto) {

@@ -6,11 +6,55 @@ export class YieldService {
   constructor(private prisma: PrismaService) {}
 
   async saveCalculatorData(plantId: string, data: any) {
-    // A standalone calculator save can just be mocked or saved to a utility table if needed,
-    // but the actual YieldReport is tied to ProductionBatch. 
-    // Since this is a "calculator", we can just return success or save it if there is a batch.
-    // For now, return the calculated values so the frontend knows it was "saved" (or just return OK).
-    return { success: true, data };
+    if (!data.batchNo) {
+      return { success: false, message: 'Batch number is required to save yield report' };
+    }
+
+    const batch = await this.prisma.productionBatch.findUnique({
+      where: { batchNo: data.batchNo }
+    });
+
+    if (!batch) {
+      return { success: false, message: 'Batch not found' };
+    }
+
+    // Update batch with rice produced
+    await this.prisma.productionBatch.update({
+      where: { id: batch.id },
+      data: {
+        riceProducedQty: data.riceProduced || 0,
+        status: 'Completed',
+        progress: 100
+      }
+    });
+
+    // Upsert yield report
+    const yieldReport = await this.prisma.yieldReport.upsert({
+      where: { productionBatchId: batch.id },
+      create: {
+        productionBatchId: batch.id,
+        plantId: plantId,
+        headRicePercent: data.headRicePercent || 0,
+        brokenRicePercent: data.brokenRicePercent || 0,
+        branPercent: data.branPercent || 0,
+        huskPercent: data.huskPercent || 0,
+        lossPercent: data.lossPercent || 0,
+        overallRecovery: data.overallRecovery || 0,
+        yieldTarget: 67, // default target
+        targetAchieved: (data.overallRecovery || 0) >= 67
+      },
+      update: {
+        headRicePercent: data.headRicePercent || 0,
+        brokenRicePercent: data.brokenRicePercent || 0,
+        branPercent: data.branPercent || 0,
+        huskPercent: data.huskPercent || 0,
+        lossPercent: data.lossPercent || 0,
+        overallRecovery: data.overallRecovery || 0,
+        targetAchieved: (data.overallRecovery || 0) >= 67
+      }
+    });
+
+    return { success: true, data: yieldReport };
   }
 
   async getAnalytics(plantId: string) {
@@ -63,8 +107,8 @@ export class YieldService {
       
       // Batch Summary mapping
       latestBatch: latest.batch.batchNo,
-      batchStart: latest.batch.startTime?.toLocaleString() || '-',
-      batchEnd: latest.batch.endTime?.toLocaleString() || '-',
+      batchStart: latest.batch.date?.toLocaleString() || '-',
+      batchEnd: '-',
       batchPaddy: latest.batch.paddyUsedQty.toFixed(3),
       batchRice: latest.batch.riceProducedQty?.toFixed(3) || '0.000',
       batchByProducts: (

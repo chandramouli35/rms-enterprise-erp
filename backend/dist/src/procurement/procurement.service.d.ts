@@ -15,6 +15,7 @@ export declare class ProcurementService {
         status: string;
         category: import(".prisma/client").$Enums.InventoryCategory | null;
         supplierId: string | null;
+        biometricData: string | null;
         gatePassId: string | null;
         weighbridgeId: string | null;
         purchaseType: import(".prisma/client").$Enums.PurchaseType | null;
@@ -136,6 +137,7 @@ export declare class ProcurementService {
         status: string;
         category: import(".prisma/client").$Enums.InventoryCategory | null;
         supplierId: string | null;
+        biometricData: string | null;
         gatePassId: string | null;
         weighbridgeId: string | null;
         purchaseType: import(".prisma/client").$Enums.PurchaseType | null;
@@ -220,6 +222,7 @@ export declare class ProcurementService {
         status: string;
         category: import(".prisma/client").$Enums.InventoryCategory | null;
         supplierId: string | null;
+        biometricData: string | null;
         gatePassId: string | null;
         weighbridgeId: string | null;
         purchaseType: import(".prisma/client").$Enums.PurchaseType | null;
