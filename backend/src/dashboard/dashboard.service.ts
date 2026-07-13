@@ -42,7 +42,7 @@ export class DashboardService {
       dispatch
     ] = await Promise.all([
       this.prisma.stockLedger.aggregate({
-        where: { ...pFilter, transaction: 'IN', ...dateFilter },
+        where: { ...pFilter, transaction: 'IN', itemType: 'PADDY', ...dateFilter },
         _sum: { quantity: true }
       }),
       this.prisma.productionBatch.aggregate({
@@ -57,8 +57,9 @@ export class DashboardService {
         where: { ...pFilter }, // Inventory is a snapshot, usually not filtered by created date in this context
         _sum: { quantity: true }
       }),
-      this.prisma.gatePass.count({
-        where: { ...pFilter, passType: 'OUTWARD', ...dateFilter }
+      this.prisma.gatePass.aggregate({
+        where: { ...pFilter, passType: 'OUTWARD', ...dateFilter },
+        _sum: { netWeight: true }
       })
     ]);
 
@@ -68,6 +69,7 @@ export class DashboardService {
       ? ((milling._sum.riceProducedQty || 0) / milling._sum.paddyUsedQty) * 100 
       : 0;
     const totalStock = inventory._sum.quantity || 0;
+    const dispatchValue = dispatch._sum.netWeight || 0;
     
     // Fake the trends for demonstration
     return {
@@ -79,9 +81,9 @@ export class DashboardService {
       yieldTrend: '+2.4%',
       inventoryMT: totalStock,
       inventoryTrend: '+8.7%',
-      dispatchMT: dispatch, // Or use actual weight
+      dispatchMT: dispatchValue, // Use actual weight
       dispatchTrend: '+15.3%',
-      gatePasses: dispatch,
+      gatePasses: dispatchValue, // Keeping variable name for backward compatibility if used elsewhere
       activeUsers: 24, // Mocked user count from users
     };
   }

@@ -12,9 +12,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.GatePassService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const inventory_service_1 = require("../inventory/inventory.service");
 let GatePassService = class GatePassService {
-    constructor(prisma) {
+    constructor(prisma, inventoryService) {
         this.prisma = prisma;
+        this.inventoryService = inventoryService;
     }
     async generateGatePass(data) {
         const { plantId, passType, vehicleNo, vehicleType, purpose, supplierId, material, driverName, contactNo, challanNo, noOfBags, grossWeight, tareWeight, netWeight, emptyVideoTime, loadedVideoTime, partyName, ntWtParty, sodaNo, remarks } = data;
@@ -178,10 +180,40 @@ let GatePassService = class GatePassService {
             take: 50
         });
     }
+    async completeGatePass(id) {
+        const pass = await this.prisma.gatePass.findUnique({ where: { id } });
+        if (!pass)
+            throw new common_1.NotFoundException('Gate Pass not found');
+        if (pass.status === 'COMPLETED')
+            throw new common_1.BadRequestException('Gate Pass already completed');
+        const updatedPass = await this.prisma.gatePass.update({
+            where: { id },
+            data: { status: 'COMPLETED' }
+        });
+        if (pass.passType === 'OUTWARD' && pass.netWeight && pass.material) {
+            let itemType = 'FINISHED_GOODS';
+            if (pass.material.toUpperCase().includes('RICE'))
+                itemType = 'RICE';
+            if (pass.material.toUpperCase().includes('BRAN'))
+                itemType = 'BRAN';
+            if (pass.material.toUpperCase().includes('HUSK'))
+                itemType = 'HUSK';
+            await this.inventoryService.adjustStock({
+                plantId: pass.plantId,
+                itemType: itemType,
+                variety: pass.material,
+                quantityChange: -pass.netWeight,
+                transactionType: 'OUT',
+                referenceId: pass.id,
+                remarks: `Dispatched via Gate Pass ${pass.qrCode}`
+            });
+        }
+        return updatedPass;
+    }
 };
 exports.GatePassService = GatePassService;
 exports.GatePassService = GatePassService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, inventory_service_1.InventoryService])
 ], GatePassService);
 //# sourceMappingURL=gate-pass.service.js.map

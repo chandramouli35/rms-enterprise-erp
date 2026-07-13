@@ -1,8 +1,10 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransferDto, UpdateTransferStatusDto } from './dto/create-transfer.dto';
+import { InventoryService } from '../inventory/inventory.service';
 export declare class TransferService {
     private prisma;
-    constructor(prisma: PrismaService);
+    private inventoryService;
+    constructor(prisma: PrismaService, inventoryService: InventoryService);
     getMetrics(plantId?: string): Promise<{
         total: number;
         approved: number;
@@ -16,7 +18,7 @@ export declare class TransferService {
         inTransitQuantity: number;
         delayedTransfers: number;
     }>;
-    getAllTransfers(plantId?: string): Promise<{
+    getAllTransfers(plantId?: string, status?: string, dateFrom?: string, dateTo?: string): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;

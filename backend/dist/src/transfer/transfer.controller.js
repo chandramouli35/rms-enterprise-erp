@@ -27,8 +27,8 @@ let TransferController = class TransferController {
     getMetrics(plantId) {
         return this.transferService.getMetrics(plantId);
     }
-    getAllTransfers(plantId) {
-        return this.transferService.getAllTransfers(plantId);
+    getAllTransfers(plantId, status, dateFrom, dateTo) {
+        return this.transferService.getAllTransfers(plantId, status, dateFrom, dateTo);
     }
     createTransfer(createTransferDto) {
         return this.transferService.createTransfer(createTransferDto);
@@ -50,8 +50,11 @@ __decorate([
     (0, common_1.Get)(),
     (0, require_permission_decorator_1.RequirePermission)('Dispatch', 'canView'),
     __param(0, (0, common_1.Query)('plantId')),
+    __param(1, (0, common_1.Query)('status')),
+    __param(2, (0, common_1.Query)('dateFrom')),
+    __param(3, (0, common_1.Query)('dateTo')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], TransferController.prototype, "getAllTransfers", null);
 __decorate([

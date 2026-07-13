@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { InventoryService } from '../inventory/inventory.service';
 
 @Injectable()
 export class GatePassService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private inventoryService: InventoryService) {}
 
   async generateGatePass(data: any) {
     const { 
@@ -194,5 +195,36 @@ export class GatePassService {
       orderBy: { createdAt: 'desc' },
       take: 50
     });
+  }
+
+  async completeGatePass(id: string) {
+    const pass = await this.prisma.gatePass.findUnique({ where: { id } });
+    if (!pass) throw new NotFoundException('Gate Pass not found');
+    if (pass.status === 'COMPLETED') throw new BadRequestException('Gate Pass already completed');
+
+    const updatedPass = await this.prisma.gatePass.update({
+      where: { id },
+      data: { status: 'COMPLETED' }
+    });
+
+    // If OUTWARD, deduct stock
+    if (pass.passType === 'OUTWARD' && pass.netWeight && pass.material) {
+      let itemType = 'FINISHED_GOODS';
+      if (pass.material.toUpperCase().includes('RICE')) itemType = 'RICE';
+      if (pass.material.toUpperCase().includes('BRAN')) itemType = 'BRAN';
+      if (pass.material.toUpperCase().includes('HUSK')) itemType = 'HUSK';
+
+      await this.inventoryService.adjustStock({
+        plantId: pass.plantId,
+        itemType: itemType,
+        variety: pass.material,
+        quantityChange: -pass.netWeight,
+        transactionType: 'OUT',
+        referenceId: pass.id,
+        remarks: `Dispatched via Gate Pass ${pass.qrCode}`
+      });
+    }
+
+    return updatedPass;
   }
 }

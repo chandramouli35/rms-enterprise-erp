@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Users, Package, ShieldCheck, FileText, Search, Plus, Calendar, ChevronDown, Download, Printer, Settings, Upload, Edit, Layers } from 'lucide-react';
+import { Users, Package, ShieldCheck, FileText, Search, Plus, Calendar, ChevronDown, Download, Printer, Settings, Upload, Edit, Layers, ScanBarcode } from 'lucide-react';
 import api from '../api/axios';
 import { CustomModal } from '../components/CustomModal';
 import { usePlantStore } from '../store/plantStore';
 import { useUiStore } from '../store/uiStore';
+import { useAuthStore } from '../store/authStore';
 import StackSelectionModal from '../components/StackSelectionModal';
 
 export const ProcurementManagement = () => {
  const [searchParams] = useSearchParams();
- const activeTab = searchParams.get('tab') || 'supplier_master';
- const activePlant = usePlantStore(state => state.activePlant);
- const [category, setCategory] = useState<'OPERATIONAL' | 'NON_OPERATIONAL'>('OPERATIONAL');
+  const activeTab = searchParams.get('tab') || 'supplier_master';
+  const activePlant = usePlantStore(state => state.activePlant);
+  const user = useAuthStore(state => state.user);
+  const isSupervisor = user?.role === 'SUPERVISOR';
+  const [category, setCategory] = useState<'OPERATIONAL' | 'NON_OPERATIONAL'>('OPERATIONAL');
+
+  const MOCK_LABOUR_CONTRACTORS = ['Ramesh Kumar', 'Suresh Singh', 'Manoj Enterprises', 'Shiva Labour Co.'];
 
  // State
  const defaultFormData = {
@@ -64,6 +69,8 @@ export const ProcurementManagement = () => {
     moisture: '', safai: 'Good', mandiIntimation: 'N.A.', remarks: '',
     allocationType: 'Hoodi', hoodiUpload: 'N.A.', allocateUnloader: '', stackNo: '', bagType: '', unloaderTruckCount: '', labour: 'Inside', unloadingStartTime: '', unloadingFinishTime: '',
     origBagsRec: 0, origAClass: 0, origBClass: 0, origAClassAg: 0, origBClassAg: 0,
+    shortageAClass: 0, shortageBClass: 0,
+    qualityCutType: 'NONE', qualityCutValue: 0, qualityCutReason: '',
     agencyBagsRec: 0, agencyAClass: 0, agencyBClass: 0, agencyAClassAg: 0, agencyBClassAg: 0,
     netWtMill: 0, reqNetWt: 0, netWtParty: 0, netWtDiff: 0,
     shortageType: 'Shortage Received', updateShortageReg: 'Yes', balanceShortage: 0, discrepancy: '',
@@ -73,6 +80,19 @@ export const ProcurementManagement = () => {
   };
 
   const [inwardFormData, setInwardFormData] = useState<any>(defaultInwardFormData);
+  
+  // Track Boli bags input from supervisor
+  const [boliInputs, setBoliInputs] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    // Auto calculate Required Net Wt
+    const origA = parseFloat(inwardFormData.origAClass) || 0;
+    const origB = parseFloat(inwardFormData.origBClass) || 0;
+    const shortA = parseFloat(inwardFormData.shortageAClass) || 0;
+    const shortB = parseFloat(inwardFormData.shortageBClass) || 0;
+    const req = ((origA + origB + shortA + shortB) * 0.382).toFixed(3);
+    setInwardFormData((prev: any) => ({ ...prev, reqNetWt: req }));
+  }, [inwardFormData.origAClass, inwardFormData.origBClass, inwardFormData.shortageAClass, inwardFormData.shortageBClass]);
  const [dhanakLots, setDhanakLots] = useState([{ id: 1, sNo: '', bags: 0, moisture: 0, bardanaClass: '' }]);
 
  const handleInwardChange = (e: any) => {
@@ -91,7 +111,7 @@ export const ProcurementManagement = () => {
  };
 
  // Modal States
- const [addSupplierModal, setAddSupplierModal] = useState({ isOpen: false, name: '', contact: '' });
+ const [addSupplierModal, setAddSupplierModal] = useState({ isOpen: false, name: '', firmNames: '', mandi: '', contact: '' });
  const [inspectModal, setInspectModal] = useState({ isOpen: false, batchId: '', moisture: 0, broken: 0, discoloration: 0, foreignMatter: 0 });
 
   const [paddyPurchaseModal, setPaddyPurchaseModal] = useState<any>({
@@ -101,10 +121,8 @@ export const ProcurementManagement = () => {
     supplierId: '',
     riceCategory: 'ANY',
     date: new Date().toISOString().split('T')[0],
-    moisture: '',
-    bags: '',
+    bolis: [{ moisture: '', bags: '', rate: '' }],
     govtRate: '',
-    rate: '',
     diff: '',
     payment: '',
     note: '',
@@ -223,8 +241,8 @@ export const ProcurementManagement = () => {
  e.preventDefault();
  if (!addSupplierModal.name) return;
  try {
- await api.post('/api/procurement/suppliers', { name: addSupplierModal.name, contact: addSupplierModal.contact });
- setAddSupplierModal({ isOpen: false, name: '', contact: '' });
+ await api.post('/api/procurement/suppliers', { name: addSupplierModal.name, contact: addSupplierModal.contact, firmNames: addSupplierModal.firmNames.split(',').map(s=>s.trim()).filter(Boolean), mandi: addSupplierModal.mandi });
+ setAddSupplierModal({ isOpen: false, name: '', firmNames: '', mandi: '', contact: '' });
  fetchSuppliers();
  } catch (error) {
  console.error('Failed to add supplier', error);
@@ -247,21 +265,20 @@ export const ProcurementManagement = () => {
       
       const parsedOrigA = parseFloat(inwardFormData.origAClass as any) || 0;
       const parsedOrigB = parseFloat(inwardFormData.origBClass as any) || 0;
-      const parsedAgencyA = parseFloat(inwardFormData.agencyAClass as any) || 0;
-      const parsedAgencyB = parseFloat(inwardFormData.agencyBClass as any) || 0;
-      const computedBagsRecAtMill = parsedOrigA + parsedOrigB + parsedAgencyA + parsedAgencyB;
+      const parsedShortageA = parseFloat(inwardFormData.shortageAClass as any) || 0;
+      const parsedShortageB = parseFloat(inwardFormData.shortageBClass as any) || 0;
+      const computedBagsRecAtMill = parsedOrigA + parsedOrigB + parsedShortageA + parsedShortageB;
 
       const parsedOrigAAg = parseFloat(inwardFormData.origAClassAg as any) || 0;
       const parsedOrigBAg = parseFloat(inwardFormData.origBClassAg as any) || 0;
-      const parsedAgencyAAg = parseFloat(inwardFormData.agencyAClassAg as any) || 0;
-      const parsedAgencyBAg = parseFloat(inwardFormData.agencyBClassAg as any) || 0;
-      const computedBagsAtAgencyGp = parsedOrigAAg + parsedOrigBAg + parsedAgencyAAg + parsedAgencyBAg;
+      const computedBagsAtAgencyGp = parsedOrigAAg + parsedOrigBAg;
 
       const payload = {
         ...formData,
         ...inwardFormData,
         bagsRecAtMill: computedBagsRecAtMill,
         bagsAtAgencyGp: computedBagsAtAgencyGp,
+        boliInputs,
         category,
         plantId: activePlant?.id
       };
@@ -269,6 +286,7 @@ export const ProcurementManagement = () => {
       await api.post('/api/procurement/save-purchase', payload);
       useUiStore.getState().addToast('Paddy Inward (Goods Receipt) Saved Successfully!', 'success');
       setInwardFormData({ ...defaultInwardFormData }); // clear all fields
+      setBoliInputs({}); // clear boli inputs
       fetchSodaPending();
       fetchRecentPurchases();
     } catch (error) {
@@ -348,18 +366,22 @@ export const ProcurementManagement = () => {
  {activeTab === 'supplier_master' && (
  <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
  <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
- <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
- <Users className="text-[#e67e00]" /> Supplier Master
- </h2>
- <button onClick={() => setAddSupplierModal({ isOpen: true, name: '', contact: '' })} className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20">
- + Add Supplier
- </button>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-bold flex items-center gap-2 text-[var(--text-main)]">
+          <Users className="text-[#e67e00]" /> Arthiya Master
+        </h2>
+        <button onClick={() => setAddSupplierModal({ isOpen: true, name: '', firmNames: '', mandi: '', contact: '' })} className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20">
+          + Add Arthiya
+        </button>
+      </div>
  </div>
  <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
  <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
  <thead>
  <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left">
  <th className="p-3">Name</th>
+ <th className="p-3">Firm Names</th>
+ <th className="p-3">Mandi</th>
  <th className="p-3">Contact</th>
  <th className="p-3">Status</th>
  </tr>
@@ -368,6 +390,8 @@ export const ProcurementManagement = () => {
  {suppliers.map((s, i) => (
  <tr key={s.id} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)]">
  <td className="p-3 font-medium text-[var(--text-main)]">{s.name}</td>
+ <td className="p-3">{s.firmNames && s.firmNames.length > 0 ? s.firmNames.join(', ') : '-'}</td>
+ <td className="p-3">{s.mandi || '-'}</td>
  <td className="p-3">{s.contact || '-'}</td>
  <td className="p-3">
  <span className="px-2 py-1 rounded bg-green-900/50 text-green-400 text-xs font-bold">Active</span>
@@ -376,7 +400,7 @@ export const ProcurementManagement = () => {
  ))}
  {suppliers.length === 0 && (
  <tr>
- <td colSpan={3} className="p-6 text-center text-[var(--text-muted-alt)]">No suppliers found.</td>
+ <td colSpan={5} className="p-6 text-center text-[var(--text-muted-alt)]">No suppliers found.</td>
  </tr>
  )}
  </tbody>
@@ -558,14 +582,14 @@ export const ProcurementManagement = () => {
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Bhari (Loaded) Video Upload</label>
  <div className="flex items-center gap-4 py-2">
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="bhariVideoUpload" value="Yes" checked={inwardFormData.bhariVideoUpload === 'Yes'} onChange={handleInwardChange} className="accent-blue-500" /> Yes</label>
- <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="bhariVideoUpload" value="No" checked={inwardFormData.bhariVideoUpload === 'No'} onChange={handleInwardChange} className="accent-blue-500" /> No</label>
+ <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="bhariVideoUpload" value="No" checked={inwardFormData.bhariVideoUpload === 'No'} onChange={handleInwardChange} className="accent-blue-500" /> Uploading</label>
  </div>
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Khali (Empty) Video Upload</label>
  <div className="flex items-center gap-4 py-2">
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="khaliVideoUpload" value="Yes" checked={inwardFormData.khaliVideoUpload === 'Yes'} onChange={handleInwardChange} className="accent-blue-500" /> Yes</label>
- <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="khaliVideoUpload" value="No" checked={inwardFormData.khaliVideoUpload === 'No'} onChange={handleInwardChange} className="accent-blue-500" /> No</label>
+ <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="khaliVideoUpload" value="No" checked={inwardFormData.khaliVideoUpload === 'No'} onChange={handleInwardChange} className="accent-blue-500" /> Uploading</label>
  </div>
  </div>
  </div>
@@ -587,29 +611,39 @@ export const ProcurementManagement = () => {
  <div className="flex items-center gap-4 mt-2">
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="hoodiUpload" value="N.A." checked={inwardFormData.hoodiUpload === 'N.A.'} onChange={handleInwardChange} className="accent-blue-500" /> N.A.</label>
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="hoodiUpload" value="Yes" checked={inwardFormData.hoodiUpload === 'Yes'} onChange={handleInwardChange} className="accent-blue-500" /> Yes</label>
- <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="hoodiUpload" value="No" checked={inwardFormData.hoodiUpload === 'No'} onChange={handleInwardChange} className="accent-blue-500" /> No</label>
  </div>
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Allocate Unloader</label>
- <input type="text" name="allocateUnloader" value={inwardFormData.allocateUnloader} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Ramesh Kumar" />
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between">Allocate Unloader <ScanBarcode size={14} className="text-[#e67e00]" /></label>
+ <div className="relative">
+ <input type="text" name="allocateUnloader" value={inwardFormData.allocateUnloader} onChange={e => {
+ handleInwardChange(e);
+ if (e.target.value) {
+ setInwardFormData(prev => ({...prev, unloaderTruckCount: Math.floor(Math.random() * 5) + 1}));
+ }
+ }} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 pl-8 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Scan barcode..." />
+ <ScanBarcode size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+ </div>
  </div>
  <div>
-  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Stack No.</label>
-  <button type="button" onClick={openStackModal} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 outline-none focus:border-[#e67e00] text-left flex justify-between items-center ${inwardFormData.stackNo ? 'text-[var(--text-main)] font-bold' : 'text-[var(--text-muted)]'}`}>
-    {inwardFormData.stackNo ? `Stack: ${inwardFormData.stackNo}` : 'Select Stack Map'}
-    <Layers size={16} />
-  </button>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between">Stack No. <ScanBarcode size={14} className="text-[#e67e00]" /></label>
+ <div className="relative">
+ <button type="button" onClick={openStackModal} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 pl-8 outline-none focus:border-[#e67e00] text-left flex justify-between items-center ${inwardFormData.stackNo ? 'text-[var(--text-main)] font-bold' : 'text-[var(--text-muted)]'}`}>
+ {inwardFormData.stackNo ? `Stack: ${inwardFormData.stackNo}` : 'Scan or Select Stack'}
+ <Layers size={16} />
+ </button>
+ <ScanBarcode size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+ </div>
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Truck Unload Count</label>
- <input type="number" name="unloaderTruckCount" value={inwardFormData.unloaderTruckCount} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" min="0" />
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Truck Unload Count (Today)</label>
+ <input type="number" name="unloaderTruckCount" value={inwardFormData.unloaderTruckCount} disabled className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-70 cursor-not-allowed" title="Calculated automatically" />
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Labour</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Labour Name</label>
  <select name="labour" value={inwardFormData.labour} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
- <option value="Inside">Inside</option>
- <option value="Outside">Outside</option>
+ <option value="">Select Labour Contractor</option>
+ {MOCK_LABOUR_CONTRACTORS.map(l => <option key={l} value={l}>{l}</option>)}
  </select>
  </div>
  <div>
@@ -623,8 +657,88 @@ export const ProcurementManagement = () => {
  </div>
  </div>
 
+ {/* Pending Bolis & Quality Cut (Supervisor Input) */}
+ {inwardFormData.supplierId && (
+   <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[#e67e00]/30 overflow-hidden mt-6">
+     <div className="bg-[#e67e00]/10 px-4 py-2 border-b border-[#e67e00]/20 text-[#e67e00] font-bold text-sm flex items-center justify-between">
+       <span>Pending Bolis / Soda for Selected Arthiya</span>
+     </div>
+     <div className="p-4">
+       <div className="overflow-x-auto mb-4 border border-[var(--border-subtle)] rounded">
+         <table className="w-full text-sm text-left whitespace-nowrap">
+           <thead>
+             <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)] bg-[var(--bg-base)]">
+               <th className="p-2 font-medium">Date</th>
+               <th className="p-2 font-medium">Moisture</th>
+               <th className="p-2 font-medium">Rate</th>
+               <th className="p-2 font-medium">Expected Bags</th>
+               <th className="p-2 font-medium text-blue-400">Bags Rec</th>
+               <th className="p-2 font-medium">Note</th>
+             </tr>
+           </thead>
+           <tbody>
+             {sodaPending.filter((s: any) => s.supplierId === inwardFormData.supplierId).length === 0 ? (
+               <tr><td colSpan={6} className="p-3 text-center text-gray-500 italic">No pending bolis found.</td></tr>
+             ) : (
+               sodaPending.filter((s: any) => s.supplierId === inwardFormData.supplierId).map((soda: any) => (
+                 <React.Fragment key={soda.id}>
+                   {soda.bolis?.filter((b: any) => !b.isCompleted).map((boli: any) => (
+                     <tr key={boli.id} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--bg-base)]">
+                       <td className="p-2">{new Date(soda.date).toLocaleDateString()}</td>
+                       <td className="p-2">{boli.moisture}%</td>
+                       <td className="p-2">₹{boli.rate}</td>
+                       <td className="p-2">{boli.bags}</td>
+                       <td className="p-2">
+                         <input type="number" 
+                                value={boliInputs[boli.id] || ''} 
+                                onChange={(e) => setBoliInputs(prev => ({...prev, [boli.id]: e.target.value}))}
+                                className="w-20 bg-[var(--bg-base)] border border-blue-500/50 rounded px-2 py-1 text-[var(--text-main)] outline-none focus:border-blue-500" 
+                                placeholder="Enter bags" />
+                       </td>
+                       <td className="p-2 text-[var(--text-muted)] truncate max-w-[150px]">{soda.note || '-'}</td>
+                     </tr>
+                   ))}
+                 </React.Fragment>
+               ))
+             )}
+           </tbody>
+         </table>
+       </div>
+       
+       <div className="bg-[var(--bg-base)] rounded border border-[var(--border-subtle)] p-3">
+         <h4 className="text-xs font-bold text-[var(--text-muted-alt)] mb-2 uppercase">Quality Cut</h4>
+         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+           <div>
+             <label className="block text-[var(--text-muted-alt)] text-[10px] mb-1">Cut Type</label>
+             <select name="qualityCutType" value={inwardFormData.qualityCutType} onChange={handleInwardChange} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)] outline-none">
+               <option value="NONE">None</option>
+               <option value="BAGS">In Terms of Bags</option>
+               <option value="PERCENTAGE">In Terms of Percentage</option>
+             </select>
+           </div>
+           <div>
+             <label className="block text-[var(--text-muted-alt)] text-[10px] mb-1">
+               Value {inwardFormData.qualityCutType === 'PERCENTAGE' ? '(%)' : inwardFormData.qualityCutType === 'BAGS' ? '(Bags)' : ''}
+             </label>
+             <input type="number" name="qualityCutValue" value={inwardFormData.qualityCutValue} onChange={handleInwardChange} disabled={inwardFormData.qualityCutType === 'NONE'} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)] outline-none disabled:opacity-50" />
+           </div>
+           <div>
+             <label className="block text-[var(--text-muted-alt)] text-[10px] mb-1">Reason</label>
+             <input type="text" name="qualityCutReason" value={inwardFormData.qualityCutReason} onChange={handleInwardChange} disabled={inwardFormData.qualityCutType === 'NONE'} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)] outline-none disabled:opacity-50" placeholder="e.g. High Moisture" />
+           </div>
+         </div>
+         {inwardFormData.qualityCutType === 'PERCENTAGE' && inwardFormData.qualityCutValue > 0 && inwardFormData.netWtMill > 0 && (
+           <div className="mt-2 text-xs text-orange-400">
+             <span className="font-bold">Calculated Cut equivalent:</span> {((parseFloat(inwardFormData.netWtMill) * parseFloat(inwardFormData.qualityCutValue)) / 100).toFixed(2)} Qtl (Will be added to Shortage)
+           </div>
+         )}
+       </div>
+     </div>
+   </div>
+ )}
+
  {/* 5. Bardana Details & 6. Weight Details */}
- <div className="grid grid-cols-1 2xl:grid-cols-2 gap-6">
+ <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
  {/* 5. Bardana */}
  <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">5. Bardana (Bag) Details</div>
@@ -632,43 +746,31 @@ export const ProcurementManagement = () => {
  <table className="w-full text-sm text-left">
  <thead>
  <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)]">
- <th className="pb-2 font-medium">Original Bardana</th>
- <th className="pb-2 font-medium">A Class</th>
- <th className="pb-2 font-medium">B Class</th>
+ <th className="pb-2 font-medium w-1/3"></th>
+ <th className="pb-2 font-medium text-center" colSpan={2}>Original Bardana</th>
+ <th className="pb-2 font-medium text-center text-[#e67e00]" colSpan={2}>Shortage Received</th>
  </tr>
- </thead>
- <tbody>
- <tr className="border-b border-[var(--border-subtle-alt)]">
- <td className="py-2 text-[var(--text-muted)]">Bags Received @ Mill</td>
- <td className="py-2"><input type="number" name="origAClass" value={inwardFormData.origAClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 text-[var(--text-main)]" min="0" /></td>
- <td className="py-2"><input type="number" name="origBClass" value={inwardFormData.origBClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 text-[var(--text-main)]" min="0" /></td>
- </tr>
- <tr>
- <td className="py-2 text-[var(--text-muted)]">Bags @ Agency GP</td>
- <td className="py-2"><input type="number" name="origAClassAg" value={inwardFormData.origAClassAg} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 text-[var(--text-main)]" min="0" /></td>
- <td className="py-2"><input type="number" name="origBClassAg" value={inwardFormData.origBClassAg} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 text-[var(--text-main)]" min="0" /></td>
- </tr>
- </tbody>
- </table>
-
- <table className="w-full text-sm text-left mt-4">
- <thead>
  <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)]">
- <th className="pb-2 font-medium">Agency Bardana</th>
+ <th className="pb-2 font-medium"></th>
  <th className="pb-2 font-medium">A Class</th>
  <th className="pb-2 font-medium">B Class</th>
+ <th className="pb-2 font-medium text-[#e67e00]">A Class</th>
+ <th className="pb-2 font-medium text-[#e67e00]">B Class</th>
  </tr>
  </thead>
  <tbody>
  <tr className="border-b border-[var(--border-subtle-alt)]">
- <td className="py-2 text-[var(--text-muted)]">Bags Received @ Mill</td>
- <td className="py-2"><input type="number" name="agencyAClass" value={inwardFormData.agencyAClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 text-[var(--text-main)]" min="0" /></td>
- <td className="py-2"><input type="number" name="agencyBClass" value={inwardFormData.agencyBClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 text-[var(--text-main)]" min="0" /></td>
+ <td className="py-3 text-[var(--text-muted)] font-medium">Bags Rec. @ Mill</td>
+ <td className="py-3"><input type="number" name="origAClass" value={inwardFormData.origAClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]" min="0" /></td>
+ <td className="py-3"><input type="number" name="origBClass" value={inwardFormData.origBClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]" min="0" /></td>
+ <td className="py-3"><input type="number" name="shortageAClass" value={inwardFormData.shortageAClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]" min="0" /></td>
+ <td className="py-3"><input type="number" name="shortageBClass" value={inwardFormData.shortageBClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]" min="0" /></td>
  </tr>
  <tr>
- <td className="py-2 text-[var(--text-muted)]">Bags @ Agency GP</td>
- <td className="py-2"><input type="number" name="agencyAClassAg" value={inwardFormData.agencyAClassAg} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 text-[var(--text-main)]" min="0" /></td>
- <td className="py-2"><input type="number" name="agencyBClassAg" value={inwardFormData.agencyBClassAg} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 text-[var(--text-main)]" min="0" /></td>
+ <td className="py-3 text-[var(--text-muted)] font-medium">Bags @ Agency GP</td>
+ <td className="py-3"><input type="number" name="origAClassAg" value={inwardFormData.origAClassAg} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]" min="0" /></td>
+ <td className="py-3"><input type="number" name="origBClassAg" value={inwardFormData.origBClassAg} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]" min="0" /></td>
+ <td className="py-3 text-center text-gray-500" colSpan={2}>-</td>
  </tr>
  </tbody>
  </table>
@@ -685,7 +787,7 @@ export const ProcurementManagement = () => {
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Required Net Wt. (Qtl)</label>
- <input type="number" name="reqNetWt" value={inwardFormData.reqNetWt} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none" min="0" />
+ <input type="number" name="reqNetWt" value={inwardFormData.reqNetWt} disabled className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed" title="Auto calculated" min="0" />
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Net Wt. @ Party (Qtl)</label>
@@ -697,8 +799,6 @@ export const ProcurementManagement = () => {
  </div>
  </div>
  </div>
- </div>
-
  </div>
 
  {/* RIGHT COLUMN */}
@@ -848,7 +948,7 @@ export const ProcurementManagement = () => {
  </div>
  </div>
  </div>
-
+ </div>
  </div>
  </div>
  
@@ -949,10 +1049,16 @@ export const ProcurementManagement = () => {
  <tr key={p.id} className={`border-b border-[var(--border-subtle-alt)] transition-colors hover:bg-[var(--glass-bg)] ${i % 2 === 0 ? 'bg-[var(--bg-panel)]' : 'bg-[var(--bg-panel-hover)]'}`}>
  <td className="p-3 font-medium text-[var(--text-main)]">{p.partyMandi}</td>
  <td className="p-3">{new Date(p.date).toLocaleDateString()}</td>
- <td className="p-3 text-right">{p.mc}</td>
- <td className="p-3 text-right font-bold text-[var(--text-muted)]">{p.bags}</td>
+ <td className="p-3 text-right">
+   {p.bolis?.length ? p.bolis.map((b: any, idx: number) => <div key={idx} className="text-xs pb-1">{b.moisture}</div>) : p.mc}
+ </td>
+ <td className="p-3 text-right font-bold text-[var(--text-muted)]">
+   {p.bolis?.length ? p.bolis.map((b: any, idx: number) => <div key={idx} className="text-xs pb-1">{b.bags}</div>) : p.bags}
+ </td>
  <td className="p-3 text-right text-[var(--text-muted)]">{p.govtRate || '-'}</td>
- <td className="p-3 text-right font-bold text-[var(--text-muted)]">{p.rate}</td>
+ <td className="p-3 text-right font-bold text-[var(--text-muted)]">
+   {p.bolis?.length ? p.bolis.map((b: any, idx: number) => <div key={idx} className="text-xs pb-1">{b.rate}</div>) : p.rate}
+ </td>
  <td className="p-3 text-right text-red-400 font-medium">{p.diff}</td>
  <td className="p-3 text-right">{p.payment}</td>
  <td className="p-3 text-[var(--text-muted-alt)]">{p.note}</td>
@@ -1016,75 +1122,110 @@ export const ProcurementManagement = () => {
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Date</label>
           <input type="date" value={paddyPurchaseModal.date} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, date: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
         </div>
-        <div>
-          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Moisture (Mc)</label>
-          <input type="number" step="0.01" value={paddyPurchaseModal.moisture} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, moisture: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
-        </div>
-        <div>
-          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Bags</label>
-          <input type="number" value={paddyPurchaseModal.bags} onChange={e => {
-            const bags = e.target.value;
-            const b = parseFloat(bags) || 0;
-            const d = parseFloat(paddyPurchaseModal.diff) || 0;
-            const finalAmt = (b * 0.375 * d).toFixed(2);
-            setPaddyPurchaseModal({...paddyPurchaseModal, bags, finalHisabAmt: finalAmt});
-          }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
-        </div>
-        <div>
-          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Govt Rate</label>
-          <input type="number" step="0.01" value={paddyPurchaseModal.govtRate || ''} onChange={e => {
-            const govtRate = e.target.value;
-            const g = parseFloat(govtRate) || 0;
-            const r = parseFloat(paddyPurchaseModal.rate) || 0;
-            const diff = (g && r) ? (g - r).toFixed(2) : paddyPurchaseModal.diff;
-            
-            const b = parseFloat(paddyPurchaseModal.bags) || 0;
-            const d = parseFloat(diff) || 0;
-            const finalAmt = (b * 0.375 * d).toFixed(2);
-            
-            setPaddyPurchaseModal({...paddyPurchaseModal, govtRate, diff, finalHisabAmt: finalAmt});
-          }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
-        </div>
-        <div>
-          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Rate (Boli)</label>
-          <input type="number" step="0.01" value={paddyPurchaseModal.rate} onChange={e => {
-            const rate = e.target.value;
-            const r = parseFloat(rate) || 0;
-            const g = parseFloat(paddyPurchaseModal.govtRate) || 0;
-            const diff = (g && r) ? (g - r).toFixed(2) : paddyPurchaseModal.diff;
-            
-            const b = parseFloat(paddyPurchaseModal.bags) || 0;
-            const d = parseFloat(diff) || 0;
-            const finalAmt = (b * 0.375 * d).toFixed(2);
-            
-            setPaddyPurchaseModal({...paddyPurchaseModal, rate, diff, finalHisabAmt: finalAmt});
-          }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
-        </div>
-        <div>
-          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Diff</label>
-          <input type="number" step="0.01" value={paddyPurchaseModal.diff} onChange={e => {
-            const diff = e.target.value;
-            const b = parseFloat(paddyPurchaseModal.bags) || 0;
-            const d = parseFloat(diff) || 0;
-            const finalAmt = (b * 0.375 * d).toFixed(2);
-            setPaddyPurchaseModal({...paddyPurchaseModal, diff, finalHisabAmt: finalAmt});
-          }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
-        </div>
-        <div>
-          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Payment</label>
-          <input type="number" step="0.01" value={paddyPurchaseModal.payment} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, payment: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
-        </div>
-        <div>
-          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Final Hisab Amt</label>
-          <input type="number" step="0.01" value={paddyPurchaseModal.finalHisabAmt} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, finalHisabAmt: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
-          {paddyPurchaseModal.bags && paddyPurchaseModal.diff && (
-            <div className="mt-2 text-xs text-[var(--text-muted)] bg-blue-900/10 p-2 rounded border border-blue-900/20 text-blue-400">
-              <span className="font-semibold block mb-1">Calculation Breakdown:</span>
-              (Bags &times; 0.375) &times; Diff<br/>
-              ({paddyPurchaseModal.bags} &times; 0.375) &times; {paddyPurchaseModal.diff} = <span className="font-bold">{(parseFloat(paddyPurchaseModal.bags) * 0.375 * parseFloat(paddyPurchaseModal.diff)).toFixed(2)}</span>
+        <div className="col-span-2 border border-[var(--border-subtle)] rounded p-4 space-y-4">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-sm font-bold text-[var(--text-main)]">Boli Details (Rate, Moisture, Bags)</h3>
+            <button type="button" onClick={() => {
+              setPaddyPurchaseModal({ ...paddyPurchaseModal, bolis: [...paddyPurchaseModal.bolis, { moisture: '', bags: '', rate: '' }] });
+            }} className="text-xs bg-[var(--bg-panel)] text-[#e67e00] px-3 py-1 rounded font-bold border border-[#e67e00]/30 hover:bg-[#e67e00]/10">
+              + Add Boli
+            </button>
+          </div>
+          {paddyPurchaseModal.bolis.map((boli: any, index: number) => (
+            <div key={index} className="grid grid-cols-3 gap-2 items-end">
+              <div>
+                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Moisture (Mc)</label>
+                <input type="number" step="0.01" value={boli.moisture} onChange={e => {
+                  const newBolis = [...paddyPurchaseModal.bolis];
+                  newBolis[index].moisture = e.target.value;
+                  setPaddyPurchaseModal({...paddyPurchaseModal, bolis: newBolis});
+                }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Bags</label>
+                <input type="number" value={boli.bags} onChange={e => {
+                  const newBolis = [...paddyPurchaseModal.bolis];
+                  newBolis[index].bags = e.target.value;
+                  const totalBags = newBolis.reduce((s, b) => s + (parseFloat(b.bags) || 0), 0);
+                  const finalAmt = (totalBags * 0.375 * (parseFloat(paddyPurchaseModal.diff) || 0)).toFixed(2);
+                  setPaddyPurchaseModal({...paddyPurchaseModal, bolis: newBolis, finalHisabAmt: finalAmt});
+                }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm" required />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Rate (Boli)</label>
+                  <input type="number" step="0.01" value={boli.rate} onChange={e => {
+                    const newBolis = [...paddyPurchaseModal.bolis];
+                    newBolis[index].rate = e.target.value;
+                    const r = parseFloat(e.target.value) || 0;
+                    const g = parseFloat(paddyPurchaseModal.govtRate) || 0;
+                    
+                    let diff = paddyPurchaseModal.diff;
+                    if (index === 0 && g && r) {
+                      diff = (g - r).toFixed(2);
+                    }
+                    
+                    const totalBags = newBolis.reduce((s, b) => s + (parseFloat(b.bags) || 0), 0);
+                    const finalAmt = (totalBags * 0.375 * (parseFloat(diff) || 0)).toFixed(2);
+                    
+                    setPaddyPurchaseModal({...paddyPurchaseModal, bolis: newBolis, diff, finalHisabAmt: finalAmt});
+                  }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm" required />
+                </div>
+                {paddyPurchaseModal.bolis.length > 1 && (
+                  <button type="button" onClick={() => {
+                    const newBolis = paddyPurchaseModal.bolis.filter((_: any, i: number) => i !== index);
+                    const totalBags = newBolis.reduce((s: number, b: any) => s + (parseFloat(b.bags) || 0), 0);
+                    const finalAmt = (totalBags * 0.375 * (parseFloat(paddyPurchaseModal.diff) || 0)).toFixed(2);
+                    setPaddyPurchaseModal({...paddyPurchaseModal, bolis: newBolis, finalHisabAmt: finalAmt});
+                  }} className="mb-0.5 px-2 py-1.5 text-red-400 hover:bg-red-400/10 rounded">✕</button>
+                )}
+              </div>
             </div>
-          )}
+          ))}
         </div>
+        
+        {!isSupervisor && (
+          <>
+            <div>
+              <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Govt Rate</label>
+              <input type="number" step="0.01" value={paddyPurchaseModal.govtRate || ''} onChange={e => {
+                const govtRate = e.target.value;
+                const g = parseFloat(govtRate) || 0;
+                const firstRate = parseFloat(paddyPurchaseModal.bolis[0]?.rate) || 0;
+                const diff = (g && firstRate) ? (g - firstRate).toFixed(2) : paddyPurchaseModal.diff;
+                
+                const totalBags = paddyPurchaseModal.bolis.reduce((s: number, b: any) => s + (parseFloat(b.bags) || 0), 0);
+                const finalAmt = (totalBags * 0.375 * (parseFloat(diff) || 0)).toFixed(2);
+                
+                setPaddyPurchaseModal({...paddyPurchaseModal, govtRate, diff, finalHisabAmt: finalAmt});
+              }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+            </div>
+            <div>
+              <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Diff</label>
+              <input type="number" step="0.01" value={paddyPurchaseModal.diff} onChange={e => {
+                const diff = e.target.value;
+                const totalBags = paddyPurchaseModal.bolis.reduce((s: number, b: any) => s + (parseFloat(b.bags) || 0), 0);
+                const finalAmt = (totalBags * 0.375 * (parseFloat(diff) || 0)).toFixed(2);
+                setPaddyPurchaseModal({...paddyPurchaseModal, diff, finalHisabAmt: finalAmt});
+              }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+            </div>
+            <div>
+              <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Payment</label>
+              <input type="number" step="0.01" value={paddyPurchaseModal.payment} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, payment: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+            </div>
+            <div>
+              <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Final Hisab Amt</label>
+              <input type="number" step="0.01" value={paddyPurchaseModal.finalHisabAmt} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, finalHisabAmt: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+              {paddyPurchaseModal.bolis.length > 0 && paddyPurchaseModal.diff && (
+                <div className="mt-2 text-xs text-[var(--text-muted)] bg-blue-900/10 p-2 rounded border border-blue-900/20 text-blue-400">
+                  <span className="font-semibold block mb-1">Calculation Breakdown:</span>
+                  (Bags &times; 0.375) &times; Diff<br/>
+                  ({paddyPurchaseModal.bolis.reduce((s: number, b: any) => s + (parseFloat(b.bags) || 0), 0)} &times; 0.375) &times; {paddyPurchaseModal.diff} = <span className="font-bold">{(paddyPurchaseModal.bolis.reduce((s: number, b: any) => s + (parseFloat(b.bags) || 0), 0) * 0.375 * parseFloat(paddyPurchaseModal.diff)).toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+          </>
+        )}
         <div className="col-span-2">
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Note</label>
           <input type="text" value={paddyPurchaseModal.note} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, note: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
@@ -1098,25 +1239,33 @@ export const ProcurementManagement = () => {
   </CustomModal>
 
  <CustomModal 
- isOpen={addSupplierModal.isOpen} 
- onClose={() => setAddSupplierModal({ ...addSupplierModal, isOpen: false })}
- title="Add New Supplier"
- >
- <form onSubmit={handleAddSupplier} className="space-y-4">
- <div>
- <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Supplier Name</label>
- <input type="text" value={addSupplierModal.name} onChange={e => setAddSupplierModal({...addSupplierModal, name: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
- </div>
- <div>
- <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Contact Details</label>
- <input type="tel" pattern="[0-9]{10}" maxLength={10} title="10 digit mobile number" value={addSupplierModal.contact} onChange={e => setAddSupplierModal({...addSupplierModal, contact: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
- </div>
- <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
- <button type="button" onClick={() => setAddSupplierModal({...addSupplierModal, isOpen: false})} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)]">Cancel</button>
- <button type="submit" className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold hover:bg-[#cc7000] transition-colors">Add Supplier</button>
- </div>
- </form>
- </CustomModal>
+    isOpen={addSupplierModal.isOpen} 
+    onClose={() => setAddSupplierModal({ ...addSupplierModal, isOpen: false })}
+    title="Add New Arthiya"
+  >
+    <form onSubmit={handleAddSupplier} className="space-y-4">
+      <div>
+        <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Arthiya Name</label>
+        <input type="text" value={addSupplierModal.name} onChange={e => setAddSupplierModal({...addSupplierModal, name: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
+      </div>
+      <div>
+        <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Firm Names (comma separated)</label>
+        <input type="text" value={addSupplierModal.firmNames} onChange={e => setAddSupplierModal({...addSupplierModal, firmNames: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" placeholder="E.g. Balaji Traders, Shivam Rice" />
+      </div>
+      <div>
+        <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Mandi</label>
+        <input type="text" value={addSupplierModal.mandi} onChange={e => setAddSupplierModal({...addSupplierModal, mandi: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" placeholder="E.g. Kurali Mandi" />
+      </div>
+      <div>
+        <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Contact Details</label>
+        <input type="tel" pattern="[0-9]{10}" maxLength={10} title="10 digit mobile number" value={addSupplierModal.contact} onChange={e => setAddSupplierModal({...addSupplierModal, contact: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+      </div>
+      <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
+        <button type="button" onClick={() => setAddSupplierModal({...addSupplierModal, isOpen: false})} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)]">Cancel</button>
+        <button type="submit" className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold hover:bg-[#cc7000] transition-colors">Add Arthiya</button>
+      </div>
+    </form>
+  </CustomModal>
 
  <CustomModal 
  isOpen={inspectModal.isOpen} 

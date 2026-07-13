@@ -12,9 +12,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TransferService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const inventory_service_1 = require("../inventory/inventory.service");
 let TransferService = class TransferService {
-    constructor(prisma) {
+    constructor(prisma, inventoryService) {
         this.prisma = prisma;
+        this.inventoryService = inventoryService;
     }
     async getMetrics(plantId) {
         const where = plantId ? { OR: [{ fromPlantId: plantId }, { toPlantId: plantId }] } : {};
@@ -68,8 +70,13 @@ let TransferService = class TransferService {
             delayedTransfers,
         };
     }
-    async getAllTransfers(plantId) {
+    async getAllTransfers(plantId, status, dateFrom, dateTo) {
         const where = plantId ? { OR: [{ fromPlantId: plantId }, { toPlantId: plantId }] } : {};
+        if (status && status !== 'All')
+            where.status = status;
+        if (dateFrom && dateTo) {
+            where.date = { gte: new Date(dateFrom), lte: new Date(dateTo) };
+        }
         return this.prisma.interPlantTransfer.findMany({
             where,
             orderBy: { date: 'desc' },
@@ -100,12 +107,50 @@ let TransferService = class TransferService {
         const transfer = await this.prisma.interPlantTransfer.findUnique({ where: { id } });
         if (!transfer)
             throw new common_1.NotFoundException('Transfer not found');
+        if (transfer.status === dto.status)
+            return transfer;
         const updateData = { status: dto.status };
         if (dto.status === 'Dispatched' || dto.status === 'In Transit') {
             updateData.dispatchedOn = new Date();
+            if (transfer.status === 'Approved') {
+                let itemType = 'FINISHED_GOODS';
+                if (transfer.item.toUpperCase().includes('RICE'))
+                    itemType = 'RICE';
+                else if (transfer.item.toUpperCase().includes('PADDY'))
+                    itemType = 'PADDY';
+                else if (transfer.item.toUpperCase().includes('BRAN'))
+                    itemType = 'BRAN';
+                await this.inventoryService.adjustStock({
+                    plantId: transfer.fromPlantId,
+                    itemType: itemType,
+                    variety: transfer.variety || transfer.item,
+                    quantityChange: -transfer.quantity,
+                    transactionType: 'TRANSFER',
+                    referenceId: transfer.id,
+                    remarks: `Transferred out via request ${transfer.requestNo}`
+                });
+            }
         }
         else if (dto.status === 'Delivered' || dto.status === 'Completed') {
             updateData.receivedOn = new Date();
+            if (transfer.status !== 'Delivered' && transfer.status !== 'Completed') {
+                let itemType = 'FINISHED_GOODS';
+                if (transfer.item.toUpperCase().includes('RICE'))
+                    itemType = 'RICE';
+                else if (transfer.item.toUpperCase().includes('PADDY'))
+                    itemType = 'PADDY';
+                else if (transfer.item.toUpperCase().includes('BRAN'))
+                    itemType = 'BRAN';
+                await this.inventoryService.adjustStock({
+                    plantId: transfer.toPlantId,
+                    itemType: itemType,
+                    variety: transfer.variety || transfer.item,
+                    quantityChange: transfer.quantity,
+                    transactionType: 'IN',
+                    referenceId: transfer.id,
+                    remarks: `Received transfer request ${transfer.requestNo}`
+                });
+            }
         }
         return this.prisma.interPlantTransfer.update({
             where: { id },
@@ -116,6 +161,6 @@ let TransferService = class TransferService {
 exports.TransferService = TransferService;
 exports.TransferService = TransferService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, inventory_service_1.InventoryService])
 ], TransferService);
 //# sourceMappingURL=transfer.service.js.map

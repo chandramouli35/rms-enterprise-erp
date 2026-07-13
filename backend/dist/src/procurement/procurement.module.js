@@ -11,10 +11,11 @@ const common_1 = require("@nestjs/common");
 const procurement_controller_1 = require("./procurement.controller");
 const procurement_service_1 = require("./procurement.service");
 const prisma_module_1 = require("../prisma/prisma.module");
+const inventory_module_1 = require("../inventory/inventory.module");
 let ProcurementModule = class ProcurementModule {
 };
 exports.ProcurementModule = ProcurementModule;
 exports.ProcurementModule = ProcurementModule = __decorate([
-    (0, common_1.Module)({ imports: [prisma_module_1.PrismaModule], controllers: [procurement_controller_1.ProcurementController], providers: [procurement_service_1.ProcurementService] })
+    (0, common_1.Module)({ imports: [prisma_module_1.PrismaModule, inventory_module_1.InventoryModule], controllers: [procurement_controller_1.ProcurementController], providers: [procurement_service_1.ProcurementService] })
 ], ProcurementModule);
 //# sourceMappingURL=procurement.module.js.map

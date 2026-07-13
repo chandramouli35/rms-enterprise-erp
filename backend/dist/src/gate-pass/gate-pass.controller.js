@@ -37,6 +37,9 @@ let GatePassController = class GatePassController {
     getAnalytics(plantId) {
         return this.gatePassService.getAnalytics(plantId);
     }
+    completeGatePass(id) {
+        return this.gatePassService.completeGatePass(id);
+    }
     getDuplicateLogs(plantId) {
         return this.gatePassService.getDuplicateLogs(plantId);
     }
@@ -83,6 +86,14 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], GatePassController.prototype, "getAnalytics", null);
+__decorate([
+    (0, common_1.Post)(':id/complete'),
+    (0, require_permission_decorator_1.RequirePermission)('Gate Pass', 'canEdit'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], GatePassController.prototype, "completeGatePass", null);
 __decorate([
     (0, common_1.Get)('duplicate-logs/:plantId'),
     (0, require_permission_decorator_1.RequirePermission)('Gate Pass', 'canView'),

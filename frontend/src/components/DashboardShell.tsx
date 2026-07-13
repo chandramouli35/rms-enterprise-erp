@@ -87,10 +87,18 @@ export const DashboardShell: React.FC = () => {
  { label: 'Yield Analytics', tab: 'yield_analytics' },
  { label: 'Historical Reports', tab: 'historical_reports' }
  ]},
- { label: 'Inventory', href: '/inventory', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'] },
+ { label: 'Inventory', href: '/inventory', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
+ { label: 'Paddy Stock', tab: 'PADDY' },
+ { label: 'Rice Stock', tab: 'RICE' },
+ { label: 'Bran Stock', tab: 'BRAN' },
+ { label: 'Husk Stock', tab: 'HUSK' },
+ { label: 'Finished Goods', tab: 'FINISHED_GOODS' },
+ { label: 'Consumables Inventory', tab: 'CONSUMABLES' }
+ ]},
  { label: 'Transfer', href: '/transfer', icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
  { label: 'Transfer Request', tab: 'transfer_request' },
- { label: 'Transfer Tracking', tab: 'transfer_tracking' }
+ { label: 'Transfer Tracking', tab: 'transfer_tracking' },
+ { label: 'In Transit Stock', tab: 'in_transit_stock' }
  ]},
  { label: 'Weighbridge', href: '/weighbridge', icon: 'M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'WEIGHBRIDGE_OPERATOR'], subItems: [
  { label: 'Capture', tab: 'capture' },

@@ -11,10 +11,11 @@ const common_1 = require("@nestjs/common");
 const gate_pass_controller_1 = require("./gate-pass.controller");
 const gate_pass_service_1 = require("./gate-pass.service");
 const prisma_module_1 = require("../prisma/prisma.module");
+const inventory_module_1 = require("../inventory/inventory.module");
 let GatePassModule = class GatePassModule {
 };
 exports.GatePassModule = GatePassModule;
 exports.GatePassModule = GatePassModule = __decorate([
-    (0, common_1.Module)({ imports: [prisma_module_1.PrismaModule], controllers: [gate_pass_controller_1.GatePassController], providers: [gate_pass_service_1.GatePassService] })
+    (0, common_1.Module)({ imports: [prisma_module_1.PrismaModule, inventory_module_1.InventoryModule], controllers: [gate_pass_controller_1.GatePassController], providers: [gate_pass_service_1.GatePassService] })
 ], GatePassModule);
 //# sourceMappingURL=gate-pass.module.js.map

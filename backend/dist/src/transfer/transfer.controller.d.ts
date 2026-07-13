@@ -16,7 +16,7 @@ export declare class TransferController {
         inTransitQuantity: number;
         delayedTransfers: number;
     }>;
-    getAllTransfers(plantId: string): Promise<{
+    getAllTransfers(plantId: string, status?: string, dateFrom?: string, dateTo?: string): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;

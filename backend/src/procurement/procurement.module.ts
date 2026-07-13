@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ProcurementController } from './procurement.controller';
 import { ProcurementService } from './procurement.service';
 import { PrismaModule } from '../prisma/prisma.module';
+import { InventoryModule } from '../inventory/inventory.module';
 
-@Module({ imports: [PrismaModule], controllers: [ProcurementController], providers: [ProcurementService] })
+@Module({ imports: [PrismaModule, InventoryModule], controllers: [ProcurementController], providers: [ProcurementService] })
 export class ProcurementModule {}

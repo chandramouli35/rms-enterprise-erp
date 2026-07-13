@@ -11,7 +11,7 @@ export declare class ProductionController {
         totalProcessLoss: number;
         totalByProducts: number;
     }>;
-    getBatches(plantId: string): Promise<({
+    getBatches(plantId: string, status?: string, dateFrom?: string, dateTo?: string): Promise<({
         processLoss: {
             id: string;
             createdAt: Date;
@@ -58,8 +58,8 @@ export declare class ProductionController {
         riceProducedQty: number | null;
         paddyUsedQty: number;
         progress: number;
-        remarks: string | null;
         shift: string;
+        remarks: string | null;
         batchNo: string;
         date: Date;
         productionLine: string;
@@ -78,8 +78,28 @@ export declare class ProductionController {
         riceProducedQty: number | null;
         paddyUsedQty: number;
         progress: number;
-        remarks: string | null;
         shift: string;
+        remarks: string | null;
+        batchNo: string;
+        date: Date;
+        productionLine: string;
+        paddyType: string;
+        variety: string;
+        paddySource: string | null;
+        status: string;
+        startTime: Date | null;
+        endTime: Date | null;
+    }>;
+    completeBatch(data: any, id: string): Promise<{
+        plantId: string;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        riceProducedQty: number | null;
+        paddyUsedQty: number;
+        progress: number;
+        shift: string;
+        remarks: string | null;
         batchNo: string;
         date: Date;
         productionLine: string;

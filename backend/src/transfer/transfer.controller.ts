@@ -19,8 +19,13 @@ export class TransferController {
 
   @Get()
   @RequirePermission('Dispatch', 'canView')
-  getAllTransfers(@Query('plantId') plantId: string) {
-    return this.transferService.getAllTransfers(plantId);
+  getAllTransfers(
+    @Query('plantId') plantId: string,
+    @Query('status') status?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string
+  ) {
+    return this.transferService.getAllTransfers(plantId, status, dateFrom, dateTo);
   }
 
   @Post()

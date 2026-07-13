@@ -39,6 +39,12 @@ export class GatePassController {
     return this.gatePassService.getAnalytics(plantId);
   }
 
+  @Post(':id/complete')
+  @RequirePermission('Gate Pass', 'canEdit')
+  completeGatePass(@Param('id') id: string) {
+    return this.gatePassService.completeGatePass(id);
+  }
+
   @Get('duplicate-logs/:plantId')
   @RequirePermission('Gate Pass', 'canView')
   getDuplicateLogs(@Param('plantId') plantId: string) {

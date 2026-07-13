@@ -125,10 +125,12 @@ model SystemAuditLog {
 // -----------------------------------------------------------------------------
 model Supplier {
   id        String   @id @default(uuid())
-  name      String
-  contact   String?
-  email     String?
-  address   String?
+  name       String
+  firmNames  String[]
+  mandi      String?
+  contact    String?
+  email      String?
+  address    String?
   status    String   @default("ACTIVE")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -269,6 +271,13 @@ model PaddyInwardDetails {
   bhariVideoUrl String?
   khaliVideoUrl String?
 
+  shortageAClass      Float?
+  shortageBClass      Float?
+  
+  qualityCutType      String? // BAGS, PERCENTAGE
+  qualityCutValue     Float?
+  qualityCutReason    String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -294,8 +303,27 @@ model PaddySodaPending {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  bolis PaddyBoli[]
+
   @@index([plantId])
   @@index([supplierId])
+}
+
+model PaddyBoli {
+  id              String           @id @default(uuid())
+  sodaPendingId   String
+  sodaPending     PaddySodaPending @relation(fields: [sodaPendingId], references: [id], onDelete: Cascade)
+  
+  moisture        Float
+  bags            Float
+  rate            Float
+  bagsReceived    Float            @default(0)
+  isCompleted     Boolean          @default(false)
+  
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([sodaPendingId])
 }
 
 model WeighbridgeTransaction {
@@ -411,6 +439,7 @@ model StockLedger {
   transaction String // IN, OUT, TRANSFER, ADJUSTMENT
   itemType    String // PADDY, RICE, etc.
   quantity    Float // in MT
+  shift       String? // Day, Night
   reference   String? // e.g. batch id, dispatch id, transfer id
   remarks     String?
   createdAt   DateTime @default(now())

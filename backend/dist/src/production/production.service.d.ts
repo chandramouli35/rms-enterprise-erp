@@ -1,8 +1,10 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBatchDto } from './dto/create-batch.dto';
+import { InventoryService } from '../inventory/inventory.service';
 export declare class ProductionService {
     private prisma;
-    constructor(prisma: PrismaService);
+    private inventoryService;
+    constructor(prisma: PrismaService, inventoryService: InventoryService);
     getMetrics(plantId: string): Promise<{
         batchesToday: number;
         totalPaddyUsed: number;
@@ -11,7 +13,7 @@ export declare class ProductionService {
         totalProcessLoss: number;
         totalByProducts: number;
     }>;
-    getBatches(plantId: string): Promise<({
+    getBatches(plantId: string, status?: string, dateFrom?: string, dateTo?: string): Promise<({
         processLoss: {
             id: string;
             createdAt: Date;
@@ -58,8 +60,8 @@ export declare class ProductionService {
         riceProducedQty: number | null;
         paddyUsedQty: number;
         progress: number;
-        remarks: string | null;
         shift: string;
+        remarks: string | null;
         batchNo: string;
         date: Date;
         productionLine: string;
@@ -78,8 +80,28 @@ export declare class ProductionService {
         riceProducedQty: number | null;
         paddyUsedQty: number;
         progress: number;
-        remarks: string | null;
         shift: string;
+        remarks: string | null;
+        batchNo: string;
+        date: Date;
+        productionLine: string;
+        paddyType: string;
+        variety: string;
+        paddySource: string | null;
+        status: string;
+        startTime: Date | null;
+        endTime: Date | null;
+    }>;
+    completeBatch(batchId: string, data: any): Promise<{
+        plantId: string;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        riceProducedQty: number | null;
+        paddyUsedQty: number;
+        progress: number;
+        shift: string;
+        remarks: string | null;
         batchNo: string;
         date: Date;
         productionLine: string;

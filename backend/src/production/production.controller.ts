@@ -19,14 +19,25 @@ export class ProductionController {
 
   @Get('batches')
   @RequirePermission('Production', 'canView')
-  getBatches(@Query('plantId') plantId: string) {
-    return this.productionService.getBatches(plantId);
+  getBatches(
+    @Query('plantId') plantId: string,
+    @Query('status') status?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string
+  ) {
+    return this.productionService.getBatches(plantId, status, dateFrom, dateTo);
   }
 
   @Post('batches')
   @RequirePermission('Production', 'canAdd')
   createBatch(@Body() createBatchDto: CreateBatchDto) {
     return this.productionService.createBatch(createBatchDto);
+  }
+
+  @Post('batches/:id/complete')
+  @RequirePermission('Production', 'canEdit')
+  completeBatch(@Body() data: any, @Query('id') id: string) {
+    return this.productionService.completeBatch(id, data);
   }
 }
 

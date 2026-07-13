@@ -10,11 +10,14 @@ exports.ProductionModule = void 0;
 const common_1 = require("@nestjs/common");
 const production_service_1 = require("./production.service");
 const production_controller_1 = require("./production.controller");
+const prisma_module_1 = require("../prisma/prisma.module");
+const inventory_module_1 = require("../inventory/inventory.module");
 let ProductionModule = class ProductionModule {
 };
 exports.ProductionModule = ProductionModule;
 exports.ProductionModule = ProductionModule = __decorate([
     (0, common_1.Module)({
+        imports: [prisma_module_1.PrismaModule, inventory_module_1.InventoryModule],
         providers: [production_service_1.ProductionService],
         controllers: [production_controller_1.ProductionController]
     })

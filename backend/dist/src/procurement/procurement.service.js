@@ -12,12 +12,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProcurementService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const inventory_service_1 = require("../inventory/inventory.service");
 let ProcurementService = class ProcurementService {
-    constructor(prisma) {
+    constructor(prisma, inventoryService) {
         this.prisma = prisma;
+        this.inventoryService = inventoryService;
     }
     async savePurchase(data) {
-        const { plantId, supplierId, gatePassId, weighbridgeId, netWeight, ratePerQuintal, transportCharges, otherCharges, moisture, broken, discoloration, foreignMatter, inspectedBy, category, purchaseType, bugs } = data;
+        const { plantId, supplierId, gatePassId, weighbridgeId, netWeight, ratePerQuintal, transportCharges, otherCharges, moisture, broken, discoloration, foreignMatter, inspectedBy, category, purchaseType, bugs, godown } = data;
         const parsedNetWeight = parseFloat(netWeight) || 0;
         const parsedRate = parseFloat(ratePerQuintal) || 0;
         const parsedTransport = parseFloat(transportCharges) || 0;
@@ -65,14 +67,16 @@ let ProcurementService = class ProcurementService {
                     inspectedBy: inspectedBy || null
                 }
             });
-            await tx.stockLedger.create({
-                data: {
-                    plantId,
-                    transaction: 'IN',
-                    itemType: 'PADDY',
-                    quantity: parsedNetWeight,
-                    reference: batch.id
-                }
+            await this.inventoryService.adjustStock({
+                plantId,
+                itemType: 'PADDY',
+                quantityChange: parsedNetWeight,
+                transactionType: 'IN',
+                referenceId: batch.id,
+                remarks: `Purchase entry ${batch.id.substring(0, 8)}`,
+                godown: godown || data.stackNo || 'Main Yard',
+                category: category || 'OPERATIONAL',
+                stockValueChange: totalAmount
             });
             await tx.paddyInwardDetails.create({
                 data: {
@@ -95,6 +99,11 @@ let ProcurementService = class ProcurementService {
                     netWtDifference: parseFloat(data.netWtDifference) || 0,
                     netWtAtParty: parseFloat(data.netWtAtParty) || 0,
                     shortageType: data.shortageType,
+                    shortageAClass: parseFloat(data.shortageAClass) || 0,
+                    shortageBClass: parseFloat(data.shortageBClass) || 0,
+                    qualityCutType: data.qualityCutType || 'NONE',
+                    qualityCutValue: parseFloat(data.qualityCutValue) || 0,
+                    qualityCutReason: data.qualityCutReason || null,
                 }
             });
             if (purchaseType === 'PADDY_BOLI' && supplierId) {
@@ -112,6 +121,22 @@ let ProcurementService = class ProcurementService {
                     }
                 });
             }
+            if (data.boliInputs && Object.keys(data.boliInputs).length > 0) {
+                for (const [boliId, bagsRec] of Object.entries(data.boliInputs)) {
+                    const received = parseFloat(bagsRec);
+                    if (received > 0) {
+                        const boli = await tx.paddyBoli.findUnique({ where: { id: boliId } });
+                        if (boli) {
+                            const newTotal = boli.bagsReceived + received;
+                            const isCompleted = newTotal >= (boli.bags * 0.98);
+                            await tx.paddyBoli.update({
+                                where: { id: boliId },
+                                data: { bagsReceived: newTotal, isCompleted }
+                            });
+                        }
+                    }
+                }
+            }
             return batch;
         });
     }
@@ -123,7 +148,8 @@ let ProcurementService = class ProcurementService {
             include: {
                 supplier: true,
                 quality: true,
-                weighbridge: true
+                weighbridge: true,
+                paddyInwardDetails: true
             }
         });
         return batches.map((b) => ({
@@ -136,13 +162,14 @@ let ProcurementService = class ProcurementService {
             rate: (b.amount / (b.netWeight * 10)) || 0,
             amount: b.netAmount,
             status: b.status,
-            qcStatus: b.quality?.status || 'Pending'
+            qcStatus: b.quality?.status || 'Pending',
+            inwardDetails: b.paddyInwardDetails || null
         }));
     }
     async getBatch(batchId) {
         return this.prisma.procurementBatch.findFirst({
             where: { id: { startsWith: batchId } },
-            include: { supplier: true, weighbridge: true, quality: true }
+            include: { supplier: true, weighbridge: true, quality: true, paddyInwardDetails: true }
         });
     }
     async updateQuality(batchId, data) {
@@ -181,13 +208,15 @@ let ProcurementService = class ProcurementService {
         });
     }
     async createSupplier(data) {
-        const { name, contact, email, address } = data;
+        const { name, contact, email, address, firmNames, mandi } = data;
         return this.prisma.supplier.create({
             data: {
                 name,
                 contact,
                 email,
                 address,
+                firmNames: firmNames || [],
+                mandi,
                 status: 'Active'
             }
         });
@@ -296,7 +325,7 @@ let ProcurementService = class ProcurementService {
         const batches = await this.prisma.procurementBatch.findMany({
             where,
             orderBy: { createdAt: 'desc' },
-            include: { supplier: true, quality: true, weighbridge: true }
+            include: { supplier: true, quality: true, weighbridge: true, paddyInwardDetails: true }
         });
         return batches.map((b) => ({
             id: b.id,
@@ -305,7 +334,8 @@ let ProcurementService = class ProcurementService {
             supplier: b.supplier?.name || b.weighbridge?.supplierName || 'Unknown',
             netWeight: b.netWeight,
             amount: b.netAmount,
-            status: b.status
+            status: b.status,
+            inwardDetails: b.paddyInwardDetails || null
         }));
     }
     async updateBoliRate(batchId, newRate, arhtiaCorrection) {
@@ -335,7 +365,7 @@ let ProcurementService = class ProcurementService {
     async getSodaPending(plantId) {
         const pending = await this.prisma.paddySodaPending.findMany({
             where: { plantId },
-            include: { supplier: true },
+            include: { supplier: true, bolis: true },
             orderBy: { date: 'desc' }
         });
         return pending.map(p => ({
@@ -346,6 +376,7 @@ let ProcurementService = class ProcurementService {
             mc: p.moisture,
             bags: p.bags,
             rate: p.rate,
+            bolis: p.bolis,
             diff: p.diff,
             payment: p.payment,
             note: p.note,
@@ -354,39 +385,66 @@ let ProcurementService = class ProcurementService {
         }));
     }
     async createSodaPending(data) {
+        const bolisData = data.bolis && Array.isArray(data.bolis) && data.bolis.length > 0 ? data.bolis : [
+            { moisture: parseFloat(data.moisture) || 0, bags: parseFloat(data.bags) || 0, rate: parseFloat(data.rate) || 0 }
+        ];
+        const totalBags = bolisData.reduce((sum, b) => sum + (parseFloat(b.bags) || 0), 0);
+        const avgMoisture = bolisData.reduce((sum, b) => sum + (parseFloat(b.moisture) || 0), 0) / (bolisData.length || 1);
+        const avgRate = bolisData.reduce((sum, b) => sum + (parseFloat(b.rate) || 0), 0) / (bolisData.length || 1);
         return this.prisma.paddySodaPending.create({
             data: {
                 plantId: data.plantId,
                 supplierId: data.supplierId,
                 date: data.date ? new Date(data.date) : new Date(),
-                moisture: parseFloat(data.moisture) || 0,
-                bags: parseFloat(data.bags) || 0,
-                rate: parseFloat(data.rate) || 0,
+                moisture: avgMoisture,
+                bags: totalBags,
+                rate: avgRate,
                 govtRate: parseFloat(data.govtRate) || 0,
                 diff: parseFloat(data.diff) || 0,
                 payment: parseFloat(data.payment) || 0,
-                finalHisabAmt: data.finalHisabAmt ? parseFloat(data.finalHisabAmt) : ((parseFloat(data.bags) || 0) * 0.375 * (parseFloat(data.diff) || 0)),
+                finalHisabAmt: data.finalHisabAmt ? parseFloat(data.finalHisabAmt) : (totalBags * 0.375 * (parseFloat(data.diff) || 0)),
                 note: data.note || '',
-                riceCategory: data.riceCategory || 'ANY'
+                riceCategory: data.riceCategory || 'ANY',
+                bolis: {
+                    create: bolisData.map((b) => ({
+                        moisture: parseFloat(b.moisture) || 0,
+                        bags: parseFloat(b.bags) || 0,
+                        rate: parseFloat(b.rate) || 0
+                    }))
+                }
             }
         });
     }
     async updateSodaPending(id, data) {
+        const bolisData = data.bolis && Array.isArray(data.bolis) && data.bolis.length > 0 ? data.bolis : [
+            { moisture: parseFloat(data.moisture) || 0, bags: parseFloat(data.bags) || 0, rate: parseFloat(data.rate) || 0 }
+        ];
+        const totalBags = bolisData.reduce((sum, b) => sum + (parseFloat(b.bags) || 0), 0);
+        const avgMoisture = bolisData.reduce((sum, b) => sum + (parseFloat(b.moisture) || 0), 0) / (bolisData.length || 1);
+        const avgRate = bolisData.reduce((sum, b) => sum + (parseFloat(b.rate) || 0), 0) / (bolisData.length || 1);
+        await this.prisma.paddyBoli.deleteMany({ where: { sodaPendingId: id } });
         return this.prisma.paddySodaPending.update({
             where: { id },
             data: {
                 plantId: data.plantId,
                 supplierId: data.supplierId,
                 date: data.date ? new Date(data.date) : undefined,
-                moisture: parseFloat(data.moisture) || 0,
-                bags: parseFloat(data.bags) || 0,
-                rate: parseFloat(data.rate) || 0,
+                moisture: avgMoisture,
+                bags: totalBags,
+                rate: avgRate,
                 govtRate: parseFloat(data.govtRate) || 0,
                 diff: parseFloat(data.diff) || 0,
                 payment: parseFloat(data.payment) || 0,
-                finalHisabAmt: data.finalHisabAmt ? parseFloat(data.finalHisabAmt) : ((parseFloat(data.bags) || 0) * 0.375 * (parseFloat(data.diff) || 0)),
+                finalHisabAmt: data.finalHisabAmt ? parseFloat(data.finalHisabAmt) : (totalBags * 0.375 * (parseFloat(data.diff) || 0)),
                 note: data.note || '',
-                riceCategory: data.riceCategory || 'ANY'
+                riceCategory: data.riceCategory || 'ANY',
+                bolis: {
+                    create: bolisData.map((b) => ({
+                        moisture: parseFloat(b.moisture) || 0,
+                        bags: parseFloat(b.bags) || 0,
+                        rate: parseFloat(b.rate) || 0
+                    }))
+                }
             }
         });
     }
@@ -424,6 +482,6 @@ let ProcurementService = class ProcurementService {
 exports.ProcurementService = ProcurementService;
 exports.ProcurementService = ProcurementService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, inventory_service_1.InventoryService])
 ], ProcurementService);
 //# sourceMappingURL=procurement.service.js.map

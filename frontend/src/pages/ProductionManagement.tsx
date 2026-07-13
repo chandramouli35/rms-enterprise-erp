@@ -9,6 +9,7 @@ import { usePlantStore } from '../store/plantStore';
 import { 
  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend 
 } from 'recharts';
+import { exportToPDF, exportToExcel } from '../utils/exportUtils';
 
 export const ProductionManagement = () => {
  const activePlant = usePlantStore(state => state.activePlant);
@@ -18,6 +19,7 @@ export const ProductionManagement = () => {
  const [loading, setLoading] = useState(false);
  const [batches, setBatches] = useState<any[]>([]);
  const [metricsData, setMetricsData] = useState<any>(null);
+ const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', status: '' });
  
  const [formData, setFormData] = useState({
  batchNo: '',
@@ -45,7 +47,12 @@ export const ProductionManagement = () => {
  if (!activePlant?.id) return;
  try {
  setLoading(true);
- const res = await api.get(`/production/batches?plantId=${activePlant.id}`);
+ const query = new URLSearchParams({ plantId: activePlant.id });
+ if (filters.dateFrom) query.append('dateFrom', filters.dateFrom);
+ if (filters.dateTo) query.append('dateTo', filters.dateTo);
+ if (filters.status) query.append('status', filters.status);
+ 
+ const res = await api.get(`/production/batches?${query.toString()}`);
  setBatches(res.data);
  } catch (error) {
  console.error('Error fetching batches', error);
@@ -57,7 +64,7 @@ export const ProductionManagement = () => {
  useEffect(() => {
  fetchMetrics();
  fetchBatches();
- }, [activePlant]);
+ }, [activePlant, filters]);
 
  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
  const { name, value } = e.target;
@@ -412,9 +419,42 @@ export const ProductionManagement = () => {
  <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-5 flex flex-col">
  <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border-subtle)]">
  <h2 className="text-lg font-bold text-[var(--text-main)]">2. Production Tracking</h2>
- <select className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-xs px-2 py-1 rounded text-[var(--text-main)]">
- <option>All Batches</option>
- </select>
+ <div className="flex gap-2 items-center">
+  <input type="date" value={filters.dateFrom} onChange={e => setFilters(f => ({...f, dateFrom: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-xs px-2 py-1 rounded text-[var(--text-main)]" />
+  <span className="text-xs text-[var(--text-muted-alt)]">to</span>
+  <input type="date" value={filters.dateTo} onChange={e => setFilters(f => ({...f, dateTo: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-xs px-2 py-1 rounded text-[var(--text-main)]" />
+  <select value={filters.status} onChange={e => setFilters(f => ({...f, status: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-xs px-2 py-1 rounded text-[var(--text-main)]">
+  <option value="">All Batches</option>
+  <option value="In Progress">In Progress</option>
+  <option value="Completed">Completed</option>
+  </select>
+  <button onClick={() => {
+    const data = batches.map(b => ({
+      BatchNo: b.batchNo,
+      StartTime: new Date(b.startTime || b.createdAt).toLocaleString(),
+      PaddyUsed: b.paddyUsedQty?.toFixed(3),
+      RiceProduced: b.riceProducedQty?.toFixed(3),
+      Status: b.status,
+      Progress: b.progress
+    }));
+    exportToPDF('Production Batches', ['Batch No.', 'Start Time', 'Paddy Used (MT)', 'Rice Produced (MT)', 'Status', 'Progress (%)'], data.map(d => Object.values(d)), 'production_batches.pdf');
+  }} className="bg-red-500/10 text-red-500 hover:bg-red-500/20 px-2 py-1 rounded text-xs flex gap-1 items-center font-bold">
+    <Download size={14} /> PDF
+  </button>
+  <button onClick={() => {
+    const data = batches.map(b => ({
+      BatchNo: b.batchNo,
+      StartTime: new Date(b.startTime || b.createdAt).toLocaleString(),
+      PaddyUsed: b.paddyUsedQty?.toFixed(3),
+      RiceProduced: b.riceProducedQty?.toFixed(3),
+      Status: b.status,
+      Progress: b.progress
+    }));
+    exportToExcel(data, 'production_batches.xlsx');
+  }} className="bg-green-500/10 text-green-500 hover:bg-green-500/20 px-2 py-1 rounded text-xs flex gap-1 items-center font-bold">
+    <Download size={14} /> Excel
+  </button>
+ </div>
  </div>
  <div className="flex-1 overflow-auto">
  <table className="w-full text-xs">

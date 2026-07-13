@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransferDto, UpdateTransferStatusDto } from './dto/create-transfer.dto';
+import { InventoryService } from '../inventory/inventory.service';
 
 @Injectable()
 export class TransferService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private inventoryService: InventoryService) {}
 
   async getMetrics(plantId?: string) {
     const where = plantId ? { OR: [{ fromPlantId: plantId }, { toPlantId: plantId }] } : {};
@@ -64,9 +65,14 @@ export class TransferService {
     };
   }
 
-  async getAllTransfers(plantId?: string) {
-    const where = plantId ? { OR: [{ fromPlantId: plantId }, { toPlantId: plantId }] } : {};
+  async getAllTransfers(plantId?: string, status?: string, dateFrom?: string, dateTo?: string) {
+    const where: any = plantId ? { OR: [{ fromPlantId: plantId }, { toPlantId: plantId }] } : {};
     
+    if (status && status !== 'All') where.status = status;
+    if (dateFrom && dateTo) {
+      where.date = { gte: new Date(dateFrom), lte: new Date(dateTo) };
+    }
+
     return this.prisma.interPlantTransfer.findMany({
       where,
       orderBy: { date: 'desc' },
@@ -100,13 +106,52 @@ export class TransferService {
   async updateStatus(id: string, dto: UpdateTransferStatusDto) {
     const transfer = await this.prisma.interPlantTransfer.findUnique({ where: { id } });
     if (!transfer) throw new NotFoundException('Transfer not found');
+    
+    // Prevent double processing
+    if (transfer.status === dto.status) return transfer;
 
     const updateData: any = { status: dto.status };
 
     if (dto.status === 'Dispatched' || dto.status === 'In Transit') {
       updateData.dispatchedOn = new Date();
+      
+      // Only deduct if transitioning from Approved to Dispatched (prevent multiple deductions)
+      if (transfer.status === 'Approved') {
+        let itemType = 'FINISHED_GOODS';
+        if (transfer.item.toUpperCase().includes('RICE')) itemType = 'RICE';
+        else if (transfer.item.toUpperCase().includes('PADDY')) itemType = 'PADDY';
+        else if (transfer.item.toUpperCase().includes('BRAN')) itemType = 'BRAN';
+
+        await this.inventoryService.adjustStock({
+          plantId: transfer.fromPlantId,
+          itemType: itemType,
+          variety: transfer.variety || transfer.item,
+          quantityChange: -transfer.quantity,
+          transactionType: 'TRANSFER',
+          referenceId: transfer.id,
+          remarks: `Transferred out via request ${transfer.requestNo}`
+        });
+      }
     } else if (dto.status === 'Delivered' || dto.status === 'Completed') {
       updateData.receivedOn = new Date();
+      
+      // Only add if transitioning to Delivered from a valid previous state
+      if (transfer.status !== 'Delivered' && transfer.status !== 'Completed') {
+        let itemType = 'FINISHED_GOODS';
+        if (transfer.item.toUpperCase().includes('RICE')) itemType = 'RICE';
+        else if (transfer.item.toUpperCase().includes('PADDY')) itemType = 'PADDY';
+        else if (transfer.item.toUpperCase().includes('BRAN')) itemType = 'BRAN';
+
+        await this.inventoryService.adjustStock({
+          plantId: transfer.toPlantId,
+          itemType: itemType,
+          variety: transfer.variety || transfer.item,
+          quantityChange: transfer.quantity,
+          transactionType: 'IN',
+          referenceId: transfer.id,
+          remarks: `Received transfer request ${transfer.requestNo}`
+        });
+      }
     }
 
     return this.prisma.interPlantTransfer.update({

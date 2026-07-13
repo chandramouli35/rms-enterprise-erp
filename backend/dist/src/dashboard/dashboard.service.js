@@ -46,7 +46,7 @@ let DashboardService = class DashboardService {
         const pFilter = plantId !== 'global' ? { plantId } : {};
         const [stockIn, production, milling, inventory, dispatch] = await Promise.all([
             this.prisma.stockLedger.aggregate({
-                where: { ...pFilter, transaction: 'IN', ...dateFilter },
+                where: { ...pFilter, transaction: 'IN', itemType: 'PADDY', ...dateFilter },
                 _sum: { quantity: true }
             }),
             this.prisma.productionBatch.aggregate({
@@ -61,8 +61,9 @@ let DashboardService = class DashboardService {
                 where: { ...pFilter },
                 _sum: { quantity: true }
             }),
-            this.prisma.gatePass.count({
-                where: { ...pFilter, passType: 'OUTWARD', ...dateFilter }
+            this.prisma.gatePass.aggregate({
+                where: { ...pFilter, passType: 'OUTWARD', ...dateFilter },
+                _sum: { netWeight: true }
             })
         ]);
         const paddyProcured = stockIn._sum.quantity || 0;
@@ -71,6 +72,7 @@ let DashboardService = class DashboardService {
             ? ((milling._sum.riceProducedQty || 0) / milling._sum.paddyUsedQty) * 100
             : 0;
         const totalStock = inventory._sum.quantity || 0;
+        const dispatchValue = dispatch._sum.netWeight || 0;
         return {
             procurementMT: paddyProcured,
             procurementTrend: '+12.5%',
@@ -80,9 +82,9 @@ let DashboardService = class DashboardService {
             yieldTrend: '+2.4%',
             inventoryMT: totalStock,
             inventoryTrend: '+8.7%',
-            dispatchMT: dispatch,
+            dispatchMT: dispatchValue,
             dispatchTrend: '+15.3%',
-            gatePasses: dispatch,
+            gatePasses: dispatchValue,
             activeUsers: 24,
         };
     }

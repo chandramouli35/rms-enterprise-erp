@@ -12,9 +12,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProductionService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const inventory_service_1 = require("../inventory/inventory.service");
 let ProductionService = class ProductionService {
-    constructor(prisma) {
+    constructor(prisma, inventoryService) {
         this.prisma = prisma;
+        this.inventoryService = inventoryService;
     }
     async getMetrics(plantId) {
         const today = new Date();
@@ -73,9 +75,15 @@ let ProductionService = class ProductionService {
             totalByProducts: byProductAgg._sum.quantity || 0,
         };
     }
-    async getBatches(plantId) {
+    async getBatches(plantId, status, dateFrom, dateTo) {
+        const where = { plantId };
+        if (status && status !== 'All')
+            where.status = status;
+        if (dateFrom && dateTo) {
+            where.date = { gte: new Date(dateFrom), lte: new Date(dateTo) };
+        }
         return this.prisma.productionBatch.findMany({
-            where: { plantId },
+            where,
             orderBy: { date: 'desc' },
             include: {
                 processLoss: true,
@@ -101,12 +109,98 @@ let ProductionService = class ProductionService {
                 progress: 0,
             },
         });
+        await this.inventoryService.adjustStock({
+            plantId: dto.plantId,
+            itemType: 'PADDY',
+            variety: dto.variety,
+            quantityChange: -dto.paddyUsedQty,
+            transactionType: 'OUT',
+            referenceId: batch.id,
+            remarks: `Issued to production batch ${batch.batchNo}`,
+            shift: dto.shift
+        });
         return batch;
+    }
+    async completeBatch(batchId, data) {
+        const { riceProducedQty, byProducts, processLoss, yieldReport } = data;
+        const batch = await this.prisma.productionBatch.findUnique({ where: { id: batchId } });
+        if (!batch)
+            throw new common_1.NotFoundException('Batch not found');
+        if (batch.status === 'Completed')
+            throw new common_1.BadRequestException('Batch is already completed');
+        return this.prisma.$transaction(async (tx) => {
+            const updatedBatch = await tx.productionBatch.update({
+                where: { id: batchId },
+                data: {
+                    riceProducedQty,
+                    status: 'Completed',
+                    progress: 100,
+                    endTime: new Date()
+                }
+            });
+            if (processLoss) {
+                await tx.processLoss.create({
+                    data: {
+                        productionBatchId: batchId,
+                        ...processLoss
+                    }
+                });
+            }
+            if (byProducts && byProducts.length > 0) {
+                await tx.byProduct.createMany({
+                    data: byProducts.map(bp => ({
+                        productionBatchId: batchId,
+                        name: bp.name,
+                        quantity: bp.quantity,
+                        utilization: bp.utilization
+                    }))
+                });
+            }
+            if (yieldReport) {
+                await tx.yieldReport.create({
+                    data: {
+                        productionBatchId: batchId,
+                        plantId: batch.plantId,
+                        ...yieldReport
+                    }
+                });
+            }
+            await this.inventoryService.adjustStock({
+                plantId: batch.plantId,
+                itemType: 'RICE',
+                variety: batch.variety,
+                quantityChange: riceProducedQty,
+                transactionType: 'IN',
+                referenceId: batch.id,
+                remarks: `Produced from batch ${batch.batchNo}`,
+                shift: batch.shift
+            });
+            if (byProducts && byProducts.length > 0) {
+                for (const bp of byProducts) {
+                    let itemType = 'BY_PRODUCT';
+                    if (bp.name.toUpperCase().includes('BRAN'))
+                        itemType = 'BRAN';
+                    else if (bp.name.toUpperCase().includes('HUSK'))
+                        itemType = 'HUSK';
+                    await this.inventoryService.adjustStock({
+                        plantId: batch.plantId,
+                        itemType: itemType,
+                        variety: batch.variety,
+                        quantityChange: bp.quantity,
+                        transactionType: 'IN',
+                        referenceId: batch.id,
+                        remarks: `By-Product from batch ${batch.batchNo}`,
+                        shift: batch.shift
+                    });
+                }
+            }
+            return updatedBatch;
+        });
     }
 };
 exports.ProductionService = ProductionService;
 exports.ProductionService = ProductionService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, inventory_service_1.InventoryService])
 ], ProductionService);
 //# sourceMappingURL=production.service.js.map

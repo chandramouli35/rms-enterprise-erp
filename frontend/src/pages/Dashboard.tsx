@@ -3,6 +3,8 @@ import { usePlantStore } from '../store/plantStore';
 import { CustomModal } from '../components/CustomModal';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
+import { useAuthStore } from '../store/authStore';
+import { SupervisorDashboard } from './SupervisorDashboard';
 import { 
  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell,
  LineChart, Line, PieChart, Pie, Legend
@@ -34,6 +36,8 @@ const renderCustomLegend = (props: any) => {
 
 export const Dashboard: React.FC = () => {
  const activePlant = usePlantStore(state => state.activePlant);
+ const user = useAuthStore(state => state.user);
+ const isSupervisor = user?.role === 'SUPERVISOR';
  const navigate = useNavigate();
  
  const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
@@ -128,6 +132,8 @@ export const Dashboard: React.FC = () => {
 
  {loading ? (
  <div className="flex items-center justify-center h-64 text-amber-500">Loading dashboard...</div>
+ ) : isSupervisor ? (
+  <SupervisorDashboard metrics={metrics} alerts={alerts} today={today} />
  ) : (
  <>
  {/* Tier 1: KPI Stats Row */}
