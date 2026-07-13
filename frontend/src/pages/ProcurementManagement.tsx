@@ -805,6 +805,7 @@ export const ProcurementManagement = () => {
  </div>
  </div>
  </div>
+ </div>
 
  {/* RIGHT COLUMN */}
  <div className="col-span-12 xl:col-span-5 space-y-6">
@@ -950,7 +951,6 @@ export const ProcurementManagement = () => {
  <div className="sm:text-right">
  <div className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wider mb-0.5">Date & Time</div>
  <div className="text-[var(--text-main)] font-medium">-</div>
- </div>
  </div>
  </div>
  </div>
