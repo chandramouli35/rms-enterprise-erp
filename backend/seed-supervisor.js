@@ -42,7 +42,7 @@ async function main() {
     const plantRes = await client.query('SELECT id, name FROM "Plant" LIMIT 1');
     if (plantRes.rows.length > 0) {
       const plantId = plantRes.rows[0].id;
-      await client.query('INSERT INTO "UserPlantAccess" ("userId", "plantId", "createdAt", "updatedAt") VALUES ($1, $2, NOW(), NOW()) ON CONFLICT DO NOTHING', [userId, plantId]);
+      await client.query('INSERT INTO "UserPlantAccess" ("userId", "plantId") VALUES ($1, $2) ON CONFLICT DO NOTHING', [userId, plantId]);
       console.log(`Assigned supervisor to plant ${plantRes.rows[0].name}`);
     }
   } else {
@@ -51,7 +51,7 @@ async function main() {
     const plantRes = await client.query('SELECT id, name FROM "Plant" LIMIT 1');
     if (plantRes.rows.length > 0) {
       const plantId = plantRes.rows[0].id;
-      await client.query('INSERT INTO "UserPlantAccess" ("userId", "plantId", "createdAt", "updatedAt") VALUES ($1, $2, NOW(), NOW()) ON CONFLICT DO NOTHING', [userId, plantId]);
+      await client.query('INSERT INTO "UserPlantAccess" ("userId", "plantId") VALUES ($1, $2) ON CONFLICT DO NOTHING', [userId, plantId]);
       console.log(`Assigned supervisor to plant ${plantRes.rows[0].name}`);
     }
   }

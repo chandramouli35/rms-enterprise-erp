@@ -97,7 +97,7 @@ export const YieldManagement = () => {
     if (activeTab === 'historical_reports') {
       fetchHistorical();
     }
-  }, [activePlant?.id, activeTab, filters.dateFrom, filters.dateTo, filters.status]);
+  }, [activePlant?.id, activeTab, filters.dateFrom, filters.dateTo]);
 
   const handleCalculateYield = async () => {
     if (!calcBatchInfo.batchNo) {
