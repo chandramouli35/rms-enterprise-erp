@@ -31,7 +31,7 @@ let AuthController = class AuthController {
         return this.authService.refreshTokens(userId, refreshToken);
     }
     async getMe(req) {
-        const userId = req.user?.sub;
+        const userId = req.user?.id || req.user?.sub;
         const user = await this.authService['prisma'].user.findUnique({
             where: { id: userId },
             include: {

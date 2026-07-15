@@ -10,9 +10,9 @@ export declare class JwtStrategy extends JwtStrategy_base {
         role: {
             modulePermissions: {
                 id: string;
-                roleId: string;
                 createdAt: Date;
                 updatedAt: Date;
+                roleId: string;
                 moduleName: string;
                 canView: boolean;
                 canAdd: boolean;
@@ -22,24 +22,24 @@ export declare class JwtStrategy extends JwtStrategy_base {
             }[];
         } & {
             id: string;
+            name: string;
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
-            name: string;
             description: string | null;
         };
     } & {
-        username: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        username: string;
         email: string;
         passwordHash: string;
         refreshToken: string | null;
         isActive: boolean;
         roleId: string;
         lastLogin: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
     }) | null>;
 }
 export {};

@@ -6,41 +6,41 @@ export declare class ProductsService {
     constructor(prisma: PrismaService);
     create(createProductDto: CreateProductDto): Promise<{
         id: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         description: string | null;
         type: string;
     }>;
     findAll(): Promise<{
         id: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         description: string | null;
         type: string;
     }[]>;
     findOne(id: string): Promise<{
         id: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         description: string | null;
         type: string;
     }>;
     update(id: string, updateProductDto: UpdateProductDto): Promise<{
         id: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         description: string | null;
         type: string;
     }>;
     remove(id: string): Promise<{
         id: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         description: string | null;
         type: string;
     }>;

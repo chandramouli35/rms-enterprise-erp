@@ -5,14 +5,14 @@ export declare class ProcurementService {
     private inventoryService;
     constructor(prisma: PrismaService, inventoryService: InventoryService);
     savePurchase(data: any): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
+        plantId: string;
         netWeight: number | null;
         grossWeight: number | null;
         tareWeight: number | null;
-        status: string;
         category: import(".prisma/client").$Enums.InventoryCategory | null;
         supplierId: string | null;
         biometricData: string | null;
@@ -44,11 +44,11 @@ export declare class ProcurementService {
     getBatch(batchId: string): Promise<({
         supplier: {
             id: string;
-            email: string | null;
+            name: string;
             createdAt: Date;
             updatedAt: Date;
-            name: string;
             status: string;
+            email: string | null;
             firmNames: string[];
             mandi: string | null;
             contact: string | null;
@@ -58,6 +58,9 @@ export declare class ProcurementService {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            qualityCutValue: number | null;
+            qualityCutType: string | null;
+            qualityCutReason: string | null;
             procurementBatchId: string;
             mandi: string | null;
             gpNo: string | null;
@@ -90,20 +93,17 @@ export declare class ProcurementService {
             khaliVideoUrl: string | null;
             shortageAClass: number | null;
             shortageBClass: number | null;
-            qualityCutType: string | null;
-            qualityCutValue: number | null;
-            qualityCutReason: string | null;
         } | null;
         weighbridge: {
-            plantId: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
+            remarks: string | null;
+            plantId: string;
             netWeight: number | null;
             grossWeight: number | null;
             tareWeight: number | null;
-            remarks: string | null;
-            status: string;
             vehicleNo: string;
             driverName: string | null;
             challanNo: string | null;
@@ -127,14 +127,14 @@ export declare class ProcurementService {
             procurementBatchId: string;
         } | null;
     } & {
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
+        plantId: string;
         netWeight: number | null;
         grossWeight: number | null;
         tareWeight: number | null;
-        status: string;
         category: import(".prisma/client").$Enums.InventoryCategory | null;
         supplierId: string | null;
         biometricData: string | null;
@@ -164,11 +164,11 @@ export declare class ProcurementService {
     }>;
     getSuppliers(): Promise<{
         id: string;
-        email: string | null;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         status: string;
+        email: string | null;
         firmNames: string[];
         mandi: string | null;
         contact: string | null;
@@ -183,11 +183,11 @@ export declare class ProcurementService {
         mandi?: string;
     }): Promise<{
         id: string;
-        email: string | null;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
         status: string;
+        email: string | null;
         firmNames: string[];
         mandi: string | null;
         contact: string | null;
@@ -212,14 +212,14 @@ export declare class ProcurementService {
         inwardDetails: any;
     }[]>;
     updateBoliRate(batchId: string, newRate: number, arhtiaCorrection: number): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
+        plantId: string;
         netWeight: number | null;
         grossWeight: number | null;
         tareWeight: number | null;
-        status: string;
         category: import(".prisma/client").$Enums.InventoryCategory | null;
         supplierId: string | null;
         biometricData: string | null;
@@ -247,10 +247,10 @@ export declare class ProcurementService {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            sodaPendingId: string;
             moisture: number;
             bags: number;
             rate: number;
-            sodaPendingId: string;
             bagsReceived: number;
             isCompleted: boolean;
         }[];
@@ -261,11 +261,11 @@ export declare class ProcurementService {
         riceCategory: string | null;
     }[]>;
     createSodaPending(data: any): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         date: Date;
+        plantId: string;
         supplierId: string;
         moisture: number | null;
         bags: number | null;
@@ -278,11 +278,11 @@ export declare class ProcurementService {
         riceCategory: string | null;
     }>;
     updateSodaPending(id: string, data: any): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         date: Date;
+        plantId: string;
         supplierId: string;
         moisture: number | null;
         bags: number | null;
@@ -301,11 +301,11 @@ export declare class ProcurementService {
         finalHisabAmt: number;
         userId?: string;
     }): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         date: Date;
+        plantId: string;
         supplierId: string;
         moisture: number | null;
         bags: number | null;

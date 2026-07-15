@@ -94,20 +94,55 @@ export const SupervisorDashboard = ({ metrics, alerts, today }: any) => {
           <AlertTriangle className="text-amber-500" size={18} /> Important Reminders
         </h3>
         <ul className="space-y-3 text-sm text-[var(--text-muted)]">
-          <li className="flex gap-2 items-start bg-amber-500/5 p-3 rounded border border-amber-500/10">
-            <CheckCircle2 size={16} className="text-amber-500 shrink-0 mt-0.5" />
-            <div>
-              <span className="font-semibold text-amber-500 block">Daily Evening Report</span>
-              Please ensure all shift logs are submitted by 6:00 PM.
-            </div>
-          </li>
-          <li className="flex gap-2 items-start bg-blue-500/5 p-3 rounded border border-blue-500/10">
-            <CheckCircle2 size={16} className="text-blue-500 shrink-0 mt-0.5" />
-            <div>
-              <span className="font-semibold text-blue-500 block">Fumigation / Pest Control</span>
-              Monthly scheduled fumigation is due in 3 days for Godown 2.
-            </div>
-          </li>
+          {(() => {
+            const reminders = [];
+            const now = new Date();
+            const hour = now.getHours();
+            const dayOfMonth = now.getDate();
+            const dayOfWeek = now.getDay();
+
+            // Daily Evening Report
+            if (hour >= 18) {
+              reminders.push({ id: 1, color: 'red', title: 'Daily Evening Report', text: 'Evening report is overdue! Please submit immediately.' });
+            } else if (hour >= 14) {
+              reminders.push({ id: 1, color: 'amber', title: 'Daily Evening Report', text: 'Please ensure all shift logs are submitted by 6:00 PM today.' });
+            } else {
+              reminders.push({ id: 1, color: 'blue', title: 'Daily Evening Report', text: 'Evening report is due today by 6:00 PM.' });
+            }
+
+            // Weekly Truck Maintenance (e.g., Every Friday = 5)
+            if (dayOfWeek === 4) {
+              reminders.push({ id: 2, color: 'amber', title: 'Truck Maintenance', text: 'Weekly truck maintenance is due tomorrow.' });
+            } else if (dayOfWeek === 5) {
+              reminders.push({ id: 2, color: 'red', title: 'Truck Maintenance', text: 'Weekly truck maintenance is due TODAY.' });
+            }
+
+            // Fortnightly Pest Control (e.g., 1st and 15th of the month)
+            if (dayOfMonth === 14 || dayOfMonth === 15) {
+              reminders.push({ id: 3, color: dayOfMonth === 15 ? 'red' : 'amber', title: 'Pest Control', text: `Fortnightly pest control is due on the 15th${dayOfMonth === 15 ? ' (TODAY)' : ''}.` });
+            } else if (dayOfMonth === 30 || dayOfMonth === 31 || dayOfMonth === 1) {
+              reminders.push({ id: 3, color: dayOfMonth === 1 ? 'red' : 'amber', title: 'Pest Control', text: `Fortnightly pest control is due on the 1st${dayOfMonth === 1 ? ' (TODAY)' : ''}.` });
+            }
+
+            // Monthly Fumigation (e.g., 5th of every month)
+            if (dayOfMonth >= 1 && dayOfMonth <= 5) {
+              reminders.push({ id: 4, color: dayOfMonth === 5 ? 'red' : 'blue', title: 'Fumigation Cycle', text: `Monthly scheduled fumigation is due on the 5th${dayOfMonth === 5 ? ' (TODAY)' : ` (in ${5 - dayOfMonth} days)`}.` });
+            }
+
+            if (reminders.length === 0) {
+              return <li className="text-[var(--text-muted-alt)] italic">No urgent reminders right now.</li>;
+            }
+
+            return reminders.map(r => (
+              <li key={r.id} className={`flex gap-2 items-start bg-${r.color}-500/5 p-3 rounded border border-${r.color}-500/10`}>
+                <CheckCircle2 size={16} className={`text-${r.color}-500 shrink-0 mt-0.5`} />
+                <div>
+                  <span className={`font-semibold text-${r.color}-500 block`}>{r.title}</span>
+                  {r.text}
+                </div>
+              </li>
+            ));
+          })()}
         </ul>
       </div>
     </div>

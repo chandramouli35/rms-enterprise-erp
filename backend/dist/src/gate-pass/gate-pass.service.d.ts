@@ -7,11 +7,11 @@ export declare class GatePassService {
     generateGatePass(data: any): Promise<{
         supplier: {
             id: string;
-            email: string | null;
+            name: string;
             createdAt: Date;
             updatedAt: Date;
-            name: string;
             status: string;
+            email: string | null;
             firmNames: string[];
             mandi: string | null;
             contact: string | null;
@@ -22,6 +22,9 @@ export declare class GatePassService {
                 id: string;
                 createdAt: Date;
                 updatedAt: Date;
+                qualityCutValue: number | null;
+                qualityCutType: string | null;
+                qualityCutReason: string | null;
                 procurementBatchId: string;
                 mandi: string | null;
                 gpNo: string | null;
@@ -54,20 +57,17 @@ export declare class GatePassService {
                 khaliVideoUrl: string | null;
                 shortageAClass: number | null;
                 shortageBClass: number | null;
-                qualityCutType: string | null;
-                qualityCutValue: number | null;
-                qualityCutReason: string | null;
             } | null;
             weighbridge: {
-                plantId: string;
                 id: string;
                 createdAt: Date;
                 updatedAt: Date;
+                status: string;
+                remarks: string | null;
+                plantId: string;
                 netWeight: number | null;
                 grossWeight: number | null;
                 tareWeight: number | null;
-                remarks: string | null;
-                status: string;
                 vehicleNo: string;
                 driverName: string | null;
                 challanNo: string | null;
@@ -91,14 +91,14 @@ export declare class GatePassService {
                 procurementBatchId: string;
             } | null;
         } & {
-            plantId: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
+            plantId: string;
             netWeight: number | null;
             grossWeight: number | null;
             tareWeight: number | null;
-            status: string;
             category: import(".prisma/client").$Enums.InventoryCategory | null;
             supplierId: string | null;
             biometricData: string | null;
@@ -115,18 +115,19 @@ export declare class GatePassService {
             netAmount: number | null;
         }) | null;
     } & {
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date | null;
+        status: string;
+        remarks: string | null;
+        plantId: string;
         passType: string;
         netWeight: number | null;
         noOfBags: number | null;
         grossWeight: number | null;
         tareWeight: number | null;
+        qualityCutValue: number | null;
         ntWtParty: number | null;
-        remarks: string | null;
-        status: string;
         vehicleNo: string;
         vehicleType: string | null;
         purpose: string | null;
@@ -136,6 +137,9 @@ export declare class GatePassService {
         contactNo: string | null;
         challanNo: string | null;
         qrCode: string | null;
+        qualityCutType: string | null;
+        qualityCutReason: string | null;
+        sodaPendingId: string | null;
         emptyVideoTime: string | null;
         loadedVideoTime: string | null;
         partyName: string | null;
@@ -145,29 +149,30 @@ export declare class GatePassService {
     getRecentGatePasses(plantId: string, type: string): Promise<({
         supplier: {
             id: string;
-            email: string | null;
+            name: string;
             createdAt: Date;
             updatedAt: Date;
-            name: string;
             status: string;
+            email: string | null;
             firmNames: string[];
             mandi: string | null;
             contact: string | null;
             address: string | null;
         } | null;
     } & {
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date | null;
+        status: string;
+        remarks: string | null;
+        plantId: string;
         passType: string;
         netWeight: number | null;
         noOfBags: number | null;
         grossWeight: number | null;
         tareWeight: number | null;
+        qualityCutValue: number | null;
         ntWtParty: number | null;
-        remarks: string | null;
-        status: string;
         vehicleNo: string;
         vehicleType: string | null;
         purpose: string | null;
@@ -177,6 +182,9 @@ export declare class GatePassService {
         contactNo: string | null;
         challanNo: string | null;
         qrCode: string | null;
+        qualityCutType: string | null;
+        qualityCutReason: string | null;
+        sodaPendingId: string | null;
         emptyVideoTime: string | null;
         loadedVideoTime: string | null;
         partyName: string | null;
@@ -185,15 +193,15 @@ export declare class GatePassService {
     })[]>;
     getGatePassByQr(qrCode: string): Promise<{
         latestWeighbridge: {
-            plantId: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
+            remarks: string | null;
+            plantId: string;
             netWeight: number | null;
             grossWeight: number | null;
             tareWeight: number | null;
-            remarks: string | null;
-            status: string;
             vehicleNo: string;
             driverName: string | null;
             challanNo: string | null;
@@ -206,11 +214,11 @@ export declare class GatePassService {
         } | null;
         supplier: {
             id: string;
-            email: string | null;
+            name: string;
             createdAt: Date;
             updatedAt: Date;
-            name: string;
             status: string;
+            email: string | null;
             firmNames: string[];
             mandi: string | null;
             contact: string | null;
@@ -221,6 +229,9 @@ export declare class GatePassService {
                 id: string;
                 createdAt: Date;
                 updatedAt: Date;
+                qualityCutValue: number | null;
+                qualityCutType: string | null;
+                qualityCutReason: string | null;
                 procurementBatchId: string;
                 mandi: string | null;
                 gpNo: string | null;
@@ -253,20 +264,17 @@ export declare class GatePassService {
                 khaliVideoUrl: string | null;
                 shortageAClass: number | null;
                 shortageBClass: number | null;
-                qualityCutType: string | null;
-                qualityCutValue: number | null;
-                qualityCutReason: string | null;
             } | null;
             weighbridge: {
-                plantId: string;
                 id: string;
                 createdAt: Date;
                 updatedAt: Date;
+                status: string;
+                remarks: string | null;
+                plantId: string;
                 netWeight: number | null;
                 grossWeight: number | null;
                 tareWeight: number | null;
-                remarks: string | null;
-                status: string;
                 vehicleNo: string;
                 driverName: string | null;
                 challanNo: string | null;
@@ -290,14 +298,14 @@ export declare class GatePassService {
                 procurementBatchId: string;
             } | null;
         } & {
-            plantId: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
+            plantId: string;
             netWeight: number | null;
             grossWeight: number | null;
             tareWeight: number | null;
-            status: string;
             category: import(".prisma/client").$Enums.InventoryCategory | null;
             supplierId: string | null;
             biometricData: string | null;
@@ -313,18 +321,19 @@ export declare class GatePassService {
             deductions: number | null;
             netAmount: number | null;
         }) | null;
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date | null;
+        status: string;
+        remarks: string | null;
+        plantId: string;
         passType: string;
         netWeight: number | null;
         noOfBags: number | null;
         grossWeight: number | null;
         tareWeight: number | null;
+        qualityCutValue: number | null;
         ntWtParty: number | null;
-        remarks: string | null;
-        status: string;
         vehicleNo: string;
         vehicleType: string | null;
         purpose: string | null;
@@ -334,6 +343,9 @@ export declare class GatePassService {
         contactNo: string | null;
         challanNo: string | null;
         qrCode: string | null;
+        qualityCutType: string | null;
+        qualityCutReason: string | null;
+        sodaPendingId: string | null;
         emptyVideoTime: string | null;
         loadedVideoTime: string | null;
         partyName: string | null;
@@ -353,26 +365,27 @@ export declare class GatePassService {
         total: number;
     }>;
     getDuplicateLogs(plantId: string): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
+        plantId: string;
         vehicleNo: string;
         attemptedType: string;
         reason: string;
     }[]>;
     completeGatePass(id: string): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date | null;
+        status: string;
+        remarks: string | null;
+        plantId: string;
         passType: string;
         netWeight: number | null;
         noOfBags: number | null;
         grossWeight: number | null;
         tareWeight: number | null;
+        qualityCutValue: number | null;
         ntWtParty: number | null;
-        remarks: string | null;
-        status: string;
         vehicleNo: string;
         vehicleType: string | null;
         purpose: string | null;
@@ -382,6 +395,9 @@ export declare class GatePassService {
         contactNo: string | null;
         challanNo: string | null;
         qrCode: string | null;
+        qualityCutType: string | null;
+        qualityCutReason: string | null;
+        sodaPendingId: string | null;
         emptyVideoTime: string | null;
         loadedVideoTime: string | null;
         partyName: string | null;

@@ -37,6 +37,17 @@ export class WeighbridgeService {
       });
       if (gp) {
         resolvedGatePassId = gp.id;
+        // Update Gate Pass with Supervisor details
+        await this.prisma.gatePass.update({
+          where: { id: resolvedGatePassId },
+          data: {
+            sodaPendingId: data.sodaPendingId,
+            qualityCutType: data.qualityCutType,
+            qualityCutValue: data.qualityCutValue,
+            qualityCutReason: data.qualityCutReason,
+            noOfBags: data.bagsReceived
+          }
+        });
       }
     }
     

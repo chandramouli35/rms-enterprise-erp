@@ -82,10 +82,12 @@ export const ProductionManagement = () => {
     }
   }, [selectedBatchId]);
 
- useEffect(() => {
- fetchMetrics();
- fetchBatches();
- }, [activePlant, filters]);
+  useEffect(() => {
+    if (activePlant?.id) {
+      fetchMetrics();
+      fetchBatches();
+    }
+  }, [activePlant?.id, filters.dateFrom, filters.dateTo, filters.status]);
 
  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
  const { name, value } = e.target;

@@ -23,53 +23,53 @@ export declare class UsersRolesService {
         avatar: string;
     }[]>;
     createUser(data: any): Promise<{
-        username: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        username: string;
         email: string;
         passwordHash: string;
         refreshToken: string | null;
         isActive: boolean;
         roleId: string;
         lastLogin: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
     }>;
     toggleUserStatus(id: string): Promise<{
-        username: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        username: string;
         email: string;
         passwordHash: string;
         refreshToken: string | null;
         isActive: boolean;
         roleId: string;
         lastLogin: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
     }>;
     updateUser(id: string, data: any): Promise<{
-        username: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        username: string;
         email: string;
         passwordHash: string;
         refreshToken: string | null;
         isActive: boolean;
         roleId: string;
         lastLogin: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
     }>;
     deleteUser(id: string): Promise<{
         message: string;
     }>;
     getRoles(): Promise<{
         id: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
-        name: string;
         description: string | null;
     }[]>;
     createRole(data: {
@@ -77,10 +77,10 @@ export declare class UsersRolesService {
         description?: string;
     }): Promise<{
         id: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
-        name: string;
         description: string | null;
     }>;
     getRolePermissions(roleId: string): Promise<{

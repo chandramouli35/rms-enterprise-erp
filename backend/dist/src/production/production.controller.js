@@ -27,8 +27,8 @@ let ProductionController = class ProductionController {
     getMetrics(plantId) {
         return this.productionService.getMetrics(plantId);
     }
-    getBatches(plantId, status, dateFrom, dateTo) {
-        return this.productionService.getBatches(plantId, status, dateFrom, dateTo);
+    getBatches(req, plantId, status, dateFrom, dateTo) {
+        return this.productionService.getBatches(plantId, status, dateFrom, dateTo, req.user?.role);
     }
     getBatchDetails(id) {
         return this.productionService.getBatchDetails(id);
@@ -52,12 +52,13 @@ __decorate([
 __decorate([
     (0, common_1.Get)('batches'),
     (0, require_permission_decorator_1.RequirePermission)('Production', 'canView'),
-    __param(0, (0, common_1.Query)('plantId')),
-    __param(1, (0, common_1.Query)('status')),
-    __param(2, (0, common_1.Query)('dateFrom')),
-    __param(3, (0, common_1.Query)('dateTo')),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('plantId')),
+    __param(2, (0, common_1.Query)('status')),
+    __param(3, (0, common_1.Query)('dateFrom')),
+    __param(4, (0, common_1.Query)('dateTo')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String]),
+    __metadata("design:paramtypes", [Object, String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], ProductionController.prototype, "getBatches", null);
 __decorate([

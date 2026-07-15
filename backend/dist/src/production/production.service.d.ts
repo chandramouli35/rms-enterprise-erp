@@ -13,12 +13,10 @@ export declare class ProductionService {
         totalProcessLoss: number;
         totalByProducts: number;
     }>;
-    getBatches(plantId: string, status?: string, dateFrom?: string, dateTo?: string): Promise<{
-        plantId: string;
-        paddyUsedQty: number;
-        riceProducedQty: number | null;
-        progress: number;
+    getBatches(plantId: string, status?: string, dateFrom?: string, dateTo?: string, role?: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         batchNo: string;
         date: Date;
         shift: string;
@@ -26,42 +24,44 @@ export declare class ProductionService {
         paddyType: string;
         variety: string;
         paddySource: string | null;
+        paddyUsedQty: number;
+        riceProducedQty: number | null;
         status: string;
+        progress: number;
         remarks: string | null;
         startTime: Date | null;
         endTime: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
+        plantId: string;
     }[]>;
     getBatchDetails(id: string): Promise<{
         processLoss: {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            productionBatchId: string;
             totalLoss: number;
             cleaningLoss: number;
             dryingLoss: number;
             huskingLoss: number;
             polishingLoss: number;
             brokenLoss: number;
-            productionBatchId: string;
         } | null;
         byProducts: {
             id: string;
-            remarks: string | null;
+            name: string;
             createdAt: Date;
             updatedAt: Date;
+            remarks: string | null;
             quantity: number;
-            name: string;
             productionBatchId: string;
             unit: string;
             utilization: string | null;
         }[];
         yieldReport: {
-            plantId: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            plantId: string;
             productionBatchId: string;
             headRicePercent: number;
             brokenRicePercent: number;
@@ -73,11 +73,9 @@ export declare class ProductionService {
             targetAchieved: boolean;
         } | null;
     } & {
-        plantId: string;
-        paddyUsedQty: number;
-        riceProducedQty: number | null;
-        progress: number;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         batchNo: string;
         date: Date;
         shift: string;
@@ -85,19 +83,19 @@ export declare class ProductionService {
         paddyType: string;
         variety: string;
         paddySource: string | null;
+        paddyUsedQty: number;
+        riceProducedQty: number | null;
         status: string;
+        progress: number;
         remarks: string | null;
         startTime: Date | null;
         endTime: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
+        plantId: string;
     }>;
     createBatch(dto: CreateBatchDto): Promise<{
-        plantId: string;
-        paddyUsedQty: number;
-        riceProducedQty: number | null;
-        progress: number;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         batchNo: string;
         date: Date;
         shift: string;
@@ -105,19 +103,19 @@ export declare class ProductionService {
         paddyType: string;
         variety: string;
         paddySource: string | null;
+        paddyUsedQty: number;
+        riceProducedQty: number | null;
         status: string;
+        progress: number;
         remarks: string | null;
         startTime: Date | null;
         endTime: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
+        plantId: string;
     }>;
     completeBatch(batchId: string, data: any): Promise<{
-        plantId: string;
-        paddyUsedQty: number;
-        riceProducedQty: number | null;
-        progress: number;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         batchNo: string;
         date: Date;
         shift: string;
@@ -125,11 +123,13 @@ export declare class ProductionService {
         paddyType: string;
         variety: string;
         paddySource: string | null;
+        paddyUsedQty: number;
+        riceProducedQty: number | null;
         status: string;
+        progress: number;
         remarks: string | null;
         startTime: Date | null;
         endTime: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
+        plantId: string;
     }>;
 }

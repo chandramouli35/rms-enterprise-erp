@@ -25,6 +25,14 @@ export const WeighbridgeManagement = () => {
  const [remarks, setRemarks] = useState('');
  const [gatePassId, setGatePassId] = useState('');
 
+  // Supervisor Features: Gate Pass + Soda linking
+  const [pendingSodas, setPendingSodas] = useState<any[]>([]);
+  const [selectedSodaId, setSelectedSodaId] = useState<string>('');
+  const [bagsReceived, setBagsReceived] = useState<string>('');
+  const [qualityCutType, setQualityCutType] = useState<string>('BAGS');
+  const [qualityCutValue, setQualityCutValue] = useState<string>('');
+  const [qualityCutReason, setQualityCutReason] = useState<string>('');
+
  const [weightData, setWeightData] = useState<any>(null);
  const [isStreaming, setIsStreaming] = useState(false);
  const [lastReading, setLastReading] = useState<string>('-');
@@ -45,6 +53,20 @@ export const WeighbridgeManagement = () => {
  const [historySupplierFilter, setHistorySupplierFilter] = useState('All Suppliers');
  const [historyStartDate, setHistoryStartDate] = useState('');
  const [historyEndDate, setHistoryEndDate] = useState('');
+
+  useEffect(() => {
+    if (activePlant) {
+      const fetchPendingSodas = async () => {
+        try {
+          const res = await api.get(`/api/procurement/soda-pending/${activePlant.id}`);
+          setPendingSodas(res.data);
+        } catch (err) {
+          console.error(err);
+        }
+      };
+      fetchPendingSodas();
+    }
+  }, [activePlant]);
 
  useEffect(() => {
  if (activeTab === 'history' && activePlant) {
@@ -313,7 +335,12 @@ export const WeighbridgeManagement = () => {
  gatePassId,
  grossWeight: weightData.grossWeight,
  tareWeight: tareWeight,
- netWeight: weightData.grossWeight - tareWeight
+ netWeight: weightData.grossWeight - tareWeight,
+ sodaPendingId: selectedSodaId || undefined,
+ qualityCutType: qualityCutValue ? qualityCutType : undefined,
+ qualityCutValue: qualityCutValue ? parseFloat(qualityCutValue) : undefined,
+ qualityCutReason: qualityCutReason || undefined,
+ bagsReceived: bagsReceived ? parseFloat(bagsReceived) : undefined
  });
  setModalConfig({ isOpen: true, title: 'Success', content: 'Transaction saved successfully!' });
  setIsStreaming(false);
@@ -449,13 +476,108 @@ export const WeighbridgeManagement = () => {
  </div>
 
  <div>
- <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Party / Supplier</label>
- <select value={supplier} onChange={e => setSupplier(e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 appearance-none">
- <option value="">Select Supplier</option>
- <option>Ganga Traders</option>
- <option>Sharma Rice Traders</option>
- <option>Kisan Supply Co.</option>
- </select>
+            <div>
+              <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Party / Supplier</label>
+              <select value={supplier} onChange={e => {
+                setSupplier(e.target.value);
+                setSelectedSodaId('');
+                setBagsReceived('');
+              }} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 appearance-none">
+                <option value="">Select Supplier</option>
+                {transType === 'Inward' ? (
+                  Array.from(new Set(pendingSodas.map(s => s.partyMandi).filter(Boolean))).map(s => <option key={s as string} value={s as string}>{s as string}</option>)
+                ) : (
+                  <>
+                    <option>Ganga Traders</option>
+                    <option>Sharma Rice Traders</option>
+                    <option>Kisan Supply Co.</option>
+                  </>
+                )}
+              </select>
+            </div>
+
+            {transType === 'Inward' && supplier && (
+              <div className="col-span-1 md:col-span-2 mt-2 bg-[var(--bg-base)] p-4 rounded-lg border border-[var(--border-subtle)] shadow-inner">
+                <h4 className="text-sm font-semibold text-[var(--text-main)] mb-3 flex items-center gap-2"><Settings size={14} className="text-amber-500" /> Pending Sodas for {supplier}</h4>
+                <div className="max-h-48 overflow-y-auto custom-scrollbar border border-[var(--border-subtle-alt)] rounded">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[var(--bg-panel)] sticky top-0 border-b border-[var(--border-subtle)]">
+                      <tr>
+                        <th className="p-2 font-medium text-[var(--text-muted-alt)]">Select</th>
+                        <th className="p-2 font-medium text-[var(--text-muted-alt)]">Date</th>
+                        <th className="p-2 font-medium text-[var(--text-muted-alt)]">Crop / Variety</th>
+                        <th className="p-2 font-medium text-[var(--text-muted-alt)]">Predet. Bags</th>
+                        <th className="p-2 font-medium text-[var(--text-muted-alt)]">Moisture</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingSodas.filter(s => s.partyMandi === supplier).map(soda => (
+                        <tr key={soda.id} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)] transition-colors">
+                          <td className="p-2 text-center">
+                            <input type="radio" name="soda" value={soda.id} checked={selectedSodaId === soda.id} onChange={() => setSelectedSodaId(soda.id)} className="accent-amber-500" />
+                          </td>
+                          <td className="p-2 text-[var(--text-muted)]">{new Date(soda.date).toLocaleDateString()}</td>
+                          <td className="p-2 font-medium text-[var(--text-main)]">{soda.cropType} {soda.variety ? `- ${soda.variety}` : ''}</td>
+                          <td className="p-2 text-[var(--text-main)]">{soda.bags}</td>
+                          <td className="p-2 text-[var(--text-muted)]">{soda.moisture}</td>
+                        </tr>
+                      ))}
+                      {pendingSodas.filter(s => s.partyMandi === supplier).length === 0 && (
+                        <tr><td colSpan={5} className="p-4 text-center text-[var(--text-muted-alt)] italic">No pending sodas found for this supplier.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {selectedSodaId && (
+                  <div className="mt-4 pt-4 border-t border-[var(--border-subtle-alt)]">
+                    <div className="max-w-xs">
+                      <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Bags Received <span className="text-red-500">*</span></label>
+                      <input type="number" value={bagsReceived} onChange={e => setBagsReceived(e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500" placeholder="Enter bags received..." />
+                    </div>
+                    
+                    {(() => {
+                      const selectedSoda = pendingSodas.find(s => s.id === selectedSodaId);
+                      if (!selectedSoda || !bagsReceived) return null;
+                      
+                      const predeterminedBags = parseFloat(selectedSoda.bags || '0');
+                      const received = parseFloat(bagsReceived);
+                      
+                      if (isNaN(predeterminedBags) || isNaN(received)) return null;
+                      
+                      const diff = received - predeterminedBags;
+                      const percentageDiff = (Math.abs(diff) / predeterminedBags) * 100;
+                      
+                      if (percentageDiff > 2) {
+                        return (
+                          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 bg-red-500/5 p-4 rounded-lg border border-red-500/20">
+                            <div className="col-span-1 sm:col-span-3 flex items-center gap-2 text-red-500 font-medium text-xs">
+                              <Shield size={14} /> Difference &gt; 2% ({percentageDiff.toFixed(1)}%). Quality cut required.
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Cut Type</label>
+                              <select value={qualityCutType} onChange={e => setQualityCutType(e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-red-500">
+                                <option value="BAGS">By Bags</option>
+                                <option value="PERCENTAGE">By Percentage</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Cut Value {qualityCutType === 'PERCENTAGE' ? '(%)' : '(Bags)'}</label>
+                              <input type="number" value={qualityCutValue} onChange={e => setQualityCutValue(e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-red-500" placeholder="e.g. 1.5" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Reason</label>
+                              <input type="text" value={qualityCutReason} onChange={e => setQualityCutReason(e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-red-500" placeholder="Reason..." />
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
  </div>
 
  <div>

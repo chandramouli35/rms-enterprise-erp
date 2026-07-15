@@ -35,8 +35,8 @@ export declare class AuthController {
                     code: string;
                 };
             } & {
-                plantId: string;
                 userId: string;
+                plantId: string;
             })[];
         };
     }>;
@@ -67,8 +67,8 @@ export declare class AuthController {
             description: string | null;
         };
     } & {
-        username: string;
         id: string;
+        username: string;
         email: string;
         passwordHash: string;
         refreshToken: string | null;

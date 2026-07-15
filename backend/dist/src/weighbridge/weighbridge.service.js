@@ -39,6 +39,16 @@ let WeighbridgeService = class WeighbridgeService {
             });
             if (gp) {
                 resolvedGatePassId = gp.id;
+                await this.prisma.gatePass.update({
+                    where: { id: resolvedGatePassId },
+                    data: {
+                        sodaPendingId: data.sodaPendingId,
+                        qualityCutType: data.qualityCutType,
+                        qualityCutValue: data.qualityCutValue,
+                        qualityCutReason: data.qualityCutReason,
+                        noOfBags: data.bagsReceived
+                    }
+                });
             }
         }
         const transaction = await this.prisma.weighbridgeTransaction.create({

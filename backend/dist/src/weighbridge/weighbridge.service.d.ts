@@ -9,15 +9,15 @@ export declare class WeighbridgeService {
         timestamp: Date;
     }>;
     saveTransaction(data: any): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
+        remarks: string | null;
+        plantId: string;
         netWeight: number | null;
         grossWeight: number | null;
         tareWeight: number | null;
-        remarks: string | null;
-        status: string;
         vehicleNo: string;
         driverName: string | null;
         challanNo: string | null;
@@ -29,15 +29,15 @@ export declare class WeighbridgeService {
         tareTime: Date | null;
     }>;
     getHistory(plantId: string): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
+        remarks: string | null;
+        plantId: string;
         netWeight: number | null;
         grossWeight: number | null;
         tareWeight: number | null;
-        remarks: string | null;
-        status: string;
         vehicleNo: string;
         driverName: string | null;
         challanNo: string | null;
@@ -49,10 +49,10 @@ export declare class WeighbridgeService {
         tareTime: Date | null;
     }[]>;
     getSettings(plantId: string): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        plantId: string;
         indicatorModel: string;
         connectionType: string;
         port: string;
@@ -66,10 +66,10 @@ export declare class WeighbridgeService {
         autoTare: boolean;
     }>;
     updateSettings(plantId: string, data: any): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        plantId: string;
         indicatorModel: string;
         connectionType: string;
         port: string;

@@ -75,12 +75,29 @@ let ProductionService = class ProductionService {
             totalByProducts: byProductAgg._sum.quantity || 0,
         };
     }
-    async getBatches(plantId, status, dateFrom, dateTo) {
+    async getBatches(plantId, status, dateFrom, dateTo, role) {
         const where = { plantId };
         if (status && status !== 'All')
             where.status = status;
+        let fromDate;
+        let toDate;
         if (dateFrom && dateTo) {
-            where.date = { gte: new Date(dateFrom), lte: new Date(dateTo) };
+            fromDate = new Date(dateFrom);
+            toDate = new Date(dateTo);
+        }
+        if (role === 'Supervisor') {
+            const oneDayAgo = new Date();
+            oneDayAgo.setDate(oneDayAgo.getDate() - 2);
+            if (!fromDate || fromDate < oneDayAgo) {
+                fromDate = oneDayAgo;
+            }
+        }
+        if (fromDate || toDate) {
+            where.date = {};
+            if (fromDate)
+                where.date.gte = fromDate;
+            if (toDate)
+                where.date.lte = toDate;
         }
         return this.prisma.productionBatch.findMany({
             where,

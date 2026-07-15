@@ -71,12 +71,34 @@ export class ProductionService {
     };
   }
 
-  async getBatches(plantId: string, status?: string, dateFrom?: string, dateTo?: string) {
+  async getBatches(plantId: string, status?: string, dateFrom?: string, dateTo?: string, role?: string) {
     const where: any = { plantId };
     if (status && status !== 'All') where.status = status;
+    
+    let fromDate;
+    let toDate;
+
     if (dateFrom && dateTo) {
-      where.date = { gte: new Date(dateFrom), lte: new Date(dateTo) };
+      fromDate = new Date(dateFrom);
+      toDate = new Date(dateTo);
     }
+
+    // Restriction for Supervisor: Only "One Day Previous Data"
+    if (role === 'Supervisor') {
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 2); // Show up to yesterday
+      
+      if (!fromDate || fromDate < oneDayAgo) {
+        fromDate = oneDayAgo;
+      }
+    }
+
+    if (fromDate || toDate) {
+      where.date = {};
+      if (fromDate) where.date.gte = fromDate;
+      if (toDate) where.date.lte = toDate;
+    }
+
     return this.prisma.productionBatch.findMany({
       where,
       orderBy: { date: 'desc' }

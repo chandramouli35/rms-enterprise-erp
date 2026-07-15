@@ -18,17 +18,17 @@ export declare class InventoryService {
         unit?: string;
         stockValueChange?: number;
     }): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        variety: string | null;
+        plantId: string;
         itemType: string;
         quantity: number;
         usable: number;
         reserved: number;
         damaged: number;
         stockValue: number;
-        variety: string | null;
         category: string | null;
         godown: string | null;
         unit: string;
@@ -74,31 +74,31 @@ export declare class InventoryService {
         godownStockData: unknown[];
     }>;
     getInventoryList(plantId: string, filterDto: GetInventoryFilterDto): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        variety: string | null;
+        plantId: string;
         itemType: string;
         quantity: number;
         usable: number;
         reserved: number;
         damaged: number;
         stockValue: number;
-        variety: string | null;
         category: string | null;
         godown: string | null;
         unit: string;
     }[]>;
     getStockReport(plantId: string, filterDto: GetStockReportDto): Promise<any[]>;
     getLedger(plantId: string, filterDto: any): Promise<{
-        plantId: string;
         id: string;
         createdAt: Date;
+        shift: string | null;
+        remarks: string | null;
+        plantId: string;
         transaction: string;
         itemType: string;
         quantity: number;
-        shift: string | null;
         reference: string | null;
-        remarks: string | null;
     }[]>;
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, Param, Req } from '@nestjs/common';
 import { ProductionService } from './production.service';
 import { CreateBatchDto } from './dto/create-batch.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -20,12 +20,13 @@ export class ProductionController {
   @Get('batches')
   @RequirePermission('Production', 'canView')
   getBatches(
+    @Req() req: any,
     @Query('plantId') plantId: string,
     @Query('status') status?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string
   ) {
-    return this.productionService.getBatches(plantId, status, dateFrom, dateTo);
+    return this.productionService.getBatches(plantId, status, dateFrom, dateTo, req.user?.role);
   }
 
   @Get('batches/:id')

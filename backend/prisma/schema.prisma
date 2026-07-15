@@ -304,7 +304,8 @@ model PaddySodaPending {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  bolis PaddyBoli[]
+  bolis      PaddyBoli[]
+  gatePasses GatePass[]
 
   @@index([plantId])
   @@index([supplierId])
@@ -376,6 +377,13 @@ model GatePass {
   netWeight   Float?
   status      String    @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
   qrCode      String?   @unique
+  
+  // Supervisor Features: Quality Cut & Soda Linking
+  qualityCutType   String? // 'BAGS' or 'PERCENTAGE'
+  qualityCutValue  Float?
+  qualityCutReason String?
+  sodaPendingId    String?
+  sodaPending      PaddySodaPending? @relation(fields: [sodaPendingId], references: [id])
   
   emptyVideoTime String?
   loadedVideoTime String?

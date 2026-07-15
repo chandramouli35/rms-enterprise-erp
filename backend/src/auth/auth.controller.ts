@@ -25,7 +25,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('me')
   async getMe(@Req() req: Request) {
-    const userId = (req.user as any)?.sub;
+    const userId = (req.user as any)?.id || (req.user as any)?.sub;
     const user = await this.authService['prisma'].user.findUnique({
       where: { id: userId },
       include: {

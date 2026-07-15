@@ -97,20 +97,30 @@ export const YieldManagement = () => {
     if (activeTab === 'historical_reports') {
       fetchHistorical();
     }
-  }, [activePlant, activeTab, filters]);
+  }, [activePlant?.id, activeTab, filters.dateFrom, filters.dateTo, filters.status]);
 
- const handleCalculateYield = async () => {
-   try {
-     const payload = {
-       batchNo: calcBatchInfo.batchNo,
-       riceProduced: Number(calcData.headRice),
-       overallRecovery: calcRecovery,
-       headRicePercent: Number(calcData.headRice) / Number(calcData.paddy) * 100,
-       brokenRicePercent: Number(calcData.brokenRice) / Number(calcData.paddy) * 100,
-       branPercent: Number(calcData.bran) / Number(calcData.paddy) * 100,
-       huskPercent: Number(calcData.husk) / Number(calcData.paddy) * 100,
-       lossPercent: Number(calcData.loss) / Number(calcData.paddy) * 100
-     };
+  const handleCalculateYield = async () => {
+    if (!calcBatchInfo.batchNo) {
+      setNotification({ message: 'Please select a batch first', type: 'error' });
+      return;
+    }
+    
+    if (!calcData.paddy || !calcData.headRice) {
+      setNotification({ message: 'Please enter at least Paddy Used and Head Rice quantities', type: 'error' });
+      return;
+    }
+
+    try {
+      const payload = {
+        batchNo: calcBatchInfo.batchNo,
+        riceProduced: Number(calcData.headRice) + Number(calcData.brokenRice || 0),
+        overallRecovery: calcRecovery,
+        headRicePercent: Number(calcData.headRice) / Number(calcData.paddy) * 100,
+        brokenRicePercent: Number(calcData.brokenRice) / Number(calcData.paddy) * 100,
+        branPercent: Number(calcData.bran) / Number(calcData.paddy) * 100,
+        huskPercent: Number(calcData.husk) / Number(calcData.paddy) * 100,
+        lossPercent: Number(calcData.loss) / Number(calcData.paddy) * 100
+      };
      await api.post(`/yield/calculator/save?plantId=${activePlant?.id || ''}`, payload);
      setNotification({ message: 'Yield calculation saved successfully!', type: 'success' });
      setCalcData({ paddy: '', headRice: '', brokenRice: '', bran: '', husk: '', loss: '' });
@@ -553,12 +563,12 @@ export const YieldManagement = () => {
         'Batch No.': r.batch?.batchNo || '-',
         'Plant': activePlant?.name || 'Unknown',
         'Variety': r.batch?.variety || '-',
-        'Paddy Used (MT)': r.paddyUsed || 0,
-        'Rice Produced (MT)': r.headRice || 0,
-        'Head Rice (%)': r.headRicePercentage || 0,
-        'Broken Rice (%)': r.brokenRicePercentage || 0,
-        'By-Products (MT)': ((r.bran || 0) + (r.husk || 0)).toFixed(2),
-        'Loss (MT)': r.processLoss || 0,
+        'Paddy Used (MT)': r.batch?.paddyUsedQty || 0,
+        'Rice Produced (MT)': r.batch?.riceProducedQty || 0,
+        'Head Rice (%)': r.headRicePercent || 0,
+        'Broken Rice (%)': r.brokenRicePercent || 0,
+        'By-Products (MT)': (r.batch?.paddyUsedQty ? (((r.branPercent || 0) + (r.huskPercent || 0)) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3),
+        'Loss (MT)': (r.batch?.paddyUsedQty ? ((r.lossPercent || 0) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3),
         'Overall Recovery (%)': r.overallRecovery || 0
       }));
       exportToExcel(exportData, 'historical_yield.xlsx');
@@ -572,12 +582,12 @@ export const YieldManagement = () => {
         'Batch No.': r.batch?.batchNo || '-',
         'Plant': activePlant?.name || 'Unknown',
         'Variety': r.batch?.variety || '-',
-        'Paddy Used (MT)': r.paddyUsed || 0,
-        'Rice Produced (MT)': r.headRice || 0,
-        'Head Rice (%)': r.headRicePercentage || 0,
-        'Broken Rice (%)': r.brokenRicePercentage || 0,
-        'By-Products (MT)': ((r.bran || 0) + (r.husk || 0)).toFixed(2),
-        'Loss (MT)': r.processLoss || 0,
+        'Paddy Used (MT)': r.batch?.paddyUsedQty || 0,
+        'Rice Produced (MT)': r.batch?.riceProducedQty || 0,
+        'Head Rice (%)': r.headRicePercent || 0,
+        'Broken Rice (%)': r.brokenRicePercent || 0,
+        'By-Products (MT)': (r.batch?.paddyUsedQty ? (((r.branPercent || 0) + (r.huskPercent || 0)) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3),
+        'Loss (MT)': (r.batch?.paddyUsedQty ? ((r.lossPercent || 0) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3),
         'Overall Recovery (%)': r.overallRecovery || 0
       }));
       exportToPDF('Historical Yield Reports', Object.keys(exportData[0]), exportData.map(d => Object.values(d)), 'historical_yield.pdf');
@@ -617,8 +627,8 @@ export const YieldManagement = () => {
    <td className="p-3 text-right font-medium text-blue-400">{r.batch?.riceProducedQty?.toFixed(3) || '0.000'}</td>
    <td className="p-3 text-right font-medium text-green-400">{r.headRicePercent?.toFixed(2)}%</td>
    <td className="p-3 text-right font-medium text-amber-500">{r.brokenRicePercent?.toFixed(2)}%</td>
-   <td className="p-3 text-right text-[var(--text-muted-alt)]">-</td>
-   <td className="p-3 text-right text-red-400">{r.lossPercent?.toFixed(2)}%</td>
+   <td className="p-3 text-right text-[var(--text-muted)]">{(r.batch?.paddyUsedQty ? (((r.branPercent || 0) + (r.huskPercent || 0)) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3)}</td>
+   <td className="p-3 text-right text-red-400">{(r.batch?.paddyUsedQty ? ((r.lossPercent || 0) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3)}</td>
    <td className="p-3 text-right font-bold text-[var(--text-main)]">{r.overallRecovery?.toFixed(2)}%</td>
    </tr>
    ))}

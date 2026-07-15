@@ -139,6 +139,7 @@ export const ProcurementManagement = () => {
     note: '',
     finalHisabAmt: ''
   });
+  const [viewBolisModal, setViewBolisModal] = useState<any>({ isOpen: false, bolis: [], partyMandi: '', date: '' });
   
   const handlePaddyPurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -487,6 +488,53 @@ export const ProcurementManagement = () => {
             )}
           </tbody>
         </table>
+      </div>
+    </div>
+  )}
+
+  {/* View Bolis Modal */}
+  {viewBolisModal.isOpen && (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-[var(--bg-panel)] rounded-xl w-full max-w-lg shadow-2xl border border-[var(--border-subtle)] overflow-hidden">
+        <div className="flex justify-between items-center p-5 border-b border-[var(--border-subtle)] bg-[var(--bg-base)]">
+          <div>
+            <h3 className="text-lg font-bold text-[var(--text-main)]">Bolis Breakdown</h3>
+            <p className="text-xs text-[var(--text-muted-alt)] mt-1">{viewBolisModal.partyMandi} - {new Date(viewBolisModal.date).toLocaleDateString()}</p>
+          </div>
+          <button onClick={() => setViewBolisModal({isOpen: false, bolis: []})} className="text-[var(--text-muted)] hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-5">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-[var(--border-subtle)]">
+                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase">#</th>
+                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase">Moisture (%)</th>
+                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-right">Bags</th>
+                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-right">Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {viewBolisModal.bolis.map((b: any, idx: number) => (
+                <tr key={idx} className="border-b border-[var(--border-subtle-alt)] last:border-0 hover:bg-[var(--glass-bg)]">
+                  <td className="py-3 text-sm text-[var(--text-muted)]">{idx + 1}</td>
+                  <td className="py-3 text-sm text-[var(--text-main)]">{b.moisture}%</td>
+                  <td className="py-3 text-sm text-right text-[var(--text-main)] font-bold">{b.bags}</td>
+                  <td className="py-3 text-sm text-right text-[#e67e00] font-bold">{b.rate}</td>
+                </tr>
+              ))}
+              <tr className="bg-[var(--bg-base)]">
+                <td colSpan={2} className="py-3 text-sm font-bold text-right text-[var(--text-muted)]">Total:</td>
+                <td className="py-3 text-sm text-right text-[var(--text-main)] font-bold">{viewBolisModal.bolis.reduce((acc: number, b: any) => acc + (parseFloat(b.bags) || 0), 0)}</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+          <div className="mt-6 flex justify-end">
+            <button onClick={() => setViewBolisModal({isOpen: false, bolis: []})} className="px-4 py-2 bg-[var(--bg-base)] hover:bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded text-[var(--text-main)] text-sm">Close</button>
+          </div>
+        </div>
       </div>
     </div>
   )}
@@ -1093,14 +1141,14 @@ export const ProcurementManagement = () => {
  <td className="p-3 font-medium text-[var(--text-main)]">{p.partyMandi}</td>
  <td className="p-3">{new Date(p.date).toLocaleDateString()}</td>
  <td className="p-3 text-right">
-   {p.bolis?.length ? p.bolis.map((b: any, idx: number) => <div key={idx} className="text-xs pb-1">{b.moisture}</div>) : p.mc}
+   {p.bolis?.length ? <button onClick={() => setViewBolisModal({isOpen: true, bolis: p.bolis, partyMandi: p.partyMandi, date: p.date})} className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded hover:bg-blue-500/30">View {p.bolis.length} Bolis</button> : p.mc}
  </td>
  <td className="p-3 text-right font-bold text-[var(--text-muted)]">
-   {p.bolis?.length ? p.bolis.map((b: any, idx: number) => <div key={idx} className="text-xs pb-1">{b.bags}</div>) : p.bags}
+   {p.bolis?.length ? '-' : p.bags}
  </td>
  <td className="p-3 text-right text-[var(--text-muted)]">{p.govtRate || '-'}</td>
  <td className="p-3 text-right font-bold text-[var(--text-muted)]">
-   {p.bolis?.length ? p.bolis.map((b: any, idx: number) => <div key={idx} className="text-xs pb-1">{b.rate}</div>) : p.rate}
+   {p.bolis?.length ? '-' : p.rate}
  </td>
  <td className="p-3 text-right text-red-400 font-medium">{p.diff}</td>
  <td className="p-3 text-right">{p.payment}</td>

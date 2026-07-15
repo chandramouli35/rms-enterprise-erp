@@ -10,8 +10,10 @@ export declare class YieldService {
         success: boolean;
         data: {
             id: string;
-            productionBatchId: string;
+            createdAt: Date;
+            updatedAt: Date;
             plantId: string;
+            productionBatchId: string;
             headRicePercent: number;
             brokenRicePercent: number;
             branPercent: number;
@@ -20,8 +22,6 @@ export declare class YieldService {
             overallRecovery: number;
             yieldTarget: number | null;
             targetAchieved: boolean;
-            createdAt: Date;
-            updatedAt: Date;
         };
         message?: undefined;
     }>;
@@ -67,7 +67,6 @@ export declare class YieldService {
     getHistorical(plantId: string, dateFrom?: string, dateTo?: string, variety?: string): Promise<({
         batch: {
             id: string;
-            plantId: string;
             createdAt: Date;
             updatedAt: Date;
             batchNo: string;
@@ -84,11 +83,14 @@ export declare class YieldService {
             remarks: string | null;
             startTime: Date | null;
             endTime: Date | null;
+            plantId: string;
         };
     } & {
         id: string;
-        productionBatchId: string;
+        createdAt: Date;
+        updatedAt: Date;
         plantId: string;
+        productionBatchId: string;
         headRicePercent: number;
         brokenRicePercent: number;
         branPercent: number;
@@ -97,7 +99,5 @@ export declare class YieldService {
         overallRecovery: number;
         yieldTarget: number | null;
         targetAchieved: boolean;
-        createdAt: Date;
-        updatedAt: Date;
     })[]>;
 }

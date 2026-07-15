@@ -15,9 +15,9 @@ export declare class AuthService {
             role: string;
             permissions: {
                 id: string;
-                roleId: string;
                 createdAt: Date;
                 updatedAt: Date;
+                roleId: string;
                 moduleName: string;
                 canView: boolean;
                 canAdd: boolean;
@@ -28,12 +28,12 @@ export declare class AuthService {
             plantAccess: ({
                 plant: {
                     id: string;
-                    createdAt: Date;
-                    updatedAt: Date;
-                    deletedAt: Date | null;
                     name: string;
                     location: string | null;
                     code: string;
+                    createdAt: Date;
+                    updatedAt: Date;
+                    deletedAt: Date | null;
                 };
             } & {
                 plantId: string;
