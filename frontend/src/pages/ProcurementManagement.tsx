@@ -459,11 +459,13 @@ export const ProcurementManagement = () => {
           <tbody>
             {sodaPending.map((p, i) => (
               <tr key={p.id} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)]">
-                <td className="p-3 font-medium text-[var(--text-main)]">{p.partyMandi}</td>
-                <td className="p-3">{new Date(p.date).toLocaleDateString()}</td>
-                <td className="p-3">{p.mc || '-'}</td>
-                <td className="p-3">{p.bags || '-'}</td>
-                <td className="p-3 font-bold text-[#e67e00]">{p.rate || '-'}</td>
+                  <td className="p-3 font-medium text-[var(--text-main)]">{p.partyMandi}</td>
+                  <td className="p-3">{new Date(p.date).toLocaleDateString()}</td>
+                  <td className="p-3">
+                    {p.bolis?.length ? <button onClick={() => setViewBolisModal({isOpen: true, bolis: p.bolis, partyMandi: p.partyMandi, date: p.date})} className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded hover:bg-blue-500/30">View {p.bolis.length} Bolis</button> : p.mc || '-'}
+                  </td>
+                  <td className="p-3 font-bold text-[var(--text-muted)]">{p.bolis?.length ? '-' : p.bags || '-'}</td>
+                  <td className="p-3 font-bold text-[#e67e00]">{p.bolis?.length ? '-' : p.rate || '-'}</td>
                 <td className="p-3 text-red-400">{p.diff || '0'}</td>
                 <td className="p-3 text-green-400">{p.payment || '0'}</td>
                 <td className="p-3">{p.note || '-'}</td>
@@ -990,8 +992,8 @@ export const ProcurementManagement = () => {
  {/* 11. Authentication (Biometric) */}
  <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">11. Authentication (Biometric)</div>
- <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 items-center text-sm">
- <div className="flex items-center gap-3">
+ <div className="p-4 flex flex-wrap gap-6 items-center justify-between text-sm">
+ <div className="flex items-center gap-3 flex-wrap">
  {inwardFormData.biometricData ? (
    <div className="text-green-400 font-bold bg-green-900/10 border border-green-900/20 px-3 py-1.5 rounded flex items-center gap-2">
      <ShieldCheck size={16} /> Authenticated
@@ -1001,7 +1003,7 @@ export const ProcurementManagement = () => {
      <ShieldCheck size={16} /> Pending
    </div>
  )}
- <div className={`w-8 h-8 shrink-0 rounded ${inwardFormData.biometricData ? 'bg-green-900/20 border-green-500/50' : 'bg-[var(--glass-bg)] border-[var(--border-subtle)]'} flex items-center justify-center border`}>
+ <div className={`w-8 h-8 rounded ${inwardFormData.biometricData ? 'bg-green-900/20 border-green-500/50' : 'bg-[var(--glass-bg)] border-[var(--border-subtle)]'} flex items-center justify-center border`}>
  <svg className={`w-4 h-4 ${inwardFormData.biometricData ? 'text-green-500' : 'text-[#e67e00]'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
  <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1" strokeDasharray="2,2"/>
@@ -1030,13 +1032,15 @@ export const ProcurementManagement = () => {
    </button>
  )}
  </div>
- <div className="sm:text-center">
+ <div className="flex flex-wrap gap-8 w-full sm:w-auto justify-between sm:justify-end">
+ <div className="text-left sm:text-right min-w-[120px]">
  <div className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wider mb-0.5">Authenticated By</div>
  <div className="text-[var(--text-main)] font-medium">{inwardFormData.biometricData ? 'System (Verified)' : '-'}</div>
  </div>
- <div className="sm:text-right">
+ <div className="text-right min-w-[120px]">
  <div className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wider mb-0.5">Date & Time</div>
  <div className="text-[var(--text-main)] font-medium">{inwardFormData.biometricData ? new Date().toLocaleString() : '-'}</div>
+ </div>
  </div>
  </div>
  </div>

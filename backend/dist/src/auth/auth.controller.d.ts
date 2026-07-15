@@ -14,9 +14,9 @@ export declare class AuthController {
             role: string;
             permissions: {
                 id: string;
-                roleId: string;
                 createdAt: Date;
                 updatedAt: Date;
+                roleId: string;
                 moduleName: string;
                 canView: boolean;
                 canAdd: boolean;
@@ -27,16 +27,16 @@ export declare class AuthController {
             plantAccess: ({
                 plant: {
                     id: string;
-                    createdAt: Date;
-                    updatedAt: Date;
-                    deletedAt: Date | null;
                     name: string;
                     location: string | null;
                     code: string;
+                    createdAt: Date;
+                    updatedAt: Date;
+                    deletedAt: Date | null;
                 };
             } & {
-                userId: string;
                 plantId: string;
+                userId: string;
             })[];
         };
     }>;
@@ -48,9 +48,9 @@ export declare class AuthController {
         role: {
             modulePermissions: {
                 id: string;
-                roleId: string;
                 createdAt: Date;
                 updatedAt: Date;
+                roleId: string;
                 moduleName: string;
                 canView: boolean;
                 canAdd: boolean;
@@ -60,14 +60,17 @@ export declare class AuthController {
             }[];
         } & {
             id: string;
+            name: string;
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
-            name: string;
             description: string | null;
         };
     } & {
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         username: string;
         email: string;
         passwordHash: string;
@@ -75,15 +78,12 @@ export declare class AuthController {
         isActive: boolean;
         roleId: string;
         lastLogin: Date | null;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
     }) | null>;
     testPermissions(): Promise<{
         id: string;
-        roleId: string;
         createdAt: Date;
         updatedAt: Date;
+        roleId: string;
         moduleName: string;
         canView: boolean;
         canAdd: boolean;
