@@ -50,6 +50,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
       qrText += `Time: ${new Date(pass.latestWeighbridge.createdAt).toLocaleString()}\n\n`;
     }
 
+    /* 
     if (basePass.procurementBatch?.quality) {
       qrText += `=== STEP 3: QUALITY CONTROL ===\n`;
       qrText += `Moisture: ${basePass.procurementBatch.quality.moisture || 0}%\n`;
@@ -57,9 +58,10 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
       qrText += `Discoloration: ${basePass.procurementBatch.quality.discoloration || 0}%\n`;
       qrText += `Foreign: ${basePass.procurementBatch.quality.foreignMatter || 0}%\n\n`;
     }
+    */
 
     if (pass.latestWeighbridge && pass.latestWeighbridge.tareWeight) {
-      qrText += `=== STEP 4: WEIGHBRIDGE (TARE) ===\n`;
+      qrText += `=== STEP 3: WEIGHBRIDGE (TARE) ===\n`;
       qrText += `Tare: ${pass.latestWeighbridge.tareWeight} MT\n`;
       qrText += `Net: ${pass.latestWeighbridge.netWeight} MT\n`;
       qrText += `Time: ${new Date(pass.latestWeighbridge.updatedAt || pass.latestWeighbridge.createdAt).toLocaleString()}\n\n`;
@@ -67,7 +69,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
   }
 
   if (pass.passType === 'OUTWARD' || (pass.qrCode && pass.qrCode.startsWith('GOUT'))) {
-    qrText += `=== STEP 5: GATE OUT ===\n`;
+    qrText += `=== STEP 4: GATE OUT ===\n`;
     qrText += `Pass: ${pass.qrCode}\n`;
     qrText += `Date: ${new Date(pass.createdAt).toLocaleString()}\n`;
     qrText += `Purpose: ${pass.purpose || 'N/A'}\n`;

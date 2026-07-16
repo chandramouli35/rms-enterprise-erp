@@ -39,7 +39,7 @@ export const WeighbridgeManagement = () => {
  const [weightData, setWeightData] = useState<any>(null);
  const [isStreaming, setIsStreaming] = useState(false);
  const [lastReading, setLastReading] = useState<string>('-');
- const [tareWeight, setTareWeight] = useState(3160); // Mock tare for calculation
+ const [tareWeight, setTareWeight] = useState(0); 
  const [connectionStatus, setConnectionStatus] = useState('Connected');
 
  const [modalConfig, setModalConfig] = useState<{isOpen: boolean; title: string; content: React.ReactNode}>({ isOpen: false, title: '', content: null });
@@ -450,23 +450,22 @@ export const WeighbridgeManagement = () => {
  </div>
 
  <div>
- <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Vehicle No. <span className="text-red-500">*</span></label>
- <div className="relative">
- <input type="text" value={vehicleNo} onChange={e => setVehicleNo(e.target.value)} placeholder="e.g. PB10AB1234" className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg pl-3 pr-10 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 uppercase" />
- <button onClick={fetchLiveWeight} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted-alt)] hover:text-amber-500 hover:bg-amber-500/10 rounded transition-colors">
- <Search size={16} />
- </button>
- </div>
- </div>
-
- <div>
- <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Gate Pass ID / QR</label>
- <div className="relative">
- <input type="text" value={gatePassId} onChange={e => setGatePassId(e.target.value)} onKeyDown={e => e.key === 'Enter' && fetchGatePassDetails()} placeholder="e.g. GIN-2026-00004" className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg pl-3 pr-10 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 uppercase" />
- <button onClick={fetchGatePassDetails} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted-alt)] hover:text-amber-500 hover:bg-amber-500/10 rounded transition-colors">
- <Search size={16} />
- </button>
- </div>
+   <div>
+   <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Gate Pass ID / QR</label>
+   <div className="relative">
+   <input type="text" value={gatePassId} onChange={e => setGatePassId(e.target.value)} onKeyDown={e => e.key === 'Enter' && fetchGatePassDetails()} placeholder="e.g. GIN-2026-00004" className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg pl-3 pr-10 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 uppercase" />
+   <button onClick={fetchGatePassDetails} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted-alt)] hover:text-amber-500 hover:bg-amber-500/10 rounded transition-colors">
+   <Search size={16} />
+   </button>
+   </div>
+   </div>
+  
+   <div>
+   <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Vehicle No. <span className="text-red-500">*</span></label>
+   <div className="relative">
+   <input type="text" value={vehicleNo} onChange={e => setVehicleNo(e.target.value)} placeholder="e.g. PB10AB1234" className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 uppercase" />
+   </div>
+   </div>
  </div>
 
  {!activePlant && (
