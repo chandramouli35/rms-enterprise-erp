@@ -62,7 +62,7 @@ export class AuthService {
       sub: user.id, 
       username: user.username, 
       role: user.role.name,
-      permissions: user.role.modulePermissions
+      // removed permissions from JWT payload to prevent 431 errors
     };
     
     const expiry = rememberMe ? '7d' : '1d';
@@ -118,7 +118,7 @@ export class AuthService {
       sub: user.id, 
       username: user.username, 
       role: user.role.name,
-      permissions: user.role.modulePermissions
+      // removed permissions from JWT payload to prevent 431 errors
     };
     
     const newAccessToken = this.jwtService.sign(payload, { expiresIn: '15m' });

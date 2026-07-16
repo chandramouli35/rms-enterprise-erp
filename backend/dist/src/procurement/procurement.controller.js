@@ -31,8 +31,14 @@ let ProcurementController = class ProcurementController {
             throw new common_1.HttpException(`Failed to save: ${error.message || error}`, common_1.HttpStatus.BAD_REQUEST);
         }
     }
-    getRecentPurchases(plantId) {
-        return this.procurementService.getRecentPurchases(plantId);
+    async getInwardDetails(id) {
+        return this.procurementService.getInwardDetails(id);
+    }
+    getInwards(plantId, dateFrom, dateTo) {
+        return this.procurementService.getInwards(plantId, dateFrom, dateTo);
+    }
+    getRecentPurchases(plantId, dateFrom, dateTo) {
+        return this.procurementService.getRecentPurchases(plantId, dateFrom, dateTo);
     }
     getOccupiedStacks(plantId) {
         return this.procurementService.getOccupiedStacks(plantId);
@@ -63,8 +69,8 @@ let ProcurementController = class ProcurementController {
             throw new common_1.HttpException(error.message, common_1.HttpStatus.BAD_REQUEST);
         }
     }
-    getSodaPending(plantId) {
-        return this.procurementService.getSodaPending(plantId);
+    getSodaPending(plantId, dateFrom, dateTo) {
+        return this.procurementService.getSodaPending(plantId, dateFrom, dateTo);
     }
     async createSodaPending(data) {
         try {
@@ -101,11 +107,31 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ProcurementController.prototype, "savePurchase", null);
 __decorate([
+    (0, common_1.Get)('inward-details/:id'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], ProcurementController.prototype, "getInwardDetails", null);
+__decorate([
+    (0, common_1.Get)('inwards/:plantId'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __param(1, (0, common_1.Query)('dateFrom')),
+    __param(2, (0, common_1.Query)('dateTo')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", void 0)
+], ProcurementController.prototype, "getInwards", null);
+__decorate([
     (0, common_1.Get)('recent/:plantId'),
     (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
+    __param(1, (0, common_1.Query)('dateFrom')),
+    __param(2, (0, common_1.Query)('dateTo')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", void 0)
 ], ProcurementController.prototype, "getRecentPurchases", null);
 __decorate([
@@ -178,8 +204,10 @@ __decorate([
     (0, common_1.Get)('soda-pending/:plantId'),
     (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
     __param(0, (0, common_1.Param)('plantId')),
+    __param(1, (0, common_1.Query)('dateFrom')),
+    __param(2, (0, common_1.Query)('dateTo')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", void 0)
 ], ProcurementController.prototype, "getSodaPending", null);
 __decorate([

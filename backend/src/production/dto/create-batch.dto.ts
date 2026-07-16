@@ -32,4 +32,7 @@ export class CreateBatchDto {
   @IsOptional()
   @IsString()
   remarks?: string;
+
+  @IsOptional()
+  additionalOutputs?: Record<string, { produced: number; reused: number }>;
 }

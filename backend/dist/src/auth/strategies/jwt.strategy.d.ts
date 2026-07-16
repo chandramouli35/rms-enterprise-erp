@@ -14,6 +14,7 @@ export declare class JwtStrategy extends JwtStrategy_base {
                 updatedAt: Date;
                 roleId: string;
                 moduleName: string;
+                subModuleName: string;
                 canView: boolean;
                 canAdd: boolean;
                 canEdit: boolean;

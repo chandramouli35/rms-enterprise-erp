@@ -85,7 +85,6 @@ let AuthService = class AuthService {
             sub: user.id,
             username: user.username,
             role: user.role.name,
-            permissions: user.role.modulePermissions
         };
         const expiry = rememberMe ? '7d' : '1d';
         const accessToken = this.jwtService.sign(payload, { expiresIn: expiry });
@@ -133,7 +132,6 @@ let AuthService = class AuthService {
             sub: user.id,
             username: user.username,
             role: user.role.name,
-            permissions: user.role.modulePermissions
         };
         const newAccessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
         const newRefreshToken = this.jwtService.sign(payload, { expiresIn: '7d' });

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, HttpException, HttpStatus, Put, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, HttpException, HttpStatus, Put, UseGuards, Query } from '@nestjs/common';
 import { ProcurementService } from './procurement.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -20,10 +20,31 @@ export class ProcurementController {
     }
   }
 
+  
+  @Get('inward-details/:id')
+  @RequirePermission('Procurement', 'canView')
+  async getInwardDetails(@Param('id') id: string) {
+    return this.procurementService.getInwardDetails(id);
+  }
+
+  @Get('inwards/:plantId')
+  @RequirePermission('Procurement', 'canView')
+  getInwards(
+    @Param('plantId') plantId: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string
+  ) {
+    return this.procurementService.getInwards(plantId, dateFrom, dateTo);
+  }
+
   @Get('recent/:plantId')
   @RequirePermission('Procurement', 'canView')
-  getRecentPurchases(@Param('plantId') plantId: string) {
-    return this.procurementService.getRecentPurchases(plantId);
+  getRecentPurchases(
+    @Param('plantId') plantId: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string
+  ) {
+    return this.procurementService.getRecentPurchases(plantId, dateFrom, dateTo);
   }
 
   @Get('occupied-stacks/:plantId')
@@ -80,8 +101,12 @@ export class ProcurementController {
 
   @Get('soda-pending/:plantId')
   @RequirePermission('Procurement', 'canView')
-  getSodaPending(@Param('plantId') plantId: string) {
-    return this.procurementService.getSodaPending(plantId);
+  getSodaPending(
+    @Param('plantId') plantId: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string
+  ) {
+    return this.procurementService.getSodaPending(plantId, dateFrom, dateTo);
   }
 
   @Post('soda-pending')

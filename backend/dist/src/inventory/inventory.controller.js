@@ -23,6 +23,10 @@ let InventoryController = class InventoryController {
     constructor(inventoryService) {
         this.inventoryService = inventoryService;
     }
+    getByProductStock(req) {
+        const plantId = req.user.plantId;
+        return this.inventoryService.getByProductStock(plantId);
+    }
     getDashboardSummary(req, itemType) {
         const plantId = req.user.plantId;
         return this.inventoryService.getDashboardSummary(plantId, itemType);
@@ -45,6 +49,14 @@ let InventoryController = class InventoryController {
     }
 };
 exports.InventoryController = InventoryController;
+__decorate([
+    (0, common_1.Get)('byproducts'),
+    (0, require_permission_decorator_1.RequirePermission)('Inventory', 'canView'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], InventoryController.prototype, "getByProductStock", null);
 __decorate([
     (0, common_1.Get)('dashboard'),
     (0, require_permission_decorator_1.RequirePermission)('Inventory', 'canView'),

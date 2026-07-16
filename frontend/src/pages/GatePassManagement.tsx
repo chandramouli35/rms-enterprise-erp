@@ -239,21 +239,20 @@ export const GatePassManagement = () => {
  };
 
  useEffect(() => {
- if (activePlant?.id) {
- setFormData(prev => ({ ...prev, plantId: activePlant.id }));
- fetchData();
- }
- }, [activePlant, activeTab]);
+    const pid = activePlant?.id || 'global';
+    setFormData(prev => ({ ...prev, plantId: pid }));
+    fetchData();
+  }, [activePlant, activeTab]);
 
- const fetchData = async () => {
- if (!activePlant?.id) return;
- try {
- const [resAnalytics, resRecent, resSuppliers, resLogs] = await Promise.all([
- axios.get(`${API_URL}/gate-pass/analytics/${activePlant.id}`),
- axios.get(`${API_URL}/gate-pass/recent/${activePlant.id}?type=${activeTab === 'report_summary' ? 'ALL' : activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}`),
- axios.get(`${API_URL}/procurement/suppliers`),
- axios.get(`${API_URL}/gate-pass/duplicate-logs/${activePlant.id}`)
- ]);
+  const fetchData = async () => {
+    const pid = activePlant?.id || 'global';
+    try {
+      const [resAnalytics, resRecent, resSuppliers, resLogs] = await Promise.all([
+        axios.get(`${API_URL}/gate-pass/analytics/${pid}`),
+        axios.get(`${API_URL}/gate-pass/recent/${pid}?type=${activeTab === 'report_summary' ? 'ALL' : activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}`),
+        axios.get(`${API_URL}/procurement/suppliers`),
+        axios.get(`${API_URL}/gate-pass/duplicate-logs/${pid}`)
+      ]);
  setAnalytics(resAnalytics.data);
  setRecentEntries(resRecent.data);
  setSuppliers(resSuppliers.data);
@@ -506,7 +505,7 @@ export const GatePassManagement = () => {
  </div>
  <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">No. of Bags</label>
- <input type="number" name="noOfBags" value={formData.noOfBags} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" min="0" />
+ <input type="number" min="0" name="noOfBags" value={formData.noOfBags} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"  />
  </div>
  </div>
 
@@ -549,12 +548,12 @@ export const GatePassManagement = () => {
   {formData.weightInputType === 'GROSS' ? (
   <div>
   <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Gross Wt (MT)</label>
-  <input type="number" step="0.001" name="grossWeight" value={formData.grossWeight} onChange={handleInputChange} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle-alt)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" min="0" />
+  <input type="number" min="0" step="0.001" name="grossWeight" value={formData.grossWeight} onChange={handleInputChange} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle-alt)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"  />
   </div>
   ) : (
   <div>
   <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Tare Wt (MT)</label>
-  <input type="number" step="0.001" name="tareWeight" value={formData.tareWeight} onChange={handleInputChange} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle-alt)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" min="0" />
+  <input type="number" min="0" step="0.001" name="tareWeight" value={formData.tareWeight} onChange={handleInputChange} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle-alt)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"  />
   </div>
   )}
   <div>

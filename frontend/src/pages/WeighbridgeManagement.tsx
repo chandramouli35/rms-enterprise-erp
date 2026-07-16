@@ -55,35 +55,35 @@ export const WeighbridgeManagement = () => {
  const [historyEndDate, setHistoryEndDate] = useState('');
 
   useEffect(() => {
-    if (activePlant) {
-      const fetchPendingSodas = async () => {
+    const pid = activePlant?.id || 'global';
+    const fetchPendingSodas = async () => {
+      try {
+        const res = await api.get(`/api/procurement/soda-pending/${pid}`);
+        setPendingSodas(res.data);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchPendingSodas();
+  }, [activePlant?.id, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'history') {
+      const pid = activePlant?.id || 'global';
+      const fetchHistory = async () => {
+        setIsLoadingHistory(true);
         try {
-          const res = await api.get(`/api/procurement/soda-pending/${activePlant.id}`);
-          setPendingSodas(res.data);
-        } catch (err) {
-          console.error(err);
+          const res = await api.get(`/api/weighbridge/history/${pid}`);
+          setHistoryData(res.data);
+        } catch (error) {
+          console.error("Failed to fetch history", error);
+        } finally {
+          setIsLoadingHistory(false);
         }
       };
-      fetchPendingSodas();
+      fetchHistory();
     }
-  }, [activePlant]);
-
- useEffect(() => {
- if (activeTab === 'history' && activePlant) {
- const fetchHistory = async () => {
- setIsLoadingHistory(true);
- try {
- const res = await api.get(`/api/weighbridge/history/${activePlant.id}`);
- setHistoryData(res.data);
- } catch (error) {
- console.error("Failed to fetch history", error);
- } finally {
- setIsLoadingHistory(false);
- }
- };
- fetchHistory();
- }
- }, [activeTab, activePlant]);
+  }, [activeTab, activePlant?.id]);
 
  const uniqueTransactionTypes = ['All Transaction Types', ...Array.from(new Set(historyData.map(item => item.transactionType).filter(Boolean)))];
  const uniqueMaterials = ['All Materials', ...Array.from(new Set(historyData.map(item => item.materialType).filter(Boolean)))];
@@ -238,21 +238,22 @@ export const WeighbridgeManagement = () => {
  const [isSavingSettings, setIsSavingSettings] = useState(false);
  const [testSuccess, setTestSuccess] = useState(false);
 
- useEffect(() => {
- if (activeTab === 'settings' && activePlant) {
- const fetchSettings = async () => {
- try {
- const res = await api.get(`/api/weighbridge/settings/${activePlant.id}`);
- if (res.data) {
- setSettings(prev => ({ ...prev, ...res.data }));
- }
- } catch (error) {
- console.error("Failed to fetch settings", error);
- }
- };
- fetchSettings();
- }
- }, [activeTab, activePlant]);
+  useEffect(() => {
+    if (activeTab === 'settings') {
+      const pid = activePlant?.id || 'global';
+      const fetchSettings = async () => {
+        try {
+          const res = await api.get(`/api/weighbridge/settings/${pid}`);
+          if (res.data) {
+            setSettings(prev => ({ ...prev, ...res.data }));
+          }
+        } catch (error) {
+          console.error("Failed to fetch settings", error);
+        }
+      };
+      fetchSettings();
+    }
+  }, [activeTab, activePlant?.id]);
 
  const handleSaveSettings = async () => {
  if (!activePlant) return;
@@ -533,7 +534,7 @@ export const WeighbridgeManagement = () => {
                   <div className="mt-4 pt-4 border-t border-[var(--border-subtle-alt)]">
                     <div className="max-w-xs">
                       <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Bags Received <span className="text-red-500">*</span></label>
-                      <input type="number" value={bagsReceived} onChange={e => setBagsReceived(e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500" placeholder="Enter bags received..." />
+                      <input type="number" min="0" value={bagsReceived} onChange={e => setBagsReceived(e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500" placeholder="Enter bags received..." />
                     </div>
                     
                     {(() => {
@@ -563,7 +564,7 @@ export const WeighbridgeManagement = () => {
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Cut Value {qualityCutType === 'PERCENTAGE' ? '(%)' : '(Bags)'}</label>
-                              <input type="number" value={qualityCutValue} onChange={e => setQualityCutValue(e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-red-500" placeholder="e.g. 1.5" />
+                              <input type="number" min="0" value={qualityCutValue} onChange={e => setQualityCutValue(e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-red-500" placeholder="e.g. 1.5" />
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Reason</label>
@@ -1067,7 +1068,7 @@ export const WeighbridgeManagement = () => {
  <div>
  <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1.5">Gross Weight (kg) <span className="text-red-500">*</span></label>
  <input 
- type="number" 
+ type="number" min="0" 
  value={manualWeightInput} 
  onChange={e => setManualWeightInput(e.target.value)} 
  className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2.5 text-[var(--text-main)] focus:outline-none focus:border-amber-500 font-medium text-lg"

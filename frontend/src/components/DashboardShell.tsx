@@ -70,12 +70,11 @@ export const DashboardShell: React.FC = () => {
  const navItems = [
  { label: 'Dashboard', href: '/dashboard', icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'WEIGHBRIDGE_OPERATOR', 'ACCOUNTANT'] },
  { label: 'Procurement', href: '/procurement', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
- { label: 'Supplier Master', tab: 'supplier_master' },
- { label: 'Paddy Purchase & Quality', tab: 'paddy_purchase' },
- { label: 'Paddy Inward', tab: 'paddy_inward' },
- { label: 'Quality Inspection', tab: 'quality_inspection' },
- { label: 'Purchase Register', tab: 'purchase_register' }
- ]},
+      { label: 'Supplier Master', tab: 'supplier_master' },
+      { label: 'Paddy Purchase & Quality', tab: 'paddy_purchase' },
+      { label: 'Paddy Inward', tab: 'paddy_inward' },
+      { label: 'Inward List', tab: 'inward_register' }
+    ]},
  { label: 'Production', href: '/production', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
  { label: 'Batch Creation', tab: 'batch_creation' },
  { label: 'Production Tracking', tab: 'production_tracking' },
@@ -168,9 +167,41 @@ export const DashboardShell: React.FC = () => {
     }
     
     // Fallback to hardcoded roles if no explicit permission record exists
+        // Fallback to hardcoded roles if no explicit permission record exists
     const fallback = itemRoles.includes(user?.role || '');
     console.log(`Checking fallback for ${moduleName}:`, fallback);
     return fallback;
+  };
+
+  const hasSubPermission = (parentModuleLabel: string, subModuleLabel: string) => {
+    const labelToModule: Record<string, string> = {
+      'Users and Roles': 'User Management',
+      'Yield Mgmt': 'Production',
+      'Transfer': 'Inventory',
+      'Plants': 'Settings',
+    };
+    const parentName = labelToModule[parentModuleLabel] || parentModuleLabel;
+    
+    if (user?.permissions && Array.isArray(user.permissions) && user.permissions.length > 0) {
+      if (typeof user.permissions[0] === 'string') return true;
+      
+      const perm = user.permissions.find((p: any) => {
+        const pModName = p.moduleName || p.name || '';
+        const pSubModName = p.subModuleName || '';
+        return pModName.toLowerCase() === parentName.toLowerCase() && pSubModName.toLowerCase() === subModuleLabel.toLowerCase();
+      });
+      
+      if (perm) {
+        return perm.canView === true || perm.view === true || (perm.permissions && perm.permissions.view === true) || String(perm.canView) === 'true' || String(perm.view) === 'true';
+      }
+      
+      const hasAnySubmodulesForParent = user.permissions.some((p: any) => 
+        (p.moduleName || p.name || '').toLowerCase() === parentName.toLowerCase() && p.subModuleName
+      );
+      if (hasAnySubmodulesForParent) return false;
+    }
+    
+    return true;
   };
 
   const currentNavItem = navItems.find(item => location.pathname.startsWith(item.href));
@@ -192,7 +223,15 @@ export const DashboardShell: React.FC = () => {
  </div>
 
  <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto">
- {navItems.filter(item => hasPermission(item.label, item.roles)).map((item, index) => {
+ {navItems.filter(item => {
+    const parentAllowed = hasPermission(item.label, item.roles);
+    if (!parentAllowed) return false;
+    if (item.subItems) {
+      const allowedSubs = item.subItems.filter(sub => hasSubPermission(item.label, sub.label));
+      if (allowedSubs.length === 0) return false;
+    }
+    return true;
+  }).map((item, index) => {
  const isActive = location.pathname.startsWith(item.href);
  const isExpanded = expandedItems[item.label] || false;
  
@@ -228,7 +267,7 @@ export const DashboardShell: React.FC = () => {
  {/* Sub Items */}
  {!sidebarCollapsed && item.subItems && isExpanded && (
  <div className="ml-10 mt-1 space-y-1 flex flex-col border-l-2 border-[var(--border-subtle-alt)] pl-2">
- {item.subItems.map((sub, subIdx) => {
+ {item.subItems.filter(sub => hasSubPermission(item.label, sub.label)).map((sub, subIdx) => {
  const isSubActive = isActive && (currentTab === sub.tab || (!currentTab && subIdx === 0));
  return (
  <Link 

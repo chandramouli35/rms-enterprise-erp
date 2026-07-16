@@ -29,9 +29,10 @@ let PermissionsGuard = class PermissionsGuard {
         if (user.role?.name === 'SUPER_ADMIN') {
             return true;
         }
-        const { moduleName, action } = requiredPermission;
+        const { moduleName, action, subModuleName } = requiredPermission;
         const permissions = user.role?.modulePermissions || [];
-        const modulePerm = permissions.find((p) => p.moduleName === moduleName);
+        const modulePerm = permissions.find((p) => p.moduleName === moduleName &&
+            (subModuleName ? p.subModuleName === subModuleName : (!p.subModuleName || p.subModuleName === '')));
         if (!modulePerm) {
             return false;
         }

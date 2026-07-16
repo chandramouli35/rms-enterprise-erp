@@ -64,7 +64,7 @@ export declare class WeighbridgeService {
         autoCapture: boolean;
         autoSave: boolean;
         autoTare: boolean;
-    }>;
+    } | null>;
     updateSettings(plantId: string, data: any): Promise<{
         id: string;
         createdAt: Date;

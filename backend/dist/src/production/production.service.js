@@ -19,11 +19,18 @@ let ProductionService = class ProductionService {
         this.inventoryService = inventoryService;
     }
     async getMetrics(plantId) {
+        const whereClause = plantId === 'global' ? {} : { plantId };
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+        const activeBatches = await this.prisma.productionBatch.count({
+            where: {
+                ...whereClause,
+                status: 'IN_PROGRESS'
+            }
+        });
         const batchesToday = await this.prisma.productionBatch.count({
             where: {
-                plantId,
+                ...whereClause,
                 date: {
                     gte: today,
                 },
@@ -76,7 +83,7 @@ let ProductionService = class ProductionService {
         };
     }
     async getBatches(plantId, status, dateFrom, dateTo, role) {
-        const where = { plantId };
+        const where = plantId === 'global' ? {} : { plantId };
         if (status && status !== 'All')
             where.status = status;
         let fromDate;
@@ -129,6 +136,28 @@ let ProductionService = class ProductionService {
                 variety: dto.variety,
                 paddySource: dto.paddySource,
                 paddyUsedQty: dto.paddyUsedQty,
+                rBranBags: dto.additionalOutputs?.['R. Bran']?.produced || 0,
+                kPhuckBags: dto.additionalOutputs?.['K. Phuck']?.produced || 0,
+                brokenRiceBags: dto.additionalOutputs?.['Broken Rice']?.produced || 0,
+                nakku1Bags: dto.additionalOutputs?.['Nakku 1']?.produced || 0,
+                nakku2Bags: dto.additionalOutputs?.['Nakku 2']?.produced || 0,
+                rejectionBags: dto.additionalOutputs?.['Rejection']?.produced || 0,
+                finalRiceBags: dto.additionalOutputs?.['Final Rice']?.produced || 0,
+                mansooriBags: dto.additionalOutputs?.['Mansoori']?.produced || 0,
+                wandBags: dto.additionalOutputs?.['Wand']?.produced || 0,
+                parmalBags: dto.additionalOutputs?.['Parmal']?.produced || 0,
+                frkBags: dto.additionalOutputs?.['FRK']?.produced || 0,
+                rBranReused: dto.additionalOutputs?.['R. Bran']?.reused || 0,
+                kPhuckReused: dto.additionalOutputs?.['K. Phuck']?.reused || 0,
+                brokenRiceReused: dto.additionalOutputs?.['Broken Rice']?.reused || 0,
+                nakku1Reused: dto.additionalOutputs?.['Nakku 1']?.reused || 0,
+                nakku2Reused: dto.additionalOutputs?.['Nakku 2']?.reused || 0,
+                rejectionReused: dto.additionalOutputs?.['Rejection']?.reused || 0,
+                finalRiceReused: dto.additionalOutputs?.['Final Rice']?.reused || 0,
+                mansooriReused: dto.additionalOutputs?.['Mansoori']?.reused || 0,
+                wandReused: dto.additionalOutputs?.['Wand']?.reused || 0,
+                parmalReused: dto.additionalOutputs?.['Parmal']?.reused || 0,
+                frkReused: dto.additionalOutputs?.['FRK']?.reused || 0,
                 remarks: dto.remarks,
                 status: 'In Progress',
                 progress: 0,
@@ -144,6 +173,25 @@ let ProductionService = class ProductionService {
             remarks: `Issued to production batch ${batch.batchNo}`,
             shift: dto.shift
         });
+        if (dto.additionalOutputs) {
+            for (const [itemName, data] of Object.entries(dto.additionalOutputs)) {
+                const produced = Number(data.produced) || 0;
+                const reused = Number(data.reused) || 0;
+                const netQuantity = produced - reused;
+                if (netQuantity !== 0) {
+                    await this.inventoryService.adjustStock({
+                        plantId: dto.plantId,
+                        itemType: 'BYPRODUCT',
+                        variety: itemName,
+                        quantityChange: netQuantity,
+                        transactionType: netQuantity > 0 ? 'IN' : 'OUT',
+                        referenceId: batch.id,
+                        remarks: `Net yield (Produced: ${produced}, Reused: ${reused}) from batch ${batch.batchNo}`,
+                        shift: dto.shift
+                    });
+                }
+            }
+        }
         return batch;
     }
     async completeBatch(batchId, data) {

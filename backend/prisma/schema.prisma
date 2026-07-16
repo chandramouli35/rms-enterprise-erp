@@ -54,6 +54,7 @@ model ModulePermission {
   id         String  @id @default(uuid())
   roleId     String
   moduleName String // e.g., 'Dashboard', 'Procurement', 'Inventory'
+  subModuleName String @default("")
   canView    Boolean @default(false)
   canAdd     Boolean @default(false)
   canEdit    Boolean @default(false)
@@ -65,7 +66,7 @@ model ModulePermission {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([roleId, moduleName])
+  @@unique([roleId, moduleName, subModuleName])
   @@index([roleId])
 }
 
@@ -237,6 +238,7 @@ model PaddyInwardDetails {
   procurementBatchId String           @unique
   procurementBatch   ProcurementBatch @relation(fields: [procurementBatchId], references: [id])
 
+  truckNo String?
   gpNo              String?
   mandi             String?
   mandiEgNo         String?
@@ -477,6 +479,33 @@ model ProductionBatch {
 
   paddyUsedQty    Float // in MT
   riceProducedQty Float? // in MT
+
+  // Additional Outputs (Produced)
+  rBranBags       Int @default(0)
+  kPhuckBags      Int @default(0)
+  brokenRiceBags  Int @default(0)
+  nakku1Bags      Int @default(0)
+  nakku2Bags      Int @default(0)
+  rejectionBags   Int @default(0)
+  finalRiceBags   Int @default(0)
+  mansooriBags    Int @default(0)
+  wandBags        Int @default(0)
+  parmalBags      Int @default(0)
+  frkBags         Int @default(0)
+
+  // Additional Outputs (Reused)
+  rBranReused       Int @default(0)
+  kPhuckReused      Int @default(0)
+  brokenRiceReused  Int @default(0)
+  nakku1Reused      Int @default(0)
+  nakku2Reused      Int @default(0)
+  rejectionReused   Int @default(0)
+  finalRiceReused   Int @default(0)
+  mansooriReused    Int @default(0)
+  wandReused        Int @default(0)
+  parmalReused      Int @default(0)
+  frkReused         Int @default(0)
+
 
   status   String  @default("In Progress") // In Progress, Completed
   progress Int     @default(0) // 0-100%

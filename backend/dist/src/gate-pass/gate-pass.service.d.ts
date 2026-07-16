@@ -12,8 +12,8 @@ export declare class GatePassService {
             updatedAt: Date;
             status: string;
             email: string | null;
-            firmNames: string[];
             mandi: string | null;
+            firmNames: string[];
             contact: string | null;
             address: string | null;
         } | null;
@@ -26,8 +26,9 @@ export declare class GatePassService {
                 qualityCutType: string | null;
                 qualityCutReason: string | null;
                 procurementBatchId: string;
-                mandi: string | null;
+                truckNo: string | null;
                 gpNo: string | null;
+                mandi: string | null;
                 mandiEgNo: string | null;
                 rstNo: string | null;
                 pahunchPersonName: string | null;
@@ -154,8 +155,8 @@ export declare class GatePassService {
             updatedAt: Date;
             status: string;
             email: string | null;
-            firmNames: string[];
             mandi: string | null;
+            firmNames: string[];
             contact: string | null;
             address: string | null;
         } | null;
@@ -219,8 +220,8 @@ export declare class GatePassService {
             updatedAt: Date;
             status: string;
             email: string | null;
-            firmNames: string[];
             mandi: string | null;
+            firmNames: string[];
             contact: string | null;
             address: string | null;
         } | null;
@@ -233,8 +234,9 @@ export declare class GatePassService {
                 qualityCutType: string | null;
                 qualityCutReason: string | null;
                 procurementBatchId: string;
-                mandi: string | null;
+                truckNo: string | null;
                 gpNo: string | null;
+                mandi: string | null;
                 mandiEgNo: string | null;
                 rstNo: string | null;
                 pahunchPersonName: string | null;

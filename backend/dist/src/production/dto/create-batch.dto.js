@@ -56,4 +56,8 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateBatchDto.prototype, "remarks", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Object)
+], CreateBatchDto.prototype, "additionalOutputs", void 0);
 //# sourceMappingURL=create-batch.dto.js.map

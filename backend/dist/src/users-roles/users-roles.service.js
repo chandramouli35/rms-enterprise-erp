@@ -49,6 +49,48 @@ const bcrypt = __importStar(require("bcrypt"));
 let UsersRolesService = class UsersRolesService {
     constructor(prisma) {
         this.prisma = prisma;
+        this.MODULE_STRUCTURE = [
+            {
+                name: 'Dashboard',
+                subModules: []
+            },
+            {
+                name: 'Procurement',
+                subModules: ['Supplier Master', 'Paddy Purchase & Quality', 'Paddy Inward', 'Inward List', 'Quality Inspection', 'Purchase Register']
+            },
+            {
+                name: 'Yield Mgmt',
+                subModules: ['Yield Calculator', 'Yield Analytics', 'Historical Reports']
+            },
+            {
+                name: 'Production',
+                subModules: ['Batch Creation', 'Batch Summary']
+            },
+            {
+                name: 'Inventory',
+                subModules: ['Paddy Stock', 'Rice Stock', 'Bran Stock', 'Husk Stock', 'Finished Goods', 'Consumables Inventory']
+            },
+            {
+                name: 'Transfer',
+                subModules: ['Transfer Request', 'Transfer Tracking', 'In Transit Stock']
+            },
+            {
+                name: 'Gate Pass',
+                subModules: ['Gate In', 'Gate Out', 'Report Summary', 'QR Barcode', 'Duplicate Prevention']
+            },
+            {
+                name: 'Weighbridge',
+                subModules: ['Weighment', 'Device Config']
+            },
+            {
+                name: 'Users and Roles',
+                subModules: ['Users', 'Roles', 'Permissions', 'Audit Access']
+            },
+            {
+                name: 'Settings',
+                subModules: ['Global Settings']
+            }
+        ];
     }
     async getStats() {
         const [totalUsers, activeUsers, inactiveUsers, totalRoles] = await Promise.all([
@@ -188,37 +230,67 @@ let UsersRolesService = class UsersRolesService {
         });
     }
     async getRolePermissions(roleId) {
-        const modules = ['Dashboard', 'Procurement', 'Weighbridge', 'Production', 'Inventory', 'Gate Pass', 'Dispatch', 'Reports', 'User Management', 'Products', 'Settings'];
         const existing = await this.prisma.modulePermission.findMany({
             where: { roleId }
         });
-        return modules.map(name => {
-            const p = existing.find(e => e.moduleName === name);
+        return this.MODULE_STRUCTURE.map(mod => {
+            const parentPerm = existing.find(e => e.moduleName === mod.name && (!e.subModuleName || e.subModuleName === ''));
             return {
-                name,
+                name: mod.name,
                 permissions: {
-                    view: p?.canView || false,
-                    add: p?.canAdd || false,
-                    edit: p?.canEdit || false,
-                    delete: p?.canDelete || false,
-                    approve: p?.canApprove || false
-                }
+                    view: parentPerm?.canView || false,
+                    add: parentPerm?.canAdd || false,
+                    edit: parentPerm?.canEdit || false,
+                    delete: parentPerm?.canDelete || false,
+                    approve: parentPerm?.canApprove || false
+                },
+                subModules: mod.subModules.map(subName => {
+                    const subPerm = existing.find(e => e.moduleName === mod.name && e.subModuleName === subName);
+                    return {
+                        name: subName,
+                        permissions: {
+                            view: subPerm?.canView || false,
+                            add: subPerm?.canAdd || false,
+                            edit: subPerm?.canEdit || false,
+                            delete: subPerm?.canDelete || false,
+                            approve: subPerm?.canApprove || false
+                        }
+                    };
+                })
             };
         });
     }
     async updateRolePermissions(roleId, permissions) {
         const permsArray = Array.isArray(permissions) ? permissions : permissions?.permissions || [];
         await this.prisma.modulePermission.deleteMany({ where: { roleId } });
-        if (permsArray && permsArray.length > 0) {
-            const dataToInsert = permsArray.map((p) => ({
+        const dataToInsert = [];
+        for (const p of permsArray) {
+            dataToInsert.push({
                 roleId,
                 moduleName: p.name || p.moduleName,
+                subModuleName: '',
                 canView: p.permissions?.view ?? p.canView ?? false,
                 canAdd: p.permissions?.add ?? p.canAdd ?? false,
                 canEdit: p.permissions?.edit ?? p.canEdit ?? false,
                 canDelete: p.permissions?.delete ?? p.canDelete ?? false,
                 canApprove: p.permissions?.approve ?? p.canApprove ?? false
-            }));
+            });
+            if (p.subModules && Array.isArray(p.subModules)) {
+                for (const sub of p.subModules) {
+                    dataToInsert.push({
+                        roleId,
+                        moduleName: p.name || p.moduleName,
+                        subModuleName: sub.name,
+                        canView: sub.permissions?.view ?? false,
+                        canAdd: sub.permissions?.add ?? false,
+                        canEdit: sub.permissions?.edit ?? false,
+                        canDelete: sub.permissions?.delete ?? false,
+                        canApprove: sub.permissions?.approve ?? false
+                    });
+                }
+            }
+        }
+        if (dataToInsert.length > 0) {
             await this.prisma.modulePermission.createMany({
                 data: dataToInsert
             });

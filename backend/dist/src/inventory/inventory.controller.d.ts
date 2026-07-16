@@ -3,6 +3,7 @@ import { GetInventoryFilterDto, GetStockReportDto } from './dto/inventory.dto';
 export declare class InventoryController {
     private readonly inventoryService;
     constructor(inventoryService: InventoryService);
+    getByProductStock(req: any): Promise<Record<string, number>>;
     getDashboardSummary(req: any, itemType?: string): Promise<{
         globalMetrics: {
             PADDY: {
@@ -48,16 +49,16 @@ export declare class InventoryController {
         createdAt: Date;
         updatedAt: Date;
         variety: string | null;
-        plantId: string;
-        itemType: string;
         quantity: number;
+        plantId: string;
+        unit: string;
+        category: string | null;
+        itemType: string;
+        godown: string | null;
         usable: number;
         reserved: number;
         damaged: number;
         stockValue: number;
-        category: string | null;
-        godown: string | null;
-        unit: string;
     }[]>;
     getStockReport(req: any, filterDto: GetStockReportDto): Promise<any[]>;
     adjustStock(req: any, body: any): Promise<{
@@ -65,26 +66,26 @@ export declare class InventoryController {
         createdAt: Date;
         updatedAt: Date;
         variety: string | null;
-        plantId: string;
-        itemType: string;
         quantity: number;
+        plantId: string;
+        unit: string;
+        category: string | null;
+        itemType: string;
+        godown: string | null;
         usable: number;
         reserved: number;
         damaged: number;
         stockValue: number;
-        category: string | null;
-        godown: string | null;
-        unit: string;
     }>;
     getLedger(req: any, filterDto: any): Promise<{
         id: string;
         createdAt: Date;
-        shift: string | null;
+        quantity: number;
         remarks: string | null;
         plantId: string;
-        transaction: string;
+        shift: string | null;
         itemType: string;
-        quantity: number;
+        transaction: string;
         reference: string | null;
     }[]>;
 }

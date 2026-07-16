@@ -14,13 +14,13 @@ export class PlantContextGuard implements CanActivate {
       throw new UnauthorizedException('User not authenticated');
     }
 
-    if (!plantId) {
-      throw new ForbiddenException('Missing x-plant-id header');
-    }
-
-    // Super Admin has access to all plants
+    // Super Admin has access to all plants and global context
     if (user.role?.name === 'SUPER_ADMIN') {
       return true;
+    }
+
+    if (!plantId || plantId === 'global') {
+      throw new ForbiddenException('Missing or invalid x-plant-id header');
     }
 
     // Check if user has access to the specific plant

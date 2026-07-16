@@ -56,6 +56,9 @@ export const ProcurementManagement = () => {
  const [suppliers, setSuppliers] = useState<any[]>([]);
  const [sodaPending, setSodaPending] = useState<any[]>([]);
  const [recentPurchases, setRecentPurchases] = useState<any[]>([]);
+  const [inwardList, setInwardList] = useState<any[]>([]);
+  const [viewInwardModal, setViewInwardModal] = useState<any>(null);
+  const [listFilters, setListFilters] = useState({ dateFrom: '', dateTo: '' });
  const [isSubmitting, setIsSubmitting] = useState(false);
  const [isScanningFingerprint, setIsScanningFingerprint] = useState(false);
  const [plants, setPlants] = useState<any[]>([]);
@@ -175,15 +178,17 @@ export const ProcurementManagement = () => {
  finalHisabAmt: ''
  });
 
- useEffect(() => {
+  useEffect(() => {
  fetchPlants();
  if (activePlant?.id) {
  setFormData((prev: any) => ({ ...prev, plantId: activePlant.id }));
+ }
  fetchSuppliers();
  fetchSodaPending();
- fetchRecentPurchases();
- }
- }, [activePlant]);
+        fetchRecentPurchases();
+        fetchInwardList();
+ fetchInwardList();
+ }, [activePlant?.id, activeTab, listFilters.dateFrom, listFilters.dateTo]);
 
  const fetchPlants = async () => {
  try {
@@ -194,9 +199,37 @@ export const ProcurementManagement = () => {
  }
  };
 
- const fetchRecentPurchases = async () => {
+ 
+  const handleViewInward = async (inward: any) => {
+    try {
+      const res = await api.get(`/api/procurement/inward-details/${inward.id}`);
+      setViewInwardModal(res.data);
+    } catch (error) {
+      console.error('Failed to fetch inward details', error);
+      useUiStore.getState().addToast('Failed to load inward details', 'error');
+    }
+  };
+
+  const fetchInwardList = async () => {
+    try {
+      const pid = activePlant?.id || 'global';
+      const params = new URLSearchParams();
+      if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
+      if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
+      const res = await api.get(`/api/procurement/inwards/${pid}?${params.toString()}`);
+      setInwardList(res.data);
+    } catch (error) {
+      console.error('Failed to fetch inward list', error);
+    }
+  };
+
+  const fetchRecentPurchases = async () => {
  try {
- const res = await api.get(`/api/procurement/recent/${activePlant?.id}`);
+ const pid = activePlant?.id || 'global';
+ const params = new URLSearchParams();
+ if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
+ if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
+ const res = await api.get(`/api/procurement/recent/${pid}?${params.toString()}`);
  setRecentPurchases(res.data);
  } catch (error) {
  console.error('Error fetching recent purchases', error);
@@ -214,7 +247,11 @@ export const ProcurementManagement = () => {
 
  const fetchSodaPending = async () => {
  try {
- const res = await api.get(`/api/procurement/soda-pending/${activePlant?.id}`);
+ const pid = activePlant?.id || 'global';
+ const params = new URLSearchParams();
+ if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
+ if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
+ const res = await api.get(`/api/procurement/soda-pending/${pid}?${params.toString()}`);
  setSodaPending(res.data);
  } catch (error) {
  console.error('Error fetching soda pending', error);
@@ -441,10 +478,24 @@ export const ProcurementManagement = () => {
         </button>
       </div>
       <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
-        <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
+        
+          <div className="flex items-end gap-4 mb-4">
+            <div>
+              <label className="block text-[var(--text-muted-alt)] text-xs mb-1">From Date</label>
+              <input type="date" value={listFilters.dateFrom} onChange={e => setListFilters(f => ({...f, dateFrom: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" />
+            </div>
+            <div>
+              <label className="block text-[var(--text-muted-alt)] text-xs mb-1">To Date</label>
+              <input type="date" value={listFilters.dateTo} onChange={e => setListFilters(f => ({...f, dateTo: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" />
+            </div>
+            <div className="flex items-end">
+              <button onClick={() => setListFilters({dateFrom: '', dateTo: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
+            </div>
+          </div>
+          <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
           <thead>
             <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)]">
-              <th className="p-3">Party - Mandi</th>
+              <th className="p-3">Party - Supplier</th>
               <th className="p-3">Date</th>
               <th className="p-3">Mc</th>
               <th className="p-3">Bags</th>
@@ -616,7 +667,7 @@ export const ProcurementManagement = () => {
  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Moisture (%)</label>
- <input type="number" name="moisture" value={inwardFormData.moisture} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" min="0" max="100" step="0.01" />
+ <input type="number" min="0" name="moisture" value={inwardFormData.moisture} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"  max="100" step="0.01" />
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Safai</label>
@@ -705,7 +756,7 @@ export const ProcurementManagement = () => {
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Truck Unload Count (Today)</label>
- <input type="number" name="unloaderTruckCount" value={inwardFormData.unloaderTruckCount} disabled className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-70 cursor-not-allowed" title="Calculated automatically" />
+ <input type="number" min="0" name="unloaderTruckCount" value={inwardFormData.unloaderTruckCount} disabled className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-70 cursor-not-allowed" title="Calculated automatically" />
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Labour Name</label>
@@ -757,7 +808,7 @@ export const ProcurementManagement = () => {
                        <td className="p-2">₹{boli.rate}</td>
                        <td className="p-2">{boli.bags}</td>
                        <td className="p-2">
-                         <input type="number" 
+                         <input type="number" min="0" 
                                 value={boliInputs[boli.id] || ''} 
                                 onChange={(e) => setBoliInputs(prev => ({...prev, [boli.id]: e.target.value}))}
                                 className="w-20 bg-[var(--bg-base)] border border-blue-500/50 rounded px-2 py-1 text-[var(--text-main)] outline-none focus:border-blue-500" 
@@ -788,7 +839,7 @@ export const ProcurementManagement = () => {
              <label className="block text-[var(--text-muted-alt)] text-[10px] mb-1">
                Value {inwardFormData.qualityCutType === 'PERCENTAGE' ? '(%)' : inwardFormData.qualityCutType === 'BAGS' ? '(Bags)' : ''}
              </label>
-             <input type="number" name="qualityCutValue" value={inwardFormData.qualityCutValue} onChange={handleInwardChange} disabled={inwardFormData.qualityCutType === 'NONE'} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)] outline-none disabled:opacity-50" />
+             <input type="number" min="0" name="qualityCutValue" value={inwardFormData.qualityCutValue} onChange={handleInwardChange} disabled={inwardFormData.qualityCutType === 'NONE'} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)] outline-none disabled:opacity-50" />
            </div>
            <div>
              <label className="block text-[var(--text-muted-alt)] text-[10px] mb-1">Reason</label>
@@ -829,15 +880,15 @@ export const ProcurementManagement = () => {
  <tbody>
  <tr className="border-b border-[var(--border-subtle-alt)]">
  <td className="py-3 text-[var(--text-muted)] font-medium">Bags Rec. @ Mill</td>
- <td className="py-3"><input type="number" name="origAClass" value={inwardFormData.origAClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]" min="0" /></td>
- <td className="py-3"><input type="number" name="origBClass" value={inwardFormData.origBClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]" min="0" /></td>
- <td className="py-3"><input type="number" name="shortageAClass" value={inwardFormData.shortageAClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]" min="0" /></td>
- <td className="py-3"><input type="number" name="shortageBClass" value={inwardFormData.shortageBClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]" min="0" /></td>
+ <td className="py-3"><input type="number" min="0" name="origAClass" value={inwardFormData.origAClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"  /></td>
+ <td className="py-3"><input type="number" min="0" name="origBClass" value={inwardFormData.origBClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"  /></td>
+ <td className="py-3"><input type="number" min="0" name="shortageAClass" value={inwardFormData.shortageAClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]"  /></td>
+ <td className="py-3"><input type="number" min="0" name="shortageBClass" value={inwardFormData.shortageBClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]"  /></td>
  </tr>
  <tr>
  <td className="py-3 text-[var(--text-muted)] font-medium">Bags @ Agency GP</td>
- <td className="py-3"><input type="number" name="origAClassAg" value={inwardFormData.origAClassAg} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]" min="0" /></td>
- <td className="py-3"><input type="number" name="origBClassAg" value={inwardFormData.origBClassAg} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]" min="0" /></td>
+ <td className="py-3"><input type="number" min="0" name="origAClassAg" value={inwardFormData.origAClassAg} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"  /></td>
+ <td className="py-3"><input type="number" min="0" name="origBClassAg" value={inwardFormData.origBClassAg} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"  /></td>
  <td className="py-3 text-center text-gray-500" colSpan={2}>-</td>
  </tr>
  </tbody>
@@ -851,19 +902,19 @@ export const ProcurementManagement = () => {
  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 content-start">
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Net Wt. @ Mill (Qtl)</label>
- <input type="number" name="netWtMill" value={inwardFormData.netWtMill} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] font-bold outline-none" min="0" />
+ <input type="number" min="0" name="netWtMill" value={inwardFormData.netWtMill} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] font-bold outline-none"  />
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Required Net Wt. (Qtl)</label>
- <input type="number" name="reqNetWt" value={inwardFormData.reqNetWt} disabled className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed" title="Auto calculated" min="0" />
+ <input type="number" min="0" name="reqNetWt" value={inwardFormData.reqNetWt} disabled className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed" title="Auto calculated"  />
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Net Wt. @ Party (Qtl)</label>
- <input type="number" name="netWtParty" value={inwardFormData.netWtParty} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none" min="0" />
+ <input type="number" min="0" name="netWtParty" value={inwardFormData.netWtParty} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"  />
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Net Wt. Difference (Kgs)</label>
- <input type="number" name="netWtDiff" value={inwardFormData.netWtDiff} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-blue-400 font-bold outline-none" min="0" />
+ <input type="number" min="0" name="netWtDiff" value={inwardFormData.netWtDiff} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-blue-400 font-bold outline-none"  />
  </div>
  </div>
  </div>
@@ -892,8 +943,8 @@ export const ProcurementManagement = () => {
  <tr key={lot.id} className="border-b border-[var(--border-subtle-alt)]">
  <td className="py-1 text-[var(--text-muted-alt)]">{idx + 1}</td>
  <td className="py-2"><input type="text" value={lot.sNo} onChange={(e) => handleDhanakChange(idx, 'sNo', e.target.value)} className="w-20 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)] text-xs" /></td>
- <td className="py-2"><input type="number" value={lot.bags} onChange={(e) => handleDhanakChange(idx, 'bags', e.target.value)} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)] text-xs" /></td>
- <td className="py-2"><input type="number" value={lot.moisture} onChange={(e) => handleDhanakChange(idx, 'moisture', e.target.value)} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)] text-xs" /></td>
+ <td className="py-2"><input type="number" min="0" value={lot.bags} onChange={(e) => handleDhanakChange(idx, 'bags', e.target.value)} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)] text-xs" /></td>
+ <td className="py-2"><input type="number" min="0" value={lot.moisture} onChange={(e) => handleDhanakChange(idx, 'moisture', e.target.value)} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)] text-xs" /></td>
  <td className="py-2">
  <select value={lot.bardanaClass} onChange={(e) => handleDhanakChange(idx, 'bardanaClass', e.target.value)} className="w-24 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-1 py-1 text-[var(--text-main)] text-xs">
  <option value="">Select</option>
@@ -1062,7 +1113,156 @@ export const ProcurementManagement = () => {
  </div>
  )}
 
- {/* TAB 3: QUALITY INSPECTION DESK */}
+
+   {/* TAB: INWARD REGISTER */}
+   {activeTab === 'inward_register' && (
+      <div className="flex-1 overflow-auto bg-[var(--bg-panel)] p-6 rounded-xl border border-[var(--border-subtle)] flex flex-col h-full shadow-2xl">
+        <div className="flex items-center justify-between mb-4 border-b border-[var(--border-subtle-alt)] pb-3">
+          <div className="flex items-center gap-3">
+            <span className="text-[#e67e00] text-[10px] bg-[#e67e00]/10 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">BEAS AGRO</span>
+            <h1 className="text-base font-bold text-[var(--text-muted)]">Inward List</h1>
+            <p className="text-[var(--text-muted-alt)] text-xs border-l border-[var(--border-subtle)] pl-3 hidden sm:block">Procurement &gt; Inward List</p>
+          </div>
+        </div>
+
+        <div className="flex items-end gap-4 mb-4">
+          <div>
+            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">From Date</label>
+            <input type="date" value={listFilters.dateFrom} onChange={e => setListFilters(f => ({...f, dateFrom: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" />
+          </div>
+          <div>
+            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">To Date</label>
+            <input type="date" value={listFilters.dateTo} onChange={e => setListFilters(f => ({...f, dateTo: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" />
+          </div>
+          <div className="flex items-end">
+            <button onClick={() => setListFilters({dateFrom: '', dateTo: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-auto">
+          <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
+            <thead>
+              <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)]">
+                <th className="p-3">Purchase No.</th>
+                <th className="p-3">Date</th>
+                <th className="p-3">GP No</th>
+                <th className="p-3">Supplier</th>
+                <th className="p-3">Mandi EG No</th>
+                <th className="p-3">Vehicle</th>
+                <th className="p-3 text-right">Gross Wt</th>
+                <th className="p-3 text-right">Tare Wt</th>
+                <th className="p-3 text-right">Net Wt</th>
+                <th className="p-3 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {inwardList.map((p, i) => (
+                <tr key={i} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)]">
+                  <td className="p-3 font-mono text-xs">{p.purchaseNo}</td>
+                  <td className="p-3">{p.date}</td>
+                  <td className="p-3">{p.gpNo}</td>
+                  <td className="p-3 text-[var(--text-main)] font-bold">{p.supplier}</td>
+                  <td className="p-3">{p.mandiEgNo}</td>
+                  <td className="p-3">{p.vehicleNo}</td>
+                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.grossWt || '-'}</td>
+                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.tareWt || '-'}</td>
+                  <td className="p-3 text-right font-bold text-[#e67e00]">{p.netWt || '-'}</td>
+                  <td className="p-3 text-center">
+                    <button onClick={() => handleViewInward(p)} className="text-blue-500 hover:text-blue-400 p-1 rounded hover:bg-[var(--bg-base)]" title="View Full Details">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {inwardList.length === 0 && (
+                <tr>
+                  <td colSpan={10} className="p-6 text-center text-[var(--text-muted-alt)]">No inward records found.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        
+        {/* Full Details Modal */}
+        {viewInwardModal && (
+          <CustomModal isOpen={!!viewInwardModal} onClose={() => setViewInwardModal(null)} title="Full Inward Details">
+            <div className="space-y-6 max-h-[75vh] overflow-y-auto px-2">
+              
+              <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
+                <h3 className="text-sm font-bold text-[#e67e00] mb-4 pb-2 border-b border-[var(--border-subtle)] uppercase tracking-wider">Basic Information</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Purchase No</p><p className="font-bold text-[var(--text-main)] font-mono">{viewInwardModal.id?.substring(0,8).toUpperCase()}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Date</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.createdAt ? new Date(viewInwardModal.createdAt).toLocaleDateString() : '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Supplier</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.supplier?.name || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">GP No</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.gpNo || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Mandi EG No</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.mandiEgNo || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Mandi</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.mandi || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Vehicle / Truck No</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.weighbridge?.vehicleNo || viewInwardModal.paddyInwardDetails?.truckNo || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Purchase Type</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.purchaseType || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Category</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.category || '-'}</p></div>
+                </div>
+              </div>
+
+              <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
+                <h3 className="text-sm font-bold text-[#e67e00] mb-4 pb-2 border-b border-[var(--border-subtle)] uppercase tracking-wider">Weight & Bags Details</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Gross Wt</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.weighbridge?.grossWeight || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Tare Wt</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.weighbridge?.tareWeight || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Net Wt</p><p className="font-bold text-green-500">{viewInwardModal.netWeight || viewInwardModal.paddyInwardDetails?.netWtAtMill || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Net Wt at Party</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.netWtAtParty || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Required Net Wt</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.requiredNetWt || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Difference</p><p className="font-bold text-red-500">{viewInwardModal.paddyInwardDetails?.netWtDifference || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Bags Rec at Mill</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.bagsRecAtMill || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Bags at Agency GP</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.bagsAtAgencyGp || '-'}</p></div>
+                </div>
+              </div>
+
+              <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
+                <h3 className="text-sm font-bold text-[#e67e00] mb-4 pb-2 border-b border-[var(--border-subtle)] uppercase tracking-wider">Unloading & Labor Details</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Allocation Type</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.allocationType || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Stack No</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.stackNo || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Safai Type</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.safaiType || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Labour Type</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.labourType || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Allocated Unloader</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.allocateUnloader || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Gaddi Count</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.gaddiCount || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Start Time</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.unloadingStartTime ? new Date(viewInwardModal.paddyInwardDetails.unloadingStartTime).toLocaleTimeString() : '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">End Time</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.unloadingEndTime ? new Date(viewInwardModal.paddyInwardDetails.unloadingEndTime).toLocaleTimeString() : '-'}</p></div>
+                </div>
+              </div>
+
+              <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
+                <h3 className="text-sm font-bold text-[#e67e00] mb-4 pb-2 border-b border-[var(--border-subtle)] uppercase tracking-wider">Quality, Bardana & Shortage</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Moisture</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.quality?.moisture || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Broken</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.quality?.broken || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Discoloration</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.quality?.discoloration || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Foreign Matter</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.quality?.foreignMatter || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Quality Cut</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.qualityCutValue || '0'} ({viewInwardModal.paddyInwardDetails?.qualityCutType || 'NONE'})</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Cut Reason</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.qualityCutReason || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Orig Bardana</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.originalBardanaClass || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Agency Bardana</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.agencyGpBardanaClass || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Shortage Type</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.shortageType || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Shortage A-Class</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.shortageAClass || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Shortage B-Class</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.shortageBClass || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Arhtia Shortage Bal</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.balanceShortageArhtia || '-'}</p></div>
+                </div>
+              </div>
+
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button onClick={() => setViewInwardModal(null)} className="px-5 py-2.5 bg-[#e67e00] hover:bg-[#cc7000] text-white rounded-lg font-bold shadow-lg">Close</button>
+            </div>
+          </CustomModal>
+        )}
+
+      </div>
+   )}
+
+
+
+{/* TAB 3: QUALITY INSPECTION DESK */}
  {activeTab === 'quality_inspection' && (
  <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
  <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
@@ -1126,7 +1326,7 @@ export const ProcurementManagement = () => {
  <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
  <thead>
  <tr className="bg-[var(--bg-panel-alt)] font-bold uppercase text-xs text-[var(--text-muted-alt)]">
- <th className="border-b border-[var(--border-subtle)] p-3 text-left font-medium">Party - Mandi</th>
+ <th className="border-b border-[var(--border-subtle)] p-3 text-left font-medium">Party - Supplier</th>
  <th className="border-b border-[var(--border-subtle)] p-3 text-left font-medium">Date</th>
  <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">Mc</th>
  <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">Bags</th>
@@ -1207,7 +1407,7 @@ export const ProcurementManagement = () => {
         </div>
 
         <div>
-          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Party - Mandi</label>
+          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Party - Supplier</label>
           <select value={paddyPurchaseModal.supplierId} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, supplierId: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required>
             <option value="">Select Supplier</option>
             {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -1230,7 +1430,7 @@ export const ProcurementManagement = () => {
             <div key={index} className="grid grid-cols-3 gap-2 items-end">
               <div>
                 <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Moisture (Mc)</label>
-                <input type="number" step="0.01" value={boli.moisture} onChange={e => {
+                <input type="number" min="0" step="0.01" value={boli.moisture} onChange={e => {
                   const newBolis = [...paddyPurchaseModal.bolis];
                   newBolis[index].moisture = e.target.value;
                   setPaddyPurchaseModal({...paddyPurchaseModal, bolis: newBolis});
@@ -1238,7 +1438,7 @@ export const ProcurementManagement = () => {
               </div>
               <div>
                 <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Bags</label>
-                <input type="number" value={boli.bags} onChange={e => {
+                <input type="number" min="0" value={boli.bags} onChange={e => {
                   const newBolis = [...paddyPurchaseModal.bolis];
                   newBolis[index].bags = e.target.value;
                   const totalBags = newBolis.reduce((s, b) => s + (parseFloat(b.bags) || 0), 0);
@@ -1249,7 +1449,7 @@ export const ProcurementManagement = () => {
               <div className="flex gap-2">
                 <div className="flex-1">
                   <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Rate (Boli)</label>
-                  <input type="number" step="0.01" value={boli.rate} onChange={e => {
+                  <input type="number" min="0" step="0.01" value={boli.rate} onChange={e => {
                     const newBolis = [...paddyPurchaseModal.bolis];
                     newBolis[index].rate = e.target.value;
                     const r = parseFloat(e.target.value) || 0;
@@ -1283,7 +1483,7 @@ export const ProcurementManagement = () => {
           <>
             <div>
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Govt Rate</label>
-              <input type="number" step="0.01" value={paddyPurchaseModal.govtRate || ''} onChange={e => {
+              <input type="number" min="0" step="0.01" value={paddyPurchaseModal.govtRate || ''} onChange={e => {
                 const govtRate = e.target.value;
                 const g = parseFloat(govtRate) || 0;
                 const firstRate = parseFloat(paddyPurchaseModal.bolis[0]?.rate) || 0;
@@ -1297,7 +1497,7 @@ export const ProcurementManagement = () => {
             </div>
             <div>
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Diff</label>
-              <input type="number" step="0.01" value={paddyPurchaseModal.diff} onChange={e => {
+              <input type="number" min="0" step="0.01" value={paddyPurchaseModal.diff} onChange={e => {
                 const diff = e.target.value;
                 const totalBags = paddyPurchaseModal.bolis.reduce((s: number, b: any) => s + (parseFloat(b.bags) || 0), 0);
                 const finalAmt = (totalBags * 0.375 * (parseFloat(diff) || 0)).toFixed(2);
@@ -1306,11 +1506,11 @@ export const ProcurementManagement = () => {
             </div>
             <div>
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Payment</label>
-              <input type="number" step="0.01" value={paddyPurchaseModal.payment} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, payment: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+              <input type="number" min="0" step="0.01" value={paddyPurchaseModal.payment} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, payment: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
             </div>
             <div>
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Final Hisab Amt</label>
-              <input type="number" step="0.01" value={paddyPurchaseModal.finalHisabAmt} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, finalHisabAmt: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+              <input type="number" min="0" step="0.01" value={paddyPurchaseModal.finalHisabAmt} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, finalHisabAmt: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
               {paddyPurchaseModal.bolis.length > 0 && paddyPurchaseModal.diff && (
                 <div className="mt-2 text-xs text-[var(--text-muted)] bg-blue-900/10 p-2 rounded border border-blue-900/20 text-blue-400">
                   <span className="font-semibold block mb-1">Calculation Breakdown:</span>
@@ -1371,19 +1571,19 @@ export const ProcurementManagement = () => {
  <div className="grid grid-cols-2 gap-4">
  <div>
  <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Moisture (%)</label>
- <input type="number" step="0.1" value={inspectModal.moisture} onChange={e => setInspectModal({...inspectModal, moisture: e.target.value as any})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
+ <input type="number" min="0" step="0.1" value={inspectModal.moisture} onChange={e => setInspectModal({...inspectModal, moisture: e.target.value as any})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
  </div>
  <div>
  <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Broken (%)</label>
- <input type="number" step="0.1" value={inspectModal.broken} onChange={e => setInspectModal({...inspectModal, broken: e.target.value as any})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
+ <input type="number" min="0" step="0.1" value={inspectModal.broken} onChange={e => setInspectModal({...inspectModal, broken: e.target.value as any})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
  </div>
  <div>
  <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Discoloration (%)</label>
- <input type="number" step="0.1" value={inspectModal.discoloration} onChange={e => setInspectModal({...inspectModal, discoloration: e.target.value as any})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+ <input type="number" min="0" step="0.1" value={inspectModal.discoloration} onChange={e => setInspectModal({...inspectModal, discoloration: e.target.value as any})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
  </div>
  <div>
  <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Foreign Matter (%)</label>
- <input type="number" step="0.1" value={inspectModal.foreignMatter} onChange={e => setInspectModal({...inspectModal, foreignMatter: e.target.value as any})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+ <input type="number" min="0" step="0.1" value={inspectModal.foreignMatter} onChange={e => setInspectModal({...inspectModal, foreignMatter: e.target.value as any})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
  </div>
  </div>
  <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
@@ -1410,11 +1610,11 @@ export const ProcurementManagement = () => {
  <div className="border-t border-[var(--border-subtle)] pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
  <div>
  <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Payment</label>
- <input type="number" value={settleHisabModal.payment} onChange={e => setSettleHisabModal({...settleHisabModal, payment: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Enter payment amount" />
+ <input type="number" min="0" value={settleHisabModal.payment} onChange={e => setSettleHisabModal({...settleHisabModal, payment: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Enter payment amount" />
  </div>
  <div>
  <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Final Hisab Amount</label>
- <input type="number" value={settleHisabModal.finalHisabAmt} onChange={e => setSettleHisabModal({...settleHisabModal, finalHisabAmt: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Enter final amount" />
+ <input type="number" min="0" value={settleHisabModal.finalHisabAmt} onChange={e => setSettleHisabModal({...settleHisabModal, finalHisabAmt: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Enter final amount" />
  </div>
  <div className="col-span-1 md:col-span-2">
  <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Notes</label>

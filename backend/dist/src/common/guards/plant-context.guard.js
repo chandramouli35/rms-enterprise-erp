@@ -23,11 +23,11 @@ let PlantContextGuard = class PlantContextGuard {
         if (!user) {
             throw new common_1.UnauthorizedException('User not authenticated');
         }
-        if (!plantId) {
-            throw new common_1.ForbiddenException('Missing x-plant-id header');
-        }
         if (user.role?.name === 'SUPER_ADMIN') {
             return true;
+        }
+        if (!plantId || plantId === 'global') {
+            throw new common_1.ForbiddenException('Missing or invalid x-plant-id header');
         }
         const access = await this.prisma.userPlantAccess.findUnique({
             where: {

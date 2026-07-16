@@ -16,6 +16,18 @@ let InventoryService = class InventoryService {
     constructor(prisma) {
         this.prisma = prisma;
     }
+    async getByProductStock(plantId) {
+        const inventories = await this.prisma.inventory.findMany({
+            where: { plantId, itemType: 'BYPRODUCT' }
+        });
+        const stockMap = {};
+        inventories.forEach(inv => {
+            if (inv.variety) {
+                stockMap[inv.variety] = inv.quantity;
+            }
+        });
+        return stockMap;
+    }
     async adjustStock(params) {
         const { plantId, itemType, variety, godown, quantityChange, transactionType, referenceId, remarks, shift, usableChange = 0, category, unit, stockValueChange = 0 } = params;
         const resolvedGodown = godown || 'Main Yard';

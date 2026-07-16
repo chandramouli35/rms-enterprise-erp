@@ -103,7 +103,7 @@ export class GatePassService {
   }
 
   async getRecentGatePasses(plantId: string, type: string) {
-    const whereClause: any = { plantId };
+    const whereClause: any = plantId === 'global' ? {} : { plantId };
     if (type !== 'ALL') {
       whereClause.passType = type;
     }
@@ -154,16 +154,18 @@ export class GatePassService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    const whereClause = plantId === 'global' ? {} : { plantId };
+
     const totalGateIn = await this.prisma.gatePass.count({
-      where: { plantId, passType: 'INWARD', createdAt: { gte: today } }
+      where: { ...whereClause, passType: 'INWARD', createdAt: { gte: today } }
     });
     
     const totalGateOut = await this.prisma.gatePass.count({
-      where: { plantId, passType: 'OUTWARD', createdAt: { gte: today } }
+      where: { ...whereClause, passType: 'OUTWARD', createdAt: { gte: today } }
     });
 
     const activeInward = await this.prisma.gatePass.count({
-      where: { plantId, status: 'ACTIVE', passType: 'INWARD' }
+      where: { ...whereClause, status: 'ACTIVE', passType: 'INWARD' }
     });
 
     return {
@@ -176,8 +178,9 @@ export class GatePassService {
   }
 
   async getCampusStatus(plantId: string) {
+    const whereClause = plantId === 'global' ? {} : { plantId };
     const activeInward = await this.prisma.gatePass.count({
-      where: { plantId, status: 'ACTIVE', passType: 'INWARD' }
+      where: { ...whereClause, status: 'ACTIVE', passType: 'INWARD' }
     });
     const completed = await this.prisma.gatePass.count({
       where: { plantId, status: 'COMPLETED' }
@@ -191,8 +194,9 @@ export class GatePassService {
   }
 
   async getDuplicateLogs(plantId: string) {
+    const whereClause = plantId === 'global' ? {} : { plantId };
     return this.prisma.duplicateGatePassLog.findMany({
-      where: { plantId },
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
       take: 50
     });

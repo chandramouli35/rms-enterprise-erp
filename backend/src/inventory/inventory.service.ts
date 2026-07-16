@@ -6,6 +6,22 @@ import { GetInventoryFilterDto, GetStockReportDto } from './dto/inventory.dto';
 export class InventoryService {
   constructor(private prisma: PrismaService) {}
 
+  async getByProductStock(plantId: string) {
+    const inventories = await this.prisma.inventory.findMany({
+      where: { plantId, itemType: 'BYPRODUCT' }
+    });
+    
+    // Map array to object: { 'R. Bran': 100, 'K. Phuck': 50 }
+    const stockMap: Record<string, number> = {};
+    inventories.forEach(inv => {
+      if (inv.variety) {
+        stockMap[inv.variety] = inv.quantity;
+      }
+    });
+    return stockMap;
+  }
+
+
   async adjustStock(params: {
     plantId: string;
     itemType: string;

@@ -94,6 +94,7 @@ export class ProcurementService {
       await tx.paddyInwardDetails.create({
         data: {
           procurementBatchId: batch.id,
+          truckNo: data.truckNo,
           gpNo: data.gpNo,
           mandiEgNo: data.mandiEgpNo || data.mandiEgNo,
           mandi: data.mandi,
@@ -160,11 +161,79 @@ export class ProcurementService {
   }
 
 
-  async getRecentPurchases(plantId: string) {
-    const batches = await this.prisma.procurementBatch.findMany({
-      where: { plantId },
+  async getInwards(plantId: string, dateFrom?: string, dateTo?: string) {
+    const whereClause: any = plantId === 'global' ? {} : { plantId };
+    
+    if (dateFrom || dateTo) {
+      whereClause.createdAt = {};
+      if (dateFrom) whereClause.createdAt.gte = new Date(dateFrom);
+      if (dateTo) {
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        whereClause.createdAt.lte = to;
+      }
+    }
+
+    const inwards = await this.prisma.procurementBatch.findMany({
+      where: {
+        ...whereClause,
+        
+      },
+      include: {
+        supplier: true,
+        paddyInwardDetails: true,
+        weighbridge: true
+      },
       orderBy: { createdAt: 'desc' },
-      take: 5,
+      take: 100
+    });
+
+    return inwards.map(b => ({
+      id: b.id,
+      purchaseNo: b.id.substring(0, 8).toUpperCase(),
+      date: b.createdAt.toISOString().split('T')[0],
+      gpNo: b.paddyInwardDetails?.gpNo || '-',
+      supplier: b.supplier?.name || 'Walk-in',
+      mandiEgNo: b.paddyInwardDetails?.mandiEgNo || '-',
+      rstNo: b.paddyInwardDetails?.rstNo || '-',
+      vehicleNo: b.weighbridge?.vehicleNo || b.paddyInwardDetails?.truckNo || '-',
+      grossWt: b.grossWeight || '-',
+      tareWt: b.tareWeight || '-',
+      netWt: b.netWeight || b.paddyInwardDetails?.netWtAtParty || b.paddyInwardDetails?.netWtAtMill || '-',    }));
+  }
+
+  
+  async getInwardDetails(batchId: string) {
+    const batch = await this.prisma.procurementBatch.findUnique({
+      where: { id: batchId },
+      include: {
+        supplier: true,
+        paddyInwardDetails: true,
+        weighbridge: true,
+        quality: true,
+      }
+    });
+    if (!batch) throw new Error('Inward record not found');
+    return batch;
+  }
+
+  async getRecentPurchases(plantId: string, dateFrom?: string, dateTo?: string) {
+    const whereClause: any = plantId === 'global' ? {} : { plantId };
+    
+    if (dateFrom || dateTo) {
+      whereClause.createdAt = {};
+      if (dateFrom) whereClause.createdAt.gte = new Date(dateFrom);
+      if (dateTo) {
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        whereClause.createdAt.lte = to;
+      }
+    }
+
+    const batches = await this.prisma.procurementBatch.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      take: dateFrom || dateTo ? 100 : 5, // Increase limit if filtering by date
       include: {
         supplier: true,
         quality: true,
@@ -417,10 +486,22 @@ export class ProcurementService {
   }
 
   // Paddy Soda Pending Aggregate Endpoint
-  async getSodaPending(plantId: string) {
+  async getSodaPending(plantId: string, dateFrom?: string, dateTo?: string) {
     // We group by supplier and aggregate the pending diffs
+    const whereClause: any = plantId === 'global' ? {} : { plantId };
+    
+    if (dateFrom || dateTo) {
+      whereClause.date = {};
+      if (dateFrom) whereClause.date.gte = new Date(dateFrom);
+      if (dateTo) {
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        whereClause.date.lte = to;
+      }
+    }
+
     const pending = await this.prisma.paddySodaPending.findMany({
-      where: { plantId },
+      where: whereClause,
       include: { supplier: true, bolis: true },
       orderBy: { date: 'desc' }
     });

@@ -10,6 +10,14 @@ import { GetInventoryFilterDto, GetStockReportDto } from './dto/inventory.dto';
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
+  @Get('byproducts')
+  @RequirePermission('Inventory', 'canView')
+  getByProductStock(@Req() req: any) {
+    const plantId = req.user.plantId;
+    return this.inventoryService.getByProductStock(plantId);
+  }
+
+
   @Get('dashboard')
   @RequirePermission('Inventory', 'canView')
   getDashboardSummary(@Req() req: any, @Query('itemType') itemType?: string) {

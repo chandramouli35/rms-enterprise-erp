@@ -9,4 +9,8 @@ export declare class CreateBatchDto {
     paddySource?: string;
     paddyUsedQty: number;
     remarks?: string;
+    additionalOutputs?: Record<string, {
+        produced: number;
+        reused: number;
+    }>;
 }

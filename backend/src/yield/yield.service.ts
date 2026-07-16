@@ -58,8 +58,9 @@ export class YieldService {
   }
 
   async getAnalytics(plantId: string) {
+    const whereClause = plantId === 'global' ? {} : { plantId };
     const yieldReports = await this.prisma.yieldReport.findMany({
-      where: { plantId },
+      where: whereClause,
       include: { batch: true, plant: true },
       orderBy: { createdAt: 'desc' }
     });
@@ -130,7 +131,7 @@ export class YieldService {
   }
 
   async getHistorical(plantId: string, dateFrom?: string, dateTo?: string, variety?: string) {
-    const where: any = { plantId };
+    const where: any = plantId === 'global' ? {} : { plantId };
     if (dateFrom && dateTo) {
       where.createdAt = { gte: new Date(dateFrom), lte: new Date(dateTo) };
     }

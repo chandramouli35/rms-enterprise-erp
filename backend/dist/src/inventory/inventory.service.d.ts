@@ -3,6 +3,7 @@ import { GetInventoryFilterDto, GetStockReportDto } from './dto/inventory.dto';
 export declare class InventoryService {
     private prisma;
     constructor(prisma: PrismaService);
+    getByProductStock(plantId: string): Promise<Record<string, number>>;
     adjustStock(params: {
         plantId: string;
         itemType: string;

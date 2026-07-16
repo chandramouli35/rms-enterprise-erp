@@ -54,7 +54,7 @@ export const YieldManagement = () => {
 
  const fetchHistorical = async () => {
    try {
-     const query = new URLSearchParams({ plantId: activePlant?.id || '' });
+     const query = new URLSearchParams({ plantId: activePlant?.id || 'global' });
      if (filters.dateFrom) query.append('dateFrom', filters.dateFrom);
      if (filters.dateTo) query.append('dateTo', filters.dateTo);
      if (filters.variety) query.append('variety', filters.variety);
@@ -65,12 +65,12 @@ export const YieldManagement = () => {
  };
 
   useEffect(() => {
-    if (!activePlant) return;
+    const plantId = activePlant?.id || 'global';
     
     if (activeTab === 'yield_calculator') {
       const fetchBatchesOnly = async () => {
         try {
-          const batchesRes = await api.get(`/production/batches?plantId=${activePlant.id}`);
+          const batchesRes = await api.get(`/production/batches?plantId=${plantId}`);
           setBatches(batchesRes.data || []);
         } catch (err) {
           console.error("Failed to fetch batches data", err);
@@ -82,7 +82,7 @@ export const YieldManagement = () => {
     if (activeTab === 'yield_analytics') {
       const fetchAnalyticsOnly = async () => {
         try {
-          const analyticsRes = await api.get(`/yield/analytics?plantId=${activePlant.id}`);
+          const analyticsRes = await api.get(`/yield/analytics?plantId=${plantId}`);
           setMetricsData(analyticsRes.data.metrics || {});
           setYieldTrendData(analyticsRes.data.chartData || []);
           setPlantYieldData(analyticsRes.data.chartData || []);
@@ -248,32 +248,32 @@ export const YieldManagement = () => {
      <div className="space-y-4 flex-1">
      <div className="flex items-center text-base">
      <span className="flex-1 font-medium text-[var(--text-muted)]">Paddy Input</span>
-     <input type="number" value={calcData.paddy} onChange={(e) => handleCalcChange('paddy', e.target.value)} className="w-32 bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-[var(--text-main)] text-right outline-none focus:border-blue-500" />
+     <input type="number" min="0" value={calcData.paddy} onChange={(e) => handleCalcChange('paddy', e.target.value)} className="w-32 bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-[var(--text-main)] text-right outline-none focus:border-blue-500" />
      <span className="w-32 text-right text-[var(--text-muted-alt)] font-medium">100.00%</span>
      </div>
      <div className="flex items-center text-base">
      <span className="flex-1 font-medium text-[var(--text-muted)]">Head Rice</span>
-     <input type="number" value={calcData.headRice} onChange={(e) => handleCalcChange('headRice', e.target.value)} className="w-32 bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-green-400 text-right outline-none font-bold focus:border-green-500" />
+     <input type="number" min="0" value={calcData.headRice} onChange={(e) => handleCalcChange('headRice', e.target.value)} className="w-32 bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-green-400 text-right outline-none font-bold focus:border-green-500" />
      <span className="w-32 text-right text-green-400 font-bold">{Number(calcData.paddy) > 0 ? ((Number(calcData.headRice) / Number(calcData.paddy)) * 100).toFixed(2) : '0.00'}%</span>
      </div>
      <div className="flex items-center text-base">
      <span className="flex-1 font-medium text-[var(--text-muted)]">Broken Rice</span>
-     <input type="number" value={calcData.brokenRice} onChange={(e) => handleCalcChange('brokenRice', e.target.value)} className="w-32 bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-[var(--text-main)] text-right outline-none focus:border-blue-500" />
+     <input type="number" min="0" value={calcData.brokenRice} onChange={(e) => handleCalcChange('brokenRice', e.target.value)} className="w-32 bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-[var(--text-main)] text-right outline-none focus:border-blue-500" />
      <span className="w-32 text-right text-[var(--text-muted-alt)] font-medium">{Number(calcData.paddy) > 0 ? ((Number(calcData.brokenRice) / Number(calcData.paddy)) * 100).toFixed(2) : '0.00'}%</span>
      </div>
      <div className="flex items-center text-base">
      <span className="flex-1 font-medium text-[var(--text-muted)]">Bran</span>
-     <input type="number" value={calcData.bran} onChange={(e) => handleCalcChange('bran', e.target.value)} className="w-32 bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-[var(--text-main)] text-right outline-none focus:border-blue-500" />
+     <input type="number" min="0" value={calcData.bran} onChange={(e) => handleCalcChange('bran', e.target.value)} className="w-32 bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-[var(--text-main)] text-right outline-none focus:border-blue-500" />
      <span className="w-32 text-right text-[var(--text-muted-alt)] font-medium">{Number(calcData.paddy) > 0 ? ((Number(calcData.bran) / Number(calcData.paddy)) * 100).toFixed(2) : '0.00'}%</span>
      </div>
      <div className="flex items-center text-base">
      <span className="flex-1 font-medium text-[var(--text-muted)]">Husk</span>
-     <input type="number" value={calcData.husk} onChange={(e) => handleCalcChange('husk', e.target.value)} className="w-32 bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-[var(--text-main)] text-right outline-none focus:border-blue-500" />
+     <input type="number" min="0" value={calcData.husk} onChange={(e) => handleCalcChange('husk', e.target.value)} className="w-32 bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-[var(--text-main)] text-right outline-none focus:border-blue-500" />
      <span className="w-32 text-right text-[var(--text-muted-alt)] font-medium">{Number(calcData.paddy) > 0 ? ((Number(calcData.husk) / Number(calcData.paddy)) * 100).toFixed(2) : '0.00'}%</span>
      </div>
      <div className="flex items-center text-base">
      <span className="flex-1 font-medium text-[var(--text-muted)]">Loss / Others</span>
-     <input type="number" value={calcData.loss} onChange={(e) => handleCalcChange('loss', e.target.value)} className="w-32 bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-red-400 text-right outline-none focus:border-red-500" />
+     <input type="number" min="0" value={calcData.loss} onChange={(e) => handleCalcChange('loss', e.target.value)} className="w-32 bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-red-400 text-right outline-none focus:border-red-500" />
      <span className="w-32 text-right text-red-400 font-medium">{Number(calcData.paddy) > 0 ? ((Number(calcData.loss) / Number(calcData.paddy)) * 100).toFixed(2) : '0.00'}%</span>
      </div>
      </div>
@@ -370,7 +370,7 @@ export const YieldManagement = () => {
        <ResponsiveContainer width="100%" height="100%">
        <BarChart data={batchYieldData} layout="vertical" margin={{ top: 5, right: 20, left: 25, bottom: 5 }}>
        <CartesianGrid strokeDasharray="3 3" stroke="#222" horizontal={true} vertical={false} />
-       <XAxis type="number" stroke="#666" fontSize={10} domain={[50, 70]} tickLine={false} axisLine={false} />
+       <XAxis type="number" min="0" stroke="#666" fontSize={10} domain={[50, 70]} tickLine={false} axisLine={false} />
        <YAxis dataKey="name" type="category" stroke="#999" fontSize={9} tickLine={false} axisLine={false} />
        <RechartsTooltip contentStyle={{ backgroundColor: '#111', borderColor: '#333', fontSize: '12px' }} itemStyle={{ color: '#fff' }} cursor={{fill: '#222'}} />
        <Bar dataKey="yield" radius={[0, 4, 4, 0]} barSize={12}>
@@ -606,33 +606,79 @@ export const YieldManagement = () => {
    <th className="p-3">Batch No.</th>
    <th className="p-3">Plant</th>
    <th className="p-3">Variety</th>
+     
    <th className="p-3 text-right">Paddy Used (MT)</th>
-   <th className="p-3 text-right">Rice Produced (MT)</th>
-   <th className="p-3 text-right">Head Rice (%)</th>
-   <th className="p-3 text-right">Broken Rice (%)</th>
-   <th className="p-3 text-right">By-products (MT)</th>
-   <th className="p-3 text-right">Loss (MT)</th>
-   <th className="p-3 text-right">Overall Recovery (%)</th>
-   </tr>
+     <th className="p-3 text-right">Rice Produced (MT)</th>
+     <th className="p-3 text-right">Head Rice (%)</th>
+     <th className="p-3 text-right">Broken Rice (%)</th>
+     <th className="p-3 text-right">By-Products (MT)</th>
+     <th className="p-3 text-right">Loss (MT)</th>
+     <th className="p-3 text-right">Overall Recovery (%)</th>
+     <th className="p-3 text-right text-blue-400 whitespace-nowrap bg-[var(--glass-bg)]">R. Bran Prod. (Bags)</th>
+     <th className="p-3 text-right text-amber-500 whitespace-nowrap bg-[var(--glass-bg)]">R. Bran Reused (Bags)</th>
+     <th className="p-3 text-right text-blue-400 whitespace-nowrap bg-[var(--glass-bg)]">K. Phuck Prod. (Bags)</th>
+     <th className="p-3 text-right text-amber-500 whitespace-nowrap bg-[var(--glass-bg)]">K. Phuck Reused (Bags)</th>
+     <th className="p-3 text-right text-blue-400 whitespace-nowrap bg-[var(--glass-bg)]">Broken Rice Prod. (Bags)</th>
+     <th className="p-3 text-right text-amber-500 whitespace-nowrap bg-[var(--glass-bg)]">Broken Rice Reused (Bags)</th>
+     <th className="p-3 text-right text-blue-400 whitespace-nowrap bg-[var(--glass-bg)]">Nakku 1 Prod. (Bags)</th>
+     <th className="p-3 text-right text-amber-500 whitespace-nowrap bg-[var(--glass-bg)]">Nakku 1 Reused (Bags)</th>
+     <th className="p-3 text-right text-blue-400 whitespace-nowrap bg-[var(--glass-bg)]">Nakku 2 Prod. (Bags)</th>
+     <th className="p-3 text-right text-amber-500 whitespace-nowrap bg-[var(--glass-bg)]">Nakku 2 Reused (Bags)</th>
+     <th className="p-3 text-right text-blue-400 whitespace-nowrap bg-[var(--glass-bg)]">Rejection Prod. (Bags)</th>
+     <th className="p-3 text-right text-amber-500 whitespace-nowrap bg-[var(--glass-bg)]">Rejection Reused (Bags)</th>
+     <th className="p-3 text-right text-blue-400 whitespace-nowrap bg-[var(--glass-bg)]">Final Rice Prod. (Bags)</th>
+     <th className="p-3 text-right text-amber-500 whitespace-nowrap bg-[var(--glass-bg)]">Final Rice Reused (Bags)</th>
+     <th className="p-3 text-right text-blue-400 whitespace-nowrap bg-[var(--glass-bg)]">Mansoori Prod. (Bags)</th>
+     <th className="p-3 text-right text-amber-500 whitespace-nowrap bg-[var(--glass-bg)]">Mansoori Reused (Bags)</th>
+     <th className="p-3 text-right text-blue-400 whitespace-nowrap bg-[var(--glass-bg)]">Wand Prod. (Bags)</th>
+     <th className="p-3 text-right text-amber-500 whitespace-nowrap bg-[var(--glass-bg)]">Wand Reused (Bags)</th>
+     <th className="p-3 text-right text-blue-400 whitespace-nowrap bg-[var(--glass-bg)]">Parmal Prod. (Bags)</th>
+     <th className="p-3 text-right text-amber-500 whitespace-nowrap bg-[var(--glass-bg)]">Parmal Reused (Bags)</th>
+     <th className="p-3 text-right text-blue-400 whitespace-nowrap bg-[var(--glass-bg)]">FRK Prod. (Bags)</th>
+     <th className="p-3 text-right text-amber-500 whitespace-nowrap bg-[var(--glass-bg)]">FRK Reused (Bags)</th>
+     </tr>
    </thead>
    <tbody>
    {historicalReports.map((r, i) => (
-   <tr key={i} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)]">
-   <td className="p-3 text-[var(--text-muted-alt)]">{i + 1}</td>
-   <td className="p-3 text-[var(--text-muted)]">{new Date(r.createdAt).toLocaleDateString()}</td>
-   <td className="p-3 font-mono font-medium text-[var(--text-main)]">{r.batch?.batchNo}</td>
-   <td className="p-3 text-[var(--text-muted)]">{r.plantId}</td>
-   <td className="p-3 text-[var(--text-muted)]">{r.batch?.variety}</td>
-   <td className="p-3 text-right font-medium text-[var(--text-muted)]">{r.batch?.paddyUsedQty?.toFixed(3) || '0.000'}</td>
-   <td className="p-3 text-right font-medium text-blue-400">{r.batch?.riceProducedQty?.toFixed(3) || '0.000'}</td>
-   <td className="p-3 text-right font-medium text-green-400">{r.headRicePercent?.toFixed(2)}%</td>
-   <td className="p-3 text-right font-medium text-amber-500">{r.brokenRicePercent?.toFixed(2)}%</td>
-   <td className="p-3 text-right text-[var(--text-muted)]">{(r.batch?.paddyUsedQty ? (((r.branPercent || 0) + (r.huskPercent || 0)) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3)}</td>
-   <td className="p-3 text-right text-red-400">{(r.batch?.paddyUsedQty ? ((r.lossPercent || 0) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3)}</td>
-   <td className="p-3 text-right font-bold text-[var(--text-main)]">{r.overallRecovery?.toFixed(2)}%</td>
-   </tr>
-   ))}
-   </tbody>
+      <tr key={i} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)]">
+        <td className="p-3 text-[var(--text-muted-alt)] whitespace-nowrap">{i + 1}</td>
+        <td className="p-3 text-[var(--text-muted)] whitespace-nowrap">{new Date(r.createdAt).toLocaleDateString()}</td>
+        <td className="p-3 font-mono font-medium text-[var(--text-main)] whitespace-nowrap">{r.batch?.batchNo}</td>
+        <td className="p-3 text-[var(--text-muted)] whitespace-nowrap">{r.plantId}</td>
+        <td className="p-3 text-[var(--text-muted)] whitespace-nowrap">{r.batch?.variety}</td>
+        <td className="p-3 text-right font-medium text-[var(--text-muted)] whitespace-nowrap">{r.batch?.paddyUsedQty?.toFixed(3) || '0.000'}</td>
+        <td className="p-3 text-right font-medium text-blue-400 whitespace-nowrap">{r.batch?.riceProducedQty?.toFixed(3) || '0.000'}</td>
+        <td className="p-3 text-right font-medium text-green-400 whitespace-nowrap">{r.headRicePercent?.toFixed(2)}%</td>
+        <td className="p-3 text-right font-medium text-amber-500 whitespace-nowrap">{r.brokenRicePercent?.toFixed(2)}%</td>
+        <td className="p-3 text-right text-[var(--text-muted)] whitespace-nowrap">{(r.batch?.paddyUsedQty ? (((r.branPercent || 0) + (r.huskPercent || 0)) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3)}</td>
+        <td className="p-3 text-right text-red-400 whitespace-nowrap">{(r.batch?.paddyUsedQty ? ((r.lossPercent || 0) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3)}</td>
+        <td className="p-3 text-right font-bold text-[var(--text-main)] whitespace-nowrap">{r.overallRecovery?.toFixed(2)}%</td>
+        <td className="p-3 text-right font-medium text-blue-400 bg-[var(--glass-bg)]">{r.batch?.rBranBags || 0}</td>
+        <td className="p-3 text-right font-medium text-amber-500 bg-[var(--glass-bg)]">{r.batch?.rBranReused || 0}</td>
+        <td className="p-3 text-right font-medium text-blue-400 bg-[var(--glass-bg)]">{r.batch?.kPhuckBags || 0}</td>
+        <td className="p-3 text-right font-medium text-amber-500 bg-[var(--glass-bg)]">{r.batch?.kPhuckReused || 0}</td>
+        <td className="p-3 text-right font-medium text-blue-400 bg-[var(--glass-bg)]">{r.batch?.brokenRiceBags || 0}</td>
+        <td className="p-3 text-right font-medium text-amber-500 bg-[var(--glass-bg)]">{r.batch?.brokenRiceReused || 0}</td>
+        <td className="p-3 text-right font-medium text-blue-400 bg-[var(--glass-bg)]">{r.batch?.nakku1Bags || 0}</td>
+        <td className="p-3 text-right font-medium text-amber-500 bg-[var(--glass-bg)]">{r.batch?.nakku1Reused || 0}</td>
+        <td className="p-3 text-right font-medium text-blue-400 bg-[var(--glass-bg)]">{r.batch?.nakku2Bags || 0}</td>
+        <td className="p-3 text-right font-medium text-amber-500 bg-[var(--glass-bg)]">{r.batch?.nakku2Reused || 0}</td>
+        <td className="p-3 text-right font-medium text-blue-400 bg-[var(--glass-bg)]">{r.batch?.rejectionBags || 0}</td>
+        <td className="p-3 text-right font-medium text-amber-500 bg-[var(--glass-bg)]">{r.batch?.rejectionReused || 0}</td>
+        <td className="p-3 text-right font-medium text-blue-400 bg-[var(--glass-bg)]">{r.batch?.finalRiceBags || 0}</td>
+        <td className="p-3 text-right font-medium text-amber-500 bg-[var(--glass-bg)]">{r.batch?.finalRiceReused || 0}</td>
+        <td className="p-3 text-right font-medium text-blue-400 bg-[var(--glass-bg)]">{r.batch?.mansooriBags || 0}</td>
+        <td className="p-3 text-right font-medium text-amber-500 bg-[var(--glass-bg)]">{r.batch?.mansooriReused || 0}</td>
+        <td className="p-3 text-right font-medium text-blue-400 bg-[var(--glass-bg)]">{r.batch?.wandBags || 0}</td>
+        <td className="p-3 text-right font-medium text-amber-500 bg-[var(--glass-bg)]">{r.batch?.wandReused || 0}</td>
+        <td className="p-3 text-right font-medium text-blue-400 bg-[var(--glass-bg)]">{r.batch?.parmalBags || 0}</td>
+        <td className="p-3 text-right font-medium text-amber-500 bg-[var(--glass-bg)]">{r.batch?.parmalReused || 0}</td>
+        <td className="p-3 text-right font-medium text-blue-400 bg-[var(--glass-bg)]">{r.batch?.frkBags || 0}</td>
+        <td className="p-3 text-right font-medium text-amber-500 bg-[var(--glass-bg)]">{r.batch?.frkReused || 0}</td>
+
+      </tr>
+    ))}
+     </tbody>
    </table>
    </div>
    

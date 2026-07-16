@@ -628,11 +628,11 @@ export const InterPlantTransfer = () => {
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-[var(--text-muted-alt)] mb-1.5">Quantity (MT) <span className="text-red-500">*</span></label>
-                      <input type="number" name="quantity" value={formData.quantity} onChange={handleInputChange} placeholder="0.000" className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-4 py-2.5 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" min="0" />
+                      <input type="number" min="0" name="quantity" value={formData.quantity} onChange={handleInputChange} placeholder="0.000" className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-4 py-2.5 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none"  />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-[var(--text-muted-alt)] mb-1.5">Estimated Value (₹)</label>
-                      <input type="number" name="estimatedValue" value={formData.estimatedValue} onChange={handleInputChange} placeholder="2500000" className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-4 py-2.5 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" min="0" />
+                      <input type="number" min="0" name="estimatedValue" value={formData.estimatedValue} onChange={handleInputChange} placeholder="2500000" className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-4 py-2.5 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none"  />
                     </div>
                   </div>
                 </div>

@@ -7,7 +7,7 @@ export class PermissionsGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredPermission = this.reflector.getAllAndOverride<{ moduleName: string, action: string }>(
+    const requiredPermission = this.reflector.getAllAndOverride<{ moduleName: string, action: string, subModuleName?: string }>(
       REQUIRE_PERMISSION_KEY,
       [context.getHandler(), context.getClass()]
     );
@@ -27,11 +27,15 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
-    const { moduleName, action } = requiredPermission;
+    const { moduleName, action, subModuleName } = requiredPermission;
 
     // Permissions are injected into the user object via JwtStrategy
     const permissions = user.role?.modulePermissions || [];
-    const modulePerm = permissions.find((p: any) => p.moduleName === moduleName);
+    // If subModuleName is specified, find the exact submodule permission. Otherwise, find the parent permission (where subModuleName is empty).
+    const modulePerm = permissions.find((p: any) => 
+      p.moduleName === moduleName && 
+      (subModuleName ? p.subModuleName === subModuleName : (!p.subModuleName || p.subModuleName === ''))
+    );
 
     if (!modulePerm) {
       return false;

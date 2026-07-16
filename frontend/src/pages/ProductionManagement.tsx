@@ -21,6 +21,8 @@ export const ProductionManagement = () => {
  const [selectedBatchId, setSelectedBatchId] = useState<string>('');
  const [selectedBatchDetails, setSelectedBatchDetails] = useState<any>(null);
  const [metricsData, setMetricsData] = useState<any>(null);
+  const [currentStock, setCurrentStock] = useState<Record<string, number>>({});
+
  const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', status: '' });
  
  const [formData, setFormData] = useState({
@@ -32,10 +34,34 @@ export const ProductionManagement = () => {
  variety: 'Sugandha',
  paddySource: '250.000',
  paddyUsedQty: '',
- remarks: 'Steam paddy batch for production.'
+  additionalOutputs: {
+    'R. Bran': { produced: '', reused: '' },
+    'K. Phuck': { produced: '', reused: '' },
+    'Broken Rice': { produced: '', reused: '' },
+    'Nakku 1': { produced: '', reused: '' },
+    'Nakku 2': { produced: '', reused: '' },
+    'Rejection': { produced: '', reused: '' },
+    'Final Rice': { produced: '', reused: '' },
+    'Mansoori': { produced: '', reused: '' },
+    'Wand': { produced: '', reused: '' },
+    'Parmal': { produced: '', reused: '' },
+    'FRK': { produced: '', reused: '' }
+  },
+  remarks: 'Steam paddy batch for production.'
  });
 
- const fetchMetrics = async () => {
+ 
+  const fetchCurrentStock = async () => {
+    if (!activePlant?.id) return;
+    try {
+      const res = await api.get('/inventory/byproducts');
+      setCurrentStock(res.data);
+    } catch (error) {
+      console.error('Error fetching byproducts stock:', error);
+    }
+  };
+
+  const fetchMetrics = async () => {
  if (!activePlant?.id) return;
  try {
  const res = await api.get(`/production/metrics?plantId=${activePlant.id}`);
@@ -94,7 +120,38 @@ export const ProductionManagement = () => {
  setFormData(prev => ({ ...prev, [name]: value }));
  };
 
- const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+   const handleAdditionalOutputChange = (key: string, field: 'produced' | 'reused', value: string) => {
+    setFormData(prev => {
+      let finalValue = value;
+      
+      // Validation logic for reused bags
+      if (field === 'reused') {
+        const reusedVal = Number(value) || 0;
+        const producedVal = Number(prev.additionalOutputs[key as keyof typeof prev.additionalOutputs].produced) || 0;
+        const availableStock = currentStock[key] || 0;
+        
+        // Capping logic: cannot reuse more than produced + available stock
+        const maxAvailable = producedVal + availableStock;
+        if (reusedVal > maxAvailable) {
+          finalValue = String(maxAvailable);
+          setNotification({ message: `Cannot reuse more than ${maxAvailable} bags of ${key} (Produced: ${producedVal} + Stock: ${availableStock})`, type: 'error' });
+        }
+      }
+
+      return {
+        ...prev,
+        additionalOutputs: {
+          ...prev.additionalOutputs,
+          [key]: {
+            ...prev.additionalOutputs[key as keyof typeof prev.additionalOutputs],
+            [field]: finalValue
+          }
+        }
+      };
+    });
+  };
+
+  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
  useEffect(() => {
  if (notification) {
@@ -117,20 +174,40 @@ export const ProductionManagement = () => {
  variety: formData.variety,
  paddySource: formData.paddySource,
  paddyUsedQty: Number(formData.paddyUsedQty) || 0,
- remarks: formData.remarks
+    additionalOutputs: Object.fromEntries(
+      Object.entries(formData.additionalOutputs).map(([k, v]) => [
+        k,
+        { produced: Number(v.produced) || 0, reused: Number(v.reused) || 0 }
+      ])
+    ),
+    remarks: formData.remarks
  };
  
  await api.post('/production/batches', payload);
  setNotification({ message: 'Batch created successfully', type: 'success' });
  
  fetchBatches();
- fetchMetrics();
+   fetchMetrics();
+   fetchCurrentStock();
  
  setFormData(prev => ({
- ...prev,
- batchNo: '',
- paddyUsedQty: ''
- }));
+      ...prev,
+      batchNo: '',
+      paddyUsedQty: '',
+      additionalOutputs: {
+        'R. Bran': { produced: '', reused: '' },
+        'K. Phuck': { produced: '', reused: '' },
+        'Broken Rice': { produced: '', reused: '' },
+        'Nakku 1': { produced: '', reused: '' },
+        'Nakku 2': { produced: '', reused: '' },
+        'Rejection': { produced: '', reused: '' },
+        'Final Rice': { produced: '', reused: '' },
+        'Mansoori': { produced: '', reused: '' },
+        'Wand': { produced: '', reused: '' },
+        'Parmal': { produced: '', reused: '' },
+        'FRK': { produced: '', reused: '' }
+      }
+    }));
  } catch (error) {
  console.error('Error creating batch', error);
  setNotification({ message: 'Failed to create batch', type: 'error' });
@@ -282,18 +359,164 @@ export const ProductionManagement = () => {
  <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Paddy Source</label>
  <input type="text" name="paddySource" value={formData.paddySource} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
  </div>
- <div>
- <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Paddy Used Qty (MT) <span className="text-red-500">*</span></label>
- <input type="number" name="paddyUsedQty" value={formData.paddyUsedQty} onChange={handleInputChange} placeholder="0.000" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" min="0" />
+ 
  </div>
- </div>
- <div>
- <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Remarks</label>
- <textarea rows={2} name="remarks" value={formData.remarks} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none"></textarea>
+ <div className="col-span-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
+  <h3 className="text-sm font-bold text-[var(--text-main)] mb-3">Additional Outputs (Bags)</h3>
+  <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden bg-[var(--bg-panel-alt)] mb-4">
+    <table className="w-full text-left text-xs">
+      <thead className="bg-[var(--glass-bg)] border-b border-[var(--border-subtle)]">
+        <tr>
+          <th className="px-4 py-2 font-medium text-[var(--text-muted-alt)]">Output Name</th>
+          <th className="px-4 py-2 font-medium text-[var(--text-muted-alt)]">Current Stock (Bags)</th>
+          <th className="px-4 py-2 font-medium text-[var(--text-muted-alt)]">Produced (Bags)</th>
+          <th className="px-4 py-2 font-medium text-[var(--text-muted-alt)]">Self Consumed (Bags)</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-[var(--border-subtle-alt)]">
+        <tr className="hover:bg-[var(--glass-bg)]">
+          <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">R. Bran</td>
+          <td className="px-4 py-2.5 font-bold text-[#e67e00]">
+            <span title="Available in Warehouse">{currentStock['R. Bran'] || 0}</span>
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['R. Bran'].produced} onChange={(e) => handleAdditionalOutputChange('R. Bran', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['R. Bran'].reused} onChange={(e) => handleAdditionalOutputChange('R. Bran', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+        </tr>
+        <tr className="hover:bg-[var(--glass-bg)]">
+          <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">K. Phuck</td>
+          <td className="px-4 py-2.5 font-bold text-[#e67e00]">
+            <span title="Available in Warehouse">{currentStock['K. Phuck'] || 0}</span>
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['K. Phuck'].produced} onChange={(e) => handleAdditionalOutputChange('K. Phuck', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['K. Phuck'].reused} onChange={(e) => handleAdditionalOutputChange('K. Phuck', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+        </tr>
+        <tr className="hover:bg-[var(--glass-bg)]">
+          <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">Broken Rice</td>
+          <td className="px-4 py-2.5 font-bold text-[#e67e00]">
+            <span title="Available in Warehouse">{currentStock['Broken Rice'] || 0}</span>
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Broken Rice'].produced} onChange={(e) => handleAdditionalOutputChange('Broken Rice', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Broken Rice'].reused} onChange={(e) => handleAdditionalOutputChange('Broken Rice', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+        </tr>
+        <tr className="hover:bg-[var(--glass-bg)]">
+          <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">Nakku 1</td>
+          <td className="px-4 py-2.5 font-bold text-[#e67e00]">
+            <span title="Available in Warehouse">{currentStock['Nakku 1'] || 0}</span>
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Nakku 1'].produced} onChange={(e) => handleAdditionalOutputChange('Nakku 1', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Nakku 1'].reused} onChange={(e) => handleAdditionalOutputChange('Nakku 1', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+        </tr>
+        <tr className="hover:bg-[var(--glass-bg)]">
+          <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">Nakku 2</td>
+          <td className="px-4 py-2.5 font-bold text-[#e67e00]">
+            <span title="Available in Warehouse">{currentStock['Nakku 2'] || 0}</span>
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Nakku 2'].produced} onChange={(e) => handleAdditionalOutputChange('Nakku 2', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Nakku 2'].reused} onChange={(e) => handleAdditionalOutputChange('Nakku 2', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+        </tr>
+        <tr className="hover:bg-[var(--glass-bg)]">
+          <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">Rejection</td>
+          <td className="px-4 py-2.5 font-bold text-[#e67e00]">
+            <span title="Available in Warehouse">{currentStock['Rejection'] || 0}</span>
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Rejection'].produced} onChange={(e) => handleAdditionalOutputChange('Rejection', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Rejection'].reused} onChange={(e) => handleAdditionalOutputChange('Rejection', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+        </tr>
+        <tr className="hover:bg-[var(--glass-bg)]">
+          <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">Final Rice</td>
+          <td className="px-4 py-2.5 font-bold text-[#e67e00]">
+            <span title="Available in Warehouse">{currentStock['Final Rice'] || 0}</span>
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Final Rice'].produced} onChange={(e) => handleAdditionalOutputChange('Final Rice', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Final Rice'].reused} onChange={(e) => handleAdditionalOutputChange('Final Rice', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+        </tr>
+        <tr className="hover:bg-[var(--glass-bg)]">
+          <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">Mansoori</td>
+          <td className="px-4 py-2.5 font-bold text-[#e67e00]">
+            <span title="Available in Warehouse">{currentStock['Mansoori'] || 0}</span>
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Mansoori'].produced} onChange={(e) => handleAdditionalOutputChange('Mansoori', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Mansoori'].reused} onChange={(e) => handleAdditionalOutputChange('Mansoori', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+        </tr>
+        <tr className="hover:bg-[var(--glass-bg)]">
+          <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">Wand</td>
+          <td className="px-4 py-2.5 font-bold text-[#e67e00]">
+            <span title="Available in Warehouse">{currentStock['Wand'] || 0}</span>
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Wand'].produced} onChange={(e) => handleAdditionalOutputChange('Wand', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Wand'].reused} onChange={(e) => handleAdditionalOutputChange('Wand', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+        </tr>
+        <tr className="hover:bg-[var(--glass-bg)]">
+          <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">Parmal</td>
+          <td className="px-4 py-2.5 font-bold text-[#e67e00]">
+            <span title="Available in Warehouse">{currentStock['Parmal'] || 0}</span>
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Parmal'].produced} onChange={(e) => handleAdditionalOutputChange('Parmal', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Parmal'].reused} onChange={(e) => handleAdditionalOutputChange('Parmal', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+        </tr>
+        <tr className="hover:bg-[var(--glass-bg)]">
+          <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">FRK</td>
+          <td className="px-4 py-2.5 font-bold text-[#e67e00]">
+            <span title="Available in Warehouse">{currentStock['FRK'] || 0}</span>
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['FRK'].produced} onChange={(e) => handleAdditionalOutputChange('FRK', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['FRK'].reused} onChange={(e) => handleAdditionalOutputChange('FRK', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<div className="col-span-2">
+<label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Remarks</label>
+<textarea rows={2} name="remarks" value={formData.remarks} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none"></textarea>
  </div>
  </div>
  <div className="flex gap-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
- <button onClick={() => setFormData(prev => ({...prev, paddyUsedQty: '', batchNo: ''}))} className="flex-1 py-2 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded font-bold text-sm transition-colors border border-[var(--border-subtle)]">Reset</button>
+ <button onClick={() => setFormData(prev => ({...prev, paddyUsedQty: '', batchNo: '', additionalOutputs: { 'R. Bran': { produced: '', reused: '' }, 'K. Phuck': { produced: '', reused: '' }, 'Broken Rice': { produced: '', reused: '' }, 'Nakku 1': { produced: '', reused: '' }, 'Nakku 2': { produced: '', reused: '' }, 'Rejection': { produced: '', reused: '' }, 'Final Rice': { produced: '', reused: '' }, 'Mansoori': { produced: '', reused: '' }, 'Wand': { produced: '', reused: '' }, 'Parmal': { produced: '', reused: '' }, 'FRK': { produced: '', reused: '' } }}))} className="flex-1 py-2 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded font-bold text-sm transition-colors border border-[var(--border-subtle)]">Reset</button>
  <button onClick={handleCreateBatch} disabled={loading} className="flex-[2] py-2 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded font-bold text-sm transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50">
  {loading ? 'Creating...' : 'Create Batch'}
  </button>

@@ -5,7 +5,7 @@ import { CustomModal } from '../components/CustomModal';
 import { usePlantStore } from '../store/plantStore';
 import { 
  Users, Shield, Lock, FileText, Plus, Search, 
- Filter, Edit2, Trash2, ChevronDown, Check,
+ Filter, Edit2, Trash2, ChevronDown, ChevronRight, Check,
  UserCheck, UserX, Calendar, Clock, X, Eye, EyeOff
 } from 'lucide-react';
 
@@ -41,10 +41,22 @@ export const UsersAndRoles: React.FC = () => {
  // Edit User Modal State
  const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
  const [editUserForm, setEditUserForm] = useState({ id: '', fullName: '', email: '', currentPassword: '', newPassword: '', confirmPassword: '', roleId: '', plantId: '' });
+  
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
 
- useEffect(() => {
- fetchInitialData();
- }, []);
+  const toggleModule = (moduleName: string) => {
+    const next = new Set(expandedModules);
+    if (next.has(moduleName)) {
+      next.delete(moduleName);
+    } else {
+      next.add(moduleName);
+    }
+    setExpandedModules(next);
+  };
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [activeTab]);
 
  useEffect(() => {
  if (location.state?.defaultTab) {
@@ -101,9 +113,29 @@ export const UsersAndRoles: React.FC = () => {
  }
  };
 
- const handlePermissionChange = (moduleIndex: number, field: string) => {
+ const handlePermissionChange = (moduleIndex: number, field: string, subModuleIndex: number | null = null) => {
  const updated = [...permissions];
- updated[moduleIndex].permissions[field] = !updated[moduleIndex].permissions[field];
+ const module = updated[moduleIndex];
+ 
+ if (subModuleIndex === null) {
+   const newValue = !module.permissions[field];
+   module.permissions[field] = newValue;
+   
+   if (module.subModules && module.subModules.length > 0) {
+     module.subModules.forEach((sub: any) => {
+       if (!getNotApplicableActions(sub.name).includes(field)) {
+         sub.permissions[field] = newValue;
+       }
+     });
+   }
+ } else {
+   const sub = module.subModules[subModuleIndex];
+   sub.permissions[field] = !sub.permissions[field];
+   
+   const anyChildChecked = module.subModules.some((s: any) => s.permissions[field]);
+   module.permissions[field] = anyChildChecked;
+ }
+ 
  setPermissions(updated);
  };
 
@@ -200,11 +232,11 @@ export const UsersAndRoles: React.FC = () => {
  }
  };
 
-  const getNotApplicableActions = (moduleName: string) => {
+    const getNotApplicableActions = (moduleName: string) => {
     const name = moduleName.toLowerCase();
-    if (name.includes('dashboard') || name.includes('report')) return ['add', 'edit', 'delete', 'approve'];
+    if (name.includes('dashboard') || name.includes('report') || name.includes('analytics') || name.includes('tracking') || name.includes('qr barcode') || name.includes('summary')) return ['add', 'edit', 'delete', 'approve'];
     if (name.includes('setting')) return ['add', 'delete', 'approve'];
-    if (name.includes('product')) return ['approve'];
+    if (name.includes('product') || name.includes('stock')) return ['approve'];
     return [];
   };
 
@@ -444,30 +476,74 @@ export const UsersAndRoles: React.FC = () => {
  </tr>
  </thead>
  <tbody className="divide-y divide-white/5 text-[var(--text-muted)]">
- {permissions.length === 0 ? <tr><td colSpan={6} className="text-center py-8 text-[var(--text-muted-alt)]">Loading matrix...</td></tr> : permissions.map((module, idx) => (
- <tr key={idx} className="hover:bg-[var(--glass-bg)] transition-colors">
-  <td className="px-6 py-4 font-medium">{module.name}</td>
-  {['view', 'add', 'edit', 'delete', 'approve'].map((action) => {
-  const isNA = getNotApplicableActions(module.name).includes(action);
-  return (
-  <td key={action} className="px-6 py-4 text-center">
-  {isNA ? (
-    <div title="Not applicable for this module" className="flex justify-center text-[var(--text-muted-alt)]/30 cursor-not-allowed">
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
-    </div>
-  ) : (
-    <input 
-    type="checkbox" 
-    checked={module.permissions[action]} 
-    onChange={() => handlePermissionChange(idx, action)}
-    className="w-4 h-4 rounded border-gray-600 text-[#e67e00] bg-[var(--bg-base)] focus:ring-[#e67e00] border-[var(--border-subtle)] focus:ring-offset-[#121212] cursor-pointer" 
-    />
-  )}
-  </td>
-  );
-  })}
-  </tr>
- ))}
+ {permissions.length === 0 ? <tr><td colSpan={6} className="text-center py-8 text-[var(--text-muted-alt)]">Loading matrix...</td></tr> : permissions.map((module, idx) => {
+   const isExpanded = expandedModules.has(module.name);
+   const hasSubModules = module.subModules && module.subModules.length > 0;
+   
+   return (
+     <React.Fragment key={idx}>
+       <tr className="hover:bg-[var(--glass-bg)] transition-colors border-b border-white/5">
+         <td className="px-6 py-4 font-medium flex items-center gap-2">
+           {hasSubModules ? (
+             <button onClick={() => toggleModule(module.name)} className="text-[var(--text-muted-alt)] hover:text-white transition-colors">
+               {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+             </button>
+           ) : (
+             <span className="w-4"></span>
+           )}
+           {module.name}
+         </td>
+         {['view', 'add', 'edit', 'delete', 'approve'].map((action) => {
+           const isNA = getNotApplicableActions(module.name).includes(action);
+           return (
+             <td key={action} className="px-6 py-4 text-center">
+               {isNA ? (
+                 <div title="Not applicable" className="flex justify-center text-[var(--text-muted-alt)]/30 cursor-not-allowed">
+                   —
+                 </div>
+               ) : (
+                 <input 
+                   type="checkbox" 
+                   checked={module.permissions[action]} 
+                   onChange={() => handlePermissionChange(idx, action)}
+                   className="w-4 h-4 rounded border-gray-600 text-[#e67e00] bg-[var(--bg-base)] focus:ring-[#e67e00] border-[var(--border-subtle)] focus:ring-offset-[#121212] cursor-pointer" 
+                 />
+               )}
+             </td>
+           );
+         })}
+       </tr>
+       
+       {isExpanded && hasSubModules && module.subModules.map((sub: any, subIdx: number) => (
+         <tr key={`${idx}-${subIdx}`} className="bg-[var(--bg-panel)]/30 hover:bg-[var(--glass-bg)] transition-colors text-sm">
+           <td className="px-6 py-3 pl-14 text-[var(--text-muted-alt)] flex items-center gap-2 border-l-2 border-transparent">
+             <div className="w-1.5 h-1.5 rounded-full bg-[var(--border-subtle)]"></div>
+             {sub.name}
+           </td>
+           {['view', 'add', 'edit', 'delete', 'approve'].map((action) => {
+             const isNA = getNotApplicableActions(sub.name).includes(action);
+             return (
+               <td key={action} className="px-6 py-3 text-center">
+                 {isNA ? (
+                   <div title="Not applicable" className="flex justify-center text-[var(--text-muted-alt)]/30 cursor-not-allowed text-xs">
+                     —
+                   </div>
+                 ) : (
+                   <input 
+                     type="checkbox" 
+                     checked={sub.permissions[action]} 
+                     onChange={() => handlePermissionChange(idx, action, subIdx)}
+                     className="w-3.5 h-3.5 rounded border-gray-600 text-[#e67e00] bg-[var(--bg-base)] focus:ring-[#e67e00] border-[var(--border-subtle)] focus:ring-offset-[#121212] cursor-pointer" 
+                   />
+                 )}
+               </td>
+             );
+           })}
+         </tr>
+       ))}
+     </React.Fragment>
+   );
+ })}
  </tbody>
  </table>
  </div>

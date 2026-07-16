@@ -72,17 +72,19 @@ let WeighbridgeService = class WeighbridgeService {
         return transaction;
     }
     async getHistory(plantId) {
+        const whereClause = plantId === 'global' ? {} : { plantId };
         return this.prisma.weighbridgeTransaction.findMany({
-            where: { plantId },
+            where: whereClause,
             orderBy: { createdAt: 'desc' },
             take: 100
         });
     }
     async getSettings(plantId) {
-        let settings = await this.prisma.weighbridgeSettings.findUnique({
-            where: { plantId }
+        const whereClause = plantId === 'global' ? {} : { plantId };
+        let settings = await this.prisma.weighbridgeSettings.findFirst({
+            where: whereClause
         });
-        if (!settings) {
+        if (!settings && plantId !== 'global') {
             settings = await this.prisma.weighbridgeSettings.create({
                 data: { plantId }
             });

@@ -27,11 +27,11 @@ export declare class UsersRolesController {
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
-        username: string;
         email: string;
+        isActive: boolean;
+        username: string;
         passwordHash: string;
         refreshToken: string | null;
-        isActive: boolean;
         roleId: string;
         lastLogin: Date | null;
     }>;
@@ -40,11 +40,11 @@ export declare class UsersRolesController {
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
-        username: string;
         email: string;
+        isActive: boolean;
+        username: string;
         passwordHash: string;
         refreshToken: string | null;
-        isActive: boolean;
         roleId: string;
         lastLogin: Date | null;
     }>;
@@ -53,11 +53,11 @@ export declare class UsersRolesController {
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
-        username: string;
         email: string;
+        isActive: boolean;
+        username: string;
         passwordHash: string;
         refreshToken: string | null;
-        isActive: boolean;
         roleId: string;
         lastLogin: Date | null;
     }>;
@@ -67,18 +67,18 @@ export declare class UsersRolesController {
     getRoles(): Promise<{
         id: string;
         name: string;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
-        description: string | null;
     }[]>;
     createRole(body: any): Promise<{
         id: string;
         name: string;
+        description: string | null;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
-        description: string | null;
     }>;
     getRolePermissions(roleId: string): Promise<{
         name: string;
@@ -89,6 +89,16 @@ export declare class UsersRolesController {
             delete: boolean;
             approve: boolean;
         };
+        subModules: {
+            name: string;
+            permissions: {
+                view: boolean;
+                add: boolean;
+                edit: boolean;
+                delete: boolean;
+                approve: boolean;
+            };
+        }[];
     }[]>;
     updateRolePermissions(roleId: string, permissions: any[]): Promise<{
         name: string;
@@ -99,6 +109,16 @@ export declare class UsersRolesController {
             delete: boolean;
             approve: boolean;
         };
+        subModules: {
+            name: string;
+            permissions: {
+                view: boolean;
+                add: boolean;
+                edit: boolean;
+                delete: boolean;
+                approve: boolean;
+            };
+        }[];
     }[]>;
     getAuditLogs(): Promise<{
         total: number;
