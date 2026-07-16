@@ -12,8 +12,8 @@ export declare class YieldController {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            productionBatchId: string;
             plantId: string;
+            productionBatchId: string;
             headRicePercent: number;
             brokenRicePercent: number;
             branPercent: number;
@@ -69,15 +69,12 @@ export declare class YieldController {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            date: Date;
-            variety: string;
-            remarks: string | null;
-            status: string;
-            plantId: string;
             batchNo: string;
+            date: Date;
             shift: string;
             productionLine: string;
             paddyType: string;
+            variety: string;
             paddySource: string | null;
             paddyUsedQty: number;
             riceProducedQty: number | null;
@@ -103,16 +100,19 @@ export declare class YieldController {
             wandReused: number;
             parmalReused: number;
             frkReused: number;
+            status: string;
             progress: number;
+            remarks: string | null;
             startTime: Date | null;
             endTime: Date | null;
+            plantId: string;
         };
     } & {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        productionBatchId: string;
         plantId: string;
+        productionBatchId: string;
         headRicePercent: number;
         brokenRicePercent: number;
         branPercent: number;

@@ -5,41 +5,41 @@ export declare class ProductsController {
     create(body: any): Promise<{
         id: string;
         name: string;
-        type: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
+        type: string;
     }>;
     findAll(): Promise<{
         id: string;
         name: string;
-        type: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
+        type: string;
     }[]>;
     findOne(id: string): Promise<{
         id: string;
         name: string;
-        type: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
+        type: string;
     }>;
     update(id: string, body: any): Promise<{
         id: string;
         name: string;
-        type: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
+        type: string;
     }>;
     remove(id: string): Promise<{
         id: string;
         name: string;
-        type: string;
-        description: string | null;
         createdAt: Date;
         updatedAt: Date;
+        description: string | null;
+        type: string;
     }>;
 }

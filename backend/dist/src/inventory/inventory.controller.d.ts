@@ -49,16 +49,16 @@ export declare class InventoryController {
         createdAt: Date;
         updatedAt: Date;
         variety: string | null;
-        quantity: number;
         plantId: string;
-        unit: string;
-        category: string | null;
         itemType: string;
-        godown: string | null;
+        quantity: number;
         usable: number;
         reserved: number;
         damaged: number;
         stockValue: number;
+        category: string | null;
+        godown: string | null;
+        unit: string;
     }[]>;
     getStockReport(req: any, filterDto: GetStockReportDto): Promise<any[]>;
     adjustStock(req: any, body: any): Promise<{
@@ -66,26 +66,26 @@ export declare class InventoryController {
         createdAt: Date;
         updatedAt: Date;
         variety: string | null;
-        quantity: number;
         plantId: string;
-        unit: string;
-        category: string | null;
         itemType: string;
-        godown: string | null;
+        quantity: number;
         usable: number;
         reserved: number;
         damaged: number;
         stockValue: number;
+        category: string | null;
+        godown: string | null;
+        unit: string;
     }>;
     getLedger(req: any, filterDto: any): Promise<{
         id: string;
         createdAt: Date;
-        quantity: number;
+        shift: string | null;
         remarks: string | null;
         plantId: string;
-        shift: string | null;
-        itemType: string;
         transaction: string;
+        itemType: string;
+        quantity: number;
         reference: string | null;
     }[]>;
 }
