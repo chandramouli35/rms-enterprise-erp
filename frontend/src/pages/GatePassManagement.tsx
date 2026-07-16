@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Truck, LogIn, LogOut, QrCode, ShieldAlert, ShieldCheck, ArrowUp, ArrowDown, Search, Eye, RefreshCw, Plus, Printer, CheckCircle2, Download } from 'lucide-react';
-import axios from 'axios';
+import api from '../api/axios';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { QRCodeCanvas } from 'qrcode.react';
 import { usePlantStore } from '../store/plantStore';
@@ -76,7 +76,7 @@ export const GatePassManagement = () => {
  passId = match[1];
  }
 
- const response = await axios.get(`http://localhost:3000/api/gate-pass/scan/${passId}`);
+ const response = await api.get(`/api/gate-pass/scan/${passId}`);
  
  if (response.data) {
  // Pass found, show the details modal
@@ -246,21 +246,30 @@ export const GatePassManagement = () => {
 
   const fetchData = async () => {
     const pid = activePlant?.id || 'global';
+    
+    // Fetch suppliers independently so dropdown always populates even if analytics fail
     try {
-      const [resAnalytics, resRecent, resSuppliers, resLogs] = await Promise.all([
-        axios.get(`${API_URL}/gate-pass/analytics/${pid}`),
-        axios.get(`${API_URL}/gate-pass/recent/${pid}?type=${activeTab === 'report_summary' ? 'ALL' : activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}`),
-        axios.get(`${API_URL}/procurement/suppliers`),
-        axios.get(`${API_URL}/gate-pass/duplicate-logs/${pid}`)
+      const resSuppliers = await api.get(`/api/procurement/suppliers`);
+      setSuppliers(resSuppliers.data);
+    } catch (error) {
+      console.error('Failed to fetch suppliers:', error);
+    }
+
+    // Fetch other data independently using allSettled so one failure doesn't block the rest
+    try {
+      const [analyticsRes, recentRes, logsRes] = await Promise.allSettled([
+        api.get(`/api/gate-pass/analytics/${pid}`),
+        api.get(`/api/gate-pass/recent/${pid}?type=${activeTab === 'report_summary' ? 'ALL' : activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}`),
+        api.get(`/api/gate-pass/duplicate-logs/${pid}`)
       ]);
- setAnalytics(resAnalytics.data);
- setRecentEntries(resRecent.data);
- setSuppliers(resSuppliers.data);
- setDuplicateLogs(resLogs.data.slice(0, 3)); // Show top 3 recent logs
- } catch (error) {
- console.error('Failed to fetch gate pass data:', error);
- }
- };
+      
+      if (analyticsRes.status === 'fulfilled') setAnalytics(analyticsRes.value.data);
+      if (recentRes.status === 'fulfilled') setRecentEntries(recentRes.value.data);
+      if (logsRes.status === 'fulfilled') setDuplicateLogs(logsRes.value.data.slice(0, 3));
+    } catch (error) {
+      console.error('Failed to fetch gate pass data:', error);
+    }
+  };
 
  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
  const { name, value } = e.target;
@@ -285,7 +294,7 @@ export const GatePassManagement = () => {
  if (!formData.plantId) return;
  try {
  const type = activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD';
- const response = await axios.post(`${API_URL}/gate-pass/generate`, {
+ const response = await api.post(`/api/gate-pass/generate`, {
  ...formData,
  passType: type,
  grossWeight: formData.weightInputType === 'GROSS' && formData.grossWeight ? parseFloat(formData.grossWeight as any) : null,
@@ -423,8 +432,8 @@ export const GatePassManagement = () => {
  {(activeTab === 'gate_in' || activeTab === 'gate_out') && (
  <div className="grid grid-cols-12 gap-6">
  
- {/* COLUMN 1: FORM (33%) -> approx 4 cols out of 12 */}
- <div className="col-span-12 lg:col-span-4 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle-alt)] p-5">
+ {/* COLUMN 1: FORM (42%) -> 5 cols out of 12 */}
+ <div className="col-span-12 lg:col-span-5 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle-alt)] p-5">
  <h2 className="text-lg font-semibold mb-4 text-[var(--text-main)]">Create Gate {activeTab === 'gate_in' ? 'In' : 'Out'} Pass</h2>
  <form onSubmit={handleGeneratePass} className="space-y-4">
  <div className="grid grid-cols-2 gap-4">
@@ -467,7 +476,7 @@ export const GatePassManagement = () => {
  </div>
  </div>
 
-  <div className="grid grid-cols-3 gap-4">
+  <div className="grid grid-cols-3 gap-4 items-end">
   <div>
   <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Purpose <span className="text-red-500">*</span></label>
   <select name="purpose" value={formData.purpose} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none">
@@ -591,8 +600,8 @@ export const GatePassManagement = () => {
  </form>
  </div>
 
- {/* COLUMN 2: RECENT ENTRIES GRID (38%) -> approx 5 cols out of 12 */}
- <div className="col-span-12 lg:col-span-5 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle-alt)] p-5 flex flex-col">
+ {/* COLUMN 2: RECENT ENTRIES GRID (58%) -> 7 cols out of 12 */}
+ <div className="col-span-12 lg:col-span-7 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle-alt)] p-5 flex flex-col">
  <div className="flex items-center justify-between mb-4">
  <h2 className="text-lg font-semibold text-[var(--text-main)]">Recent Gate {activeTab === 'gate_in' ? 'In' : 'Out'} Entries</h2>
  <button className="text-blue-500 text-sm font-medium hover:text-blue-400">View All</button>
@@ -650,100 +659,6 @@ export const GatePassManagement = () => {
  <span className="text-gray-600 px-1">...</span>
  <button className="px-2.5 py-1 rounded bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-[var(--text-muted-alt)] hover:bg-[var(--glass-bg)] text-sm">10</button>
  <button className="px-2.5 py-1 rounded bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-[var(--text-muted-alt)] hover:bg-[var(--glass-bg)] text-sm">&gt;</button>
- </div>
- </div>
- </div>
-
- {/* COLUMN 3: PREVIEW VOUCHER (29%) -> approx 3 cols out of 12 */}
- <div className="col-span-12 lg:col-span-3 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle-alt)] p-5 flex flex-col">
- <h2 className="text-lg font-semibold mb-4 text-[var(--text-main)]">Gate {activeTab === 'gate_in' ? 'In' : 'Out'} Pass Preview</h2>
- 
- <div className="bg-white rounded-xl flex-1 flex flex-col text-black shadow-lg overflow-hidden relative">
- {/* Voucher Header */}
- <div className="p-4 border-b-2 border-gray-100 flex items-start justify-between">
- <div className="flex items-center gap-2">
- <div className="w-8 h-8 bg-amber-500 rounded flex items-center justify-center text-[var(--text-main)] font-bold italic">R</div>
- <div>
- <h3 className="font-bold text-sm leading-tight text-gray-800">RICE MILL</h3>
- <p className="text-[9px] text-[var(--text-muted-alt)] uppercase font-semibold">Management System</p>
- </div>
- </div>
- <div className={`px-2 py-1 border-2 rounded text-[10px] font-bold uppercase ${activeTab === 'gate_in' ? 'border-green-600 text-green-600' : 'border-blue-600 text-blue-600'}`}>
- GATE {activeTab === 'gate_in' ? 'IN' : 'OUT'} PASS
- </div>
- </div>
-
- {/* Voucher Body */}
- <div className="p-4 flex-1 flex flex-col">
- {generatedPass ? (
- <>
- <div className="grid grid-cols-2 gap-y-4 mb-4">
- <div>
- <p className="text-[10px] text-[var(--text-muted-alt)] uppercase font-semibold mb-0.5">Pass No.</p>
- <p className="font-bold text-sm">{generatedPass.passNo}</p>
- </div>
- <div>
- <p className="text-[10px] text-[var(--text-muted-alt)] uppercase font-semibold mb-0.5">Date & Time</p>
- <p className="font-bold text-sm">{generatedPass.date}</p>
- </div>
- <div>
- <p className="text-[10px] text-[var(--text-muted-alt)] uppercase font-semibold mb-0.5">Vehicle No.</p>
- <p className="font-bold text-sm">{generatedPass.vehicleNo || 'N/A'}</p>
- </div>
- <div>
- <p className="text-[10px] text-[var(--text-muted-alt)] uppercase font-semibold mb-0.5">Vehicle Type</p>
- <p className="font-bold text-sm">{generatedPass.vehicleType || 'N/A'}</p>
- </div>
- <div>
- <p className="text-[10px] text-[var(--text-muted-alt)] uppercase font-semibold mb-0.5">{activeTab === 'gate_in' ? 'From / Supplier' : 'To / Party'}</p>
- <p className="font-bold text-sm">{generatedPass.supplier || 'N/A'}</p>
- </div>
- <div>
- <p className="text-[10px] text-[var(--text-muted-alt)] uppercase font-semibold mb-0.5">Material</p>
- <p className="font-bold text-sm">{generatedPass.material || 'N/A'}</p>
- </div>
- <div>
- <p className="text-[10px] text-[var(--text-muted-alt)] uppercase font-semibold mb-0.5">Net Wt (MT)</p>
- <p className="font-bold text-sm">{Number(generatedPass.netWeight).toFixed(3)}</p>
- </div>
- <div>
- <p className="text-[10px] text-[var(--text-muted-alt)] uppercase font-semibold mb-0.5">No. of Bags</p>
- <p className="font-bold text-sm">{generatedPass.noOfBags || 'N/A'}</p>
- </div>
- </div>
-
- <div className="mt-auto pt-4 border-t border-dashed border-gray-300 flex items-center justify-between">
- <div className="p-2 bg-gray-50 rounded-lg">
-  <QRCodeCanvas 
-  value={`Gate Pass : ${generatedPass.passNo}\nVehicle : ${generatedPass.vehicleNo || 'N/A'}\nDriver : ${generatedPass.driverName || 'N/A'}\nMaterial : ${generatedPass.material || 'N/A'}\nSupplier : ${generatedPass.supplier || 'N/A'}\nDate : ${generatedPass.date}\nType : ${activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}${generatedPass.procurementBatch?.quality ? `\nMoisture : ${generatedPass.procurementBatch.quality.moisture || 0}%\nBroken : ${generatedPass.procurementBatch.quality.broken || 0}%\nDiscoloration : ${generatedPass.procurementBatch.quality.discoloration || 0}%\nForeign Matter : ${generatedPass.procurementBatch.quality.foreignMatter || 0}%` : ''}`} 
-  size={64} 
-  level="M" 
-  />
- </div>
- <div className="text-right flex-1 pl-4">
- <p className="text-[11px] text-[var(--text-muted-alt)] font-medium leading-tight">Scan at Gate {activeTab === 'gate_in' ? 'Out' : 'In'}<br/>for verification</p>
- </div>
- </div>
- </>
- ) : (
- <div className="flex-1 flex items-center justify-center border-2 border-dashed border-gray-200 rounded-lg m-2">
- <p className="text-[var(--text-muted-alt)] font-medium text-sm tracking-wider">AWAITING GENERATION</p>
- </div>
- )}
- </div>
-
- {/* Voucher Footer */}
- <div className="bg-gray-50 p-3 border-t border-gray-100 flex items-center justify-between">
- <div className="flex items-center gap-1.5">
- <CheckCircle2 size={16} className="text-green-600" />
- <div>
- <p className="text-[10px] font-bold text-green-700">Authorized {activeTab === 'gate_in' ? 'Entry' : 'Exit'}</p>
- <p className="text-[8px] text-[var(--text-muted-alt)]">Valid for today only</p>
- </div>
- </div>
- <div className="border-b border-gray-400 w-24 text-right pb-1">
- <span className="text-[8px] text-[var(--text-muted-alt)] uppercase">Authorised Sign</span>
- </div>
  </div>
  </div>
  </div>

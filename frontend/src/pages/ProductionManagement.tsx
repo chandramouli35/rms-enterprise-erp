@@ -581,8 +581,10 @@ export const ProductionManagement = () => {
  </div>
  </div>
 
- {/* Bottom Row: Yield Breakdown */}
- <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-5 flex flex-col w-full">
+{false && (
+  <>
+  {/* Bottom Row: Yield Breakdown */}
+  <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-5 flex flex-col w-full">
  <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border-subtle)]">
  <h2 className="text-lg font-bold text-[var(--text-main)]">3. Yield Breakdown</h2>
           {batches.length > 0 && (
@@ -661,6 +663,8 @@ export const ProductionManagement = () => {
  </button>
  </div>
  </div>
+  </>
+ )}
  </div>
  )}
 

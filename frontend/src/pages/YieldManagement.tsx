@@ -15,7 +15,7 @@ import { usePlantStore } from '../store/plantStore';
 export const YieldManagement = () => {
  const activePlant = usePlantStore(state => state.activePlant);
  const [searchParams, setSearchParams] = useSearchParams();
- const activeTab = searchParams.get('tab') || 'yield_calculator';
+ const activeTab = searchParams.get('tab') || 'yield_analytics';
  
  const [metricsData, setMetricsData] = useState<any>({});
  const [yieldTrendData, setYieldTrendData] = useState<any[]>([]);

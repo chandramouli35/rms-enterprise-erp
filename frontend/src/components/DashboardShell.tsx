@@ -141,7 +141,6 @@ export const DashboardShell: React.FC = () => {
     
     const labelToModule: Record<string, string> = {
       'Users and Roles': 'User Management',
-      'Yield Mgmt': 'Production',
       'Transfer': 'Inventory',
       'Plants': 'Settings',
     };
@@ -174,9 +173,10 @@ export const DashboardShell: React.FC = () => {
   };
 
   const hasSubPermission = (parentModuleLabel: string, subModuleLabel: string) => {
+    if (subModuleLabel === 'Yield Calculator') return false;
+    if (user?.role === 'SUPER_ADMIN') return true;
     const labelToModule: Record<string, string> = {
       'Users and Roles': 'User Management',
-      'Yield Mgmt': 'Production',
       'Transfer': 'Inventory',
       'Plants': 'Settings',
     };
@@ -243,8 +243,9 @@ export const DashboardShell: React.FC = () => {
  toggleExpand(item.label);
  if (sidebarCollapsed) toggleSidebar(); 
  if (!isActive) {
- navigate(`${item.href}?tab=${item.subItems[0].tab}`);
- }
+    const allowedSubs = item.subItems.filter(sub => hasSubPermission(item.label, sub.label));
+    if (allowedSubs.length > 0) navigate(`${item.href}?tab=${allowedSubs[0].tab}`);
+  }
  }}
  className={`flex items-center justify-between gap-3 px-3 py-3 rounded-lg transition-colors group ${isActive ? 'bg-amber-500/10 text-amber-500' : 'text-[var(--text-muted-alt)] hover:bg-amber-500/10 hover:text-amber-500'}`}
  >
