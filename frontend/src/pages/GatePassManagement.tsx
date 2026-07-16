@@ -10,11 +10,81 @@ import { useUiStore } from '../store/uiStore';
 
 const API_URL = 'http://localhost:3000/api';
 
+const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
+  if (!pass) return '';
+  let qrText = '';
+
+  // Determine if this is an inward pass flow
+  const isInward = pass.passType === 'INWARD' || (pass.qrCode && pass.qrCode.startsWith('GIN'));
+  const plantName = plants.find(p => p.id === pass.plantId)?.name || 'Unknown Plant';
+
+  const basePass = pass.relatedInwardPass ? pass.relatedInwardPass : pass;
+
+  if (isInward || pass.relatedInwardPass) {
+    qrText += `=== STEP 1: GATE IN ===\n`;
+    qrText += `Pass: ${basePass.qrCode}\n`;
+    qrText += `Plant: ${plantName}\n`;
+    qrText += `Date: ${new Date(basePass.createdAt).toLocaleString()}\n`;
+    qrText += `Type: ${basePass.passType || 'INWARD'}\n`;
+    qrText += `Gate: ${basePass.gate || 'Main Gate'}\n`;
+    qrText += `Vehicle: ${basePass.vehicleNo || 'N/A'}\n`;
+    qrText += `Vehicle Type: ${basePass.vehicleType || 'N/A'}\n`;
+    qrText += `Driver: ${basePass.driverName || 'N/A'} (${basePass.contactNo || basePass.driverMobile || 'N/A'})\n`;
+    qrText += `Purpose: ${basePass.purpose || 'N/A'}\n`;
+    qrText += `Supplier/Party: ${basePass.supplier?.name || basePass.partyName || 'N/A'}\n`;
+    qrText += `Material: ${basePass.material || 'N/A'}\n`;
+    qrText += `Challan No: ${basePass.challanNo || 'N/A'}\n`;
+    qrText += `Sauda No: ${basePass.sodaNo || 'N/A'}\n`;
+    qrText += `Bags: ${basePass.noOfBags || 'N/A'}\n`;
+    qrText += `Empty Video: ${basePass.emptyVideoTime || 'N/A'}\n`;
+    qrText += `Loaded Video: ${basePass.loadedVideoTime || 'N/A'}\n`;
+    qrText += `Gross Wt: ${basePass.grossWeight || 0} MT\n`;
+    qrText += `Tare Wt: ${basePass.tareWeight || 0} MT\n`;
+    qrText += `Net Wt: ${basePass.netWeight || 0} MT\n`;
+    qrText += `Remarks: ${basePass.remarks || 'None'}\n\n`;
+
+    if (pass.latestWeighbridge && pass.latestWeighbridge.grossWeight) {
+      qrText += `=== STEP 2: WEIGHBRIDGE (GROSS) ===\n`;
+      qrText += `Ticket: ${pass.latestWeighbridge.ticketNo || 'N/A'}\n`;
+      qrText += `Gross: ${pass.latestWeighbridge.grossWeight} MT\n`;
+      qrText += `Time: ${new Date(pass.latestWeighbridge.createdAt).toLocaleString()}\n\n`;
+    }
+
+    if (basePass.procurementBatch?.quality) {
+      qrText += `=== STEP 3: QUALITY CONTROL ===\n`;
+      qrText += `Moisture: ${basePass.procurementBatch.quality.moisture || 0}%\n`;
+      qrText += `Broken: ${basePass.procurementBatch.quality.broken || 0}%\n`;
+      qrText += `Discoloration: ${basePass.procurementBatch.quality.discoloration || 0}%\n`;
+      qrText += `Foreign: ${basePass.procurementBatch.quality.foreignMatter || 0}%\n\n`;
+    }
+
+    if (pass.latestWeighbridge && pass.latestWeighbridge.tareWeight) {
+      qrText += `=== STEP 4: WEIGHBRIDGE (TARE) ===\n`;
+      qrText += `Tare: ${pass.latestWeighbridge.tareWeight} MT\n`;
+      qrText += `Net: ${pass.latestWeighbridge.netWeight} MT\n`;
+      qrText += `Time: ${new Date(pass.latestWeighbridge.updatedAt || pass.latestWeighbridge.createdAt).toLocaleString()}\n\n`;
+    }
+  }
+
+  if (pass.passType === 'OUTWARD' || (pass.qrCode && pass.qrCode.startsWith('GOUT'))) {
+    qrText += `=== STEP 5: GATE OUT ===\n`;
+    qrText += `Pass: ${pass.qrCode}\n`;
+    qrText += `Date: ${new Date(pass.createdAt).toLocaleString()}\n`;
+    qrText += `Purpose: ${pass.purpose || 'N/A'}\n`;
+    qrText += `Party: ${pass.partyName || pass.supplier?.name || 'N/A'}\n`;
+    qrText += `Challan: ${pass.challanNo || 'N/A'}\n`;
+    qrText += `Remarks: ${pass.remarks || 'None'}\n`;
+  }
+
+  return qrText.trim();
+};
+
 export const GatePassManagement = () => {
  const [searchParams] = useSearchParams();
  const activeTab = searchParams.get('tab') || 'gate_in';
  const activePlant = usePlantStore(state => state.activePlant);
  const [suppliers, setSuppliers] = useState<any[]>([]);
+ const [plants, setPlants] = useState<any[]>([]);
  const [recentEntries, setRecentEntries] = useState<any[]>([]);
  const [duplicateLogs, setDuplicateLogs] = useState<any[]>([]);
  const [analytics, setAnalytics] = useState<any>({
@@ -61,6 +131,19 @@ export const GatePassManagement = () => {
  const [isScannerActive, setIsScannerActive] = useState(false);
  const [scannedData, setScannedData] = useState('');
  const [isScanning, setIsScanning] = useState(false);
+
+ const handleViewPass = async (qrCode: string) => {
+     try {
+       const res = await api.get(`/api/gate-pass/scan/${qrCode}`);
+       if (res.data) {
+         setSelectedPass(res.data);
+         setViewPassModalOpen(true);
+       }
+     } catch (error) {
+       console.error('Failed to fetch full pass details', error);
+       useUiStore.getState().addToast('Failed to fetch pass details.', 'error');
+     }
+   };
 
  const handleScannerInput = async (e: React.KeyboardEvent<HTMLInputElement>) => {
  if (e.key === 'Enter') {
@@ -247,6 +330,13 @@ export const GatePassManagement = () => {
   const fetchData = async () => {
     const pid = activePlant?.id || 'global';
     
+    try {
+      const resPlants = await api.get('/plants');
+      setPlants(resPlants.data);
+    } catch (error) {
+      console.error('Failed to fetch plants:', error);
+    }
+
     // Fetch suppliers independently so dropdown always populates even if analytics fail
     try {
       const resSuppliers = await api.get(`/api/procurement/suppliers`);
@@ -271,10 +361,15 @@ export const GatePassManagement = () => {
     }
   };
 
- const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
- const { name, value } = e.target;
- setFormData(prev => {
- const updated = { ...prev, [name]: value };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  let { name, value } = e.target;
+  
+  if (name === 'driverMobile') {
+    value = value.replace(/[^0-9]/g, '');
+  }
+  
+  setFormData(prev => {
+  const updated = { ...prev, [name]: value };
  if (name === 'grossWeight' || name === 'tareWeight') {
  const gross = name === 'grossWeight' ? parseFloat(value) || 0 : parseFloat(prev.grossWeight as any) || 0;
  const tare = name === 'tareWeight' ? parseFloat(value) || 0 : parseFloat(prev.tareWeight as any) || 0;
@@ -289,10 +384,13 @@ export const GatePassManagement = () => {
  setGeneratedPass(null);
  };
 
- const handleGeneratePass = async (e: React.FormEvent) => {
- e.preventDefault();
- if (!formData.plantId) return;
- try {
+  const handleGeneratePass = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (formData.plantId === 'global' || !formData.plantId) {
+    useUiStore.getState().addToast('Please select a specific plant to generate a Gate Pass.', 'warning');
+    return;
+  }
+  try {
  const type = activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD';
  const response = await api.post(`/api/gate-pass/generate`, {
  ...formData,
@@ -436,8 +534,19 @@ export const GatePassManagement = () => {
  <div className="col-span-12 lg:col-span-5 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle-alt)] p-5">
  <h2 className="text-lg font-semibold mb-4 text-[var(--text-main)]">Create Gate {activeTab === 'gate_in' ? 'In' : 'Out'} Pass</h2>
  <form onSubmit={handleGeneratePass} className="space-y-4">
- <div className="grid grid-cols-2 gap-4">
- <div>
+  <div className="grid grid-cols-2 gap-4">
+  {(!activePlant || activePlant.id === 'global') && (
+    <div className="col-span-2">
+      <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Select Plant <span className="text-red-500">*</span></label>
+      <select name="plantId" value={formData.plantId === 'global' ? '' : formData.plantId} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none" required>
+        <option value="" disabled>Select a plant...</option>
+        {plants.map(p => (
+          <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
+        ))}
+      </select>
+    </div>
+  )}
+  <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Entry Date & Time <span className="text-red-500">*</span></label>
  <input type="datetime-local" name="entryDateTime" value={formData.entryDateTime} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none css-color-scheme-dark" required />
  </div>
@@ -472,7 +581,7 @@ export const GatePassManagement = () => {
  </div>
  <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Driver Mobile</label>
- <input type="tel" pattern="[0-9]{10}" maxLength={10} title="10 digit mobile number" name="driverMobile" value={formData.driverMobile} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
+ <input type="tel" maxLength={10} name="driverMobile" value={formData.driverMobile} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
  </div>
  </div>
 
@@ -600,7 +709,7 @@ export const GatePassManagement = () => {
  </form>
  </div>
 
- {/* COLUMN 2: RECENT ENTRIES GRID (58%) -> 7 cols out of 12 */}
+ {/* COLUMN 2: RECENT ENTRIES GRID (100% -> 12 cols out of 12) */}
  <div className="col-span-12 lg:col-span-7 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle-alt)] p-5 flex flex-col">
  <div className="flex items-center justify-between mb-4">
  <h2 className="text-lg font-semibold text-[var(--text-main)]">Recent Gate {activeTab === 'gate_in' ? 'In' : 'Out'} Entries</h2>
@@ -636,7 +745,7 @@ export const GatePassManagement = () => {
  </span>
  </td>
  <td className="py-3 text-center">
- <button onClick={() => { setSelectedPass(row); setViewPassModalOpen(true); }} className="text-blue-500/50 group-hover:text-blue-500 transition"><Eye size={14} /></button>
+ <button onClick={() => handleViewPass(row.qrCode)} className="text-blue-500/50 group-hover:text-blue-500 transition"><Eye size={14} /></button>
  </td>
  </tr>
  )) : (
@@ -1006,10 +1115,10 @@ export const GatePassManagement = () => {
  <div className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-xl p-4 flex flex-col items-center justify-center shrink-0 w-full md:w-48 self-stretch">
  <div className="bg-white p-2 rounded-lg mb-3">
  <QRCodeCanvas 
- id="modal-qr" 
- value={`Gate Pass : ${selectedPass.qrCode}\nVehicle : ${selectedPass.vehicleNo || 'N/A'}\nDriver : ${selectedPass.driverName || 'N/A'}\nMaterial : ${selectedPass.material || selectedPass.purpose || 'N/A'}\nSupplier : ${selectedPass.supplier?.name || 'N/A'}\nDate : ${new Date(selectedPass.createdAt).toLocaleString()}\nType : ${activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}${selectedPass.latestWeighbridge ? `\nWB Gross : ${selectedPass.latestWeighbridge.grossWeight || 'N/A'} MT\nWB Tare : ${selectedPass.latestWeighbridge.tareWeight || 'N/A'} MT\nWB Net : ${selectedPass.latestWeighbridge.netWeight || 'N/A'} MT` : ''}${selectedPass.procurementBatch?.quality ? `\nMoisture : ${selectedPass.procurementBatch.quality.moisture || 0}%\nBroken : ${selectedPass.procurementBatch.quality.broken || 0}%\nDiscoloration : ${selectedPass.procurementBatch.quality.discoloration || 0}%\nForeign Matter : ${selectedPass.procurementBatch.quality.foreignMatter || 0}%` : ''}`} 
- size={120} 
- level="M" 
+   id="modal-qr" 
+   value={generateQrDataString(selectedPass, plants, activeTab)}
+   size={160} 
+   level="L" 
  />
  </div>
  <p className="text-xs text-[var(--text-muted-alt)] text-center uppercase tracking-wider font-semibold">Verification QR</p>

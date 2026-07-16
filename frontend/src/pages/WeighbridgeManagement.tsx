@@ -13,9 +13,12 @@ export const WeighbridgeManagement = () => {
  const [searchParams] = useSearchParams();
  const activeTab = searchParams.get('tab') || 'capture';
  const activePlant = usePlantStore(state => state.activePlant);
- const plantId = activePlant?.id || '';
 
- // Tab 1: Dynamic State
+  const [localPlantId, setLocalPlantId] = useState('');
+  const [localPlantName, setLocalPlantName] = useState('');
+  const plantId = activePlant?.id || localPlantId;
+
+  // Tab 1: Dynamic State
  const [vehicleNo, setVehicleNo] = useState('');
  const [transType, setTransType] = useState('Inward');
  const [driverName, setDriverName] = useState('');
@@ -302,6 +305,10 @@ export const WeighbridgeManagement = () => {
     try {
       const res = await api.get(`/api/gate-pass/scan/${gatePassId}`);
       if (res.data) {
+        if (res.data.plantId && !activePlant) {
+          setLocalPlantId(res.data.plantId);
+          setLocalPlantName(res.data.plant?.name || 'Unknown Plant');
+        }
         if (res.data.vehicleNo) setVehicleNo(res.data.vehicleNo);
         if (res.data.driverName) setDriverName(res.data.driverName);
         if (res.data.material || res.data.purpose) setMaterialType(res.data.material || res.data.purpose || 'Paddy');
@@ -320,7 +327,7 @@ export const WeighbridgeManagement = () => {
 
  const handleSaveTransaction = async () => {
  if (!weightData || !plantId) {
- setModalConfig({ isOpen: true, title: 'Error', content: 'No weight data or plant context found.' });
+ setModalConfig({ isOpen: true, title: 'Error', content: 'No weight data or plant context found. Please ensure a plant is selected and weight is captured.' });
  return;
  }
  try {
@@ -381,14 +388,15 @@ export const WeighbridgeManagement = () => {
  }
  };
 
- const handleCaptureWt = () => {
- if (currentWeight > 0) {
- setIsStreaming(false);
- setModalConfig({ isOpen: true, title: 'Weight Captured', content: `Gross weight locked at ${currentWeight} kg. You can now save the transaction.` });
- } else {
- setModalConfig({ isOpen: true, title: 'Error', content: 'No weight to capture.' });
- }
- };
+  const handleCaptureWt = () => {
+   if (currentWeight > 0) {
+     setIsStreaming(false);
+     setWeightData({ vehicleNo: vehicleNo || 'CAPTURED-ENTRY', grossWeight: currentWeight });
+     setModalConfig({ isOpen: true, title: 'Weight Captured', content: `Gross weight locked at ${currentWeight} kg. You can now save the transaction.` });
+   } else {
+     setModalConfig({ isOpen: true, title: 'Error', content: 'No weight to capture.' });
+   }
+  };
 
  const handleManual = () => {
  setIsManualModalOpen(true);
@@ -460,6 +468,18 @@ export const WeighbridgeManagement = () => {
  </button>
  </div>
  </div>
+
+ {!activePlant && (
+   <div>
+     <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Plant</label>
+     <input 
+       type="text" 
+       readOnly 
+       value={localPlantName || 'Auto-populated from Gate Pass'} 
+       className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-muted-alt)] focus:outline-none cursor-not-allowed" 
+     />
+   </div>
+ )}
 
  <div>
  <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Driver Name</label>

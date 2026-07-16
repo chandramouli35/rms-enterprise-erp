@@ -45,7 +45,6 @@ let GatePassService = class GatePassService {
         const year = new Date().getFullYear();
         const lastPass = await this.prisma.gatePass.findFirst({
             where: {
-                plantId,
                 passType,
                 qrCode: { startsWith: `${prefix}-${year}-` }
             },
@@ -115,6 +114,7 @@ let GatePassService = class GatePassService {
         const pass = await this.prisma.gatePass.findFirst({
             where: { qrCode },
             include: {
+                plant: true,
                 supplier: true,
                 procurementBatch: {
                     include: {
@@ -128,17 +128,38 @@ let GatePassService = class GatePassService {
         if (!pass) {
             throw new common_1.NotFoundException(`Gate pass with QR code ${qrCode} not found`);
         }
-        const latestWeighbridge = await this.prisma.weighbridgeTransaction.findFirst({
+        let latestWeighbridge = null;
+        let relatedInwardPass = null;
+        if (pass.passType === 'OUTWARD') {
+            relatedInwardPass = await this.prisma.gatePass.findFirst({
+                where: {
+                    vehicleNo: pass.vehicleNo,
+                    passType: 'INWARD',
+                    plantId: pass.plantId,
+                    createdAt: { lte: pass.createdAt }
+                },
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    supplier: true,
+                    procurementBatch: {
+                        include: { quality: true }
+                    }
+                }
+            });
+        }
+        const baselineDate = relatedInwardPass ? relatedInwardPass.createdAt : pass.createdAt;
+        latestWeighbridge = await this.prisma.weighbridgeTransaction.findFirst({
             where: {
                 plantId: pass.plantId,
                 vehicleNo: pass.vehicleNo,
-                createdAt: { gte: pass.createdAt }
+                createdAt: { gte: baselineDate }
             },
             orderBy: { createdAt: 'desc' }
         });
         return {
             ...pass,
-            latestWeighbridge
+            latestWeighbridge,
+            relatedInwardPass
         };
     }
     async getAnalytics(plantId) {

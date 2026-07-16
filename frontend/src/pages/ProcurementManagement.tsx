@@ -19,7 +19,22 @@ export const ProcurementManagement = () => {
 
   const MOCK_LABOUR_CONTRACTORS = ['Ramesh Kumar', 'Suresh Singh', 'Manoj Enterprises', 'Shiva Labour Co.'];
 
- // State
+  // State
+  const [plants, setPlants] = useState<any[]>([]);
+  const [localPlantId, setLocalPlantId] = useState('');
+
+  useEffect(() => {
+    const fetchPlants = async () => {
+      try {
+        const res = await api.get('/plants');
+        setPlants(res.data);
+      } catch (error) {
+        console.error('Failed to fetch plants', error);
+      }
+    };
+    if (!activePlant) fetchPlants();
+  }, [activePlant]);
+
  const defaultFormData = {
  plantId: activePlant?.id || '',
  supplierId: '',
@@ -61,7 +76,6 @@ export const ProcurementManagement = () => {
   const [listFilters, setListFilters] = useState({ dateFrom: '', dateTo: '' });
  const [isSubmitting, setIsSubmitting] = useState(false);
  const [isScanningFingerprint, setIsScanningFingerprint] = useState(false);
- const [plants, setPlants] = useState<any[]>([]);
 
  // Stack Selection State
   const [isStackModalOpen, setIsStackModalOpen] = useState(false);
@@ -146,8 +160,13 @@ export const ProcurementManagement = () => {
   
   const handlePaddyPurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const selectedPlantId = paddyPurchaseModal.plantId || activePlant?.id || localPlantId;
+    if (!selectedPlantId) {
+      useUiStore.getState().addToast('Please select a plant at the top of the page first.', 'error');
+      return;
+    }
     try {
-      const payload = { ...paddyPurchaseModal, plantId: paddyPurchaseModal.plantId || activePlant?.id };
+      const payload = { ...paddyPurchaseModal, plantId: selectedPlantId };
       
       if (paddyPurchaseModal.id) {
         await api.put(`/api/procurement/soda-pending/${paddyPurchaseModal.id}`, payload);
@@ -179,25 +198,14 @@ export const ProcurementManagement = () => {
  });
 
   useEffect(() => {
- fetchPlants();
- if (activePlant?.id) {
- setFormData((prev: any) => ({ ...prev, plantId: activePlant.id }));
- }
- fetchSuppliers();
- fetchSodaPending();
-        fetchRecentPurchases();
-        fetchInwardList();
- fetchInwardList();
- }, [activePlant?.id, activeTab, listFilters.dateFrom, listFilters.dateTo]);
-
- const fetchPlants = async () => {
- try {
- const res = await api.get('/plants');
- setPlants(res.data);
- } catch (error) {
- console.error('Error fetching plants', error);
- }
- };
+    if (activePlant?.id || localPlantId) {
+      setFormData((prev: any) => ({ ...prev, plantId: activePlant?.id || localPlantId }));
+    }
+    fetchSuppliers();
+    fetchSodaPending();
+    fetchRecentPurchases();
+    fetchInwardList();
+  }, [activePlant?.id, localPlantId, activeTab, listFilters.dateFrom, listFilters.dateTo]);
 
  
   const handleViewInward = async (inward: any) => {
@@ -212,7 +220,7 @@ export const ProcurementManagement = () => {
 
   const fetchInwardList = async () => {
     try {
-      const pid = activePlant?.id || 'global';
+      const pid = activePlant?.id || localPlantId || 'global';
       const params = new URLSearchParams();
       if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
       if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
@@ -225,7 +233,7 @@ export const ProcurementManagement = () => {
 
   const fetchRecentPurchases = async () => {
  try {
- const pid = activePlant?.id || 'global';
+ const pid = activePlant?.id || localPlantId || 'global';
  const params = new URLSearchParams();
  if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
  if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
@@ -247,7 +255,7 @@ export const ProcurementManagement = () => {
 
  const fetchSodaPending = async () => {
  try {
- const pid = activePlant?.id || 'global';
+ const pid = activePlant?.id || localPlantId || 'global';
  const params = new URLSearchParams();
  if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
  if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
@@ -299,9 +307,13 @@ export const ProcurementManagement = () => {
  };
 
   const openStackModal = async () => {
-    if (!activePlant?.id) return;
+    const selectedPlantId = activePlant?.id || localPlantId;
+    if (!selectedPlantId) {
+      useUiStore.getState().addToast('Please select a plant at the top of the page first.', 'error');
+      return;
+    }
     try {
-      const res = await api.get(`/api/procurement/occupied-stacks/${activePlant.id}`);
+      const res = await api.get(`/api/procurement/occupied-stacks/${selectedPlantId}`);
       setOccupiedStacks(res.data);
     } catch (err) {
       console.error('Failed to fetch occupied stacks', err);
@@ -309,6 +321,11 @@ export const ProcurementManagement = () => {
     setIsStackModalOpen(true);
   };
   const handleInwardSubmit = async () => {
+    const selectedPlantId = activePlant?.id || localPlantId;
+    if (!selectedPlantId) {
+      useUiStore.getState().addToast('Please select a plant at the top of the page first.', 'error');
+      return;
+    }
     try {
       setIsSubmitting(true);
       
@@ -329,7 +346,7 @@ export const ProcurementManagement = () => {
         bagsAtAgencyGp: computedBagsAtAgencyGp,
         boliInputs,
         category,
-        plantId: activePlant?.id
+        plantId: selectedPlantId
       };
 
       await api.post('/api/procurement/save-purchase', payload);
@@ -385,10 +402,16 @@ export const ProcurementManagement = () => {
  <div className="flex flex-col h-full bg-[var(--bg-base)]">
  {/* Header & Category Toggle */}
  <div className="flex items-center justify-between px-6 py-2 border-b border-[var(--border-subtle)] shrink-0 bg-[var(--bg-panel)]">
- <div className="flex items-center gap-2">
- <Package size={16} className="text-[#e67e00]" />
- <h1 className="text-sm font-semibold text-[var(--text-muted)]">Procurement Module</h1>
- </div>
+   <div className="flex items-center gap-2">
+   <Package size={16} className="text-[#e67e00]" />
+   <h1 className="text-sm font-semibold text-[var(--text-muted)]">Procurement Module</h1>
+   {!activePlant && (
+     <select value={localPlantId} onChange={e => setLocalPlantId(e.target.value)} className="ml-4 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-3 py-1 text-[var(--text-main)] outline-none text-xs">
+       <option value="">Select Plant</option>
+       {plants.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+     </select>
+   )}
+   </div>
  
  <div className="flex bg-[var(--bg-base)] rounded-md p-0.5 border border-[var(--border-subtle-alt)] scale-90 origin-right">
  <button 
