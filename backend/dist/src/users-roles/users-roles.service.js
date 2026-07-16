@@ -64,7 +64,7 @@ let UsersRolesService = class UsersRolesService {
             },
             {
                 name: 'Production',
-                subModules: ['Batch Creation', 'Batch Summary']
+                subModules: ['Batch Creation', 'Production Tracking']
             },
             {
                 name: 'Inventory',
