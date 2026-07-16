@@ -387,7 +387,7 @@ export const GatePassManagement = () => {
   const handleGeneratePass = async (e: React.FormEvent) => {
   e.preventDefault();
   if (formData.plantId === 'global' || !formData.plantId) {
-    useUiStore.getState().addToast('Please select a specific plant to generate a Gate Pass.', 'warning');
+    useUiStore.getState().addToast('Please select a specific plant to generate a Gate Pass.', 'error');
     return;
   }
   try {
