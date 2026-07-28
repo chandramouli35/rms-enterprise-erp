@@ -379,15 +379,15 @@ export const DashboardShell: React.FC = () => {
 
  {/* Main Content */}
  <main className="flex-1 flex flex-col min-w-0">
- <header className="h-12 bg-[var(--bg-base)]/80 backdrop-blur border-b border-[var(--border-subtle)] flex items-center justify-between px-6">
- <div>
+ <header className="h-12 bg-[var(--bg-base)]/80 backdrop-blur border-b border-[var(--border-subtle)] flex items-center justify-between px-6 gap-4">
+ <div className="flex-1 min-w-0">
  {user?.role === 'SUPER_ADMIN' ? (
- <div className="flex items-center gap-3">
- <h2 className="font-semibold text-sm text-[var(--text-muted-alt)] uppercase tracking-wider">Context:</h2>
- <div className="flex bg-[var(--bg-panel)] rounded-lg p-0.5 border border-[var(--border-subtle)]">
+ <div className="flex items-center gap-3 min-w-0">
+ <h2 className="font-semibold text-sm text-[var(--text-muted-alt)] uppercase tracking-wider flex-shrink-0">Context:</h2>
+ <div className="flex bg-[var(--bg-panel)] rounded-lg p-0.5 border border-[var(--border-subtle)] overflow-x-auto no-scrollbar items-center">
    <button
      onClick={() => usePlantStore.getState().clearActivePlant()}
-     className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${!activePlant && usePlantStore.getState().contextMode === 'consolidated' ? 'bg-[#e67e00] text-black shadow-md' : 'text-[var(--text-muted)] hover:text-[#e67e00] hover:bg-[var(--glass-bg)]'}`}
+     className={`px-3 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 ${!activePlant && usePlantStore.getState().contextMode === 'consolidated' ? 'bg-[#e67e00] text-black shadow-md' : 'text-[var(--text-muted)] hover:text-[#e67e00] hover:bg-[var(--glass-bg)]'}`}
    >
      Consolidated
    </button>
@@ -395,15 +395,15 @@ export const DashboardShell: React.FC = () => {
      <button
        key={p.id}
        onClick={() => usePlantStore.getState().setActivePlant(p)}
-       className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activePlant?.id === p.id && usePlantStore.getState().contextMode === 'plant' ? 'bg-[#e67e00] text-black shadow-md' : 'text-[var(--text-muted)] hover:text-[#e67e00] hover:bg-[var(--glass-bg)]'}`}
+       className={`px-3 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 ${activePlant?.id === p.id && usePlantStore.getState().contextMode === 'plant' ? 'bg-[#e67e00] text-black shadow-md' : 'text-[var(--text-muted)] hover:text-[#e67e00] hover:bg-[var(--glass-bg)]'}`}
      >
        {p.name}
      </button>
    ))}
-   <div className="w-px h-4 bg-[var(--border-subtle)] mx-1 self-center"></div>
+   <div className="w-px h-4 bg-[var(--border-subtle)] mx-1 self-center flex-shrink-0"></div>
    <button
      onClick={() => usePlantStore.getState().setContextMode('compare')}
-     className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${!activePlant && usePlantStore.getState().contextMode === 'compare' ? 'bg-[#e67e00] text-black shadow-md' : 'text-[var(--text-muted)] hover:text-[#e67e00] hover:bg-[var(--glass-bg)]'}`}
+     className={`px-3 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 ${!activePlant && usePlantStore.getState().contextMode === 'compare' ? 'bg-[#e67e00] text-black shadow-md' : 'text-[var(--text-muted)] hover:text-[#e67e00] hover:bg-[var(--glass-bg)]'}`}
    >
      Compare
    </button>
