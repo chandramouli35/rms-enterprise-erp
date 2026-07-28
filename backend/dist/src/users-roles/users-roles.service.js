@@ -131,7 +131,7 @@ let UsersRolesService = class UsersRolesService {
         }));
     }
     async createUser(data) {
-        const { username, fullname, email, password, roleId, plantId } = data;
+        const { username, fullname, email, password, roleId, plantIds } = data;
         const passwordHash = await bcrypt.hash(password, 10);
         const user = await this.prisma.user.create({
             data: {
@@ -140,7 +140,7 @@ let UsersRolesService = class UsersRolesService {
                 passwordHash,
                 roleId,
                 plantAccess: {
-                    create: { plantId }
+                    create: plantIds.map((id) => ({ plantId: id }))
                 }
             }
         });
@@ -164,7 +164,7 @@ let UsersRolesService = class UsersRolesService {
         });
     }
     async updateUser(id, data) {
-        const { email, roleId, plantId, newPassword, currentPassword } = data;
+        const { email, roleId, plantIds, newPassword, currentPassword } = data;
         let updateData = {
             email,
             roleId
@@ -186,10 +186,10 @@ let UsersRolesService = class UsersRolesService {
             where: { id },
             data: updateData
         });
-        if (plantId) {
+        if (plantIds && Array.isArray(plantIds)) {
             await this.prisma.userPlantAccess.deleteMany({ where: { userId: id } });
-            await this.prisma.userPlantAccess.create({
-                data: { userId: id, plantId }
+            await this.prisma.userPlantAccess.createMany({
+                data: plantIds.map((pid) => ({ userId: id, plantId: pid }))
             });
         }
         await this.prisma.systemAuditLog.create({

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, UseGuards } from '@nestjs/common';
 import { PlantsService } from './plants.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
@@ -16,5 +16,10 @@ export class PlantsController {
   async create(@Body() data: any) {
     // In a real app we'd restrict this to SUPER_ADMIN only
     return this.plantsService.create(data);
+  }
+
+  @Put(':id')
+  async update(@Param('id') id: string, @Body() data: any) {
+    return this.plantsService.update(id, data);
   }
 }

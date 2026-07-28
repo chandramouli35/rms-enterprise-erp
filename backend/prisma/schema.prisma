@@ -14,6 +14,9 @@ model Plant {
   location String?
   code     String  @unique // e.g., 'PLANT-A'
 
+  // Settings
+  standardBagWeight Float @default(0.382)
+
   // Relations
   users                   UserPlantAccess[]
   procurements            ProcurementBatch[]
@@ -26,6 +29,16 @@ model Plant {
   weighbridgeTransactions WeighbridgeTransaction[]
   weighbridgeSettings     WeighbridgeSettings?
   paddySodaPendings       PaddySodaPending[]
+  dispatches              Dispatch[]
+  financeTransactions     FinanceTransaction[]
+  systemUtility           SystemUtility?
+
+  // Power Management
+  powerSources            PowerSource[]
+  powerReadings           PowerReading[]
+  powerLoads              PowerLoad[]
+  powerAlerts             PowerAlert[]
+  powerSetting            PowerSetting?
 
   // Tracking
   createdAt DateTime  @default(now())
@@ -281,6 +294,23 @@ model PaddyInwardDetails {
   qualityCutValue     Float?
   qualityCutReason    String?
 
+  // Shortage Hisab Fields
+  standardBagWeight        Float? // Snapshot of the weight used
+  totalBagsCalculated      Float?
+  standardWeightCalculated Float?
+  actualWeightReceived     Float?
+  shortageQtl              Float?
+  shortageBags             Float?
+
+  // Bardana Hisab Fields
+  aClassGiven           Float?
+  aClassReceived        Float?
+  aClassPending         Float?
+  bClassGiven           Float?
+  bClassReceived        Float?
+  bClassPending         Float?
+  autoConvertedToBClass Float?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -394,11 +424,18 @@ model GatePass {
   sodaNo          String?
   remarks         String?
   biometricData   String? // Store fingerprint XML/PID data
+  
+  // Boli Mandi Fields
+  mandiType       String? // Boli, Control
+  boliRate        Float?
+  boliChecklist   Boolean? @default(false)
+  bardanaClass    String? // A_Class, B_Class
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime? @updatedAt
 
   procurementBatch ProcurementBatch?
+  dispatch         Dispatch?
   weighbridgeTransactions WeighbridgeTransaction[]
 
   @@index([plantId])
@@ -624,4 +661,164 @@ model Product {
   description String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// Dispatch Management
+// -----------------------------------------------------------------------------
+model Dispatch {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  dispatchNo  String   @unique
+  date        DateTime @default(now())
+  partyName   String
+  item        String
+  quantity    Float    // in MT
+  status      String   @default("Pending") // Pending, In Transit, Completed
+  vehicleNo   String?
+  
+  gatePassId  String?  @unique
+  gatePass    GatePass? @relation(fields: [gatePassId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([plantId])
+  @@index([dispatchNo])
+}
+
+// -----------------------------------------------------------------------------
+// Finance Management
+// -----------------------------------------------------------------------------
+model FinanceTransaction {
+  id               String   @id @default(uuid())
+  plantId          String
+  plant            Plant    @relation(fields: [plantId], references: [id])
+  
+  transactionType  String   // PURCHASE, SALE, PAYMENT, RECEIPT, EXPENSE, CONTRA, JOURNAL
+  invoiceNo        String?  @unique // PUR250522001, etc.
+  partyName        String?
+  particulars      String?  // Paddy Purchase, etc.
+  category         String?  // For Expenses: Transport, Labour, Electricity
+  
+  totalAmount      Float
+  paidAmount       Float    @default(0)
+  balance          Float    @default(0)
+  
+  paymentStatus    String   @default("UNPAID") // PAID, PARTIAL, UNPAID
+  date             DateTime @default(now())
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([plantId])
+  @@index([transactionType])
+  @@index([paymentStatus])
+}
+
+// -----------------------------------------------------------------------------
+// System Utility
+// -----------------------------------------------------------------------------
+model SystemUtility {
+  id             String   @id @default(uuid())
+  plantId        String   @unique
+  plant          Plant    @relation(fields: [plantId], references: [id])
+  
+  powerStatus    String   @default("Normal") // Normal, On Backup, Offline
+  lastBackup     DateTime @default(now())
+  databaseSize   Float    @default(0) // in GB
+  systemUptime   String   @default("15 Days")
+  
+  updatedAt      DateTime @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// Power Management Module
+// -----------------------------------------------------------------------------
+
+model PowerSource {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  
+  sourceName  String
+  description String?
+  type        String   @default("Diesel Generator") // Diesel Generator, Grid Power, Solar Power
+  status      String   @default("Standby") // Running, Standby, Active, Inactive
+  
+  currentOutput Float  @default(0) // kW
+  runtime       String? // e.g., "06h 30m"
+  fuelLevel     Float? // percentage, null for grid/solar
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([plantId])
+}
+
+model PowerReading {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  
+  timestamp   DateTime @default(now())
+  
+  totalConsumption Float @default(0) // kWh
+  dgGenerated      Float @default(0) // kWh
+  gridUsed         Float @default(0) // kWh
+  costToday        Float @default(0) // INR
+  outageMinutes    Int   @default(0) // Outage time today in minutes
+  
+  currentLoad      Float @default(0) // kW
+  totalCapacity    Float @default(1000) // kW
+  voltageAvg       Float @default(415) // V
+  frequencyAvg     Float @default(50.02) // Hz
+  powerFactor      Float @default(0.92)
+
+  @@index([plantId])
+  @@index([timestamp])
+}
+
+model PowerLoad {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  
+  sectionName String
+  loadValue   Float    @default(0) // kW
+  percentage  Float    @default(0)
+  colorHex    String   @default("#3b82f6")
+
+  @@index([plantId])
+}
+
+model PowerAlert {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  
+  title       String
+  description String?
+  type        String   @default("info") // success, warning, error, info
+  timestamp   DateTime @default(now())
+
+  @@index([plantId])
+  @@index([timestamp])
+}
+
+model PowerSetting {
+  id          String   @id @default(uuid())
+  plantId     String   @unique
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  
+  highLoadWarning   Int     @default(85) // Percentage
+  criticalLoadAlert Int     @default(95) // Percentage
+  
+  autoStartGenerator Boolean @default(true)
+  
+  gridPowerRate     Float   @default(8.50) // Per kWh
+  dieselCost        Float   @default(92.40) // Per Litre
+  
+  updatedAt   DateTime @updatedAt
 }

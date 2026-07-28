@@ -49,7 +49,7 @@ export class UsersRolesService {
   }
 
   async createUser(data: any) {
-    const { username, fullname, email, password, roleId, plantId } = data;
+    const { username, fullname, email, password, roleId, plantIds } = data;
     const passwordHash = await bcrypt.hash(password, 10);
 
     const user = await this.prisma.user.create({
@@ -59,7 +59,7 @@ export class UsersRolesService {
         passwordHash,
         roleId,
         plantAccess: {
-          create: { plantId }
+          create: plantIds.map((id: string) => ({ plantId: id }))
         }
       }
     });
@@ -88,7 +88,7 @@ export class UsersRolesService {
   }
 
   async updateUser(id: string, data: any) {
-    const { email, roleId, plantId, newPassword, currentPassword } = data;
+    const { email, roleId, plantIds, newPassword, currentPassword } = data;
     
     let updateData: any = {
       email,
@@ -116,11 +116,11 @@ export class UsersRolesService {
       data: updateData
     });
     
-    if (plantId) {
+    if (plantIds && Array.isArray(plantIds)) {
       // Very simplified update for plantAccess: remove existing and add new
       await this.prisma.userPlantAccess.deleteMany({ where: { userId: id } });
-      await this.prisma.userPlantAccess.create({
-        data: { userId: id, plantId }
+      await this.prisma.userPlantAccess.createMany({
+        data: plantIds.map((pid: string) => ({ userId: id, plantId: pid }))
       });
     }
 

@@ -56,6 +56,7 @@ export declare class ProcurementService {
         } | null;
         paddyInwardDetails: {
             id: string;
+            standardBagWeight: number | null;
             createdAt: Date;
             updatedAt: Date;
             qualityCutValue: number | null;
@@ -94,6 +95,18 @@ export declare class ProcurementService {
             khaliVideoUrl: string | null;
             shortageAClass: number | null;
             shortageBClass: number | null;
+            totalBagsCalculated: number | null;
+            standardWeightCalculated: number | null;
+            actualWeightReceived: number | null;
+            shortageQtl: number | null;
+            shortageBags: number | null;
+            aClassGiven: number | null;
+            aClassReceived: number | null;
+            aClassPending: number | null;
+            bClassGiven: number | null;
+            bClassReceived: number | null;
+            bClassPending: number | null;
+            autoConvertedToBClass: number | null;
         } | null;
         weighbridge: {
             id: string;
@@ -179,6 +192,7 @@ export declare class ProcurementService {
         } | null;
         paddyInwardDetails: {
             id: string;
+            standardBagWeight: number | null;
             createdAt: Date;
             updatedAt: Date;
             qualityCutValue: number | null;
@@ -217,6 +231,18 @@ export declare class ProcurementService {
             khaliVideoUrl: string | null;
             shortageAClass: number | null;
             shortageBClass: number | null;
+            totalBagsCalculated: number | null;
+            standardWeightCalculated: number | null;
+            actualWeightReceived: number | null;
+            shortageQtl: number | null;
+            shortageBags: number | null;
+            aClassGiven: number | null;
+            aClassReceived: number | null;
+            aClassPending: number | null;
+            bClassGiven: number | null;
+            bClassReceived: number | null;
+            bClassPending: number | null;
+            autoConvertedToBClass: number | null;
         } | null;
         weighbridge: {
             id: string;

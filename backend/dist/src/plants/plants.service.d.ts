@@ -7,6 +7,7 @@ export declare class PlantsService {
         name: string;
         location: string | null;
         code: string;
+        standardBagWeight: number;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
@@ -16,6 +17,17 @@ export declare class PlantsService {
         name: string;
         location: string | null;
         code: string;
+        standardBagWeight: number;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+    }>;
+    update(id: string, data: any): Promise<{
+        id: string;
+        name: string;
+        location: string | null;
+        code: string;
+        standardBagWeight: number;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;

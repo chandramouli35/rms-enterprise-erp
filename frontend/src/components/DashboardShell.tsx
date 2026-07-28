@@ -67,7 +67,7 @@ export const DashboardShell: React.FC = () => {
  navigate('/login');
  };
 
- const navItems = [
+ const navItems: any[] = [
  { label: 'Dashboard', href: '/dashboard', icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'WEIGHBRIDGE_OPERATOR', 'ACCOUNTANT'] },
  { label: 'Procurement', href: '/procurement', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
       { label: 'Supplier Master', tab: 'supplier_master' },
@@ -111,6 +111,37 @@ export const DashboardShell: React.FC = () => {
  { label: 'QR Barcode', tab: 'qr_barcode' },
  { label: 'Duplicate Prevention', tab: 'duplicate_prevention' }
  ]},
+  { label: 'Dispatch', href: '/dispatch', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
+    { label: 'Dispatch Mgmt', tab: 'dispatch_mgmt' },
+    { label: 'Vehicle Allocation', tab: 'vehicle_allocation' },
+    { label: 'Weight Verification', tab: 'weight_verification' },
+    { label: 'Inventory Deduction', tab: 'inventory_deduction' },
+    { label: 'Finance Mgmt', tab: 'finance_management' },
+    { label: 'Utility Mgmt', tab: 'utility_management' }
+  ]},
+  { label: 'Finance', href: '/finance', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
+    { label: 'Purchase Ledger', tab: 'purchase' },
+    { label: 'Sales / Dispatch Ledger', tab: 'sales' },
+    { label: 'Expense Management', tab: 'expense' },
+    { label: 'Cash Book', tab: 'cashbook' },
+    { label: 'Dispatch Outstanding', tab: 'outstanding' }
+  ]},
+  { label: 'Power', href: '/power', icon: 'M13 10V3L4 14h7v7l9-11h-7z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
+    { label: 'Power Overview', tab: 'overview' },
+    { label: 'Generator Management', tab: 'generator' },
+    { label: 'Load Management', tab: 'load' },
+    { label: 'Consumption Analytics', tab: 'analytics' },
+    { label: 'Power Alerts', tab: 'alerts' },
+    { label: 'Power Settings', tab: 'settings' }
+  ]},
+  { label: 'Backup & Restore', href: '/backup', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4', roles: ['SUPER_ADMIN'], subItems: [
+    { label: 'Backup Overview', tab: 'overview' },
+    { label: 'Restore Data', tab: 'restore' },
+    { label: 'Scheduled Backups', tab: 'scheduled' },
+    { label: 'Backup Settings', tab: 'settings' },
+    { label: 'Storage Management', tab: 'storage' },
+    { label: 'Backup History', tab: 'history' }
+  ]},
  { label: 'Users and Roles', href: '/users', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
  { label: 'Users', tab: 'Users' },
  { label: 'Roles', tab: 'Roles' },
@@ -121,13 +152,13 @@ export const DashboardShell: React.FC = () => {
  { label: 'Plants', href: '/plants', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', roles: ['SUPER_ADMIN'] },
  ];
 
- // Initialize expanded items based on current location
- useEffect(() => {
- const currentNav = navItems.find(n => location.pathname.startsWith(n.href));
- if (currentNav && currentNav.subItems) {
- setExpandedItems(prev => ({ ...prev, [currentNav.label]: true }));
- }
- }, [location.pathname]);
+  // Initialize expanded items based on current location
+  useEffect(() => {
+    const currentNav = navItems.find(n => location.pathname.startsWith(n.href));
+    if (currentNav && (currentNav.subItems || currentNav.subGroups)) {
+      setExpandedItems(prev => ({ ...prev, [currentNav.label]: true }));
+    }
+  }, [location.pathname]);
 
  const toggleExpand = (label: string) => {
  setExpandedItems(prev => ({ ...prev, [label]: !prev[label] }));
@@ -160,15 +191,11 @@ export const DashboardShell: React.FC = () => {
       
       if (perm) {
         const allowed = perm.canView === true || perm.view === true || (perm.permissions && perm.permissions.view === true) || String(perm.canView) === 'true' || String(perm.view) === 'true';
-        console.log(`Checking perm for ${moduleName}: found=`, perm, `allowed=`, allowed);
         return allowed;
       }
     }
     
-    // Fallback to hardcoded roles if no explicit permission record exists
-        // Fallback to hardcoded roles if no explicit permission record exists
     const fallback = itemRoles.includes(user?.role || '');
-    console.log(`Checking fallback for ${moduleName}:`, fallback);
     return fallback;
   };
 
@@ -227,8 +254,15 @@ export const DashboardShell: React.FC = () => {
     const parentAllowed = hasPermission(item.label, item.roles);
     if (!parentAllowed) return false;
     if (item.subItems) {
-      const allowedSubs = item.subItems.filter(sub => hasSubPermission(item.label, sub.label));
+      const allowedSubs = item.subItems.filter((sub: any) => hasSubPermission(item.label, sub.label));
       if (allowedSubs.length === 0) return false;
+    }
+    if (item.subGroups) {
+      let hasAnySub = false;
+      item.subGroups.forEach((sg: any) => {
+        if (sg.items.filter((sub: any) => hasSubPermission(item.label, sub.label)).length > 0) hasAnySub = true;
+      });
+      if (!hasAnySub) return false;
     }
     return true;
   }).map((item, index) => {
@@ -237,14 +271,22 @@ export const DashboardShell: React.FC = () => {
  
  return (
  <div key={index} className="flex flex-col">
- {item.subItems ? (
+ {item.subItems || item.subGroups ? (
  <button 
  onClick={() => {
  toggleExpand(item.label);
  if (sidebarCollapsed) toggleSidebar(); 
  if (!isActive) {
-    const allowedSubs = item.subItems.filter(sub => hasSubPermission(item.label, sub.label));
-    if (allowedSubs.length > 0) navigate(`${item.href}?tab=${allowedSubs[0].tab}`);
+    if (item.subItems) {
+      const allowedSubs = item.subItems.filter((sub: any) => hasSubPermission(item.label, sub.label));
+      if (allowedSubs.length > 0) navigate(`${item.href}?tab=${allowedSubs[0].tab}`);
+    } else if (item.subGroups) {
+      const firstGroup = item.subGroups.find((sg: any) => sg.items.some((sub: any) => hasSubPermission(item.label, sub.label)));
+      if (firstGroup) {
+        const allowedSubs = firstGroup.items.filter((sub: any) => hasSubPermission(item.label, sub.label));
+        if (allowedSubs.length > 0) navigate(`${item.href}?tab=${allowedSubs[0].tab}`);
+      }
+    }
   }
  }}
  className={`flex items-center justify-between gap-3 px-3 py-3 rounded-lg transition-colors group ${isActive ? 'bg-amber-500/10 text-amber-500' : 'text-[var(--text-muted-alt)] hover:bg-amber-500/10 hover:text-amber-500'}`}
@@ -265,10 +307,10 @@ export const DashboardShell: React.FC = () => {
  </Link>
  )}
  
- {/* Sub Items */}
+ {/* Sub Items (Flat) */}
  {!sidebarCollapsed && item.subItems && isExpanded && (
  <div className="ml-10 mt-1 space-y-1 flex flex-col border-l-2 border-[var(--border-subtle-alt)] pl-2">
- {item.subItems.filter(sub => hasSubPermission(item.label, sub.label)).map((sub, subIdx) => {
+ {item.subItems.filter((sub: any) => hasSubPermission(item.label, sub.label)).map((sub: any, subIdx: any) => {
  const isSubActive = isActive && (currentTab === sub.tab || (!currentTab && subIdx === 0));
  return (
  <Link 
@@ -282,6 +324,35 @@ export const DashboardShell: React.FC = () => {
  })}
  </div>
  )}
+
+  {/* Sub Groups (Nested) */}
+  {!sidebarCollapsed && item.subGroups && isExpanded && (
+    <div className="ml-10 mt-2 space-y-3 flex flex-col border-l-2 border-[var(--border-subtle-alt)] pl-2">
+      {item.subGroups.map((group: any, groupIdx: any) => {
+        const allowedItems = group.items.filter((sub: any) => hasSubPermission(item.label, sub.label));
+        if (allowedItems.length === 0) return null;
+        return (
+          <div key={groupIdx} className="flex flex-col space-y-1">
+            <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider px-3 mb-1">
+              {group.groupLabel}
+            </span>
+            {allowedItems.map((sub: any, subIdx: any) => {
+              const isSubActive = isActive && (currentTab === sub.tab || (!currentTab && groupIdx === 0 && subIdx === 0));
+              return (
+                <Link 
+                  key={subIdx} 
+                  to={`${item.href}?tab=${sub.tab}`}
+                  className={`px-3 py-2 rounded-lg transition-colors text-sm font-medium ${isSubActive ? 'text-amber-500 bg-amber-500/5' : 'text-[var(--text-muted-alt)] hover:text-amber-400 hover:bg-[var(--glass-bg)]'}`}
+                >
+                  {sub.label}
+                </Link>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  )}
  </div>
  );
  })}
@@ -312,21 +383,31 @@ export const DashboardShell: React.FC = () => {
  <div>
  {user?.role === 'SUPER_ADMIN' ? (
  <div className="flex items-center gap-3">
- <h2 className="font-semibold text-lg text-[var(--text-muted-alt)]">Context:</h2>
- <select 
- className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--text-main)] focus:outline-none focus:border-amber-500 cursor-pointer"
- value={activePlant?.id || ''}
- onChange={(e) => {
- const selected = plants.find(p => p.id === e.target.value);
- if (selected) setActivePlant(selected);
- else clearActivePlant();
- }}
- >
- <option value="">Global Overview</option>
- {plants.map(p => (
- <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
- ))}
- </select>
+ <h2 className="font-semibold text-sm text-[var(--text-muted-alt)] uppercase tracking-wider">Context:</h2>
+ <div className="flex bg-[var(--bg-panel)] rounded-lg p-0.5 border border-[var(--border-subtle)]">
+   <button
+     onClick={() => usePlantStore.getState().clearActivePlant()}
+     className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${!activePlant && usePlantStore.getState().contextMode === 'consolidated' ? 'bg-[#e67e00] text-black shadow-md' : 'text-[var(--text-muted)] hover:text-[#e67e00] hover:bg-[var(--glass-bg)]'}`}
+   >
+     Consolidated
+   </button>
+   {plants.map(p => (
+     <button
+       key={p.id}
+       onClick={() => usePlantStore.getState().setActivePlant(p)}
+       className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${activePlant?.id === p.id && usePlantStore.getState().contextMode === 'plant' ? 'bg-[#e67e00] text-black shadow-md' : 'text-[var(--text-muted)] hover:text-[#e67e00] hover:bg-[var(--glass-bg)]'}`}
+     >
+       {p.name}
+     </button>
+   ))}
+   <div className="w-px h-4 bg-[var(--border-subtle)] mx-1 self-center"></div>
+   <button
+     onClick={() => usePlantStore.getState().setContextMode('compare')}
+     className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${!activePlant && usePlantStore.getState().contextMode === 'compare' ? 'bg-[#e67e00] text-black shadow-md' : 'text-[var(--text-muted)] hover:text-[#e67e00] hover:bg-[var(--glass-bg)]'}`}
+   >
+     Compare
+   </button>
+ </div>
  </div>
  ) : (
  user?.plantAccess && user.plantAccess.length > 1 ? (

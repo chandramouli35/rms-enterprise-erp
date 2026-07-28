@@ -25,6 +25,9 @@ let PlantsController = class PlantsController {
     async create(data) {
         return this.plantsService.create(data);
     }
+    async update(id, data) {
+        return this.plantsService.update(id, data);
+    }
 };
 exports.PlantsController = PlantsController;
 __decorate([
@@ -40,6 +43,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], PlantsController.prototype, "create", null);
+__decorate([
+    (0, common_1.Put)(':id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], PlantsController.prototype, "update", null);
 exports.PlantsController = PlantsController = __decorate([
     (0, common_1.Controller)('plants'),
     __metadata("design:paramtypes", [plants_service_1.PlantsService])

@@ -15,9 +15,12 @@ import { YieldModule } from './yield/yield.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { TransferModule } from './transfer/transfer.module';
 import { ProductsModule } from './products/products.module';
+import { DispatchFinanceModule } from './dispatch-finance/dispatch-finance.module';
+import { FinanceModule } from './finance/finance.module';
+import { PowerManagementModule } from './power-management/power-management.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, PlantsModule, DashboardModule, UsersModule, UsersRolesModule, ProcurementModule, WeighbridgeModule, GatePassModule, ProductionModule, YieldModule, InventoryModule, TransferModule, ProductsModule],
+  imports: [PrismaModule, AuthModule, PlantsModule, DashboardModule, UsersModule, UsersRolesModule, ProcurementModule, WeighbridgeModule, GatePassModule, ProductionModule, YieldModule, InventoryModule, TransferModule, ProductsModule, DispatchFinanceModule, FinanceModule, PowerManagementModule],
   controllers: [AppController],
   providers: [AppService],
 })

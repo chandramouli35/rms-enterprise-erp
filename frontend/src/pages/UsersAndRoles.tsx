@@ -31,8 +31,9 @@ export const UsersAndRoles: React.FC = () => {
  
  // Add User Modal State
  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
- const [newUserForm, setNewUserForm] = useState({ fullName: '', username: '', email: '', password: '', roleId: '', plantId: '' });
+  const [newUserForm, setNewUserForm] = useState<{fullName: string, username: string, email: string, password: string, roleId: string, plantIds: string[]}>({ fullName: '', username: '', email: '', password: '', roleId: '', plantIds: [] });
  const [showPassword, setShowPassword] = useState(false);
+  const [isAddPlantDropdownOpen, setIsAddPlantDropdownOpen] = useState(false);
 
  // Add Role Modal State
  const [isAddRoleModalOpen, setIsAddRoleModalOpen] = useState(false);
@@ -40,9 +41,10 @@ export const UsersAndRoles: React.FC = () => {
 
  // Edit User Modal State
  const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
- const [editUserForm, setEditUserForm] = useState({ id: '', fullName: '', email: '', currentPassword: '', newPassword: '', confirmPassword: '', roleId: '', plantId: '' });
+ const [editUserForm, setEditUserForm] = useState<{ id: string, fullName: string, email: string, currentPassword: string, newPassword: string, confirmPassword: string, roleId: string, plantIds: string[] }>({ id: '', fullName: '', email: '', currentPassword: '', newPassword: '', confirmPassword: '', roleId: '', plantIds: [] });
   
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
+  const [isEditPlantDropdownOpen, setIsEditPlantDropdownOpen] = useState(false);
 
   const toggleModule = (moduleName: string) => {
     const next = new Set(expandedModules);
@@ -156,7 +158,7 @@ export const UsersAndRoles: React.FC = () => {
  setIsAddUserModalOpen(false);
  setModalConfig({ isOpen: true, title: 'Success', content: 'User created successfully!' });
  fetchInitialData();
- setNewUserForm({ fullName: '', username: '', email: '', password: '', roleId: '', plantId: '' });
+ setNewUserForm({ fullName: '', username: '', email: '', password: '', roleId: '', plantIds: [] });
  } catch (err) {
  console.error('Failed to create user', err);
  setModalConfig({ isOpen: true, title: 'Error', content: 'Failed to create user. Please try again.' });
@@ -190,7 +192,7 @@ export const UsersAndRoles: React.FC = () => {
       newPassword: '',
       confirmPassword: '',
       roleId: user.roleId || '',
-      plantId: user.plantId || ''
+      plantIds: user.plantAccess?.map((pa: any) => pa.plantId) || []
     });
     setIsEditUserModalOpen(true);
   };
@@ -596,8 +598,8 @@ export const UsersAndRoles: React.FC = () => {
  {/* Add User Modal */}
  {isAddUserModalOpen && (
  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
- <div className="relative w-full max-w-md bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-hidden">
- <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)]">
+ <div className="relative w-full max-w-md bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-visible">
+ <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] rounded-t-2xl">
  <h2 className="text-lg font-semibold text-[var(--text-main)]">Register New User</h2>
  <button onClick={() => setIsAddUserModalOpen(false)} className="text-[var(--text-muted-alt)] hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)] p-1.5 rounded-lg transition-colors">
  <X size={20} />
@@ -659,16 +661,47 @@ export const UsersAndRoles: React.FC = () => {
  </select>
  </div>
  <div className="w-1/2">
- <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Primary Plant</label>
- <select required value={newUserForm.plantId} onChange={e => setNewUserForm({...newUserForm, plantId: e.target.value})} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 appearance-none">
- <option value="" disabled>Select Plant Context...</option>
- {plants.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
- </select>
- </div>
+   <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Primary Plant</label>
+   <div className="relative">
+     <div 
+       className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] cursor-pointer flex justify-between items-center focus:border-blue-500 hover:border-[var(--border-subtle-alt)] transition-colors"
+       onClick={() => setIsAddPlantDropdownOpen(!isAddPlantDropdownOpen)}
+     >
+       <span className={newUserForm.plantIds.length === 0 ? "text-[var(--text-muted-alt)]" : ""}>
+         {newUserForm.plantIds.length === 0 
+           ? "Select Plant Context..." 
+           : `${newUserForm.plantIds.length} plant(s) selected`}
+       </span>
+       <ChevronDown size={16} className={`text-[var(--text-muted-alt)] transition-transform ${isAddPlantDropdownOpen ? 'rotate-180' : ''}`} />
+     </div>
+     
+     {isAddPlantDropdownOpen && (
+       <div className="absolute z-10 top-full mt-1 w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg shadow-lg max-h-[120px] overflow-y-auto">
+         {plants.map(p => (
+           <label key={p.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--bg-base)] cursor-pointer border-b border-[var(--border-subtle)] last:border-0">
+             <input 
+               type="checkbox"
+               checked={newUserForm.plantIds.includes(p.id)}
+               onChange={(e) => {
+                 if (e.target.checked) {
+                   setNewUserForm(prev => ({...prev, plantIds: [...prev.plantIds, p.id]}));
+                 } else {
+                   setNewUserForm(prev => ({...prev, plantIds: prev.plantIds.filter(id => id !== p.id)}));
+                 }
+               }}
+               className="w-4 h-4 text-amber-500 rounded border-[var(--border-subtle)] bg-[var(--bg-base)] focus:ring-amber-500 focus:ring-offset-[var(--bg-panel)]"
+             />
+             <span className="text-sm text-[var(--text-main)]">{p.name} ({p.code})</span>
+           </label>
+         ))}
+       </div>
+     )}
+   </div>
+   </div>
  </div>
  </form>
  </div>
- <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3">
+ <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3 rounded-b-2xl">
  <button onClick={() => setIsAddUserModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
  <button form="realAddUserForm" type="submit" className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">Create User</button>
  </div>
@@ -679,8 +712,8 @@ export const UsersAndRoles: React.FC = () => {
  {/* Edit User Modal */}
  {isEditUserModalOpen && (
  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
- <div className="relative w-full max-w-md bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-hidden">
- <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)]">
+ <div className="relative w-full max-w-md bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-visible">
+ <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] rounded-t-2xl">
  <h2 className="text-lg font-semibold text-[var(--text-main)]">Edit User</h2>
  <button onClick={() => setIsEditUserModalOpen(false)} className="text-[var(--text-muted-alt)] hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)] p-1.5 rounded-lg transition-colors">
  <X size={20} />
@@ -755,18 +788,47 @@ export const UsersAndRoles: React.FC = () => {
  </select>
  </div>
  <div>
- <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Primary Plant</label>
- <select required value={editUserForm.plantId} onChange={e => setEditUserForm({...editUserForm, plantId: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer appearance-none">
- <option value="">Select Plant</option>
- {plants.map((p: any) => (
- <option key={p.id} value={p.id}>{p.name}</option>
- ))}
- </select>
- </div>
+   <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Primary Plant</label>
+   <div className="relative">
+     <div 
+       className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] cursor-pointer flex justify-between items-center focus:border-blue-500 hover:border-[var(--border-subtle-alt)] transition-colors"
+       onClick={() => setIsEditPlantDropdownOpen(!isEditPlantDropdownOpen)}
+     >
+       <span className={editUserForm.plantIds.length === 0 ? "text-[var(--text-muted-alt)]" : ""}>
+         {editUserForm.plantIds.length === 0 
+           ? "Select Plant Context..." 
+           : `${editUserForm.plantIds.length} plant(s) selected`}
+       </span>
+       <ChevronDown size={16} className={`text-[var(--text-muted-alt)] transition-transform ${isEditPlantDropdownOpen ? 'rotate-180' : ''}`} />
+     </div>
+     
+     {isEditPlantDropdownOpen && (
+       <div className="absolute z-10 top-full mt-1 w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg shadow-lg max-h-[120px] overflow-y-auto">
+         {plants.map(p => (
+           <label key={p.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--bg-base)] cursor-pointer border-b border-[var(--border-subtle)] last:border-0">
+             <input 
+               type="checkbox"
+               checked={editUserForm.plantIds.includes(p.id)}
+               onChange={(e) => {
+                 if (e.target.checked) {
+                   setEditUserForm(prev => ({...prev, plantIds: [...prev.plantIds, p.id]}));
+                 } else {
+                   setEditUserForm(prev => ({...prev, plantIds: prev.plantIds.filter(id => id !== p.id)}));
+                 }
+               }}
+               className="w-4 h-4 text-amber-500 rounded border-[var(--border-subtle)] bg-[var(--bg-base)] focus:ring-amber-500 focus:ring-offset-[var(--bg-panel)]"
+             />
+             <span className="text-sm text-[var(--text-main)]">{p.name} ({p.code})</span>
+           </label>
+         ))}
+       </div>
+     )}
+   </div>
+   </div>
  </div>
  </form>
  </div>
- <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3">
+ <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3 rounded-b-2xl">
  <button onClick={() => setIsEditUserModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
  <button form="realEditUserForm" type="submit" className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">Save Changes</button>
  </div>
@@ -777,8 +839,8 @@ export const UsersAndRoles: React.FC = () => {
  {/* Add Role Modal */}
  {isAddRoleModalOpen && (
  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
- <div className="relative w-full max-w-md bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-hidden">
- <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)]">
+ <div className="relative w-full max-w-md bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-visible">
+ <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] rounded-t-2xl">
  <h2 className="text-lg font-semibold text-[var(--text-main)]">Create New Role</h2>
  <button onClick={() => setIsAddRoleModalOpen(false)} className="text-[var(--text-muted-alt)] hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)] p-1.5 rounded-lg transition-colors">
  <X size={20} />
@@ -796,7 +858,7 @@ export const UsersAndRoles: React.FC = () => {
  </div>
  </form>
  </div>
- <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3">
+ <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3 rounded-b-2xl">
  <button onClick={() => setIsAddRoleModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
  <button form="addRoleForm" type="submit" className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">Create Role</button>
  </div>

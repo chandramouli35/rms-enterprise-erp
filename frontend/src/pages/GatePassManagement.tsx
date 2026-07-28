@@ -121,7 +121,10 @@ export const GatePassManagement = () => {
  ntWtParty: '',
  sodaNo: '',
  remarks: '',
- scanQr: ''
+ scanQr: '',
+ mandiType: 'Control',
+ boliRate: '',
+ boliChecklist: false
  };
  const [formData, setFormData] = useState(defaultFormData);
  const [generatedPass, setGeneratedPass] = useState<any>(null);
@@ -364,14 +367,19 @@ export const GatePassManagement = () => {
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-  let { name, value } = e.target;
+  let { name, value, type } = e.target;
+  let finalValue: any = value;
+  
+  if (type === 'checkbox') {
+    finalValue = (e.target as HTMLInputElement).checked;
+  }
   
   if (name === 'driverMobile') {
-    value = value.replace(/[^0-9]/g, '');
+    finalValue = value.replace(/[^0-9]/g, '');
   }
   
   setFormData(prev => {
-  const updated = { ...prev, [name]: value };
+  const updated = { ...prev, [name]: finalValue };
  if (name === 'grossWeight' || name === 'tareWeight') {
  const gross = name === 'grossWeight' ? parseFloat(value) || 0 : parseFloat(prev.grossWeight as any) || 0;
  const tare = name === 'tareWeight' ? parseFloat(value) || 0 : parseFloat(prev.tareWeight as any) || 0;
@@ -400,7 +408,10 @@ export const GatePassManagement = () => {
  grossWeight: formData.weightInputType === 'GROSS' && formData.grossWeight ? parseFloat(formData.grossWeight as any) : null,
  tareWeight: formData.weightInputType === 'TARE' && formData.tareWeight ? parseFloat(formData.tareWeight as any) : null,
  netWeight: formData.netWeight ? parseFloat(formData.netWeight as any) : null,
- noOfBags: formData.noOfBags ? parseInt(formData.noOfBags as any) : null
+ noOfBags: formData.noOfBags ? parseInt(formData.noOfBags as any) : null,
+ mandiType: formData.purpose === 'Paddy Purchase' ? formData.mandiType : undefined,
+ boliRate: formData.purpose === 'Paddy Purchase' && formData.mandiType === 'Boli' ? parseFloat(formData.boliRate as any) : undefined,
+ boliChecklist: formData.purpose === 'Paddy Purchase' && formData.mandiType === 'Boli' ? formData.boliChecklist : undefined
  });
 
  const pass = response.data;
@@ -617,6 +628,32 @@ export const GatePassManagement = () => {
  </select>
  </div>
  </div>
+
+ {formData.purpose === 'Paddy Purchase' && (
+   <div className="bg-[var(--glass-bg)] border border-[#e67e00]/30 rounded-lg p-4 space-y-4">
+     <div className="grid grid-cols-2 gap-4">
+       <div>
+         <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Mandi Type <span className="text-red-500">*</span></label>
+         <select name="mandiType" value={formData.mandiType} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none">
+           <option value="Control">Control</option>
+           <option value="Boli">Boli</option>
+         </select>
+       </div>
+       {formData.mandiType === 'Boli' && (
+         <div>
+           <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Boli Rate (₹) <span className="text-red-500">*</span></label>
+           <input type="number" step="0.01" name="boliRate" value={formData.boliRate} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" required />
+         </div>
+       )}
+     </div>
+     {formData.mandiType === 'Boli' && (
+       <div className="flex items-start gap-2 pt-2 border-t border-[var(--border-subtle)]">
+         <input type="checkbox" id="boliChecklist" name="boliChecklist" checked={formData.boliChecklist} onChange={handleInputChange} className="mt-1" required />
+         <label htmlFor="boliChecklist" className="text-sm text-[var(--text-main)]">Has the Artia entered the required Boli records into the system before issuing this Gate Pass? <span className="text-red-500">*</span></label>
+       </div>
+     )}
+   </div>
+ )}
 
  <div className="grid grid-cols-2 gap-4">
  <div>

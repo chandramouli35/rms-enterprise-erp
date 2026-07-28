@@ -21,7 +21,7 @@ export const ProcurementManagement = () => {
 
   // State
   const [plants, setPlants] = useState<any[]>([]);
-  const [localPlantId, setLocalPlantId] = useState('');
+  
 
   useEffect(() => {
     const fetchPlants = async () => {
@@ -73,7 +73,7 @@ export const ProcurementManagement = () => {
  const [recentPurchases, setRecentPurchases] = useState<any[]>([]);
   const [inwardList, setInwardList] = useState<any[]>([]);
   const [viewInwardModal, setViewInwardModal] = useState<any>(null);
-  const [listFilters, setListFilters] = useState({ dateFrom: '', dateTo: '' });
+  const [listFilters, setListFilters] = useState({ dateFrom: '', dateTo: '', mandi: '', supplierId: '' });
  const [isSubmitting, setIsSubmitting] = useState(false);
  const [isScanningFingerprint, setIsScanningFingerprint] = useState(false);
 
@@ -113,14 +113,30 @@ export const ProcurementManagement = () => {
   const [boliInputs, setBoliInputs] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    // Auto calculate Required Net Wt
+    // Auto calculate Required Net Wt and Shortage
     const origA = parseFloat(inwardFormData.origAClass) || 0;
     const origB = parseFloat(inwardFormData.origBClass) || 0;
     const shortA = parseFloat(inwardFormData.shortageAClass) || 0;
     const shortB = parseFloat(inwardFormData.shortageBClass) || 0;
-    const req = ((origA + origB + shortA + shortB) * 0.382).toFixed(3);
-    setInwardFormData((prev: any) => ({ ...prev, reqNetWt: req }));
-  }, [inwardFormData.origAClass, inwardFormData.origBClass, inwardFormData.shortageAClass, inwardFormData.shortageBClass]);
+    
+    // Fallback to activePlant or selected localPlant
+    const selectedPlant = plants.find(p => p.id === (activePlant?.id ));
+    const stdWeight = selectedPlant?.standardBagWeight || 0.382;
+
+    const totalBags = origA + origB + shortA + shortB;
+    const req = (totalBags * stdWeight).toFixed(3);
+    
+    const actualWt = parseFloat(inwardFormData.netWtMill) || 0;
+    const shortageQtl = (parseFloat(req) - actualWt).toFixed(2);
+    const shortageBags = (parseFloat(shortageQtl) / stdWeight).toFixed(2);
+
+    setInwardFormData((prev: any) => ({ 
+      ...prev, 
+      reqNetWt: req,
+      shortageQtl: parseFloat(shortageQtl) > 0 ? shortageQtl : '0.00',
+      shortageBags: parseFloat(shortageBags) > 0 ? shortageBags : '0.00'
+    }));
+  }, [inwardFormData.origAClass, inwardFormData.origBClass, inwardFormData.shortageAClass, inwardFormData.shortageBClass, inwardFormData.netWtMill, activePlant, plants]);
  const [dhanakLots, setDhanakLots] = useState([{ id: 1, sNo: '', bags: 0, moisture: 0, bardanaClass: '' }]);
 
  const handleInwardChange = (e: any) => {
@@ -160,7 +176,7 @@ export const ProcurementManagement = () => {
   
   const handlePaddyPurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const selectedPlantId = paddyPurchaseModal.plantId || activePlant?.id || localPlantId;
+    const selectedPlantId = paddyPurchaseModal.plantId || activePlant?.id ;
     if (!selectedPlantId) {
       useUiStore.getState().addToast('Please select a plant at the top of the page first.', 'error');
       return;
@@ -198,14 +214,14 @@ export const ProcurementManagement = () => {
  });
 
   useEffect(() => {
-    if (activePlant?.id || localPlantId) {
-      setFormData((prev: any) => ({ ...prev, plantId: activePlant?.id || localPlantId }));
+    if (activePlant?.id ) {
+      setFormData((prev: any) => ({ ...prev, plantId: activePlant?.id  }));
     }
     fetchSuppliers();
     fetchSodaPending();
     fetchRecentPurchases();
     fetchInwardList();
-  }, [activePlant?.id, localPlantId, activeTab, listFilters.dateFrom, listFilters.dateTo]);
+  }, [activePlant?.id, activeTab, listFilters.dateFrom, listFilters.dateTo]);
 
  
   const handleViewInward = async (inward: any) => {
@@ -220,10 +236,12 @@ export const ProcurementManagement = () => {
 
   const fetchInwardList = async () => {
     try {
-      const pid = activePlant?.id || localPlantId || 'global';
+      const pid = activePlant?.id  || 'global';
       const params = new URLSearchParams();
       if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
       if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
+      if (listFilters.mandi) params.append('mandi', listFilters.mandi);
+      if (listFilters.supplierId) params.append('supplierId', listFilters.supplierId);
       const res = await api.get(`/api/procurement/inwards/${pid}?${params.toString()}`);
       setInwardList(res.data);
     } catch (error) {
@@ -233,7 +251,7 @@ export const ProcurementManagement = () => {
 
   const fetchRecentPurchases = async () => {
  try {
- const pid = activePlant?.id || localPlantId || 'global';
+ const pid = activePlant?.id  || 'global';
  const params = new URLSearchParams();
  if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
  if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
@@ -255,7 +273,7 @@ export const ProcurementManagement = () => {
 
  const fetchSodaPending = async () => {
  try {
- const pid = activePlant?.id || localPlantId || 'global';
+ const pid = activePlant?.id  || 'global';
  const params = new URLSearchParams();
  if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
  if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
@@ -307,7 +325,7 @@ export const ProcurementManagement = () => {
  };
 
   const openStackModal = async () => {
-    const selectedPlantId = activePlant?.id || localPlantId;
+    const selectedPlantId = activePlant?.id ;
     if (!selectedPlantId) {
       useUiStore.getState().addToast('Please select a plant at the top of the page first.', 'error');
       return;
@@ -321,7 +339,7 @@ export const ProcurementManagement = () => {
     setIsStackModalOpen(true);
   };
   const handleInwardSubmit = async () => {
-    const selectedPlantId = activePlant?.id || localPlantId;
+    const selectedPlantId = activePlant?.id ;
     if (!selectedPlantId) {
       useUiStore.getState().addToast('Please select a plant at the top of the page first.', 'error');
       return;
@@ -405,12 +423,6 @@ export const ProcurementManagement = () => {
    <div className="flex items-center gap-2">
    <Package size={16} className="text-[#e67e00]" />
    <h1 className="text-sm font-semibold text-[var(--text-muted)]">Procurement Module</h1>
-   {!activePlant && (
-     <select value={localPlantId} onChange={e => setLocalPlantId(e.target.value)} className="ml-4 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-3 py-1 text-[var(--text-main)] outline-none text-xs">
-       <option value="">Select Plant</option>
-       {plants.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-     </select>
-   )}
    </div>
  
  <div className="flex bg-[var(--bg-base)] rounded-md p-0.5 border border-[var(--border-subtle-alt)] scale-90 origin-right">
@@ -502,7 +514,7 @@ export const ProcurementManagement = () => {
       </div>
       <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
         
-          <div className="flex items-end gap-4 mb-4">
+          <div className="flex flex-wrap items-end gap-4 mb-4">
             <div>
               <label className="block text-[var(--text-muted-alt)] text-xs mb-1">From Date</label>
               <input type="date" value={listFilters.dateFrom} onChange={e => setListFilters(f => ({...f, dateFrom: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" />
@@ -511,8 +523,19 @@ export const ProcurementManagement = () => {
               <label className="block text-[var(--text-muted-alt)] text-xs mb-1">To Date</label>
               <input type="date" value={listFilters.dateTo} onChange={e => setListFilters(f => ({...f, dateTo: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" />
             </div>
+            <div>
+              <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi</label>
+              <input type="text" value={listFilters.mandi} onChange={e => setListFilters(f => ({...f, mandi: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" placeholder="Mandi..." />
+            </div>
+            <div>
+              <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Artia (Supplier)</label>
+              <select value={listFilters.supplierId} onChange={e => setListFilters(f => ({...f, supplierId: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm">
+                <option value="">All Artias</option>
+                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
             <div className="flex items-end">
-              <button onClick={() => setListFilters({dateFrom: '', dateTo: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
+              <button onClick={() => setListFilters({dateFrom: '', dateTo: '', mandi: '', supplierId: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
             </div>
           </div>
           <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
@@ -992,9 +1015,25 @@ export const ProcurementManagement = () => {
 
  {/* 7. Shortage Management */}
  <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
- <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">7. Shortage Management</div>
- <div className="p-4 grid grid-cols-2 gap-4 text-sm">
- <div>
+  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">7. Shortage Management</div>
+  <div className="p-4 grid grid-cols-2 gap-4 text-sm">
+  <div className="col-span-2 bg-red-900/10 border border-red-500/20 p-3 rounded-lg flex items-center justify-between">
+    <div>
+      <span className="text-red-400 font-bold block">Calculated Shortage</span>
+      <span className="text-[10px] text-[var(--text-muted-alt)]">Based on Standard Bag Weight ({plants.find(p => p.id === (activePlant?.id ))?.standardBagWeight || 0.382} Qtl)</span>
+    </div>
+    <div className="flex gap-6">
+      <div className="text-center">
+        <div className="text-[10px] text-[var(--text-muted-alt)] uppercase tracking-wider">Qtl</div>
+        <div className="text-[var(--text-main)] font-mono font-bold text-lg">{inwardFormData.shortageQtl || '0.00'}</div>
+      </div>
+      <div className="text-center border-l border-red-500/20 pl-6">
+        <div className="text-[10px] text-[var(--text-muted-alt)] uppercase tracking-wider">Bags</div>
+        <div className="text-[var(--text-main)] font-mono font-bold text-lg">{inwardFormData.shortageBags || '0.00'}</div>
+      </div>
+    </div>
+  </div>
+  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Shortage Received / Occurred</label>
  <select name="shortageType" value={inwardFormData.shortageType} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none">
  <option value="Shortage Received">Shortage Received</option>
@@ -1148,7 +1187,7 @@ export const ProcurementManagement = () => {
           </div>
         </div>
 
-        <div className="flex items-end gap-4 mb-4">
+        <div className="flex flex-wrap items-end gap-4 mb-4">
           <div>
             <label className="block text-[var(--text-muted-alt)] text-xs mb-1">From Date</label>
             <input type="date" value={listFilters.dateFrom} onChange={e => setListFilters(f => ({...f, dateFrom: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" />
@@ -1157,8 +1196,19 @@ export const ProcurementManagement = () => {
             <label className="block text-[var(--text-muted-alt)] text-xs mb-1">To Date</label>
             <input type="date" value={listFilters.dateTo} onChange={e => setListFilters(f => ({...f, dateTo: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" />
           </div>
+          <div>
+            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi</label>
+            <input type="text" value={listFilters.mandi} onChange={e => setListFilters(f => ({...f, mandi: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" placeholder="Mandi..." />
+          </div>
+          <div>
+            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Artia (Supplier)</label>
+            <select value={listFilters.supplierId} onChange={e => setListFilters(f => ({...f, supplierId: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm">
+              <option value="">All Artias</option>
+              {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
           <div className="flex items-end">
-            <button onClick={() => setListFilters({dateFrom: '', dateTo: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
+            <button onClick={() => setListFilters({dateFrom: '', dateTo: '', mandi: '', supplierId: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
           </div>
         </div>
 
@@ -1423,6 +1473,7 @@ export const ProcurementManagement = () => {
         <div>
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Rice Mill</label>
           <select value={paddyPurchaseModal.plantId} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, plantId: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required>
+            <option value="">Select Plant</option>
             {plants.map(p => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}

@@ -16,6 +16,10 @@ import { YieldManagement } from './pages/YieldManagement';
 import { InventoryManagement } from './pages/InventoryManagement';
 import { InterPlantTransfer } from './pages/InterPlantTransfer';
 import { ProductManagement } from './pages/ProductManagement';
+import { DispatchFinanceManagement } from './pages/DispatchFinanceManagement';
+import { FinanceManagement } from './pages/FinanceManagement';
+import { PowerManagement } from './pages/PowerManagement';
+import { BackupRestore } from './pages/BackupRestore';
 
 function App() {
   return (
@@ -39,6 +43,10 @@ function App() {
             <Route path="weighbridge" element={<WeighbridgeManagement />} />
             <Route path="gate-pass" element={<GatePassManagement />} />
             <Route path="products" element={<ProductManagement />} />
+            <Route path="dispatch" element={<DispatchFinanceManagement />} />
+            <Route path="finance" element={<FinanceManagement />} />
+            <Route path="power" element={<PowerManagement />} />
+            <Route path="backup" element={<BackupRestore />} />
           </Route>
         </Route>
 

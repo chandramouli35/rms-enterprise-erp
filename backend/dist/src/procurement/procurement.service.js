@@ -106,6 +106,19 @@ let ProcurementService = class ProcurementService {
                     qualityCutType: data.qualityCutType || 'NONE',
                     qualityCutValue: parseFloat(data.qualityCutValue) || 0,
                     qualityCutReason: data.qualityCutReason || null,
+                    standardBagWeight: data.standardBagWeight ? parseFloat(data.standardBagWeight) : null,
+                    totalBagsCalculated: data.totalBagsCalculated ? parseFloat(data.totalBagsCalculated) : null,
+                    standardWeightCalculated: data.standardWeightCalculated ? parseFloat(data.standardWeightCalculated) : null,
+                    actualWeightReceived: data.actualWeightReceived ? parseFloat(data.actualWeightReceived) : null,
+                    shortageQtl: data.shortageQtl ? parseFloat(data.shortageQtl) : null,
+                    shortageBags: data.shortageBags ? parseFloat(data.shortageBags) : null,
+                    aClassGiven: data.aClassGiven ? parseFloat(data.aClassGiven) : null,
+                    aClassReceived: data.aClassReceived ? parseFloat(data.aClassReceived) : null,
+                    aClassPending: data.aClassPending ? parseFloat(data.aClassPending) : null,
+                    bClassGiven: data.bClassGiven ? parseFloat(data.bClassGiven) : null,
+                    bClassReceived: data.bClassReceived ? parseFloat(data.bClassReceived) : null,
+                    bClassPending: data.bClassPending ? parseFloat(data.bClassPending) : null,
+                    autoConvertedToBClass: data.autoConvertedToBClass ? parseFloat(data.autoConvertedToBClass) : null,
                 }
             });
             if (purchaseType === 'PADDY_BOLI' && supplierId) {

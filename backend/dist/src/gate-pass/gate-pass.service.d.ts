@@ -20,6 +20,7 @@ export declare class GatePassService {
         procurementBatch: ({
             paddyInwardDetails: {
                 id: string;
+                standardBagWeight: number | null;
                 createdAt: Date;
                 updatedAt: Date;
                 qualityCutValue: number | null;
@@ -58,6 +59,18 @@ export declare class GatePassService {
                 khaliVideoUrl: string | null;
                 shortageAClass: number | null;
                 shortageBClass: number | null;
+                totalBagsCalculated: number | null;
+                standardWeightCalculated: number | null;
+                actualWeightReceived: number | null;
+                shortageQtl: number | null;
+                shortageBags: number | null;
+                aClassGiven: number | null;
+                aClassReceived: number | null;
+                aClassPending: number | null;
+                bClassGiven: number | null;
+                bClassReceived: number | null;
+                bClassPending: number | null;
+                autoConvertedToBClass: number | null;
             } | null;
             weighbridge: {
                 id: string;
@@ -129,6 +142,7 @@ export declare class GatePassService {
         tareWeight: number | null;
         qualityCutValue: number | null;
         ntWtParty: number | null;
+        boliRate: number | null;
         vehicleNo: string;
         vehicleType: string | null;
         purpose: string | null;
@@ -146,6 +160,9 @@ export declare class GatePassService {
         partyName: string | null;
         sodaNo: string | null;
         biometricData: string | null;
+        mandiType: string | null;
+        boliChecklist: boolean | null;
+        bardanaClass: string | null;
     }>;
     getRecentGatePasses(plantId: string, type: string): Promise<({
         supplier: {
@@ -174,6 +191,7 @@ export declare class GatePassService {
         tareWeight: number | null;
         qualityCutValue: number | null;
         ntWtParty: number | null;
+        boliRate: number | null;
         vehicleNo: string;
         vehicleType: string | null;
         purpose: string | null;
@@ -191,6 +209,9 @@ export declare class GatePassService {
         partyName: string | null;
         sodaNo: string | null;
         biometricData: string | null;
+        mandiType: string | null;
+        boliChecklist: boolean | null;
+        bardanaClass: string | null;
     })[]>;
     getGatePassByQr(qrCode: string): Promise<{
         latestWeighbridge: any;
@@ -200,6 +221,7 @@ export declare class GatePassService {
             name: string;
             location: string | null;
             code: string;
+            standardBagWeight: number;
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
@@ -219,6 +241,7 @@ export declare class GatePassService {
         procurementBatch: ({
             paddyInwardDetails: {
                 id: string;
+                standardBagWeight: number | null;
                 createdAt: Date;
                 updatedAt: Date;
                 qualityCutValue: number | null;
@@ -257,6 +280,18 @@ export declare class GatePassService {
                 khaliVideoUrl: string | null;
                 shortageAClass: number | null;
                 shortageBClass: number | null;
+                totalBagsCalculated: number | null;
+                standardWeightCalculated: number | null;
+                actualWeightReceived: number | null;
+                shortageQtl: number | null;
+                shortageBags: number | null;
+                aClassGiven: number | null;
+                aClassReceived: number | null;
+                aClassPending: number | null;
+                bClassGiven: number | null;
+                bClassReceived: number | null;
+                bClassPending: number | null;
+                autoConvertedToBClass: number | null;
             } | null;
             weighbridge: {
                 id: string;
@@ -327,6 +362,7 @@ export declare class GatePassService {
         tareWeight: number | null;
         qualityCutValue: number | null;
         ntWtParty: number | null;
+        boliRate: number | null;
         vehicleNo: string;
         vehicleType: string | null;
         purpose: string | null;
@@ -344,6 +380,9 @@ export declare class GatePassService {
         partyName: string | null;
         sodaNo: string | null;
         biometricData: string | null;
+        mandiType: string | null;
+        boliChecklist: boolean | null;
+        bardanaClass: string | null;
     }>;
     getAnalytics(plantId: string): Promise<{
         totalGateIn: number;
@@ -379,6 +418,7 @@ export declare class GatePassService {
         tareWeight: number | null;
         qualityCutValue: number | null;
         ntWtParty: number | null;
+        boliRate: number | null;
         vehicleNo: string;
         vehicleType: string | null;
         purpose: string | null;
@@ -396,5 +436,8 @@ export declare class GatePassService {
         partyName: string | null;
         sodaNo: string | null;
         biometricData: string | null;
+        mandiType: string | null;
+        boliChecklist: boolean | null;
+        bardanaClass: string | null;
     }>;
 }

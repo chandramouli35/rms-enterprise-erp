@@ -82,6 +82,10 @@ let GatePassService = class GatePassService {
                 sodaNo,
                 remarks,
                 biometricData: data.biometricData || null,
+                mandiType: data.mandiType || null,
+                boliRate: data.boliRate ? parseFloat(data.boliRate) : null,
+                boliChecklist: data.boliChecklist || false,
+                bardanaClass: data.bardanaClass || null,
                 status: 'ACTIVE',
                 qrCode
             },
