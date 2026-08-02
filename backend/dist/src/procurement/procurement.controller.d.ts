@@ -57,6 +57,7 @@ export declare class ProcurementController {
             pahunchPersonName: string | null;
             safaiType: string | null;
             intimationToMandi: boolean | null;
+            mandiQualityAlert: boolean | null;
             allocationType: string | null;
             isUploadedToHoodiRegister: boolean | null;
             allocateUnloader: string | null;
@@ -208,6 +209,7 @@ export declare class ProcurementController {
             pahunchPersonName: string | null;
             safaiType: string | null;
             intimationToMandi: boolean | null;
+            mandiQualityAlert: boolean | null;
             allocationType: string | null;
             isUploadedToHoodiRegister: boolean | null;
             allocateUnloader: string | null;
@@ -422,6 +424,7 @@ export declare class ProcurementController {
         note: string | null;
         finalHisabAmt: number | null;
         riceCategory: string | null;
+        sodaCompleted: boolean | null;
     }>;
     updateSodaPending(id: string, data: any): Promise<{
         id: string;
@@ -439,6 +442,7 @@ export declare class ProcurementController {
         note: string | null;
         finalHisabAmt: number | null;
         riceCategory: string | null;
+        sodaCompleted: boolean | null;
     }>;
     settleHisab(data: any): Promise<{
         id: string;
@@ -456,5 +460,6 @@ export declare class ProcurementController {
         note: string | null;
         finalHisabAmt: number | null;
         riceCategory: string | null;
+        sodaCompleted: boolean | null;
     }>;
 }

@@ -73,7 +73,8 @@ export const DashboardShell: React.FC = () => {
       { label: 'Supplier Master', tab: 'supplier_master' },
       { label: 'Paddy Purchase & Quality', tab: 'paddy_purchase' },
       { label: 'Paddy Inward', tab: 'paddy_inward' },
-      { label: 'Inward List', tab: 'inward_register' }
+      { label: 'Inward List', tab: 'inward_register' },
+      { label: 'Mandi Intimation (Yes List)', tab: 'yes_list' }
     ]},
  { label: 'Production', href: '/production', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
  { label: 'Batch Creation', tab: 'batch_creation' },
@@ -399,7 +400,7 @@ export const DashboardShell: React.FC = () => {
      }
    }}
  >
-   <option value="consolidated">Consolidated</option>
+   <option value="consolidated">Consolidated (Default)</option>
    <option value="compare">Mill Name Compare</option>
    <optgroup label="Mill Names">
      {plants.map(p => (

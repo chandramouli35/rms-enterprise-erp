@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Users, Package, ShieldCheck, FileText, Search, Plus, Calendar, ChevronDown, Download, Printer, Settings, Upload, Edit, Layers, ScanBarcode, X } from 'lucide-react';
+import { Users, Package, ShieldCheck, FileText, Search, Plus, Calendar, ChevronDown, Download, Printer, Settings, Upload, Edit, Layers, ScanBarcode, X, AlertTriangle } from 'lucide-react';
 import api from '../api/axios';
 import { CustomModal } from '../components/CustomModal';
 import { usePlantStore } from '../store/plantStore';
@@ -154,13 +154,18 @@ export const ProcurementManagement = () => {
     
     const actualWt = parseFloat(inwardFormData.netWtMill) || 0;
     const shortageQtl = (parseFloat(req) - actualWt).toFixed(2);
-    // Rough estimation of bags using an average weight or specifically A/B ratio
-    const avgWeight = totalA + totalB > 0 ? (reqA + reqB) / (totalA + totalB) : stdWeightA;
-    const shortageBags = (parseFloat(shortageQtl) / avgWeight).toFixed(2);
+    
+    // Shortage Bags = Agency Bags - Bags Rec
+    const agencyA = parseFloat(inwardFormData.origAClassAg) || 0;
+    const agencyB = parseFloat(inwardFormData.origBClassAg) || 0;
+    const totalAgencyBags = agencyA + agencyB;
+    const totalRecBags = totalA + totalB;
+    const shortageBags = totalAgencyBags > 0 ? (totalAgencyBags - totalRecBags).toString() : '0';
 
     setInwardFormData((prev: any) => ({ 
       ...prev, 
       reqNetWt: req,
+      actualShortageQtl: parseFloat(shortageQtl),
       shortageQtl: parseFloat(shortageQtl) > 0 ? shortageQtl : '0.00',
       shortageBags: parseFloat(shortageBags) > 0 ? shortageBags : '0.00'
     }));
@@ -382,7 +387,7 @@ export const ProcurementManagement = () => {
     }
     setIsStackModalOpen(true);
   };
-  const handleInwardSubmit = async () => {
+  const handleInwardSubmit = async (status: string = 'CONFIRMED') => {
     const selectedPlantId = activePlant?.id ;
     if (!selectedPlantId) {
       useUiStore.getState().addToast('Please select a plant at the top of the page first.', 'error');
@@ -408,11 +413,12 @@ export const ProcurementManagement = () => {
         bagsAtAgencyGp: computedBagsAtAgencyGp,
         boliInputs,
         category,
-        plantId: selectedPlantId
+        plantId: selectedPlantId,
+        status: status
       };
 
       await api.post('/api/procurement/save-purchase', payload);
-      useUiStore.getState().addToast('Paddy Inward (Goods Receipt) Saved Successfully!', 'success');
+      useUiStore.getState().addToast(`Paddy Inward Saved as ${status}`, 'success');
       setInwardFormData({ ...defaultInwardFormData }); // clear all fields
       setBoliInputs({}); // clear boli inputs
       fetchSodaPending();
@@ -654,8 +660,12 @@ export const ProcurementManagement = () => {
               <tr className="border-b border-[var(--border-subtle)]">
                 <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase">#</th>
                 <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase">Moisture (%)</th>
-                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-right">Bags</th>
                 <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-right">Rate</th>
+                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-right">Expected Bags</th>
+                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-right">Final Bags</th>
+                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-right">Bags Rec in soda</th>
+                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-right text-blue-400">Bags Rec Today</th>
+                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-center">Completed</th>
               </tr>
             </thead>
             <tbody>
@@ -663,14 +673,40 @@ export const ProcurementManagement = () => {
                 <tr key={idx} className="border-b border-[var(--border-subtle-alt)] last:border-0 hover:bg-[var(--glass-bg)]">
                   <td className="py-3 text-sm text-[var(--text-muted)]">{idx + 1}</td>
                   <td className="py-3 text-sm text-[var(--text-main)]">{b.moisture}%</td>
-                  <td className="py-3 text-sm text-right text-[var(--text-main)] font-bold">{b.bags}</td>
                   <td className="py-3 text-sm text-right text-[#e67e00] font-bold">{b.rate}</td>
+                  <td className="py-3 text-sm text-right text-[var(--text-main)]">{b.expectedBags || b.bags}</td>
+                  <td className="py-3 text-sm text-right text-[var(--text-main)] font-bold">{b.bags}</td>
+                  <td className="py-3 text-sm text-right text-[var(--text-main)]">{b.bagsRecInSoda || 0}</td>
+                  <td className="py-3 text-sm text-right">
+                    <input type="number" min="0" 
+                           value={boliInputs[b.id] || ''} 
+                           onChange={(e) => setBoliInputs(prev => ({...prev, [b.id]: e.target.value}))}
+                           className="w-16 bg-[var(--bg-base)] border border-blue-500/50 rounded px-1 py-1 text-[var(--text-main)] outline-none focus:border-blue-500 text-right" 
+                           placeholder="0" />
+                  </td>
+                  <td className="py-3 text-sm text-center">
+                    <input type="checkbox" checked={b.isCompleted || false} onChange={(e) => {
+                      if(e.target.checked) {
+                        const finalBags = parseFloat(b.bags) || 0;
+                        const recInSoda = parseFloat(b.bagsRecInSoda) || 0;
+                        const recToday = parseFloat(boliInputs[b.id]) || 0;
+                        const totalRec = recInSoda + recToday;
+                        const variance = Math.abs(finalBags - totalRec) / finalBags;
+                        if(variance > 0.05) {
+                          useUiStore.getState().addToast('Admin Notified: Variance exceeds 5%', 'error');
+                        }
+                      }
+                      // Update state (mock)
+                      const updatedBolis = viewBolisModal.bolis.map((boli: any) => boli.id === b.id ? {...boli, isCompleted: e.target.checked} : boli);
+                      setViewBolisModal({...viewBolisModal, bolis: updatedBolis});
+                    }} className="accent-[#e67e00] w-4 h-4" />
+                  </td>
                 </tr>
               ))}
               <tr className="bg-[var(--bg-base)]">
-                <td colSpan={2} className="py-3 text-sm font-bold text-right text-[var(--text-muted)]">Total:</td>
+                <td colSpan={4} className="py-3 text-sm font-bold text-right text-[var(--text-muted)]">Total Final Bags:</td>
                 <td className="py-3 text-sm text-right text-[var(--text-main)] font-bold">{viewBolisModal.bolis.reduce((acc: number, b: any) => acc + (parseFloat(b.bags) || 0), 0)}</td>
-                <td></td>
+                <td colSpan={3}></td>
               </tr>
             </tbody>
           </table>
@@ -778,10 +814,16 @@ export const ProcurementManagement = () => {
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">If Not As Per Standards</label>
- <div className="flex items-center gap-4 mt-2">
+ <div className="flex flex-col gap-2 mt-2">
+ <div className="flex items-center gap-4">
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="mandiIntimation" value="N.A." checked={inwardFormData.mandiIntimation === 'N.A.'} onChange={handleInwardChange} className="accent-blue-500" /> N.A.</label>
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="mandiIntimation" value="Yes" checked={inwardFormData.mandiIntimation === 'Yes'} onChange={handleInwardChange} className="accent-blue-500" /> Yes</label>
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="mandiIntimation" value="No" checked={inwardFormData.mandiIntimation === 'No'} onChange={handleInwardChange} className="accent-blue-500" /> No</label>
+ </div>
+ <label className="flex items-center gap-2 text-red-400 font-medium text-xs mt-1 cursor-pointer">
+   <input type="checkbox" name="mandiQualityAlert" checked={inwardFormData.mandiQualityAlert || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, mandiQualityAlert: e.target.checked }))} className="accent-red-500 w-4 h-4" />
+   Incoming quality/standard is not as per requirement
+ </label>
  </div>
  </div>
  <div className="col-span-1 sm:col-span-2">
@@ -831,16 +873,23 @@ export const ProcurementManagement = () => {
  </div>
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between">Allocate Unloader <ScanBarcode size={14} className="text-[#e67e00]" /></label>
- <div className="relative">
- <input type="text" name="allocateUnloader" value={inwardFormData.allocateUnloader} onChange={e => {
- handleInwardChange(e);
- if (e.target.value) {
-  setInwardFormData((prev: any) => ({...prev, unloaderTruckCount: Math.floor(Math.random() * 5) + 1}));
- }
- }} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 pl-8 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Scan barcode..." />
- <ScanBarcode size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Allocate Unloader</label>
+ <select name="allocateUnloader" value={inwardFormData.allocateUnloader} onChange={e => {
+   handleInwardChange(e);
+   if (e.target.value) {
+     setInwardFormData((prev: any) => ({...prev, unloaderTruckCount: Math.floor(Math.random() * 5) + 1}));
+   }
+ }} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
+   <option value="">Select Unloader</option>
+   {MOCK_LABOUR_CONTRACTORS.map(l => <option key={l} value={l}>{l}</option>)}
+ </select>
  </div>
+ <div>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Pahunch Person Name</label>
+ <select name="pahunchPerson" value={inwardFormData.pahunchPerson || ''} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
+   <option value="">Select Pahunch Person</option>
+   {MOCK_LABOUR_CONTRACTORS.map(l => <option key={l} value={l}>{l}</option>)}
+ </select>
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between">Stack No. <ScanBarcode size={14} className="text-[#e67e00]" /></label>
@@ -916,33 +965,47 @@ export const ProcurementManagement = () => {
        <div className="overflow-x-auto mb-4 border border-[var(--border-subtle)] rounded">
          <table className="w-full text-sm text-left whitespace-nowrap">
            <thead>
-             <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)] bg-[var(--bg-base)]">
+              <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)] bg-[var(--bg-base)]">
                <th className="p-2 font-medium">Date</th>
-               <th className="p-2 font-medium">Moisture</th>
-               <th className="p-2 font-medium">Rate</th>
-               <th className="p-2 font-medium">Expected Bags</th>
-               <th className="p-2 font-medium text-blue-400">Bags Rec</th>
+               <th className="p-2 font-medium">Final Bags</th>
+               <th className="p-2 font-medium">Bags Rec in soda</th>
+               <th className="p-2 font-medium text-blue-400">Bags Rec Today</th>
+               <th className="p-2 font-medium text-center">Completed</th>
                <th className="p-2 font-medium">Note</th>
              </tr>
            </thead>
            <tbody>
              {sodaPending.filter((s: any) => s.supplierId === inwardFormData.supplierId).length === 0 ? (
-               <tr><td colSpan={6} className="p-3 text-center text-gray-500 italic">No pending bolis found.</td></tr>
+               <tr><td colSpan={7} className="p-3 text-center text-gray-500 italic">No pending bolis found.</td></tr>
              ) : (
                sodaPending.filter((s: any) => s.supplierId === inwardFormData.supplierId).map((soda: any) => (
                  <React.Fragment key={soda.id}>
                    {soda.bolis?.filter((b: any) => !b.isCompleted).map((boli: any) => (
                      <tr key={boli.id} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--bg-base)]">
                        <td className="p-2">{new Date(soda.date).toLocaleDateString()}</td>
-                       <td className="p-2">{boli.moisture}%</td>
-                       <td className="p-2">₹{boli.rate}</td>
                        <td className="p-2">{boli.bags}</td>
+                       <td className="p-2">{boli.bagsRecInSoda || 0}</td>
                        <td className="p-2">
                          <input type="number" min="0" 
                                 value={boliInputs[boli.id] || ''} 
                                 onChange={(e) => setBoliInputs(prev => ({...prev, [boli.id]: e.target.value}))}
                                 className="w-20 bg-[var(--bg-base)] border border-blue-500/50 rounded px-2 py-1 text-[var(--text-main)] outline-none focus:border-blue-500" 
                                 placeholder="Enter bags" />
+                       </td>
+                       <td className="p-2 text-center">
+                         <input type="checkbox" onChange={(e) => {
+                           if(e.target.checked) {
+                             const finalBags = parseFloat(boli.bags) || 0;
+                             const recInSoda = parseFloat(boli.bagsRecInSoda) || 0;
+                             const recToday = parseFloat(boliInputs[boli.id]) || 0;
+                             const totalRec = recInSoda + recToday;
+                             const variance = Math.abs(finalBags - totalRec) / finalBags;
+                             if(variance > 0.05) {
+                               useUiStore.getState().addToast('Admin Notified: Variance exceeds 5%', 'error');
+                               alert("Variance exceeds 5%. Admin has been notified.");
+                             }
+                           }
+                         }} className="accent-blue-500 w-4 h-4" />
                        </td>
                        <td className="p-2 text-[var(--text-muted)] truncate max-w-[150px]">{soda.note || '-'}</td>
                      </tr>
@@ -994,7 +1057,7 @@ export const ProcurementManagement = () => {
  <div className="flex flex-col gap-6 mt-6">
  {/* 5. Bardana */}
  <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
- <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">5. Bardana (Bag) Details</div>
+ <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">5. Bags Rec. and Bardana Class</div>
  <div className="p-4">
  <table className="w-full text-sm text-left">
  <thead>
@@ -1128,6 +1191,35 @@ export const ProcurementManagement = () => {
       </div>
     </div>
   </div>
+  
+  {inwardFormData.actualShortageQtl < 0 && (
+    <div className="col-span-2 bg-yellow-900/10 border border-yellow-500/30 p-4 rounded-lg flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <span className="text-yellow-500 font-bold text-sm">Excess Weight Received: {Math.abs(inwardFormData.actualShortageQtl)} Qtl</span>
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-[var(--text-muted-alt)]">Consider in Shortage Recovery?</span>
+          <label className="flex items-center gap-1"><input type="radio" name="shortageRecoveryOpt" value="Yes" checked={inwardFormData.shortageRecoveryOpt === 'Yes'} onChange={(e) => {
+            if(e.target.checked) {
+              const confirm1 = window.confirm("Are you sure you want to recover this excess weight?");
+              if(confirm1) {
+                const confirm2 = window.confirm("Final Confirmation: This action will notify the Admin and reduce the supplier's net shortage. Proceed?");
+                if(confirm2) {
+                  setInwardFormData((p: any) => ({...p, shortageRecoveryOpt: 'Yes'}));
+                  useUiStore.getState().addToast('Admin notified. Excess weight will be recovered.', 'success');
+                } else {
+                  e.preventDefault();
+                }
+              } else {
+                e.preventDefault();
+              }
+            }
+          }} className="accent-yellow-500" /> Yes</label>
+          <label className="flex items-center gap-1"><input type="radio" name="shortageRecoveryOpt" value="No" checked={inwardFormData.shortageRecoveryOpt === 'No' || !inwardFormData.shortageRecoveryOpt} onChange={() => setInwardFormData((p: any) => ({...p, shortageRecoveryOpt: 'No'}))} className="accent-yellow-500" /> No</label>
+        </div>
+      </div>
+    </div>
+  )}
+
   <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Shortage Received / Occurred</label>
  <select name="shortageType" value={inwardFormData.shortageType} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none">
@@ -1202,68 +1294,105 @@ export const ProcurementManagement = () => {
 
  {/* 11. Authentication (Biometric) */}
  <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
- <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">11. Authentication (Biometric)</div>
- <div className="p-4 flex flex-wrap gap-6 items-center justify-between text-sm">
- <div className="flex items-center gap-3 flex-wrap">
- {inwardFormData.biometricData ? (
-   <div className="text-green-400 font-bold bg-green-900/10 border border-green-900/20 px-3 py-1.5 rounded flex items-center gap-2">
-     <ShieldCheck size={16} /> Authenticated
+ <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm flex items-center justify-between">
+   <span>11. Authentication (Biometric)</span>
+   {inwardFormData.shortageRecoveryOpt === 'Yes' && <span className="text-red-400 text-xs flex items-center gap-1"><AlertTriangle size={14} /> High Risk: 2 Punches Required</span>}
+ </div>
+ <div className="p-4 flex flex-col gap-4 text-sm">
+ 
+ {/* First Punch - Supervisor */}
+ <div className="flex flex-wrap gap-6 items-center justify-between p-3 rounded bg-[var(--bg-base)] border border-[var(--border-subtle)]">
+   <div className="flex items-center gap-3 flex-wrap flex-1">
+     <div className="w-24 text-[var(--text-muted-alt)] font-medium text-xs">Supervisor</div>
+     {inwardFormData.biometricData ? (
+       <div className="text-green-400 font-bold bg-green-900/10 border border-green-900/20 px-3 py-1.5 rounded flex items-center gap-2">
+         <ShieldCheck size={16} /> Authenticated
+       </div>
+     ) : (
+       <div className="flex gap-2 items-center">
+         <input type="password" placeholder="PIN (1234)" className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-3 py-1.5 w-24 text-[var(--text-main)] outline-none" onChange={(e) => {
+           if(e.target.value === '1234') setInwardFormData((p: any) => ({...p, biometricData: 'verified_supervisor'}));
+         }} />
+         <span className="text-xs text-[var(--text-muted-alt)]">Enter PIN to verify</span>
+       </div>
+     )}
    </div>
- ) : (
-   <div className="text-[var(--text-muted-alt)] font-bold bg-[var(--glass-bg)] px-3 py-1.5 rounded flex items-center gap-2">
-     <ShieldCheck size={16} /> Pending
+   <div className="text-right min-w-[120px]">
+     <div className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wider mb-0.5">Date & Time</div>
+     <div className="text-[var(--text-main)] font-medium">{inwardFormData.biometricData ? new Date().toLocaleString() : '-'}</div>
    </div>
+ </div>
+
+ {/* Second Punch - Head Supervisor (Conditional) */}
+ {inwardFormData.shortageRecoveryOpt === 'Yes' && (
+  <div className="flex flex-wrap gap-6 items-center justify-between p-3 rounded bg-red-900/10 border border-red-500/20">
+    <div className="flex items-center gap-3 flex-wrap flex-1">
+      <div className="w-24 text-red-400 font-medium text-xs">Head Supervisor</div>
+      {inwardFormData.headBiometricData ? (
+        <div className="text-green-400 font-bold bg-green-900/10 border border-green-900/20 px-3 py-1.5 rounded flex items-center gap-2">
+          <ShieldCheck size={16} /> Authenticated
+        </div>
+      ) : (
+        <div className="flex gap-2 items-center">
+          <input type="password" placeholder="PIN (9999)" className="bg-[var(--bg-panel)] border border-red-500/30 rounded px-3 py-1.5 w-24 text-[var(--text-main)] outline-none" onChange={(e) => {
+            if(e.target.value === '9999') setInwardFormData((p: any) => ({...p, headBiometricData: 'verified_head'}));
+          }} />
+          <span className="text-xs text-[var(--text-muted-alt)]">Enter PIN to verify</span>
+        </div>
+      )}
+    </div>
+    <div className="text-right min-w-[120px]">
+      <div className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wider mb-0.5">Date & Time</div>
+      <div className="text-[var(--text-main)] font-medium">{inwardFormData.headBiometricData ? new Date().toLocaleString() : '-'}</div>
+    </div>
+  </div>
  )}
- <div className={`w-8 h-8 rounded ${inwardFormData.biometricData ? 'bg-green-900/20 border-green-500/50' : 'bg-[var(--glass-bg)] border-[var(--border-subtle)]'} flex items-center justify-center border`}>
- <svg className={`w-4 h-4 ${inwardFormData.biometricData ? 'text-green-500' : 'text-[#e67e00]'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
- <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
- <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1" strokeDasharray="2,2"/>
- <path d="M12 7c-1.5 0-3 1.5-3 3 0 2 2 3 2 5" stroke="currentColor" strokeWidth="1"/>
- <path d="M15 10c0-1.5-1.5-3-3-3" stroke="currentColor" strokeWidth="1"/>
- <path d="M9 10c0 1.5 1.5 3 3 3" stroke="currentColor" strokeWidth="1"/>
- </svg>
- </div>
- {!inwardFormData.biometricData && (
-   <button type="button" 
-     disabled={isScanningFingerprint}
-     onClick={async () => {
-       try {
-         setIsScanningFingerprint(true);
-         const xmlData = await biometricService.captureFingerprint();
-         setInwardFormData((prev: any) => ({...prev, biometricData: xmlData}));
-         useUiStore.getState().addToast('Fingerprint captured successfully', 'success');
-       } catch (err: any) {
-         useUiStore.getState().addToast(err.message, 'error');
-       } finally {
-         setIsScanningFingerprint(false);
-       }
-     }}
-     className="px-3 py-1.5 bg-[#e67e00] text-black font-bold rounded text-xs hover:bg-[#cc7000] disabled:opacity-50">
-     {isScanningFingerprint ? 'Scanning...' : 'Scan Fingerprint'}
-   </button>
- )}
- </div>
- <div className="flex flex-wrap gap-8 w-full sm:w-auto justify-between sm:justify-end">
- <div className="text-left sm:text-right min-w-[120px]">
- <div className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wider mb-0.5">Authenticated By</div>
- <div className="text-[var(--text-main)] font-medium">{inwardFormData.biometricData ? 'System (Verified)' : '-'}</div>
- </div>
- <div className="text-right min-w-[120px]">
- <div className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wider mb-0.5">Date & Time</div>
- <div className="text-[var(--text-main)] font-medium">{inwardFormData.biometricData ? new Date().toLocaleString() : '-'}</div>
- </div>
- </div>
+
  </div>
  </div>
  </div>
  </div>
  
  {/* Bottom Actions */}
+ {/* Bottom Actions */}
  <div className="mt-6 pt-4 border-t border-[var(--border-subtle)] flex justify-end gap-3 shrink-0">
- <button className="px-6 py-2.5 border border-[var(--border-subtle)] rounded-lg text-[var(--text-main)] font-bold hover:bg-[var(--glass-bg)]">Cancel</button>
- <button className="px-6 py-2.5 bg-[var(--bg-panel)] border border-blue-500/30 text-blue-400 rounded-lg font-bold hover:bg-blue-900/20">Save Draft</button>
+ <button type="button" onClick={() => setInwardFormData(defaultInwardFormData)} className="px-6 py-2.5 border border-[var(--border-subtle)] rounded-lg text-[var(--text-main)] font-bold hover:bg-[var(--glass-bg)]">Cancel</button>
  <button 
- onClick={handleInwardSubmit}
+   onClick={() => {
+     if (inwardFormData.bhariVideoUpload !== 'Yes') {
+       alert("Please upload the Bhari (Loaded) video first before transferring the vehicle for unloading.");
+       return;
+     }
+     if (!inwardFormData.biometricData) {
+       alert("Supervisor Biometric Verification is required.");
+       return;
+     }
+     if (inwardFormData.shortageRecoveryOpt === 'Yes' && !inwardFormData.headBiometricData) {
+       alert("Head Supervisor Biometric Verification is required for Shortage Recovery.");
+       return;
+     }
+     handleInwardSubmit('DRAFT');
+   }}
+   disabled={isSubmitting}
+   className="px-6 py-2.5 bg-[var(--bg-panel)] border border-blue-500/30 text-blue-400 rounded-lg font-bold hover:bg-blue-900/20 disabled:opacity-50">
+   {isSubmitting ? 'Saving...' : 'Save Draft'}
+ </button>
+ <button 
+ onClick={() => {
+   if (inwardFormData.bhariVideoUpload !== 'Yes' || inwardFormData.khaliVideoUpload !== 'Yes') {
+     alert("Both Bhari (Loaded) and Khali (Empty) videos must be uploaded (Yes) to Save and Confirm.");
+     return;
+   }
+   if (!inwardFormData.biometricData) {
+     alert("Supervisor Biometric Verification is required.");
+     return;
+   }
+   if (inwardFormData.shortageRecoveryOpt === 'Yes' && !inwardFormData.headBiometricData) {
+     alert("Head Supervisor Biometric Verification is required for Shortage Recovery.");
+     return;
+   }
+   handleInwardSubmit('CONFIRMED');
+ }}
  disabled={isSubmitting}
  className="px-8 py-2.5 bg-green-600 hover:bg-green-700 text-[var(--text-main)] rounded-lg font-bold shadow-lg shadow-green-600/20 disabled:opacity-50"
  >
@@ -1429,9 +1558,45 @@ export const ProcurementManagement = () => {
         )}
 
       </div>
+   )}   {/* TAB: YES LIST */}
+   {activeTab === 'yes_list' && (
+      <div className="flex-1 overflow-auto bg-[var(--bg-panel)] p-6 rounded-xl border border-[var(--border-subtle)] flex flex-col h-full shadow-2xl">
+        <div className="flex items-center justify-between mb-4 border-b border-[var(--border-subtle-alt)] pb-3">
+          <div className="flex items-center gap-3">
+            <span className="text-red-500 text-[10px] bg-red-500/10 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">QUALITY ALERT</span>
+            <h1 className="text-base font-bold text-[var(--text-muted)]">Mandi Intimation (Yes List)</h1>
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto">
+          <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
+            <thead>
+              <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)]">
+                <th className="p-3">Purchase No.</th>
+                <th className="p-3">Date</th>
+                <th className="p-3">Supplier</th>
+                <th className="p-3">Vehicle</th>
+                <th className="p-3 text-red-400">Quality Alert</th>
+              </tr>
+            </thead>
+            <tbody>
+              {inwardList.filter(p => p.paddyInwardDetails?.mandiQualityAlert).length === 0 ? (
+                <tr><td colSpan={5} className="p-6 text-center text-[var(--text-muted-alt)]">No quality alerts found.</td></tr>
+              ) : (
+                inwardList.filter(p => p.paddyInwardDetails?.mandiQualityAlert).map((p, i) => (
+                  <tr key={i} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)]">
+                    <td className="p-3 font-mono text-xs">{p.purchaseNo}</td>
+                    <td className="p-3">{p.date}</td>
+                    <td className="p-3 font-bold text-[var(--text-main)]">{p.supplier}</td>
+                    <td className="p-3">{p.vehicleNo}</td>
+                    <td className="p-3 text-red-500 font-bold">YES - Not as per requirement</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
    )}
-
-
 
 {/* TAB 3: QUALITY INSPECTION DESK */}
  {activeTab === 'quality_inspection' && (

@@ -270,6 +270,7 @@ model PaddyInwardDetails {
   pahunchPersonName String?
   safaiType         String? // Good, Patal
   intimationToMandi Boolean? @default(false)
+  mandiQualityAlert Boolean? @default(false)
 
   allocationType            String? // Hoodi, Stacking
   isUploadedToHoodiRegister Boolean?  @default(false)
@@ -343,6 +344,7 @@ model PaddySodaPending {
   note          String?
   finalHisabAmt Float?
   riceCategory  String? @default("ANY")
+  sodaCompleted Boolean? @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

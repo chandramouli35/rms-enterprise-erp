@@ -72,6 +72,7 @@ export declare class ProcurementService {
             pahunchPersonName: string | null;
             safaiType: string | null;
             intimationToMandi: boolean | null;
+            mandiQualityAlert: boolean | null;
             allocationType: string | null;
             isUploadedToHoodiRegister: boolean | null;
             allocateUnloader: string | null;
@@ -209,6 +210,7 @@ export declare class ProcurementService {
             pahunchPersonName: string | null;
             safaiType: string | null;
             intimationToMandi: boolean | null;
+            mandiQualityAlert: boolean | null;
             allocationType: string | null;
             isUploadedToHoodiRegister: boolean | null;
             allocateUnloader: string | null;
@@ -428,6 +430,7 @@ export declare class ProcurementService {
         note: string | null;
         finalHisabAmt: number | null;
         riceCategory: string | null;
+        sodaCompleted: boolean | null;
     }>;
     updateSodaPending(id: string, data: any): Promise<{
         id: string;
@@ -445,6 +448,7 @@ export declare class ProcurementService {
         note: string | null;
         finalHisabAmt: number | null;
         riceCategory: string | null;
+        sodaCompleted: boolean | null;
     }>;
     settleHisab(data: {
         id: string;
@@ -468,5 +472,6 @@ export declare class ProcurementService {
         note: string | null;
         finalHisabAmt: number | null;
         riceCategory: string | null;
+        sodaCompleted: boolean | null;
     }>;
 }

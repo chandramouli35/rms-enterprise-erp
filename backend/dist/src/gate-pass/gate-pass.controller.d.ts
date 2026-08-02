@@ -34,6 +34,7 @@ export declare class GatePassController {
                 pahunchPersonName: string | null;
                 safaiType: string | null;
                 intimationToMandi: boolean | null;
+                mandiQualityAlert: boolean | null;
                 allocationType: string | null;
                 isUploadedToHoodiRegister: boolean | null;
                 allocateUnloader: string | null;
@@ -263,6 +264,7 @@ export declare class GatePassController {
                 pahunchPersonName: string | null;
                 safaiType: string | null;
                 intimationToMandi: boolean | null;
+                mandiQualityAlert: boolean | null;
                 allocationType: string | null;
                 isUploadedToHoodiRegister: boolean | null;
                 allocateUnloader: string | null;
