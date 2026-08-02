@@ -27,12 +27,13 @@ const products_module_1 = require("./products/products.module");
 const dispatch_finance_module_1 = require("./dispatch-finance/dispatch-finance.module");
 const finance_module_1 = require("./finance/finance.module");
 const power_management_module_1 = require("./power-management/power-management.module");
+const master_data_module_1 = require("./master-data/master-data.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule, auth_module_1.AuthModule, plants_module_1.PlantsModule, dashboard_module_1.DashboardModule, users_module_1.UsersModule, users_roles_module_1.UsersRolesModule, procurement_module_1.ProcurementModule, weighbridge_module_1.WeighbridgeModule, gate_pass_module_1.GatePassModule, production_module_1.ProductionModule, yield_module_1.YieldModule, inventory_module_1.InventoryModule, transfer_module_1.TransferModule, products_module_1.ProductsModule, dispatch_finance_module_1.DispatchFinanceModule, finance_module_1.FinanceModule, power_management_module_1.PowerManagementModule],
+        imports: [prisma_module_1.PrismaModule, auth_module_1.AuthModule, plants_module_1.PlantsModule, dashboard_module_1.DashboardModule, users_module_1.UsersModule, users_roles_module_1.UsersRolesModule, procurement_module_1.ProcurementModule, weighbridge_module_1.WeighbridgeModule, gate_pass_module_1.GatePassModule, production_module_1.ProductionModule, yield_module_1.YieldModule, inventory_module_1.InventoryModule, transfer_module_1.TransferModule, products_module_1.ProductsModule, dispatch_finance_module_1.DispatchFinanceModule, finance_module_1.FinanceModule, power_management_module_1.PowerManagementModule, master_data_module_1.MasterDataModule],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],
     })

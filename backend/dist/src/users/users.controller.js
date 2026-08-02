@@ -33,6 +33,20 @@ let UsersController = class UsersController {
     async create(data, req) {
         return this.usersService.create(data, req.user);
     }
+    async grantOverride(data, req) {
+        const plantId = req.headers['x-plant-id'];
+        if (!plantId) {
+            throw new common_1.UnauthorizedException('Plant context missing');
+        }
+        if (req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'PLANT_MANAGER' && req.user.role !== 'ADMIN') {
+            throw new common_1.UnauthorizedException('Insufficient permissions to grant overrides');
+        }
+        return this.usersService.grantOverride(plantId, data.targetUserId, data.permissionType, req.user.id);
+    }
+    async getActiveOverrides(req) {
+        const plantId = req.headers['x-plant-id'];
+        return this.usersService.getActiveOverrides(plantId, req.user.id);
+    }
 };
 exports.UsersController = UsersController;
 __decorate([
@@ -52,6 +66,21 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "create", null);
+__decorate([
+    (0, common_1.Post)('overrides'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "grantOverride", null);
+__decorate([
+    (0, common_1.Get)('overrides/active'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "getActiveOverrides", null);
 exports.UsersController = UsersController = __decorate([
     (0, common_1.Controller)('users'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, plant_context_guard_1.PlantContextGuard, permissions_guard_1.PermissionsGuard),

@@ -107,6 +107,33 @@ let UsersService = class UsersService {
             role: user.role.name,
         };
     }
+    async grantOverride(plantId, targetUserId, permissionType, grantedBy) {
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 8);
+        return this.prisma.permissionOverride.create({
+            data: {
+                plantId,
+                userId: targetUserId,
+                permissionType,
+                grantedBy,
+                expiresAt,
+                isActive: true,
+            }
+        });
+    }
+    async getActiveOverrides(plantId, userId) {
+        const now = new Date();
+        return this.prisma.permissionOverride.findMany({
+            where: {
+                plantId,
+                userId,
+                isActive: true,
+                expiresAt: {
+                    gt: now,
+                }
+            }
+        });
+    }
 };
 exports.UsersService = UsersService;
 exports.UsersService = UsersService = __decorate([

@@ -384,30 +384,29 @@ export const DashboardShell: React.FC = () => {
  {user?.role === 'SUPER_ADMIN' ? (
  <div className="flex items-center gap-3 min-w-0">
  <h2 className="font-semibold text-sm text-[var(--text-muted-alt)] uppercase tracking-wider flex-shrink-0">Context:</h2>
- <div className="flex bg-[var(--bg-panel)] rounded-lg p-0.5 border border-[var(--border-subtle)] overflow-x-auto no-scrollbar items-center">
-   <button
-     onClick={() => usePlantStore.getState().clearActivePlant()}
-     className={`px-3 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 ${!activePlant && usePlantStore.getState().contextMode === 'consolidated' ? 'bg-[#e67e00] text-black shadow-md' : 'text-[var(--text-muted)] hover:text-[#e67e00] hover:bg-[var(--glass-bg)]'}`}
-   >
-     Consolidated
-   </button>
-   {plants.map(p => (
-     <button
-       key={p.id}
-       onClick={() => usePlantStore.getState().setActivePlant(p)}
-       className={`px-3 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 ${activePlant?.id === p.id && usePlantStore.getState().contextMode === 'plant' ? 'bg-[#e67e00] text-black shadow-md' : 'text-[var(--text-muted)] hover:text-[#e67e00] hover:bg-[var(--glass-bg)]'}`}
-     >
-       {p.name}
-     </button>
-   ))}
-   <div className="w-px h-4 bg-[var(--border-subtle)] mx-1 self-center flex-shrink-0"></div>
-   <button
-     onClick={() => usePlantStore.getState().setContextMode('compare')}
-     className={`px-3 py-1 rounded-md text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 ${!activePlant && usePlantStore.getState().contextMode === 'compare' ? 'bg-[#e67e00] text-black shadow-md' : 'text-[var(--text-muted)] hover:text-[#e67e00] hover:bg-[var(--glass-bg)]'}`}
-   >
-     Compare
-   </button>
- </div>
+ <select
+   className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--text-main)] focus:outline-none focus:border-[#e67e00] cursor-pointer"
+   value={usePlantStore.getState().contextMode === 'compare' ? 'compare' : (activePlant?.id || 'consolidated')}
+   onChange={(e) => {
+     const val = e.target.value;
+     if (val === 'consolidated') {
+       usePlantStore.getState().clearActivePlant();
+     } else if (val === 'compare') {
+       usePlantStore.getState().setContextMode('compare');
+     } else {
+       const selectedPlant = plants.find(p => p.id === val);
+       if (selectedPlant) usePlantStore.getState().setActivePlant(selectedPlant);
+     }
+   }}
+ >
+   <option value="consolidated">Consolidated</option>
+   <option value="compare">Mill Name Compare</option>
+   <optgroup label="Mill Names">
+     {plants.map(p => (
+       <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
+     ))}
+   </optgroup>
+ </select>
  </div>
  ) : (
  user?.plantAccess && user.plantAccess.length > 1 ? (

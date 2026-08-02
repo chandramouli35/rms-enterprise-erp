@@ -15,4 +15,24 @@ export declare class UsersService {
         email: string;
         role: string;
     }>;
+    grantOverride(plantId: string, targetUserId: string, permissionType: string, grantedBy: string): Promise<{
+        id: string;
+        createdAt: Date;
+        plantId: string;
+        isActive: boolean;
+        userId: string;
+        permissionType: string;
+        grantedBy: string;
+        expiresAt: Date;
+    }>;
+    getActiveOverrides(plantId: string, userId: string): Promise<{
+        id: string;
+        createdAt: Date;
+        plantId: string;
+        isActive: boolean;
+        userId: string;
+        permissionType: string;
+        grantedBy: string;
+        expiresAt: Date;
+    }[]>;
 }

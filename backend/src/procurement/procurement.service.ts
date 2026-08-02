@@ -41,6 +41,44 @@ export class ProcurementService {
     const baseAmount = netWeightQuintals * finalRate;
     const totalAmount = baseAmount + parsedTransport + parsedOther;
 
+    // Phase 4: Chronological Enforcements (RST and Mandi Parchi)
+    const incomingRstNum = data.rstNo ? parseInt(data.rstNo.replace(/\D/g, ''), 10) : null;
+    const incomingMandiNum = (data.mandiEgpNo || data.mandiEgNo) ? parseInt((data.mandiEgpNo || data.mandiEgNo).replace(/\D/g, ''), 10) : null;
+
+    if (incomingRstNum || incomingMandiNum) {
+      // Get the latest inward details for this plant
+      const latestInward = await this.prisma.paddyInwardDetails.findFirst({
+        where: {
+          procurementBatch: {
+            plantId: plantId
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      if (latestInward) {
+        if (incomingRstNum && latestInward.rstNo) {
+          const latestRstNum = parseInt(latestInward.rstNo.replace(/\D/g, ''), 10);
+          if (!isNaN(latestRstNum) && !isNaN(incomingRstNum)) {
+            if (incomingRstNum <= latestRstNum) {
+              throw new BadRequestException(`RST Number must be in chronological sequence. Incoming: ${data.rstNo}, Last Saved: ${latestInward.rstNo}`);
+            }
+          }
+        }
+        
+        if (incomingMandiNum && latestInward.mandiEgNo) {
+          const latestMandiNum = parseInt(latestInward.mandiEgNo.replace(/\D/g, ''), 10);
+          if (!isNaN(latestMandiNum) && !isNaN(incomingMandiNum)) {
+            if (incomingMandiNum <= latestMandiNum) {
+              throw new BadRequestException(`Mandi Parchi Number must be in chronological sequence. Incoming: ${data.mandiEgpNo || data.mandiEgNo}, Last Saved: ${latestInward.mandiEgNo}`);
+            }
+          }
+        }
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
       // 1. Create ProcurementBatch
       const batch = await tx.procurementBatch.create({

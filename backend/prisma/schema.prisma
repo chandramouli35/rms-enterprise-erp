@@ -39,6 +39,11 @@ model Plant {
   powerLoads              PowerLoad[]
   powerAlerts             PowerAlert[]
   powerSetting            PowerSetting?
+  // Master Data & Permissions
+  truckMasters            TruckMaster[]
+  driverMasters           DriverMaster[]
+  staffMasters            StaffMaster[]
+  permissionOverrides     PermissionOverride[]
 
   // Tracking
   createdAt DateTime  @default(now())
@@ -96,6 +101,7 @@ model User {
   role        Role              @relation(fields: [roleId], references: [id])
   plantAccess UserPlantAccess[]
   auditLogs   SystemAuditLog[]
+  permissionOverrides PermissionOverride[]
 
   // Tracking
   lastLogin DateTime?
@@ -821,4 +827,69 @@ model PowerSetting {
   dieselCost        Float   @default(92.40) // Per Litre
   
   updatedAt   DateTime @updatedAt
+}
+
+// ==========================================
+// MASTER DATA MODELS
+// ==========================================
+
+model TruckMaster {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  truckNumber String
+  capacity    Float?   // Optional capacity in MT
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([plantId, truckNumber])
+  @@index([plantId])
+}
+
+model DriverMaster {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  name        String
+  licenseNo   String?
+  phone       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([plantId])
+}
+
+model StaffMaster {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  name        String
+  role        String   // e.g. "PAHUNCH", "UNLOADER"
+  phone       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([plantId])
+}
+
+// ==========================================
+// PERMISSIONS OVERRIDE (8-Hour Auto Cutoff)
+// ==========================================
+
+model PermissionOverride {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  permissionType String // "BACKDATE_ENTRY", "MANUAL_WEIGHBRIDGE"
+  grantedBy   String // ID of the Admin who granted it
+  
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime // Set to createdAt + 8 hours
+  isActive    Boolean  @default(true) // Admin can toggle off early
+  
+  @@index([plantId, userId])
+  @@index([expiresAt])
 }

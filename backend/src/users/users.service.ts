@@ -71,4 +71,35 @@ export class UsersService {
       role: user.role.name,
     };
   }
+
+  async grantOverride(plantId: string, targetUserId: string, permissionType: string, grantedBy: string) {
+    // 8-hour auto-cutoff logic
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 8);
+
+    return this.prisma.permissionOverride.create({
+      data: {
+        plantId,
+        userId: targetUserId,
+        permissionType,
+        grantedBy,
+        expiresAt,
+        isActive: true,
+      }
+    });
+  }
+
+  async getActiveOverrides(plantId: string, userId: string) {
+    const now = new Date();
+    return this.prisma.permissionOverride.findMany({
+      where: {
+        plantId,
+        userId,
+        isActive: true,
+        expiresAt: {
+          gt: now, // Must not be expired
+        }
+      }
+    });
+  }
 }

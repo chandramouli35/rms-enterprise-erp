@@ -38,6 +38,38 @@ let ProcurementService = class ProcurementService {
         const netWeightQuintals = parsedNetWeight * 10;
         const baseAmount = netWeightQuintals * finalRate;
         const totalAmount = baseAmount + parsedTransport + parsedOther;
+        const incomingRstNum = data.rstNo ? parseInt(data.rstNo.replace(/\D/g, ''), 10) : null;
+        const incomingMandiNum = (data.mandiEgpNo || data.mandiEgNo) ? parseInt((data.mandiEgpNo || data.mandiEgNo).replace(/\D/g, ''), 10) : null;
+        if (incomingRstNum || incomingMandiNum) {
+            const latestInward = await this.prisma.paddyInwardDetails.findFirst({
+                where: {
+                    procurementBatch: {
+                        plantId: plantId
+                    }
+                },
+                orderBy: {
+                    createdAt: 'desc'
+                }
+            });
+            if (latestInward) {
+                if (incomingRstNum && latestInward.rstNo) {
+                    const latestRstNum = parseInt(latestInward.rstNo.replace(/\D/g, ''), 10);
+                    if (!isNaN(latestRstNum) && !isNaN(incomingRstNum)) {
+                        if (incomingRstNum <= latestRstNum) {
+                            throw new common_1.BadRequestException(`RST Number must be in chronological sequence. Incoming: ${data.rstNo}, Last Saved: ${latestInward.rstNo}`);
+                        }
+                    }
+                }
+                if (incomingMandiNum && latestInward.mandiEgNo) {
+                    const latestMandiNum = parseInt(latestInward.mandiEgNo.replace(/\D/g, ''), 10);
+                    if (!isNaN(latestMandiNum) && !isNaN(incomingMandiNum)) {
+                        if (incomingMandiNum <= latestMandiNum) {
+                            throw new common_1.BadRequestException(`Mandi Parchi Number must be in chronological sequence. Incoming: ${data.mandiEgpNo || data.mandiEgNo}, Last Saved: ${latestInward.mandiEgNo}`);
+                        }
+                    }
+                }
+            }
+        }
         return this.prisma.$transaction(async (tx) => {
             const batch = await tx.procurementBatch.create({
                 data: {
