@@ -1309,12 +1309,25 @@ export const ProcurementManagement = () => {
          <ShieldCheck size={16} /> Authenticated
        </div>
      ) : (
-       <div className="flex gap-2 items-center">
-         <input type="password" placeholder="PIN (1234)" className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-3 py-1.5 w-24 text-[var(--text-main)] outline-none" onChange={(e) => {
-           if(e.target.value === '1234') setInwardFormData((p: any) => ({...p, biometricData: 'verified_supervisor'}));
-         }} />
-         <span className="text-xs text-[var(--text-muted-alt)]">Enter PIN to verify</span>
-       </div>
+        <div className="flex gap-2 items-center">
+          <button 
+            type="button" 
+            onClick={async () => {
+              try {
+                const xml = await biometricService.captureFingerprint();
+                setInwardFormData((p: any) => ({...p, biometricData: xml}));
+                useUiStore.getState().addToast('Fingerprint Captured Successfully', 'success');
+              } catch(e: any) {
+                useUiStore.getState().addToast(e.message, 'error');
+              }
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white border border-blue-500 rounded px-4 py-1.5 text-sm font-bold flex items-center gap-2 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" /></svg>
+            Scan Fingerprint
+          </button>
+          <span className="text-xs text-[var(--text-muted-alt)]">Place finger on device</span>
+        </div>
      )}
    </div>
    <div className="text-right min-w-[120px]">
@@ -1334,10 +1347,23 @@ export const ProcurementManagement = () => {
         </div>
       ) : (
         <div className="flex gap-2 items-center">
-          <input type="password" placeholder="PIN (9999)" className="bg-[var(--bg-panel)] border border-red-500/30 rounded px-3 py-1.5 w-24 text-[var(--text-main)] outline-none" onChange={(e) => {
-            if(e.target.value === '9999') setInwardFormData((p: any) => ({...p, headBiometricData: 'verified_head'}));
-          }} />
-          <span className="text-xs text-[var(--text-muted-alt)]">Enter PIN to verify</span>
+          <button 
+            type="button" 
+            onClick={async () => {
+              try {
+                const xml = await biometricService.captureFingerprint();
+                setInwardFormData((p: any) => ({...p, headBiometricData: xml}));
+                useUiStore.getState().addToast('Head Supervisor Fingerprint Captured Successfully', 'success');
+              } catch(e: any) {
+                useUiStore.getState().addToast(e.message, 'error');
+              }
+            }}
+            className="bg-red-900/50 hover:bg-red-800 text-red-200 border border-red-500/50 rounded px-4 py-1.5 text-sm font-bold flex items-center gap-2 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" /></svg>
+            Scan Fingerprint
+          </button>
+          <span className="text-xs text-red-400/70">Place finger on device</span>
         </div>
       )}
     </div>
