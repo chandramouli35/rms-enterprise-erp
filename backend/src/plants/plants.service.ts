@@ -17,7 +17,9 @@ export class PlantsService {
         name: data.name,
         code: data.code,
         location: data.location,
-        standardBagWeight: data.standardBagWeight ? parseFloat(data.standardBagWeight) : 0.382
+        standardBagWeight: data.standardBagWeight ? parseFloat(data.standardBagWeight) : 0.382,
+        aClassBagWeight: data.aClassBagWeight ? parseFloat(data.aClassBagWeight) : 0.380,
+        bClassBagWeight: data.bClassBagWeight ? parseFloat(data.bClassBagWeight) : 0.385
       },
     });
   }
@@ -28,9 +30,12 @@ export class PlantsService {
       data: {
         ...(data.name && { name: data.name }),
         ...(data.code && { code: data.code }),
-        ...(data.location !== undefined && { location: data.location }),
-        ...(data.standardBagWeight !== undefined && { standardBagWeight: parseFloat(data.standardBagWeight) }),
-      }
+        ...(data.location && { location: data.location }),
+        ...(data.targetYield && { targetYield: parseFloat(data.targetYield) }),
+        ...(data.standardBagWeight && { standardBagWeight: parseFloat(data.standardBagWeight) }),
+        ...(data.aClassBagWeight && { aClassBagWeight: parseFloat(data.aClassBagWeight) }),
+        ...(data.bClassBagWeight && { bClassBagWeight: parseFloat(data.bClassBagWeight) }),
+      },
     });
   }
 }

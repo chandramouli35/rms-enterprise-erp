@@ -72,7 +72,17 @@ export class ProcurementService {
           const latestMandiNum = parseInt(latestInward.mandiEgNo.replace(/\D/g, ''), 10);
           if (!isNaN(latestMandiNum) && !isNaN(incomingMandiNum)) {
             if (incomingMandiNum <= latestMandiNum) {
-              throw new BadRequestException(`Mandi Parchi Number must be in chronological sequence. Incoming: ${data.mandiEgpNo || data.mandiEgNo}, Last Saved: ${latestInward.mandiEgNo}`);
+              throw new BadRequestException(`Mandi e-GP Number must be in chronological sequence. Incoming: ${data.mandiEgpNo || data.mandiEgNo}, Last Saved: ${latestInward.mandiEgNo}`);
+            }
+          }
+        }
+        
+        const incomingParchiNum = data.mandiParchiNo ? parseInt(data.mandiParchiNo.replace(/\D/g, ''), 10) : null;
+        if (incomingParchiNum && latestInward.mandiParchiNo) {
+          const latestParchiNum = parseInt(latestInward.mandiParchiNo.replace(/\D/g, ''), 10);
+          if (!isNaN(latestParchiNum) && !isNaN(incomingParchiNum)) {
+            if (incomingParchiNum <= latestParchiNum) {
+              throw new BadRequestException(`Mandi Parchi Number must be in chronological sequence. Incoming: ${data.mandiParchiNo}, Last Saved: ${latestInward.mandiParchiNo}`);
             }
           }
         }
@@ -137,6 +147,7 @@ export class ProcurementService {
           mandiEgNo: data.mandiEgpNo || data.mandiEgNo,
           mandi: data.mandi,
           rstNo: data.rstNo,
+          mandiParchiNo: data.mandiParchiNo,
           pahunchPersonName: data.pahunchPersonName,
           safaiType: data.safaiType,
           allocationType: data.allocationType,
@@ -209,6 +220,20 @@ export class ProcurementService {
             }
           }
         }
+      }
+
+      // 7. Notification for Quality Cut > 1%
+      if (data.qualityCutType === 'PERCENTAGE' && parseFloat(data.qualityCutValue) > 1) {
+        await tx.systemAuditLog.create({
+          data: {
+            action: 'MANDI_QUALITY_NOTIFICATION',
+            module: 'PROCUREMENT',
+            entityId: batch.id,
+            details: `Quality cut of ${data.qualityCutValue}% exceeded 1% for Mandi ${data.mandi || data.mandiEgpNo}. Please review.`,
+            userId: 'SYSTEM',
+            plantId: plantId
+          }
+        });
       }
 
       return batch;

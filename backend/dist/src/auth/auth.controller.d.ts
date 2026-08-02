@@ -32,6 +32,8 @@ export declare class AuthController {
                     location: string | null;
                     code: string;
                     standardBagWeight: number;
+                    aClassBagWeight: number;
+                    bClassBagWeight: number;
                     createdAt: Date;
                     updatedAt: Date;
                     deletedAt: Date | null;

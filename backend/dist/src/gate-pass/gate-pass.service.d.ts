@@ -31,6 +31,7 @@ export declare class GatePassService {
                 gpNo: string | null;
                 mandi: string | null;
                 mandiEgNo: string | null;
+                mandiParchiNo: string | null;
                 rstNo: string | null;
                 pahunchPersonName: string | null;
                 safaiType: string | null;
@@ -222,6 +223,8 @@ export declare class GatePassService {
             location: string | null;
             code: string;
             standardBagWeight: number;
+            aClassBagWeight: number;
+            bClassBagWeight: number;
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
@@ -252,6 +255,7 @@ export declare class GatePassService {
                 gpNo: string | null;
                 mandi: string | null;
                 mandiEgNo: string | null;
+                mandiParchiNo: string | null;
                 rstNo: string | null;
                 pahunchPersonName: string | null;
                 safaiType: string | null;

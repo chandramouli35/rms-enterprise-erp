@@ -8,6 +8,8 @@ interface User {
   role: string;
   permissions: any[];
   plantAccess?: any[];
+  backdatePermissionUntil?: string;
+  manualWeighbridgeUntil?: string;
 }
 
 interface AuthState {

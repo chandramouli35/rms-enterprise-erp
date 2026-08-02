@@ -16,6 +16,8 @@ model Plant {
 
   // Settings
   standardBagWeight Float @default(0.382)
+  aClassBagWeight   Float @default(0.380)
+  bClassBagWeight   Float @default(0.385)
 
   // Relations
   users                   UserPlantAccess[]
@@ -132,6 +134,8 @@ model SystemAuditLog {
   action    String // e.g., 'CREATED_USER', 'UPDATED_PERMISSIONS'
   module    String // e.g., 'Users & Roles', 'Dashboard'
   details   String?
+  entityId  String?
+  plantId   String?
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
@@ -261,6 +265,7 @@ model PaddyInwardDetails {
   gpNo              String?
   mandi             String?
   mandiEgNo         String?
+  mandiParchiNo     String?
   rstNo             String?
   pahunchPersonName String?
   safaiType         String? // Good, Patal

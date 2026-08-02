@@ -33,6 +33,8 @@ export declare class AuthService {
                     location: string | null;
                     code: string;
                     standardBagWeight: number;
+                    aClassBagWeight: number;
+                    bClassBagWeight: number;
                     createdAt: Date;
                     updatedAt: Date;
                     deletedAt: Date | null;

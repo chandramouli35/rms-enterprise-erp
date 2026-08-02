@@ -67,6 +67,7 @@ export declare class ProcurementService {
             gpNo: string | null;
             mandi: string | null;
             mandiEgNo: string | null;
+            mandiParchiNo: string | null;
             rstNo: string | null;
             pahunchPersonName: string | null;
             safaiType: string | null;
@@ -203,6 +204,7 @@ export declare class ProcurementService {
             gpNo: string | null;
             mandi: string | null;
             mandiEgNo: string | null;
+            mandiParchiNo: string | null;
             rstNo: string | null;
             pahunchPersonName: string | null;
             safaiType: string | null;

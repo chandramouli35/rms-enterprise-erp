@@ -14,13 +14,17 @@ export const ProcurementManagement = () => {
   const activeTab = searchParams.get('tab') || 'supplier_master';
   const activePlant = usePlantStore(state => state.activePlant);
   const user = useAuthStore(state => state.user);
+  const hasBackdatePermission = user?.role === 'SUPER_ADMIN' || (user?.backdatePermissionUntil && new Date(user.backdatePermissionUntil) > new Date());
+  const hasManualWeighbridgePermission = user?.role === 'SUPER_ADMIN' || (user?.manualWeighbridgeUntil && new Date(user.manualWeighbridgeUntil) > new Date());
   const isSupervisor = user?.role === 'SUPERVISOR';
   const [category, setCategory] = useState<'OPERATIONAL' | 'NON_OPERATIONAL'>('OPERATIONAL');
 
   const MOCK_LABOUR_CONTRACTORS = ['Ramesh Kumar', 'Suresh Singh', 'Manoj Enterprises', 'Shiva Labour Co.'];
 
-  // State
   const [plants, setPlants] = useState<any[]>([]);
+  const [trucks, setTrucks] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
   
 
   useEffect(() => {
@@ -46,8 +50,9 @@ export const ProcurementManagement = () => {
  moisture: 0,
  bugs: 0,
  gpNo: '',
- mandiEgNo: '',
+ mandiEgpNo: '',
  rstNo: '',
+ mandiParchiNo: '',
  pahunchPersonName: '',
  safaiType: 'Good',
  allocationType: 'Hoodi',
@@ -83,7 +88,7 @@ export const ProcurementManagement = () => {
 
  // Inward Form States
   const defaultInwardFormData = {
-    gpNo: '', date: '', timeIn: '', timeOut: '', truckNo: '', mandiEgpNo: '', rstNo: '', supplierId: '',
+    gpNo: '', date: '', timeIn: '', timeOut: '', truckNo: '', mandiEgpNo: '', rstNo: '', mandiParchiNo: '', supplierId: '',
     mandi: '', pahunchPersonName: '',
     moisture: '', safai: 'Good', mandiIntimation: 'N.A.', remarks: '',
     allocationType: 'Hoodi',
@@ -113,6 +118,23 @@ export const ProcurementManagement = () => {
   const [boliInputs, setBoliInputs] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    if (!hasBackdatePermission) {
+      const interval = setInterval(() => {
+        const now = new Date();
+        const dateStr = now.toISOString().split('T')[0];
+        const timeStr = now.toTimeString().slice(0,5);
+        setInwardFormData((prev: any) => ({
+          ...prev,
+          date: dateStr,
+          timeIn: prev.timeIn || timeStr,
+          timeOut: prev.timeOut || timeStr,
+        }));
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [hasBackdatePermission]);
+
+  useEffect(() => {
     // Auto calculate Required Net Wt and Shortage
     const origA = parseFloat(inwardFormData.origAClass) || 0;
     const origB = parseFloat(inwardFormData.origBClass) || 0;
@@ -121,14 +143,20 @@ export const ProcurementManagement = () => {
     
     // Fallback to activePlant or selected localPlant
     const selectedPlant = plants.find(p => p.id === (activePlant?.id ));
-    const stdWeight = selectedPlant?.standardBagWeight || 0.382;
+    const stdWeightA = selectedPlant?.aClassBagWeight || 0.380;
+    const stdWeightB = selectedPlant?.bClassBagWeight || 0.385;
 
-    const totalBags = origA + origB + shortA + shortB;
-    const req = (totalBags * stdWeight).toFixed(3);
+    const totalA = origA + shortA;
+    const totalB = origB + shortB;
+    const reqA = totalA * stdWeightA;
+    const reqB = totalB * stdWeightB;
+    const req = (reqA + reqB).toFixed(3);
     
     const actualWt = parseFloat(inwardFormData.netWtMill) || 0;
     const shortageQtl = (parseFloat(req) - actualWt).toFixed(2);
-    const shortageBags = (parseFloat(shortageQtl) / stdWeight).toFixed(2);
+    // Rough estimation of bags using an average weight or specifically A/B ratio
+    const avgWeight = totalA + totalB > 0 ? (reqA + reqB) / (totalA + totalB) : stdWeightA;
+    const shortageBags = (parseFloat(shortageQtl) / avgWeight).toFixed(2);
 
     setInwardFormData((prev: any) => ({ 
       ...prev, 
@@ -216,10 +244,26 @@ export const ProcurementManagement = () => {
   useEffect(() => {
     if (activePlant?.id ) {
       setFormData((prev: any) => ({ ...prev, plantId: activePlant?.id  }));
+      const fetchData = async () => {
+        fetchRecentPurchases();
+        fetchSuppliers();
+        fetchSodaPending();
+        
+        try {
+          const [tRes, dRes, sRes] = await Promise.all([
+            api.get('/api/master-data/trucks'),
+            api.get('/api/master-data/drivers'),
+            api.get('/api/master-data/staff')
+          ]);
+          setTrucks(tRes.data);
+          setDrivers(dRes.data);
+          setStaff(sRes.data);
+        } catch(err) {
+          console.error('Failed to fetch masters', err);
+        }
+      };
+      fetchData();
     }
-    fetchSuppliers();
-    fetchSodaPending();
-    fetchRecentPurchases();
     fetchInwardList();
   }, [activePlant?.id, activeTab, listFilters.dateFrom, listFilters.dateTo]);
 
@@ -666,20 +710,23 @@ export const ProcurementManagement = () => {
  <input type="text" name="gpNo" value={inwardFormData.gpNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="1-1000/Sept/25" />
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-[11px] mb-1 truncate">Date</label>
- <input type="date" name="date" value={inwardFormData.date} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" />
- </div>
- <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Time In</label>
- <input type="time" name="timeIn" value={inwardFormData.timeIn} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" />
- </div>
- <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Time Out</label>
- <input type="time" name="timeOut" value={inwardFormData.timeOut} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" />
- </div>
+  <label className="block text-[var(--text-muted-alt)] text-[11px] mb-1 truncate">Date</label>
+  <input type="date" name="date" value={inwardFormData.date} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
+  </div>
+  <div>
+  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Time In</label>
+  <input type="time" name="timeIn" value={inwardFormData.timeIn} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
+  </div>
+  <div>
+  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Time Out</label>
+  <input type="time" name="timeOut" value={inwardFormData.timeOut} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
+  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Truck No.</label>
- <input type="text" name="truckNo" value={inwardFormData.truckNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="PB 10 AB 1234" />
+ <select name="truckNo" value={inwardFormData.truckNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
+   <option value="">Select Truck</option>
+   {trucks.map(t => <option key={t.id} value={t.truckNumber}>{t.truckNumber}</option>)}
+ </select>
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi e-GP / Bill No.</label>
@@ -688,6 +735,10 @@ export const ProcurementManagement = () => {
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">RST No.</label>
  <input type="text" name="rstNo" value={inwardFormData.rstNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="RST-7485963" />
+ </div>
+ <div>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi Parchi No.</label>
+ <input type="text" name="mandiParchiNo" value={inwardFormData.mandiParchiNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="PRC-12345" />
  </div>
  <div>
   <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Party / Supplier Name</label>
@@ -701,9 +752,12 @@ export const ProcurementManagement = () => {
   <input type="text" name="mandi" value={inwardFormData.mandi} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Mandi Name" />
   </div>
   <div>
-  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Pahunch Person Name</label>
-  <input type="text" name="pahunchPersonName" value={inwardFormData.pahunchPersonName} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Person Name" />
-  </div>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center gap-2">Pahunch Person / Staff</label>
+ <select name="pahunchPersonName" value={inwardFormData.pahunchPersonName} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none">
+   <option value="">Select Staff</option>
+   {staff.map(s => <option key={s.id} value={s.name}>{s.name} ({s.role})</option>)}
+ </select>
+ </div>
  </div>
  </div>
 
@@ -812,13 +866,43 @@ export const ProcurementManagement = () => {
  </select>
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Starts Time</label>
- <input type="time" name="unloadingStartTime" value={inwardFormData.unloadingStartTime} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" />
- </div>
- <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Finish Time</label>
- <input type="time" name="unloadingFinishTime" value={inwardFormData.unloadingFinishTime} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" />
- </div>
+  <div className="col-span-1 sm:col-span-2 bg-[#e67e00]/10 p-3 rounded-lg border border-[#e67e00]/30 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="space-y-3">
+      <div className="font-bold text-[#e67e00] text-xs">UNLOADING START VERIFICATION</div>
+      <label className="flex items-center gap-2 text-sm text-[var(--text-main)]">
+        <input type="checkbox" checked={inwardFormData.loadedVideoVerified} onChange={e => setInwardFormData((prev: any) => ({...prev, loadedVideoVerified: e.target.checked}))} className="accent-[#e67e00] w-4 h-4" />
+        Loaded Truck Video Captured & Verified
+      </label>
+      <input type="password" placeholder="Supervisor PIN (1234)" value={inwardFormData.startPin} onChange={e => setInwardFormData((prev: any) => ({...prev, startPin: e.target.value}))} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-sm outline-none" />
+      <div>
+      <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Starts Time</label>
+      <div className="flex gap-2">
+      <input type="time" name="unloadingStartTime" value={inwardFormData.unloadingStartTime} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`flex-1 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
+      {!hasBackdatePermission && (
+        <button type="button" disabled={!inwardFormData.loadedVideoVerified || inwardFormData.startPin !== '1234'} onClick={() => setInwardFormData((prev: any) => ({...prev, unloadingStartTime: new Date().toTimeString().slice(0,5)}))} className="bg-[#e67e00] hover:bg-[#cc7000] disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 rounded text-xs font-bold transition-colors">NOW</button>
+      )}
+      </div>
+      </div>
+    </div>
+    
+    <div className="space-y-3">
+      <div className="font-bold text-[#e67e00] text-xs">UNLOADING FINISH VERIFICATION</div>
+      <label className="flex items-center gap-2 text-sm text-[var(--text-main)]">
+        <input type="checkbox" checked={inwardFormData.emptyVideoVerified} onChange={e => setInwardFormData((prev: any) => ({...prev, emptyVideoVerified: e.target.checked}))} className="accent-[#e67e00] w-4 h-4" />
+        Empty Truck Video Captured & Verified
+      </label>
+      <input type="password" placeholder="Supervisor PIN (1234)" value={inwardFormData.finishPin} onChange={e => setInwardFormData((prev: any) => ({...prev, finishPin: e.target.value}))} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-sm outline-none" />
+      <div>
+      <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Finish Time</label>
+      <div className="flex gap-2">
+      <input type="time" name="unloadingFinishTime" value={inwardFormData.unloadingFinishTime} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`flex-1 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
+      {!hasBackdatePermission && (
+        <button type="button" disabled={!inwardFormData.emptyVideoVerified || inwardFormData.finishPin !== '1234'} onClick={() => setInwardFormData((prev: any) => ({...prev, unloadingFinishTime: new Date().toTimeString().slice(0,5)}))} className="bg-[#e67e00] hover:bg-[#cc7000] disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 rounded text-xs font-bold transition-colors">NOW</button>
+      )}
+      </div>
+      </div>
+    </div>
+  </div></div>
  </div>
  </div>
 
@@ -902,6 +986,10 @@ export const ProcurementManagement = () => {
    </div>
  )}
 
+ </div>
+
+ {/* RIGHT COLUMN */}
+ <div className="col-span-12 xl:col-span-5 space-y-6">
  {/* 5. Bardana Details & 6. Weight Details */}
  <div className="flex flex-col gap-6 mt-6">
  {/* 5. Bardana */}
@@ -947,8 +1035,19 @@ export const ProcurementManagement = () => {
  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">6. Weight Details</div>
  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 content-start">
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Net Wt. @ Mill (Qtl)</label>
- <input type="number" min="0" name="netWtMill" value={inwardFormData.netWtMill} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] font-bold outline-none"  />
+  <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex justify-between items-center">
+    <span>Net Wt. @ Mill (Qtl)</span>
+    {!hasManualWeighbridgePermission && (
+      <button type="button" onClick={() => {
+        // Simulate weighbridge fetch
+        setInwardFormData((prev: any) => ({...prev, netWtMill: (Math.random() * (450 - 350) + 350).toFixed(2)}));
+      }} className="text-[#e67e00] hover:text-white transition-colors flex items-center gap-1" title="Fetch from Weighbridge">
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+        Fetch
+      </button>
+    )}
+  </label>
+  <input type="number" min="0" name="netWtMill" value={inwardFormData.netWtMill} onChange={handleInwardChange} disabled={!hasManualWeighbridgePermission} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] font-bold outline-none ${hasManualWeighbridgePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`}  />
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Required Net Wt. (Qtl)</label>
@@ -965,10 +1064,6 @@ export const ProcurementManagement = () => {
  </div>
  </div>
  </div>
- </div>
-
- {/* RIGHT COLUMN */}
- <div className="col-span-12 xl:col-span-5 space-y-6">
  
  {/* 10. Dhanak / Lot Details */}
  <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
@@ -1064,8 +1159,11 @@ export const ProcurementManagement = () => {
  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">8. Driver Information</div>
  <div className="p-4 grid grid-cols-2 gap-4 text-sm">
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Driver Name</label>
- <input type="text" name="driverName" value={inwardFormData.driverName} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none" />
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center gap-2">Driver Name</label>
+ <select name="driverName" value={inwardFormData.driverName} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none">
+   <option value="">Select Driver</option>
+   {drivers.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+ </select>
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mobile Number</label>
