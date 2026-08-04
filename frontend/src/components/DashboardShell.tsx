@@ -112,39 +112,39 @@ export const DashboardShell: React.FC = () => {
  { label: 'QR Barcode', tab: 'qr_barcode' },
  { label: 'Duplicate Prevention', tab: 'duplicate_prevention' }
  ]},
-  { label: 'Dispatch', href: '/dispatch', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
-    { label: 'Dispatch Mgmt', tab: 'dispatch_mgmt' },
-    { label: 'Vehicle Allocation', tab: 'vehicle_allocation' },
-    { label: 'Weight Verification', tab: 'weight_verification' },
-    { label: 'Inventory Deduction', tab: 'inventory_deduction' },
-    { label: 'Finance Mgmt', tab: 'finance_management' },
-    { label: 'Utility Mgmt', tab: 'utility_management' }
-  ]},
-  { label: 'Finance', href: '/finance', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
-    { label: 'Purchase Ledger', tab: 'purchase' },
-    { label: 'Sales / Dispatch Ledger', tab: 'sales' },
-    { label: 'Expense Management', tab: 'expense' },
-    { label: 'Cash Book', tab: 'cashbook' },
-    { label: 'Dispatch Outstanding', tab: 'outstanding' }
-  ]},
-  { label: 'Power', href: '/power', icon: 'M13 10V3L4 14h7v7l9-11h-7z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
-    { label: 'Power Overview', tab: 'overview' },
-    { label: 'Generator Management', tab: 'generator' },
-    { label: 'Load Management', tab: 'load' },
-    { label: 'Consumption Analytics', tab: 'analytics' },
-    { label: 'Power Alerts', tab: 'alerts' },
-    { label: 'Power Settings', tab: 'settings' }
-  ]},
+//   { label: 'Dispatch', href: '/dispatch', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
+//     { label: 'Dispatch Mgmt', tab: 'dispatch_mgmt' },
+//     { label: 'Vehicle Allocation', tab: 'vehicle_allocation' },
+//     { label: 'Weight Verification', tab: 'weight_verification' },
+//     { label: 'Inventory Deduction', tab: 'inventory_deduction' },
+//     { label: 'Finance Mgmt', tab: 'finance_management' },
+//     { label: 'Utility Mgmt', tab: 'utility_management' }
+//   ]},
+//   { label: 'Finance', href: '/finance', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
+//     { label: 'Purchase Ledger', tab: 'purchase' },
+//     { label: 'Sales / Dispatch Ledger', tab: 'sales' },
+//     { label: 'Expense Management', tab: 'expense' },
+//     { label: 'Cash Book', tab: 'cashbook' },
+//     { label: 'Dispatch Outstanding', tab: 'outstanding' }
+//   ]},
+//   { label: 'Power', href: '/power', icon: 'M13 10V3L4 14h7v7l9-11h-7z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
+//     { label: 'Power Overview', tab: 'overview' },
+//     { label: 'Generator Management', tab: 'generator' },
+//     { label: 'Load Management', tab: 'load' },
+//     { label: 'Consumption Analytics', tab: 'analytics' },
+//     { label: 'Power Alerts', tab: 'alerts' },
+//     { label: 'Power Settings', tab: 'settings' }
+//   ]},
   { label: 'Truck Management', href: '/trucks', icon: 'M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0zM13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10h2M13 8h4.5a1 1 0 01.9.5l2 3V16h-1.5', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'GATE_OPERATOR'] },
   { label: 'Labour Management', href: '/labours', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'] },
-  { label: 'Backup & Restore', href: '/backup', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4', roles: ['SUPER_ADMIN'], subItems: [
-    { label: 'Backup Overview', tab: 'overview' },
-    { label: 'Restore Data', tab: 'restore' },
-    { label: 'Scheduled Backups', tab: 'scheduled' },
-    { label: 'Backup Settings', tab: 'settings' },
-    { label: 'Storage Management', tab: 'storage' },
-    { label: 'Backup History', tab: 'history' }
-  ]},
+//   { label: 'Backup & Restore', href: '/backup', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4', roles: ['SUPER_ADMIN'], subItems: [
+//     { label: 'Backup Overview', tab: 'overview' },
+//     { label: 'Restore Data', tab: 'restore' },
+//     { label: 'Scheduled Backups', tab: 'scheduled' },
+//     { label: 'Backup Settings', tab: 'settings' },
+//     { label: 'Storage Management', tab: 'storage' },
+//     { label: 'Backup History', tab: 'history' }
+//   ]},
  { label: 'Users and Roles', href: '/users', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
  { label: 'Users', tab: 'Users' },
  { label: 'Roles', tab: 'Roles' },
