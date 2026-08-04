@@ -148,6 +148,7 @@ let ProcurementService = class ProcurementService {
                     qualityCutType: data.qualityCutType || 'NONE',
                     qualityCutValue: parseFloat(data.qualityCutValue) || 0,
                     qualityCutReason: data.qualityCutReason || null,
+                    govtRate: data.govtRate ? parseFloat(data.govtRate) : null,
                     standardBagWeight: data.standardBagWeight ? parseFloat(data.standardBagWeight) : null,
                     totalBagsCalculated: data.totalBagsCalculated ? parseFloat(data.totalBagsCalculated) : null,
                     standardWeightCalculated: data.standardWeightCalculated ? parseFloat(data.standardWeightCalculated) : null,

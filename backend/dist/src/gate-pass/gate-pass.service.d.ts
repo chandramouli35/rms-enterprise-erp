@@ -22,6 +22,7 @@ export declare class GatePassService {
             paddyInwardDetails: {
                 id: string;
                 standardBagWeight: number | null;
+                govtRate: number | null;
                 createdAt: Date;
                 updatedAt: Date;
                 qualityCutValue: number | null;
@@ -270,6 +271,7 @@ export declare class GatePassService {
             paddyInwardDetails: {
                 id: string;
                 standardBagWeight: number | null;
+                govtRate: number | null;
                 createdAt: Date;
                 updatedAt: Date;
                 qualityCutValue: number | null;

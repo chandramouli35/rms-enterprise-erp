@@ -167,6 +167,7 @@ export class ProcurementService {
           qualityCutType: data.qualityCutType || 'NONE',
           qualityCutValue: parseFloat(data.qualityCutValue) || 0,
           qualityCutReason: data.qualityCutReason || null,
+          govtRate: data.govtRate ? parseFloat(data.govtRate) : null,
           
           // Shortage Hisab Fields
           standardBagWeight: data.standardBagWeight ? parseFloat(data.standardBagWeight) : null,

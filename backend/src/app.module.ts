@@ -19,9 +19,10 @@ import { DispatchFinanceModule } from './dispatch-finance/dispatch-finance.modul
 import { FinanceModule } from './finance/finance.module';
 import { PowerManagementModule } from './power-management/power-management.module';
 import { MasterDataModule } from './master-data/master-data.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, PlantsModule, DashboardModule, UsersModule, UsersRolesModule, ProcurementModule, WeighbridgeModule, GatePassModule, ProductionModule, YieldModule, InventoryModule, TransferModule, ProductsModule, DispatchFinanceModule, FinanceModule, PowerManagementModule, MasterDataModule],
+  imports: [PrismaModule, AuthModule, PlantsModule, DashboardModule, UsersModule, UsersRolesModule, ProcurementModule, WeighbridgeModule, GatePassModule, ProductionModule, YieldModule, InventoryModule, TransferModule, ProductsModule, DispatchFinanceModule, FinanceModule, PowerManagementModule, MasterDataModule, SettingsModule],
   controllers: [AppController],
   providers: [AppService],
 })

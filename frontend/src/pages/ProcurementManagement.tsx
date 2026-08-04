@@ -126,6 +126,39 @@ export const ProcurementManagement = () => {
   
   // Track Boli bags input from supervisor
   const [boliInputs, setBoliInputs] = useState<Record<string, string>>({});
+  
+  // Global Settings
+  const [globalGovtRate, setGlobalGovtRate] = useState<string>('');
+  const [isEditingGovtRate, setIsEditingGovtRate] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (activeTab === 'paddy_inward' || activeTab === 'global_settings') {
+      const fetchGovtRate = async () => {
+        try {
+          const res = await api.get('/api/settings/global/GOVT_RATE');
+          if (res.data?.value) {
+            setGlobalGovtRate(res.data.value);
+            setInwardFormData((prev: any) => ({ ...prev, govtRate: res.data.value }));
+          }
+        } catch (err) {
+          console.error('Failed to fetch global govt rate', err);
+        }
+      };
+      fetchGovtRate();
+    }
+  }, [activeTab]);
+
+  const handleUpdateGovtRate = async () => {
+    try {
+      await api.post('/api/settings/global', { key: 'GOVT_RATE', value: globalGovtRate });
+      setIsEditingGovtRate(false);
+      setInwardFormData((prev: any) => ({ ...prev, govtRate: globalGovtRate }));
+      useUiStore.getState().addToast('Global Govt Rate updated successfully', 'success');
+    } catch (err) {
+      console.error('Failed to update govt rate', err);
+      useUiStore.getState().addToast('Failed to update Govt Rate', 'error');
+    }
+  };
 
   useEffect(() => {
     if (!hasBackdatePermission) {
@@ -765,6 +798,13 @@ export const ProcurementManagement = () => {
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">GP No.</label>
  <input type="text" name="gpNo" value={inwardFormData.gpNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="1-1000/Sept/25" />
+ </div>
+ <div>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between">
+   <span>Govt Rate (₹)</span>
+   <span className="text-[9px] text-[#e67e00] bg-[#e67e00]/10 px-1 rounded uppercase">Global</span>
+ </label>
+ <input type="text" name="govtRate" value={inwardFormData.govtRate || ''} readOnly className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-80 cursor-not-allowed font-bold" placeholder="Auto-fetched" />
  </div>
  <div>
   <label className="block text-[var(--text-muted-alt)] text-[11px] mb-1 truncate">Date</label>
@@ -1700,6 +1740,89 @@ export const ProcurementManagement = () => {
           </CustomModal>
         )}
 
+      </div>
+   )}
+
+{/* TAB: GLOBAL SETTINGS (GOVT RATE) */}
+   {activeTab === 'global_settings' && (
+      <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden shadow-2xl">
+        <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
+          <div>
+            <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
+              <Settings className="text-[#e67e00]" /> Global Settings
+            </h2>
+            <p className="text-xs text-[var(--text-muted-alt)] mt-1">Configure system-wide variables and defaults</p>
+          </div>
+        </div>
+        
+        <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
+          <div className="max-w-4xl mx-auto space-y-6">
+            
+            {/* General Procurement Settings */}
+            <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+              <div className="bg-amber-500/10 px-5 py-3 border-b border-[var(--border-subtle)] flex items-center gap-2">
+                <FileText size={18} className="text-amber-500" />
+                <h3 className="font-bold text-[var(--text-main)]">Procurement Defaults</h3>
+              </div>
+              
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                
+                {/* Govt Rate Setting */}
+                <div className="space-y-3">
+                  <label className="block text-sm font-bold text-[var(--text-muted)] flex items-center justify-between">
+                    Default Government Rate
+                    {!isEditingGovtRate && (
+                      <button onClick={() => setIsEditingGovtRate(true)} className="text-amber-500 hover:text-amber-400 p-1 bg-amber-500/10 rounded">
+                        <Edit size={14} />
+                      </button>
+                    )}
+                  </label>
+                  
+                  {!isEditingGovtRate ? (
+                    <div className="flex items-center gap-2">
+                       <span className="text-2xl font-bold text-[var(--text-main)]">₹{globalGovtRate || '0.00'}</span>
+                       <span className="text-xs text-[var(--text-muted-alt)]">/ Qtl</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex-1">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <span className="text-[var(--text-muted-alt)]">₹</span>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={globalGovtRate}
+                          onChange={(e) => setGlobalGovtRate(e.target.value)}
+                          className="w-full pl-8 pr-4 py-2 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg focus:border-amber-500 transition-colors text-[var(--text-main)] outline-none"
+                          placeholder="Enter rate..."
+                        />
+                      </div>
+                      <button 
+                        onClick={handleUpdateGovtRate}
+                        className="bg-amber-500 hover:bg-amber-600 text-black px-5 py-2 rounded-lg font-bold shadow-md transition-all"
+                      >
+                        Save
+                      </button>
+                      <button 
+                        onClick={() => setIsEditingGovtRate(false)}
+                        className="bg-[var(--bg-panel)] hover:bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-[var(--text-main)] px-4 py-2 rounded-lg font-bold transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                  <p className="text-xs text-[var(--text-muted-alt)] leading-relaxed">
+                    This rate is applied globally across all plants. It automatically populates the Govt Rate field during new Paddy Inward entries.
+                  </p>
+                </div>
+
+              </div>
+            </div>
+
+          </div>
+        </div>
       </div>
    )}
 
