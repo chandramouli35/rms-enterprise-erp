@@ -343,18 +343,18 @@ export const Dashboard: React.FC = () => {
  <button onClick={() => setIsAlertsModalOpen(true)} className="text-xs text-[#e67e00] hover:text-[#e67e00] transition-colors">View All</button>
  </div>
  <div className="space-y-4">
- {alerts.length === 0 ? <p className="text-[var(--text-muted-alt)] text-sm">No active alerts.</p> : alerts.map((alert, i) => (
- <div key={i} className={`flex gap-4 p-3 rounded-lg border ${alert.type === 'LowStock' ? 'border-red-500/20 bg-red-500/5' : 'border-yellow-500/20 bg-yellow-500/5'}`}>
- <AlertTriangle className={alert.type === 'LowStock' ? 'text-red-500' : 'text-yellow-500'} size={18} />
- <div className="flex-1">
- <div className="flex justify-between items-start">
- <h4 className={`text-sm font-medium ${alert.type === 'LowStock' ? 'text-red-500' : 'text-yellow-500'}`}>{alert.title}</h4>
- <span className="text-xs text-[var(--text-muted-alt)]">{alert.time}</span>
- </div>
- <p className="text-xs text-[var(--text-muted-alt)] mt-1">{alert.details}</p>
- </div>
- </div>
- ))}
+  {alerts.filter(a => a.type !== 'MeterBroken' || user?.role === 'ADMIN').length === 0 ? <p className="text-[var(--text-muted-alt)] text-sm">No active alerts.</p> : alerts.filter(a => a.type !== 'MeterBroken' || user?.role === 'ADMIN').map((alert, i) => (
+  <div key={i} className={`flex gap-4 p-3 rounded-lg border ${alert.type === 'MeterBroken' ? 'border-red-500/20 bg-red-500/5' : alert.type === 'LowStock' ? 'border-red-500/20 bg-red-500/5' : 'border-yellow-500/20 bg-yellow-500/5'}`}>
+  <AlertTriangle className={alert.type === 'MeterBroken' ? 'text-red-500' : alert.type === 'LowStock' ? 'text-red-500' : 'text-yellow-500'} size={18} />
+  <div className="flex-1">
+  <div className="flex justify-between items-start">
+  <h4 className={`text-sm font-medium ${alert.type === 'MeterBroken' ? 'text-red-500' : alert.type === 'LowStock' ? 'text-red-500' : 'text-yellow-500'}`}>{alert.title}</h4>
+  <span className="text-xs text-[var(--text-muted-alt)]">{alert.time}</span>
+  </div>
+  <p className="text-xs text-[var(--text-muted-alt)] mt-1">{alert.details}</p>
+  </div>
+  </div>
+  ))}
  </div>
  </div>
 
@@ -439,18 +439,18 @@ export const Dashboard: React.FC = () => {
  </button>
  </div>
  <div className="p-5 max-h-[450px] overflow-y-auto space-y-4">
- {alerts.length === 0 ? <p className="text-[var(--text-muted-alt)] text-sm">No active alerts.</p> : alerts.map((alert, i) => (
- <div key={i} className={`flex gap-4 p-4 rounded-lg border ${alert.type === 'LowStock' ? 'border-red-500/20 bg-red-500/5' : 'border-yellow-500/20 bg-yellow-500/5'}`}>
- <AlertTriangle className={alert.type === 'LowStock' ? 'text-red-500' : 'text-yellow-500'} size={20} />
- <div className="flex-1">
- <div className="flex justify-between items-start">
- <h4 className={`text-sm font-medium ${alert.type === 'LowStock' ? 'text-red-500' : 'text-yellow-500'}`}>{alert.title}</h4>
- <span className="text-xs text-[var(--text-muted-alt)]">{alert.time}</span>
- </div>
- <p className="text-xs text-[var(--text-muted-alt)] mt-1.5">{alert.details}</p>
- </div>
- </div>
- ))}
+  {alerts.filter(a => a.type !== 'MeterBroken' || user?.role === 'ADMIN').length === 0 ? <p className="text-[var(--text-muted-alt)] text-sm">No active alerts.</p> : alerts.filter(a => a.type !== 'MeterBroken' || user?.role === 'ADMIN').map((alert, i) => (
+  <div key={i} className={`flex gap-4 p-4 rounded-lg border ${alert.type === 'MeterBroken' ? 'border-red-500/20 bg-red-500/5' : alert.type === 'LowStock' ? 'border-red-500/20 bg-red-500/5' : 'border-yellow-500/20 bg-yellow-500/5'}`}>
+  <AlertTriangle className={alert.type === 'MeterBroken' ? 'text-red-500' : alert.type === 'LowStock' ? 'text-red-500' : 'text-yellow-500'} size={20} />
+  <div className="flex-1">
+  <div className="flex justify-between items-start">
+  <h4 className={`text-sm font-medium ${alert.type === 'MeterBroken' ? 'text-red-500' : alert.type === 'LowStock' ? 'text-red-500' : 'text-yellow-500'}`}>{alert.title}</h4>
+  <span className="text-xs text-[var(--text-muted-alt)]">{alert.time}</span>
+  </div>
+  <p className="text-xs text-[var(--text-muted-alt)] mt-1.5">{alert.details}</p>
+  </div>
+  </div>
+  ))}
  </div>
  </div>
  </div>

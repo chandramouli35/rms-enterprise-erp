@@ -17,11 +17,25 @@ let MasterDataService = class MasterDataService {
         this.prisma = prisma;
     }
     async getTrucks(plantId) {
-        return this.prisma.truckMaster.findMany({ where: { plantId }, orderBy: { truckNumber: 'asc' } });
+        return this.prisma.truckMaster.findMany({ where: { plantId, isApproved: true }, orderBy: { truckNumber: 'asc' } });
+    }
+    async getAllTrucks(plantId) {
+        return this.prisma.truckMaster.findMany({ where: { plantId }, orderBy: { createdAt: 'desc' } });
     }
     async createTruck(plantId, data) {
         return this.prisma.truckMaster.create({
             data: { plantId, ...data }
+        });
+    }
+    async approveTruck(id) {
+        return this.prisma.truckMaster.update({
+            where: { id },
+            data: { isApproved: true }
+        });
+    }
+    async rejectTruck(id) {
+        return this.prisma.truckMaster.delete({
+            where: { id }
         });
     }
     async deleteTruck(id) {
@@ -48,6 +62,17 @@ let MasterDataService = class MasterDataService {
     }
     async deleteStaff(id) {
         return this.prisma.staffMaster.delete({ where: { id } });
+    }
+    async getLabour(plantId) {
+        return this.prisma.labourMaster.findMany({ where: { plantId, isActive: true }, orderBy: { name: 'asc' } });
+    }
+    async createLabour(plantId, data) {
+        return this.prisma.labourMaster.create({
+            data: { plantId, ...data }
+        });
+    }
+    async deleteLabour(id) {
+        return this.prisma.labourMaster.delete({ where: { id } });
     }
 };
 exports.MasterDataService = MasterDataService;

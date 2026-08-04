@@ -236,6 +236,20 @@ export class ProcurementService {
         });
       }
 
+      // 8. Notification for Bags Received
+      if (data.bagsRecAtMill && parseFloat(data.bagsRecAtMill) > 0) {
+        await tx.systemAuditLog.create({
+          data: {
+            action: 'BAGS_RECEIVED_NOTIFICATION',
+            module: 'PROCUREMENT',
+            entityId: batch.id,
+            details: `Paddy Inward (GP No: ${data.gpNo || '-'}): Received a total of ${data.bagsRecAtMill} bags at the mill.`,
+            userId: 'SYSTEM',
+            plantId: plantId
+          }
+        });
+      }
+
       return batch;
     });
   }
@@ -387,8 +401,8 @@ export class ProcurementService {
     });
   }
 
-  async createSupplier(data: { name: string; contact?: string; email?: string; address?: string; firmNames?: string[]; mandi?: string }) {
-    const { name, contact, email, address, firmNames, mandi } = data;
+  async createSupplier(data: { name: string; contact?: string; email?: string; address?: string; firmNames?: string[]; mandi?: string; plantId?: string }) {
+    const { name, contact, email, address, firmNames, mandi, plantId } = data;
     return this.prisma.supplier.create({
       data: {
         name,
@@ -397,7 +411,8 @@ export class ProcurementService {
         address,
         firmNames: firmNames || [],
         mandi,
-        status: 'Active'
+        status: 'Active',
+        ...(plantId ? { plantId } : {})
       }
     });
   }
@@ -612,6 +627,13 @@ export class ProcurementService {
     const avgMoisture = bolisData.reduce((sum: number, b: any) => sum + (parseFloat(b.moisture) || 0), 0) / (bolisData.length || 1);
     const avgRate = bolisData.reduce((sum: number, b: any) => sum + (parseFloat(b.rate) || 0), 0) / (bolisData.length || 1);
 
+    if (data.updatePlantGovtRate && data.govtRate) {
+      await this.prisma.plant.update({
+        where: { id: data.plantId },
+        data: { govtRate: parseFloat(data.govtRate) }
+      });
+    }
+
     return this.prisma.paddySodaPending.create({
       data: {
         plantId: data.plantId,
@@ -647,6 +669,13 @@ export class ProcurementService {
     const avgRate = bolisData.reduce((sum: number, b: any) => sum + (parseFloat(b.rate) || 0), 0) / (bolisData.length || 1);
 
     await this.prisma.paddyBoli.deleteMany({ where: { sodaPendingId: id } });
+
+    if (data.updatePlantGovtRate && data.govtRate) {
+      await this.prisma.plant.update({
+        where: { id: data.plantId },
+        data: { govtRate: parseFloat(data.govtRate) }
+      });
+    }
 
     return this.prisma.paddySodaPending.update({
       where: { id },

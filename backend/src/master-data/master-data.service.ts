@@ -7,12 +7,29 @@ export class MasterDataService {
 
   // ===================== TRUCK MASTER =====================
   async getTrucks(plantId: string) {
-    return this.prisma.truckMaster.findMany({ where: { plantId }, orderBy: { truckNumber: 'asc' } });
+    return this.prisma.truckMaster.findMany({ where: { plantId, isApproved: true }, orderBy: { truckNumber: 'asc' } });
   }
 
-  async createTruck(plantId: string, data: { truckNumber: string, capacity?: number }) {
+  async getAllTrucks(plantId: string) {
+    return this.prisma.truckMaster.findMany({ where: { plantId }, orderBy: { createdAt: 'desc' } });
+  }
+
+  async createTruck(plantId: string, data: { truckNumber: string, capacity?: number, isApproved?: boolean }) {
     return this.prisma.truckMaster.create({
       data: { plantId, ...data }
+    });
+  }
+
+  async approveTruck(id: string) {
+    return this.prisma.truckMaster.update({
+      where: { id },
+      data: { isApproved: true }
+    });
+  }
+
+  async rejectTruck(id: string) {
+    return this.prisma.truckMaster.delete({
+      where: { id }
     });
   }
 
@@ -48,5 +65,20 @@ export class MasterDataService {
 
   async deleteStaff(id: string) {
     return this.prisma.staffMaster.delete({ where: { id } });
+  }
+
+  // ===================== LABOUR MASTER =====================
+  async getLabour(plantId: string) {
+    return this.prisma.labourMaster.findMany({ where: { plantId, isActive: true }, orderBy: { name: 'asc' } });
+  }
+
+  async createLabour(plantId: string, data: { name: string, type?: string, contact?: string }) {
+    return this.prisma.labourMaster.create({
+      data: { plantId, ...data }
+    });
+  }
+
+  async deleteLabour(id: string) {
+    return this.prisma.labourMaster.delete({ where: { id } });
   }
 }

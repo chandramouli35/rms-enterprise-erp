@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Delete, Body, Param, Headers, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Headers, BadRequestException } from '@nestjs/common';
 import { MasterDataService } from './master-data.service';
 
-@Controller('master-data')
+@Controller('api/master-data')
 export class MasterDataController {
   constructor(private readonly masterDataService: MasterDataService) {}
 
@@ -20,10 +20,26 @@ export class MasterDataController {
     return this.masterDataService.getTrucks(plantId);
   }
 
+  @Get('trucks/all')
+  async getAllTrucks(@Headers() headers) {
+    const plantId = this.extractPlantId(headers);
+    return this.masterDataService.getAllTrucks(plantId);
+  }
+
   @Post('trucks')
-  async createTruck(@Headers() headers, @Body() data: { truckNumber: string, capacity?: number }) {
+  async createTruck(@Headers() headers, @Body() data: { truckNumber: string, capacity?: number, isApproved?: boolean }) {
     const plantId = this.extractPlantId(headers);
     return this.masterDataService.createTruck(plantId, data);
+  }
+
+  @Put('trucks/:id/approve')
+  async approveTruck(@Param('id') id: string) {
+    return this.masterDataService.approveTruck(id);
+  }
+
+  @Put('trucks/:id/reject')
+  async rejectTruck(@Param('id') id: string) {
+    return this.masterDataService.rejectTruck(id);
   }
 
   @Delete('trucks/:id')
@@ -65,5 +81,23 @@ export class MasterDataController {
   @Delete('staff/:id')
   async deleteStaff(@Param('id') id: string) {
     return this.masterDataService.deleteStaff(id);
+  }
+
+  // ===================== LABOUR MASTER =====================
+  @Get('labour')
+  async getLabour(@Headers() headers) {
+    const plantId = this.extractPlantId(headers);
+    return this.masterDataService.getLabour(plantId);
+  }
+
+  @Post('labour')
+  async createLabour(@Headers() headers, @Body() data: { name: string, type?: string, contact?: string }) {
+    const plantId = this.extractPlantId(headers);
+    return this.masterDataService.createLabour(plantId, data);
+  }
+
+  @Delete('labour/:id')
+  async deleteLabour(@Param('id') id: string) {
+    return this.masterDataService.deleteLabour(id);
   }
 }

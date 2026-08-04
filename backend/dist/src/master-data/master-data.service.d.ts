@@ -9,10 +9,21 @@ export declare class MasterDataService {
         plantId: string;
         truckNumber: string;
         capacity: number | null;
+        isApproved: boolean;
+    }[]>;
+    getAllTrucks(plantId: string): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        truckNumber: string;
+        capacity: number | null;
+        isApproved: boolean;
     }[]>;
     createTruck(plantId: string, data: {
         truckNumber: string;
         capacity?: number;
+        isApproved?: boolean;
     }): Promise<{
         id: string;
         createdAt: Date;
@@ -20,6 +31,25 @@ export declare class MasterDataService {
         plantId: string;
         truckNumber: string;
         capacity: number | null;
+        isApproved: boolean;
+    }>;
+    approveTruck(id: string): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        truckNumber: string;
+        capacity: number | null;
+        isApproved: boolean;
+    }>;
+    rejectTruck(id: string): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        truckNumber: string;
+        capacity: number | null;
+        isApproved: boolean;
     }>;
     deleteTruck(id: string): Promise<{
         id: string;
@@ -28,6 +58,7 @@ export declare class MasterDataService {
         plantId: string;
         truckNumber: string;
         capacity: number | null;
+        isApproved: boolean;
     }>;
     getDrivers(plantId: string): Promise<{
         id: string;
@@ -90,5 +121,39 @@ export declare class MasterDataService {
         plantId: string;
         role: string;
         phone: string | null;
+    }>;
+    getLabour(plantId: string): Promise<{
+        id: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        isActive: boolean;
+        contact: string | null;
+        type: string | null;
+    }[]>;
+    createLabour(plantId: string, data: {
+        name: string;
+        type?: string;
+        contact?: string;
+    }): Promise<{
+        id: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        isActive: boolean;
+        contact: string | null;
+        type: string | null;
+    }>;
+    deleteLabour(id: string): Promise<{
+        id: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        isActive: boolean;
+        contact: string | null;
+        type: string | null;
     }>;
 }

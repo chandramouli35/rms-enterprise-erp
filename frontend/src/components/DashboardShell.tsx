@@ -135,6 +135,8 @@ export const DashboardShell: React.FC = () => {
     { label: 'Power Alerts', tab: 'alerts' },
     { label: 'Power Settings', tab: 'settings' }
   ]},
+  { label: 'Truck Management', href: '/trucks', icon: 'M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0zM13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10h2M13 8h4.5a1 1 0 01.9.5l2 3V16h-1.5', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'GATE_OPERATOR'] },
+  { label: 'Labour Management', href: '/labours', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'] },
   { label: 'Backup & Restore', href: '/backup', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4', roles: ['SUPER_ADMIN'], subItems: [
     { label: 'Backup Overview', tab: 'overview' },
     { label: 'Restore Data', tab: 'restore' },

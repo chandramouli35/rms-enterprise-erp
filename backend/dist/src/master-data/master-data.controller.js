@@ -30,9 +30,19 @@ let MasterDataController = class MasterDataController {
         const plantId = this.extractPlantId(headers);
         return this.masterDataService.getTrucks(plantId);
     }
+    async getAllTrucks(headers) {
+        const plantId = this.extractPlantId(headers);
+        return this.masterDataService.getAllTrucks(plantId);
+    }
     async createTruck(headers, data) {
         const plantId = this.extractPlantId(headers);
         return this.masterDataService.createTruck(plantId, data);
+    }
+    async approveTruck(id) {
+        return this.masterDataService.approveTruck(id);
+    }
+    async rejectTruck(id) {
+        return this.masterDataService.rejectTruck(id);
     }
     async deleteTruck(id) {
         return this.masterDataService.deleteTruck(id);
@@ -59,6 +69,17 @@ let MasterDataController = class MasterDataController {
     async deleteStaff(id) {
         return this.masterDataService.deleteStaff(id);
     }
+    async getLabour(headers) {
+        const plantId = this.extractPlantId(headers);
+        return this.masterDataService.getLabour(plantId);
+    }
+    async createLabour(headers, data) {
+        const plantId = this.extractPlantId(headers);
+        return this.masterDataService.createLabour(plantId, data);
+    }
+    async deleteLabour(id) {
+        return this.masterDataService.deleteLabour(id);
+    }
 };
 exports.MasterDataController = MasterDataController;
 __decorate([
@@ -69,6 +90,13 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "getTrucks", null);
 __decorate([
+    (0, common_1.Get)('trucks/all'),
+    __param(0, (0, common_1.Headers)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], MasterDataController.prototype, "getAllTrucks", null);
+__decorate([
     (0, common_1.Post)('trucks'),
     __param(0, (0, common_1.Headers)()),
     __param(1, (0, common_1.Body)()),
@@ -76,6 +104,20 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "createTruck", null);
+__decorate([
+    (0, common_1.Put)('trucks/:id/approve'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], MasterDataController.prototype, "approveTruck", null);
+__decorate([
+    (0, common_1.Put)('trucks/:id/reject'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], MasterDataController.prototype, "rejectTruck", null);
 __decorate([
     (0, common_1.Delete)('trucks/:id'),
     __param(0, (0, common_1.Param)('id')),
@@ -127,8 +169,30 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "deleteStaff", null);
+__decorate([
+    (0, common_1.Get)('labour'),
+    __param(0, (0, common_1.Headers)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], MasterDataController.prototype, "getLabour", null);
+__decorate([
+    (0, common_1.Post)('labour'),
+    __param(0, (0, common_1.Headers)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], MasterDataController.prototype, "createLabour", null);
+__decorate([
+    (0, common_1.Delete)('labour/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], MasterDataController.prototype, "deleteLabour", null);
 exports.MasterDataController = MasterDataController = __decorate([
-    (0, common_1.Controller)('master-data'),
+    (0, common_1.Controller)('api/master-data'),
     __metadata("design:paramtypes", [master_data_service_1.MasterDataService])
 ], MasterDataController);
 //# sourceMappingURL=master-data.controller.js.map

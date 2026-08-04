@@ -18,10 +18,12 @@ model Plant {
   standardBagWeight Float @default(0.382)
   aClassBagWeight   Float @default(0.380)
   bClassBagWeight   Float @default(0.385)
+  govtRate          Float? @default(0)
 
   // Relations
   users                   UserPlantAccess[]
   procurements            ProcurementBatch[]
+  suppliers               Supplier[]
   inventories             Inventory[]
   stockLedger             StockLedger[]
   productionBatches       ProductionBatch[]
@@ -45,6 +47,7 @@ model Plant {
   truckMasters            TruckMaster[]
   driverMasters           DriverMaster[]
   staffMasters            StaffMaster[]
+  labourMasters           LabourMaster[]
   permissionOverrides     PermissionOverride[]
 
   // Tracking
@@ -149,6 +152,8 @@ model SystemAuditLog {
 // -----------------------------------------------------------------------------
 model Supplier {
   id        String   @id @default(uuid())
+  plantId   String?
+  plant     Plant?   @relation(fields: [plantId], references: [id])
   name       String
   firmNames  String[]
   mandi      String?
@@ -322,6 +327,28 @@ model PaddyInwardDetails {
   bClassReceived        Float?
   bClassPending         Float?
   autoConvertedToBClass Float?
+
+  // NEW FIELDS FROM FORM IMAGE
+  previousTruckReading  Float?
+  newTruckReading       Float?
+  kmsDriven             Float?
+  meterNotWorking       Boolean @default(false)
+  partyName             String?
+  moisture              Float?
+  paddyBoliRecord       String?
+  mainUnloaderTruckCount Float?
+  bagsInMainStack       Float?
+  secondPartStackNo     String?
+  bagsInSecondPartStack Float?
+  unloaderName          String?
+  cutToBeAddedInShortage Boolean?
+  totalBagsReceived     Float?
+  bagsRecLessThanAgencyGp Boolean?
+  plusWtConsiderInShortageRecovery Boolean?
+  driverName            String?
+  driverMobileNumber    String?
+  unloaderSignAndStamp  Boolean? @default(false)
+  pahunchPersonSignAndStamp Boolean? @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -846,6 +873,7 @@ model TruckMaster {
   plant       Plant    @relation(fields: [plantId], references: [id])
   truckNumber String
   capacity    Float?   // Optional capacity in MT
+  isApproved  Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
@@ -899,4 +927,18 @@ model PermissionOverride {
   
   @@index([plantId, userId])
   @@index([expiresAt])
+}
+
+model LabourMaster {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  name        String
+  contact     String?
+  type        String?  // e.g. Inside, Outside, General
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([plantId])
 }

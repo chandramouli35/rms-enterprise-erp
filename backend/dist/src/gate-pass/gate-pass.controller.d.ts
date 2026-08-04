@@ -9,6 +9,7 @@ export declare class GatePassController {
             createdAt: Date;
             updatedAt: Date;
             status: string;
+            plantId: string | null;
             email: string | null;
             mandi: string | null;
             firmNames: string[];
@@ -22,8 +23,10 @@ export declare class GatePassController {
                 createdAt: Date;
                 updatedAt: Date;
                 qualityCutValue: number | null;
+                driverName: string | null;
                 qualityCutType: string | null;
                 qualityCutReason: string | null;
+                partyName: string | null;
                 procurementBatchId: string;
                 truckNo: string | null;
                 gpNo: string | null;
@@ -71,6 +74,24 @@ export declare class GatePassController {
                 bClassReceived: number | null;
                 bClassPending: number | null;
                 autoConvertedToBClass: number | null;
+                previousTruckReading: number | null;
+                newTruckReading: number | null;
+                kmsDriven: number | null;
+                meterNotWorking: boolean;
+                moisture: number | null;
+                paddyBoliRecord: string | null;
+                mainUnloaderTruckCount: number | null;
+                bagsInMainStack: number | null;
+                secondPartStackNo: string | null;
+                bagsInSecondPartStack: number | null;
+                unloaderName: string | null;
+                cutToBeAddedInShortage: boolean | null;
+                totalBagsReceived: number | null;
+                bagsRecLessThanAgencyGp: boolean | null;
+                plusWtConsiderInShortageRecovery: boolean | null;
+                driverMobileNumber: string | null;
+                unloaderSignAndStamp: boolean | null;
+                pahunchPersonSignAndStamp: boolean | null;
             } | null;
             weighbridge: {
                 id: string;
@@ -85,8 +106,8 @@ export declare class GatePassController {
                 vehicleNo: string;
                 driverName: string | null;
                 challanNo: string | null;
-                transactionType: string;
                 gatePassId: string | null;
+                transactionType: string;
                 materialType: string | null;
                 supplierName: string | null;
                 grossTime: Date | null;
@@ -97,12 +118,12 @@ export declare class GatePassController {
                 createdAt: Date;
                 updatedAt: Date;
                 status: string;
+                procurementBatchId: string;
                 moisture: number | null;
                 broken: number | null;
                 discoloration: number | null;
                 foreignMatter: number | null;
                 inspectedBy: string | null;
-                procurementBatchId: string;
             } | null;
         } & {
             id: string;
@@ -176,6 +197,7 @@ export declare class GatePassController {
             createdAt: Date;
             updatedAt: Date;
             status: string;
+            plantId: string | null;
             email: string | null;
             mandi: string | null;
             firmNames: string[];
@@ -229,6 +251,7 @@ export declare class GatePassController {
             standardBagWeight: number;
             aClassBagWeight: number;
             bClassBagWeight: number;
+            govtRate: number | null;
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
@@ -239,6 +262,7 @@ export declare class GatePassController {
             createdAt: Date;
             updatedAt: Date;
             status: string;
+            plantId: string | null;
             email: string | null;
             mandi: string | null;
             firmNames: string[];
@@ -252,8 +276,10 @@ export declare class GatePassController {
                 createdAt: Date;
                 updatedAt: Date;
                 qualityCutValue: number | null;
+                driverName: string | null;
                 qualityCutType: string | null;
                 qualityCutReason: string | null;
+                partyName: string | null;
                 procurementBatchId: string;
                 truckNo: string | null;
                 gpNo: string | null;
@@ -301,6 +327,24 @@ export declare class GatePassController {
                 bClassReceived: number | null;
                 bClassPending: number | null;
                 autoConvertedToBClass: number | null;
+                previousTruckReading: number | null;
+                newTruckReading: number | null;
+                kmsDriven: number | null;
+                meterNotWorking: boolean;
+                moisture: number | null;
+                paddyBoliRecord: string | null;
+                mainUnloaderTruckCount: number | null;
+                bagsInMainStack: number | null;
+                secondPartStackNo: string | null;
+                bagsInSecondPartStack: number | null;
+                unloaderName: string | null;
+                cutToBeAddedInShortage: boolean | null;
+                totalBagsReceived: number | null;
+                bagsRecLessThanAgencyGp: boolean | null;
+                plusWtConsiderInShortageRecovery: boolean | null;
+                driverMobileNumber: string | null;
+                unloaderSignAndStamp: boolean | null;
+                pahunchPersonSignAndStamp: boolean | null;
             } | null;
             weighbridge: {
                 id: string;
@@ -315,8 +359,8 @@ export declare class GatePassController {
                 vehicleNo: string;
                 driverName: string | null;
                 challanNo: string | null;
-                transactionType: string;
                 gatePassId: string | null;
+                transactionType: string;
                 materialType: string | null;
                 supplierName: string | null;
                 grossTime: Date | null;
@@ -327,12 +371,12 @@ export declare class GatePassController {
                 createdAt: Date;
                 updatedAt: Date;
                 status: string;
+                procurementBatchId: string;
                 moisture: number | null;
                 broken: number | null;
                 discoloration: number | null;
                 foreignMatter: number | null;
                 inspectedBy: string | null;
-                procurementBatchId: string;
             } | null;
         } & {
             id: string;

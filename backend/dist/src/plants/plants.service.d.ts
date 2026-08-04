@@ -10,6 +10,7 @@ export declare class PlantsService {
         standardBagWeight: number;
         aClassBagWeight: number;
         bClassBagWeight: number;
+        govtRate: number | null;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
@@ -22,6 +23,7 @@ export declare class PlantsService {
         standardBagWeight: number;
         aClassBagWeight: number;
         bClassBagWeight: number;
+        govtRate: number | null;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
@@ -34,6 +36,7 @@ export declare class PlantsService {
         standardBagWeight: number;
         aClassBagWeight: number;
         bClassBagWeight: number;
+        govtRate: number | null;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
