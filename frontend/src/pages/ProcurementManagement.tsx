@@ -1701,44 +1701,6 @@ export const ProcurementManagement = () => {
         )}
 
       </div>
-   )}   {/* TAB: YES LIST */}
-   {activeTab === 'yes_list' && (
-      <div className="flex-1 overflow-auto bg-[var(--bg-panel)] p-6 rounded-xl border border-[var(--border-subtle)] flex flex-col h-full shadow-2xl">
-        <div className="flex items-center justify-between mb-4 border-b border-[var(--border-subtle-alt)] pb-3">
-          <div className="flex items-center gap-3">
-            <span className="text-red-500 text-[10px] bg-red-500/10 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">QUALITY ALERT</span>
-            <h1 className="text-base font-bold text-[var(--text-muted)]">Mandi Intimation (Yes List)</h1>
-          </div>
-        </div>
-        <div className="flex-1 overflow-auto">
-          <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
-            <thead>
-              <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)]">
-                <th className="p-3">Purchase No.</th>
-                <th className="p-3">Date</th>
-                <th className="p-3">Supplier</th>
-                <th className="p-3">Vehicle</th>
-                <th className="p-3 text-red-400">Quality Alert</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inwardList.filter(p => p.paddyInwardDetails?.mandiQualityAlert).length === 0 ? (
-                <tr><td colSpan={5} className="p-6 text-center text-[var(--text-muted-alt)]">No quality alerts found.</td></tr>
-              ) : (
-                inwardList.filter(p => p.paddyInwardDetails?.mandiQualityAlert).map((p, i) => (
-                  <tr key={i} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)]">
-                    <td className="p-3 font-mono text-xs">{p.purchaseNo}</td>
-                    <td className="p-3">{p.date}</td>
-                    <td className="p-3 font-bold text-[var(--text-main)]">{p.supplier}</td>
-                    <td className="p-3">{p.vehicleNo}</td>
-                    <td className="p-3 text-red-500 font-bold">YES - Not as per requirement</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
    )}
 
 {/* TAB 3: QUALITY INSPECTION DESK */}
