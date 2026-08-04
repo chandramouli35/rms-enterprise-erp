@@ -785,25 +785,6 @@ export const ProcurementManagement = () => {
    {trucks.map(t => <option key={t.id} value={t.truckNumber}>{t.truckNumber}</option>)}
  </select>
  </div>
- <div>
-  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Party / Supplier Name</label>
-  <select name="supplierId" value={inwardFormData.supplierId} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
-  <option value="">Select Supplier</option>
-  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name} - {s.mandi || 'No Mandi'}</option>)}
-  </select>
-  </div>
- <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi Parchi No.</label>
- <input type="text" name="mandiParchiNo" value={inwardFormData.mandiParchiNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="PRC-12345" />
- </div>
- <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi e-GP / Bill No.</label>
- <input type="text" name="mandiEgpNo" value={inwardFormData.mandiEgpNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="EGP-458796" />
- </div>
- <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">RST No.</label>
- <input type="text" name="rstNo" value={inwardFormData.rstNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="RST-7485963" />
- </div>
   <div>
   <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Previous Truck Reading</label>
   <input type="number" name="previousTruckReading" value={inwardFormData.previousTruckReading} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
@@ -834,6 +815,25 @@ export const ProcurementManagement = () => {
   </label>
   <input type="number" name="kmsDriven" value={inwardFormData.kmsDriven} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
   </div>
+ <div>
+  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Party / Supplier Name</label>
+  <select name="supplierId" value={inwardFormData.supplierId} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
+  <option value="">Select Supplier</option>
+  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name} - {s.mandi || 'No Mandi'}</option>)}
+  </select>
+  </div>
+ <div>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi Parchi No.</label>
+ <input type="text" name="mandiParchiNo" value={inwardFormData.mandiParchiNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="PRC-12345" />
+ </div>
+ <div>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi e-GP / Bill No.</label>
+ <input type="text" name="mandiEgpNo" value={inwardFormData.mandiEgpNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="EGP-458796" />
+ </div>
+ <div>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">RST No.</label>
+ <input type="text" name="rstNo" value={inwardFormData.rstNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="RST-7485963" />
+ </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center gap-2">Pahunch Person / Staff</label>
  <select name="pahunchPersonName" value={inwardFormData.pahunchPersonName} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none">
