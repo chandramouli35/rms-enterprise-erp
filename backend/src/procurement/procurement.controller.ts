@@ -32,9 +32,13 @@ export class ProcurementController {
   getInwards(
     @Param('plantId') plantId: string,
     @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string
+    @Query('dateTo') dateTo?: string,
+    @Query('mandi') mandi?: string,
+    @Query('supplierId') supplierId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
   ) {
-    return this.procurementService.getInwards(plantId, dateFrom, dateTo);
+    return this.procurementService.getInwards(plantId, dateFrom, dateTo, mandi, supplierId, page, limit);
   }
 
   @Get('recent/:plantId')
@@ -42,9 +46,11 @@ export class ProcurementController {
   getRecentPurchases(
     @Param('plantId') plantId: string,
     @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string
+    @Query('dateTo') dateTo?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
   ) {
-    return this.procurementService.getRecentPurchases(plantId, dateFrom, dateTo);
+    return this.procurementService.getRecentPurchases(plantId, dateFrom, dateTo, page, limit);
   }
 
   @Get('occupied-stacks/:plantId')
@@ -104,9 +110,11 @@ export class ProcurementController {
   getSodaPending(
     @Param('plantId') plantId: string,
     @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string
+    @Query('dateTo') dateTo?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
   ) {
-    return this.procurementService.getSodaPending(plantId, dateFrom, dateTo);
+    return this.procurementService.getSodaPending(plantId, dateFrom, dateTo, page, limit);
   }
 
   @Post('soda-pending')

@@ -13,7 +13,23 @@ export class ProductsService {
     });
   }
 
-  async findAll() {
+  async findAll(page?: string, limit?: string) {
+    if (page) {
+      const pageNum = parseInt(page || '1', 10);
+      const limitNum = parseInt(limit || '10', 10);
+      const skip = (pageNum - 1) * limitNum;
+      
+      const [total, data] = await this.prisma.$transaction([
+        this.prisma.product.count(),
+        this.prisma.product.findMany({
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limitNum
+        })
+      ]);
+      return { data, total };
+    }
+
     return this.prisma.product.findMany({
       orderBy: { createdAt: 'desc' }
     });

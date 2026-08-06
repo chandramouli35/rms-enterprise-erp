@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { Truck, Plus, Trash2, Check, X } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-
 import { usePlantStore } from '../store/plantStore';
+import Pagination from '../components/Pagination';
 
 export default function TruckManagement() {
   const user = useAuthStore(state => state.user);
@@ -11,6 +11,8 @@ export default function TruckManagement() {
   const activePlantId = activePlant?.id || '';
   
   const [trucks, setTrucks] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   
   // Modal state
@@ -24,10 +26,11 @@ export default function TruckManagement() {
     try {
       // If super admin, fetch all trucks to approve them. Else fetch approved only
       const endpoint = user?.role === 'SUPER_ADMIN' ? '/api/master-data/trucks/all' : '/api/master-data/trucks';
-      const res = await api.get(endpoint, {
+      const res = await api.get(`${endpoint}?page=${currentPage}&limit=10`, {
         headers: { 'x-plant-id': activePlantId }
       });
-      setTrucks(res.data);
+      setTrucks(res.data.data || []);
+      setTotalItems(res.data.total || 0);
     } catch (err) {
       console.error(err);
     } finally {
@@ -37,7 +40,7 @@ export default function TruckManagement() {
 
   useEffect(() => {
     fetchTrucks();
-  }, [activePlantId, user?.role]);
+  }, [activePlantId, user?.role, currentPage]);
 
   const handleAddTruck = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,6 +172,12 @@ export default function TruckManagement() {
           </tbody>
         </table>
       </div>
+      
+      <Pagination 
+        currentPage={currentPage}
+        totalItems={totalItems}
+        onPageChange={setCurrentPage}
+      />
 
       {/* Add Modal */}
       {addModal.isOpen && (

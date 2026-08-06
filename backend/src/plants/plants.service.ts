@@ -5,7 +5,23 @@ import { PrismaService } from '../prisma/prisma.service';
 export class PlantsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll() {
+  async findAll(page?: string, limit?: string) {
+    if (page) {
+      const pageNum = parseInt(page || '1', 10);
+      const limitNum = parseInt(limit || '10', 10);
+      const skip = (pageNum - 1) * limitNum;
+      
+      const [total, data] = await this.prisma.$transaction([
+        this.prisma.plant.count(),
+        this.prisma.plant.findMany({
+          orderBy: { name: 'asc' },
+          skip,
+          take: limitNum
+        })
+      ]);
+      return { data, total };
+    }
+
     return this.prisma.plant.findMany({
       orderBy: { name: 'asc' },
     });
@@ -31,7 +47,6 @@ export class PlantsService {
         ...(data.name && { name: data.name }),
         ...(data.code && { code: data.code }),
         ...(data.location && { location: data.location }),
-        ...(data.targetYield && { targetYield: parseFloat(data.targetYield) }),
         ...(data.standardBagWeight && { standardBagWeight: parseFloat(data.standardBagWeight) }),
         ...(data.aClassBagWeight && { aClassBagWeight: parseFloat(data.aClassBagWeight) }),
         ...(data.bClassBagWeight && { bClassBagWeight: parseFloat(data.bClassBagWeight) }),

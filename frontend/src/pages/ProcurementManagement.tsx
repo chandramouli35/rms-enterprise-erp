@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Users, Package, ShieldCheck, FileText, Search, Plus, Calendar, ChevronDown, Download, Printer, Settings, Upload, Edit, Layers, ScanBarcode, X, AlertTriangle } from 'lucide-react';
+import { Users, Package, ShieldCheck, FileText, Search, Plus, Calendar, ChevronDown, Download, Printer, Settings, Upload, Edit, Layers, ScanBarcode, X, AlertTriangle, Trash } from 'lucide-react';
 import api from '../api/axios';
 import { CustomModal } from '../components/CustomModal';
 import { usePlantStore } from '../store/plantStore';
 import { useUiStore } from '../store/uiStore';
 import { useAuthStore } from '../store/authStore';
+import { useMandiStore } from '../store/mandiStore';
 import { biometricService } from '../services/biometricService';
 import StackSelectionModal from '../components/StackSelectionModal';
+import Pagination from '../components/Pagination';
+import { exportToExcel } from '../utils/exportUtils';
 
 export const ProcurementManagement = () => {
  const [searchParams] = useSearchParams();
@@ -18,6 +21,8 @@ export const ProcurementManagement = () => {
   const hasManualWeighbridgePermission = user?.role === 'SUPER_ADMIN' || (user?.manualWeighbridgeUntil && new Date(user.manualWeighbridgeUntil) > new Date());
   const isSupervisor = user?.role === 'SUPERVISOR';
   const [category, setCategory] = useState<'OPERATIONAL' | 'NON_OPERATIONAL'>('OPERATIONAL');
+
+  const { mandis, fetchMandis, createMandi, updateMandi, deleteMandi } = useMandiStore();
 
 
 
@@ -78,9 +83,19 @@ export const ProcurementManagement = () => {
  const [sodaPending, setSodaPending] = useState<any[]>([]);
  const [recentPurchases, setRecentPurchases] = useState<any[]>([]);
   const [inwardList, setInwardList] = useState<any[]>([]);
+  const [inwardTotalItems, setInwardTotalItems] = useState(0);
+  const [inwardCurrentPage, setInwardCurrentPage] = useState(1);
+
   const [viewInwardModal, setViewInwardModal] = useState<any>(null);
   const [listFilters, setListFilters] = useState({ dateFrom: '', dateTo: '', mandi: '', supplierId: '' });
- const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [recentPurchasesTotalItems, setRecentPurchasesTotalItems] = useState(0);
+  const [recentPurchasesCurrentPage, setRecentPurchasesCurrentPage] = useState(1);
+  
+  const [sodaPendingTotalItems, setSodaPendingTotalItems] = useState(0);
+  const [sodaPendingCurrentPage, setSodaPendingCurrentPage] = useState(1);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
  const [isScanningFingerprint, setIsScanningFingerprint] = useState(false);
 
  // Stack Selection State
@@ -124,36 +139,67 @@ export const ProcurementManagement = () => {
 
   const [inwardFormData, setInwardFormData] = useState<any>(defaultInwardFormData);
   
+  // Auto-select first options for dynamic dropdowns if not already selected
+  useEffect(() => {
+    setInwardFormData((prev: any) => {
+      let updated = false;
+      const next = { ...prev };
+      
+      if (!next.truckNo && trucks.length > 0) {
+        next.truckNo = trucks[0].truckNumber;
+        updated = true;
+      }
+      if (!next.supplierId && suppliers.length > 0) {
+        next.supplierId = suppliers[0].id;
+        updated = true;
+      }
+      if (!next.pahunchPersonName && staff.length > 0) {
+        next.pahunchPersonName = staff[0].name;
+        updated = true;
+      }
+      if (!next.allocateUnloader && labours.length > 0) {
+        next.allocateUnloader = labours[0].name;
+        next.unloaderTruckCount = Math.floor(Math.random() * 5) + 1;
+        updated = true;
+      }
+      if (!next.pahunchPerson && labours.length > 0) {
+        next.pahunchPerson = labours[0].name;
+        updated = true;
+      }
+      if (!next.unloaderName && labours.length > 0) {
+        next.unloaderName = labours[0].name;
+        updated = true;
+      }
+      
+      return updated ? next : prev;
+    });
+  }, [trucks, suppliers, staff, labours]);
+  
   // Track Boli bags input from supervisor
   const [boliInputs, setBoliInputs] = useState<Record<string, string>>({});
   
-  // Global Settings
-  const [globalGovtRate, setGlobalGovtRate] = useState<string>('');
+  // Plant Govt Rate Setting
+  const [plantGovtRate, setPlantGovtRate] = useState<string>('');
   const [isEditingGovtRate, setIsEditingGovtRate] = useState<boolean>(false);
 
   useEffect(() => {
-    if (activeTab === 'paddy_inward' || activeTab === 'global_settings') {
-      const fetchGovtRate = async () => {
-        try {
-          const res = await api.get('/api/settings/global/GOVT_RATE');
-          if (res.data?.value) {
-            setGlobalGovtRate(res.data.value);
-            setInwardFormData((prev: any) => ({ ...prev, govtRate: res.data.value }));
-          }
-        } catch (err) {
-          console.error('Failed to fetch global govt rate', err);
-        }
-      };
-      fetchGovtRate();
+    if (activePlant) {
+      setPlantGovtRate(activePlant.govtRate?.toString() || '');
     }
-  }, [activeTab]);
+  }, [activePlant]);
 
   const handleUpdateGovtRate = async () => {
+    if (!activePlant) {
+      useUiStore.getState().addToast('No active plant selected', 'error');
+      return;
+    }
     try {
-      await api.post('/api/settings/global', { key: 'GOVT_RATE', value: globalGovtRate });
+      const rate = parseFloat(plantGovtRate) || 0;
+      await api.put(`/api/plants/${activePlant.id}`, { govtRate: rate });
       setIsEditingGovtRate(false);
-      setInwardFormData((prev: any) => ({ ...prev, govtRate: globalGovtRate }));
-      useUiStore.getState().addToast('Global Govt Rate updated successfully', 'success');
+      const { setActivePlant } = usePlantStore.getState();
+      setActivePlant({ ...activePlant, govtRate: rate });
+      useUiStore.getState().addToast('Plant Govt Rate updated successfully', 'success');
     } catch (err) {
       console.error('Failed to update govt rate', err);
       useUiStore.getState().addToast('Failed to update Govt Rate', 'error');
@@ -215,10 +261,15 @@ export const ProcurementManagement = () => {
   }, [inwardFormData.origAClass, inwardFormData.origBClass, inwardFormData.shortageAClass, inwardFormData.shortageBClass, inwardFormData.netWtMill, activePlant, plants]);
  const [dhanakLots, setDhanakLots] = useState([{ id: 1, sNo: '', bags: 0, moisture: 0, bardanaClass: '' }]);
 
- const handleInwardChange = (e: any) => {
- const { name, value, type, checked } = e.target;
- setInwardFormData((prev: any) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
- };
+  const [inwardErrors, setInwardErrors] = useState<Record<string, string>>({});
+
+  const handleInwardChange = (e: any) => {
+    const { name, value, type, checked } = e.target;
+    setInwardFormData((prev: any) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    if (inwardErrors[name]) {
+      setInwardErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+  };
 
  const handleDhanakChange = (index: number, field: string, value: any) => {
  const newLots = [...dhanakLots];
@@ -232,7 +283,8 @@ export const ProcurementManagement = () => {
 
  // Modal States
   const [addSupplierModal, setAddSupplierModal] = useState({ isOpen: false, name: '', firmNames: '', mandi: '', contact: '', plantId: '' });
- const [inspectModal, setInspectModal] = useState({ isOpen: false, batchId: '', moisture: 0, broken: 0, discoloration: 0, foreignMatter: 0 });
+  const [addMandiModal, setAddMandiModal] = useState({ isOpen: false, id: '', name: '', isActive: true });
+  const [inspectModal, setInspectModal] = useState({ isOpen: false, batchId: '', moisture: 0, broken: 0, discoloration: 0, foreignMatter: 0 });
 
   const [paddyPurchaseModal, setPaddyPurchaseModal] = useState<any>({
     isOpen: false,
@@ -302,6 +354,7 @@ export const ProcurementManagement = () => {
       fetchRecentPurchases();
       fetchSuppliers();
       fetchSodaPending();
+      fetchMandis();
       
       const fetchMasterData = async () => {
         try { const res = await api.get('/api/master-data/trucks'); setTrucks(res.data); } catch (e) { console.error('Failed to fetch trucks', e); }
@@ -312,9 +365,29 @@ export const ProcurementManagement = () => {
       
       fetchMasterData();
     };
-    fetchData();
-    fetchInwardList();
+    if (activeTab !== 'inward_register') {
+      fetchData();
+    }
   }, [activePlant?.id, activeTab, listFilters.dateFrom, listFilters.dateTo]);
+
+  // Dedicated useEffect for lists to respect pagination
+  useEffect(() => {
+    if (activeTab === 'inward_register') {
+      fetchInwardList();
+    }
+  }, [activePlant?.id, activeTab, listFilters, inwardCurrentPage]);
+
+  useEffect(() => {
+    if (activeTab === 'paddy_inward') {
+      fetchRecentPurchases();
+    }
+  }, [activePlant?.id, activeTab, listFilters.dateFrom, listFilters.dateTo, recentPurchasesCurrentPage]);
+
+  useEffect(() => {
+    if (activeTab === 'soda_pending') {
+      fetchSodaPending();
+    }
+  }, [activePlant?.id, activeTab, listFilters.dateFrom, listFilters.dateTo, sodaPendingCurrentPage]);
 
  
   const handleViewInward = async (inward: any) => {
@@ -335,8 +408,16 @@ export const ProcurementManagement = () => {
       if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
       if (listFilters.mandi) params.append('mandi', listFilters.mandi);
       if (listFilters.supplierId) params.append('supplierId', listFilters.supplierId);
+      params.append('page', inwardCurrentPage.toString());
+      params.append('limit', '10');
       const res = await api.get(`/api/procurement/inwards/${pid}?${params.toString()}`);
-      setInwardList(res.data);
+      if (res.data && Array.isArray(res.data.data)) {
+        setInwardList(res.data.data);
+        setInwardTotalItems(res.data.total || 0);
+      } else {
+        setInwardList(res.data); // Fallback for transition
+        setInwardTotalItems(res.data.length || 0);
+      }
     } catch (error) {
       console.error('Failed to fetch inward list', error);
     }
@@ -348,8 +429,16 @@ export const ProcurementManagement = () => {
  const params = new URLSearchParams();
  if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
  if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
+ params.append('page', recentPurchasesCurrentPage.toString());
+ params.append('limit', '10');
  const res = await api.get(`/api/procurement/recent/${pid}?${params.toString()}`);
- setRecentPurchases(res.data);
+ if (res.data && Array.isArray(res.data.data)) {
+   setRecentPurchases(res.data.data);
+   setRecentPurchasesTotalItems(res.data.total || 0);
+ } else {
+   setRecentPurchases(res.data);
+   setRecentPurchasesTotalItems(res.data.length || 0);
+ }
  } catch (error) {
  console.error('Error fetching recent purchases', error);
  }
@@ -364,14 +453,22 @@ export const ProcurementManagement = () => {
  }
  };
 
- const fetchSodaPending = async () => {
+  const fetchSodaPending = async () => {
  try {
  const pid = activePlant?.id  || 'global';
  const params = new URLSearchParams();
  if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
  if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
+ params.append('page', sodaPendingCurrentPage.toString());
+ params.append('limit', '10');
  const res = await api.get(`/api/procurement/soda-pending/${pid}?${params.toString()}`);
- setSodaPending(res.data);
+ if (res.data && Array.isArray(res.data.data)) {
+   setSodaPending(res.data.data);
+   setSodaPendingTotalItems(res.data.total || 0);
+ } else {
+   setSodaPending(res.data);
+   setSodaPendingTotalItems(res.data.length || 0);
+ }
  } catch (error) {
  console.error('Error fetching soda pending', error);
  }
@@ -409,16 +506,56 @@ export const ProcurementManagement = () => {
   e.preventDefault();
   if (!addSupplierModal.name) return;
   try {
-  const supplierPlantId = addSupplierModal.plantId || activePlant?.id || 'global';
-  await api.post('/api/procurement/suppliers', { name: addSupplierModal.name, contact: addSupplierModal.contact, firmNames: addSupplierModal.firmNames.split(',').map(s=>s.trim()).filter(Boolean), mandi: addSupplierModal.mandi, plantId: supplierPlantId });
-  setAddSupplierModal({ isOpen: false, name: '', firmNames: '', mandi: '', contact: '', plantId: '' });
-  fetchSuppliers();
-  } catch (error) {
- console.error('Failed to add supplier', error);
- }
- };
+    const supplierPlantId = addSupplierModal.plantId || activePlant?.id || 'global';
+    await api.post('/api/procurement/suppliers', { name: addSupplierModal.name, contact: addSupplierModal.contact, firmNames: addSupplierModal.firmNames.split(',').map(s=>s.trim()).filter(Boolean), mandi: addSupplierModal.mandi, plantId: supplierPlantId });
+    setAddSupplierModal({ isOpen: false, name: '', firmNames: '', mandi: '', contact: '', plantId: '' });
+    fetchSuppliers();
+    } catch (error) {
+   console.error('Failed to add supplier', error);
+   }
+   };
+  
+    const handleToggleMandiStatus = async (m: any) => {
+      try {
+        await updateMandi(m.id, { name: m.name, isActive: !m.isActive });
+        useUiStore.getState().addToast(`Mandi ${m.name} marked as ${!m.isActive ? 'Active' : 'Inactive'}`, 'success');
+        fetchMandis();
+      } catch (error) {
+        console.error('Failed to toggle status', error);
+      }
+    };
 
-  const openStackModal = async () => {
+    const handleDeleteMandi = async (id: string) => {
+      if (window.confirm("Are you sure you want to delete this Mandi?")) {
+        try {
+          await deleteMandi(id);
+          useUiStore.getState().addToast('Mandi deleted successfully', 'success');
+          fetchMandis();
+        } catch (error) {
+          console.error('Failed to delete mandi', error);
+        }
+      }
+    };
+  
+   const handleAddMandi = async (e: React.FormEvent) => {
+     e.preventDefault();
+     if (!addMandiModal.name) return;
+     try {
+       if (addMandiModal.id) {
+         await updateMandi(addMandiModal.id, { name: addMandiModal.name, isActive: addMandiModal.isActive });
+         useUiStore.getState().addToast('Mandi updated successfully', 'success');
+       } else {
+         await createMandi({ name: addMandiModal.name, isActive: addMandiModal.isActive });
+         useUiStore.getState().addToast('Mandi added successfully', 'success');
+       }
+       setAddMandiModal({ isOpen: false, id: '', name: '', isActive: true });
+       fetchMandis();
+     } catch (error) {
+       console.error('Failed to save mandi', error);
+     }
+   };
+
+    const openStackModal = async () => {
     const selectedPlantId = activePlant?.id ;
     if (!selectedPlantId) {
       useUiStore.getState().addToast('Please select a plant at the top of the page first.', 'error');
@@ -433,6 +570,39 @@ export const ProcurementManagement = () => {
     setIsStackModalOpen(true);
   };
   const handleInwardSubmit = async (status: string = 'CONFIRMED') => {
+    // Validate mandatory fields
+    const requiredFields = [
+      'gpNo', 'date', 'timeIn', 'timeOut', 'truckNo',
+      'previousTruckReading', 'newTruckReading', 'kmsDriven', 'supplierId',
+      'mandiParchiNo', 'mandiEgpNo', 'rstNo', 'pahunchPersonName', 'moisture',
+      'safai', 'mandiIntimation', 'remarks', 'bhariVideoUpload', 'khaliVideoUpload', 
+      'paddyBoliRecord', 'allocationType', 'hoodiUpload',
+      'allocateUnloader', 'pahunchPerson', 'stackNo', 'mainUnloaderTruckCount',
+      'bagsInMainStack', 'secondPartStackNo', 'bagsInSecondPartStack',
+      'unloaderName', 'unloadingEndTime', 'labour', 'startPin',
+      'unloadingStartTime', 'finishPin', 'unloadingFinishTime',
+      'origAClass', 'origBClass', 'shortageAClass', 'shortageBClass',
+      'origAClassAg', 'origBClassAg', 'netWtMill', 'netWtDiff', 'netWtParty',
+      'discrepancy', 'driverSign', 'unloaderSign', 'pahunchPersonSign'
+    ];
+    
+    let hasError = false;
+    const newErrors: Record<string, string> = {};
+    
+    requiredFields.forEach(field => {
+      // Exclude specific fields based on conditions if necessary, but here we assume all strictly required
+      if (!inwardFormData[field] && inwardFormData[field] !== 0) {
+        newErrors[field] = 'This field is mandatory';
+        hasError = true;
+      }
+    });
+
+    if (hasError) {
+      setInwardErrors(newErrors);
+      useUiStore.getState().addToast('Please fill all the mandatory fields', 'error');
+      return;
+    }
+
     const selectedPlantId = activePlant?.id ;
     if (!selectedPlantId) {
       useUiStore.getState().addToast('Please select a plant at the top of the page first.', 'error');
@@ -546,9 +716,57 @@ export const ProcurementManagement = () => {
 
 
  {/* Main Content Area */}
- <div className="flex-1 overflow-x-hidden overflow-y-auto p-6">
- 
- {/* TAB 1: SUPPLIER MASTER */}
+   <div className="flex-1 overflow-x-hidden overflow-y-auto p-6">
+   
+   {/* TAB: MANDI MASTER */}
+   {activeTab === 'mandi_master' && (
+   <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
+     <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold flex items-center gap-2 text-[var(--text-main)]">
+            <Users className="text-[#e67e00]" /> Mandi Master
+          </h2>
+          <button onClick={() => setAddMandiModal({ isOpen: true, id: '', name: '', isActive: true })} className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20">
+            + Add Mandi
+          </button>
+        </div>
+     </div>
+     <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
+       <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
+         <thead>
+           <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left">
+             <th className="p-3">Name</th>
+             <th className="p-3">Status</th>
+             <th className="p-3">Actions</th>
+           </tr>
+         </thead>
+         <tbody>
+           {mandis.map((m: any) => (
+             <tr key={m.id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-panel)]">
+               <td className="p-3 font-medium text-[var(--text-main)]">{m.name}</td>
+                <td className="p-3">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={m.isActive} onChange={() => handleToggleMandiStatus(m)} />
+                    <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                  </label>
+                </td>
+                <td className="p-3 flex gap-2">
+                  <button onClick={() => setAddMandiModal({ isOpen: true, id: m.id, name: m.name, isActive: m.isActive })} className="text-amber-500 hover:text-amber-400 p-1 bg-amber-500/10 rounded">
+                    <Edit size={14} />
+                  </button>
+                  <button onClick={() => handleDeleteMandi(m.id)} className="text-red-500 hover:text-red-400 p-1 bg-red-500/10 rounded">
+                    <Trash size={14} />
+                  </button>
+               </td>
+             </tr>
+           ))}
+         </tbody>
+       </table>
+     </div>
+   </div>
+   )}
+
+   {/* TAB 1: SUPPLIER MASTER */}
  {activeTab === 'supplier_master' && (
  <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
  <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
@@ -599,16 +817,52 @@ export const ProcurementManagement = () => {
   {activeTab === 'paddy_purchase' && (
     <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
       <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
-        <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
-          <Package className="text-[#e67e00]" /> Paddy Purchase
-        </h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
+            <Package className="text-[#e67e00]" /> Paddy Purchase
+          </h2>
+          <button 
+            onClick={async () => {
+                try {
+                  const params = new URLSearchParams();
+                  if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
+                  if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
+                  if (listFilters.mandi) params.append('mandi', listFilters.mandi);
+                  if (listFilters.supplierId) params.append('supplierId', listFilters.supplierId);
+                  params.append('limit', '1000000');
+                  params.append('page', '1');
+                  const pid = activePlant?.id || 'global';
+                  
+                  const res = await api.get(`/api/procurement/soda-pending/${pid}?${params.toString()}`);
+                  const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                  
+                  const exportData = data.map((item: any) => ({
+                    "Party": item.partyMandi,
+                    "Date": item.date,
+                    "Bags": item.bags,
+                    "Rate": item.rate,
+                    "Diff": item.diff,
+                    "Payment": item.payment,
+                    "Note": item.note,
+                    "Final Amount": item.finalHisabAmt
+                  }));
+                  exportToExcel(exportData, `Paddy_Purchase_Full`);
+                } catch(error) {
+                  console.error('Failed to export all records', error);
+                }
+            }}
+            className="flex items-center gap-2 bg-[#107c41] text-white px-3 py-1.5 rounded hover:bg-[#1f8c51] transition-colors text-sm font-medium"
+          >
+            <Download size={16} /> Export All to Excel
+          </button>
+        </div>
         {user?.role !== 'SUPER_ADMIN' && (
           <button 
             onClick={() => setPaddyPurchaseModal({
               isOpen: true, id: '', plantId: activePlant?.id || '', supplierId: '', riceCategory: 'ANY',
               date: new Date().toISOString().split('T')[0], 
               bolis: [{ moisture: '', bags: '', rate: '' }],
-              govtRate: '', diff: '', payment: '', note: '', finalHisabAmt: ''
+              govtRate: activePlant?.govtRate?.toString() || '', diff: '', payment: '', note: '', finalHisabAmt: ''
             })}
             className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
           >
@@ -629,7 +883,12 @@ export const ProcurementManagement = () => {
             </div>
             <div>
               <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi</label>
-              <input type="text" value={listFilters.mandi} onChange={e => setListFilters(f => ({...f, mandi: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" placeholder="Mandi..." />
+              <select value={listFilters.mandi} onChange={e => setListFilters(f => ({...f, mandi: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm">
+                <option value="">Select Mandi</option>
+                {mandis.filter((m: any) => m.isActive).map((m: any) => (
+                  <option key={m.id} value={m.name}>{m.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Artia (Supplier)</label>
@@ -691,6 +950,11 @@ export const ProcurementManagement = () => {
             )}
           </tbody>
         </table>
+        <Pagination
+            currentPage={sodaPendingCurrentPage}
+            totalItems={sodaPendingTotalItems}
+            onPageChange={setSodaPendingCurrentPage}
+          />
       </div>
     </div>
   )}
@@ -796,56 +1060,50 @@ export const ProcurementManagement = () => {
  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">1. Basic Information</div>
  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4 text-sm">
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">GP No.</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">GP No. <span className="text-red-500">*</span></label>
  <input type="text" name="gpNo" value={inwardFormData.gpNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="1-1000/Sept/25" />
+ {inwardErrors.gpNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.gpNo}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between">
-   <span>Govt Rate (₹)</span>
-   <span className="text-[9px] text-[#e67e00] bg-[#e67e00]/10 px-1 rounded uppercase">Global</span>
- </label>
- <input type="text" name="govtRate" value={inwardFormData.govtRate || ''} readOnly className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-80 cursor-not-allowed font-bold" placeholder="Auto-fetched" />
- </div>
- <div>
-  <label className="block text-[var(--text-muted-alt)] text-[11px] mb-1 truncate">Date</label>
+  <label className="block text-[var(--text-muted-alt)] text-[11px] mb-1 truncate">Date <span className="text-red-500">*</span></label>
   <input type="date" name="date" value={inwardFormData.date} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
+  {inwardErrors.date && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.date}</span>}
   </div>
   <div>
-  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Time In</label>
+  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Time In <span className="text-red-500">*</span></label>
   <input type="time" name="timeIn" value={inwardFormData.timeIn} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
+  {inwardErrors.timeIn && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.timeIn}</span>}
   </div>
   <div>
-  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Time Out</label>
+  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Time Out <span className="text-red-500">*</span></label>
   <input type="time" name="timeOut" value={inwardFormData.timeOut} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
+  {inwardErrors.timeOut && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.timeOut}</span>}
   </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Truck No.</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Truck No. <span className="text-red-500">*</span></label>
  <select name="truckNo" value={inwardFormData.truckNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
    <option value="">Select Truck</option>
    {trucks.map(t => <option key={t.id} value={t.truckNumber}>{t.truckNumber}</option>)}
  </select>
+ {inwardErrors.truckNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.truckNo}</span>}
  </div>
   <div>
-  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Previous Truck Reading</label>
+  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Previous Truck Reading <span className="text-red-500">*</span></label>
   <input type="number" name="previousTruckReading" value={inwardFormData.previousTruckReading} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
+  {inwardErrors.previousTruckReading && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.previousTruckReading}</span>}
   </div>
   <div>
-  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">New Truck Reading</label>
+  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">New Truck Reading <span className="text-red-500">*</span></label>
   <input type="number" name="newTruckReading" value={inwardFormData.newTruckReading} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
+  {inwardErrors.newTruckReading && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.newTruckReading}</span>}
   </div>
   <div>
   <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between">
-    Kms Driven
+    <span>Kms Driven <span className="text-red-500">*</span></span>
     <label className="flex items-center gap-1 text-[10px] text-red-400 cursor-pointer" title="Notify admin that meter is not working">
       <input type="checkbox" name="meterNotWorking" checked={inwardFormData.meterNotWorking || false} onChange={(e) => {
         if(e.target.checked) {
-           const confirmAlert = window.confirm(`Notify Admin that driver meter is not working for truck ${inwardFormData.truckNo || 'XXXXX'}?`);
-           if (confirmAlert) {
-              setInwardFormData((p: any) => ({...p, meterNotWorking: true}));
-              useUiStore.getState().addToast('Admin Notified: Meter not working.', 'error');
-           } else {
-              e.preventDefault();
-           }
+           setInwardFormData((p: any) => ({...p, meterNotWorking: true}));
         } else {
            setInwardFormData((p: any) => ({...p, meterNotWorking: false}));
         }
@@ -854,32 +1112,38 @@ export const ProcurementManagement = () => {
     </label>
   </label>
   <input type="number" name="kmsDriven" value={inwardFormData.kmsDriven} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
+  {inwardErrors.kmsDriven && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.kmsDriven}</span>}
   </div>
  <div>
-  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Party / Supplier Name</label>
+  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Party / Supplier Name <span className="text-red-500">*</span></label>
   <select name="supplierId" value={inwardFormData.supplierId} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
   <option value="">Select Supplier</option>
   {suppliers.map(s => <option key={s.id} value={s.id}>{s.name} - {s.mandi || 'No Mandi'}</option>)}
   </select>
+  {inwardErrors.supplierId && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.supplierId}</span>}
   </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi Parchi No.</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi Parchi No. <span className="text-red-500">*</span></label>
  <input type="text" name="mandiParchiNo" value={inwardFormData.mandiParchiNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="PRC-12345" />
+ {inwardErrors.mandiParchiNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.mandiParchiNo}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi e-GP / Bill No.</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi e-GP / Bill No. <span className="text-red-500">*</span></label>
  <input type="text" name="mandiEgpNo" value={inwardFormData.mandiEgpNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="EGP-458796" />
+ {inwardErrors.mandiEgpNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.mandiEgpNo}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">RST No.</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">RST No. <span className="text-red-500">*</span></label>
  <input type="text" name="rstNo" value={inwardFormData.rstNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="RST-7485963" />
+ {inwardErrors.rstNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.rstNo}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center gap-2">Pahunch Person / Staff</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center gap-2">Pahunch Person / Staff <span className="text-red-500">*</span></label>
  <select name="pahunchPersonName" value={inwardFormData.pahunchPersonName} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none">
    <option value="">Select Staff</option>
    {staff.map(s => <option key={s.id} value={s.name}>{s.name} ({s.role})</option>)}
  </select>
+ {inwardErrors.pahunchPersonName && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.pahunchPersonName}</span>}
  </div>
  </div>
  </div>
@@ -889,32 +1153,34 @@ export const ProcurementManagement = () => {
  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">2. Quality Details</div>
  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Moisture (%)</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Moisture (%) <span className="text-red-500">*</span></label>
  <input type="number" min="0" name="moisture" value={inwardFormData.moisture} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"  max="100" step="0.01" />
+ {inwardErrors.moisture && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.moisture}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Safai</label>
- <select name="safai" value={inwardFormData.safai} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
- <option value="Good">Good</option>
- <option value="Patal">Patal</option>
- </select>
+   <div className="col-span-1 sm:col-span-1">
+   <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Safai <span className="text-red-500">*</span></label>
+   <div className="flex items-center gap-4 mt-2">
+     <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="safai" value="Good" checked={inwardFormData.safai === 'Good'} onChange={handleInwardChange} className="accent-blue-500" /> Good</label>
+     <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="safai" value="Patal" checked={inwardFormData.safai === 'Patal'} onChange={handleInwardChange} className="accent-blue-500" /> Patal</label>
+   </div>
+   {inwardErrors.safai && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.safai}</span>}
+   </div>
  </div>
  <div className="col-span-1 sm:col-span-2">
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">If Not As Per Standards (Mandi Intimation given or not)</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">If Not As Per Standards (Mandi Intimation given or not) <span className="text-red-500">*</span></label>
  <div className="flex flex-col gap-2 mt-2">
- <div className="flex items-center gap-4">
+ <div className="flex flex-wrap items-center gap-4">
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="mandiIntimation" value="N.A." checked={inwardFormData.mandiIntimation === 'N.A.'} onChange={handleInwardChange} className="accent-blue-500" /> N.A.</label>
- <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="mandiIntimation" value="Yes" checked={inwardFormData.mandiIntimation === 'Yes'} onChange={handleInwardChange} className="accent-blue-500" /> Yes</label>
+ <label className="flex items-center gap-1 text-red-400 font-medium text-xs"><input type="radio" name="mandiIntimation" value="Yes" checked={inwardFormData.mandiIntimation === 'Yes'} onChange={handleInwardChange} className="accent-red-500" /> Incoming quality/standard is not as per requirement</label>
  </div>
- <label className="flex items-center gap-2 text-red-400 font-medium text-xs mt-1 cursor-pointer">
-   <input type="checkbox" name="mandiQualityAlert" checked={inwardFormData.mandiQualityAlert || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, mandiQualityAlert: e.target.checked }))} className="accent-red-500 w-4 h-4" />
-   Incoming quality/standard is not as per requirement
- </label>
+ {inwardErrors.mandiIntimation && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.mandiIntimation}</span>}
  </div>
  </div>
  <div className="col-span-1 sm:col-span-2">
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Remarks</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Remarks <span className="text-red-500">*</span></label>
  <textarea name="remarks" value={inwardFormData.remarks} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" rows={2}></textarea>
+ {inwardErrors.remarks && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.remarks}</span>}
  </div>
  </div>
  </div>
@@ -924,26 +1190,29 @@ export const ProcurementManagement = () => {
  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">3. Vehicle Verification</div>
  <div className="p-4 grid grid-cols-2 gap-4 text-sm">
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Bhari (Loaded) Video Upload</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Bhari (Loaded) Video Upload <span className="text-red-500">*</span></label>
  <div className="flex items-center gap-4 py-2">
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="bhariVideoUpload" value="Yes" checked={inwardFormData.bhariVideoUpload === 'Yes'} onChange={handleInwardChange} className="accent-blue-500" /> Yes</label>
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="bhariVideoUpload" value="No" checked={inwardFormData.bhariVideoUpload === 'No'} onChange={handleInwardChange} className="accent-blue-500" /> Uploading</label>
  </div>
+ {inwardErrors.bhariVideoUpload && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.bhariVideoUpload}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Khali (Empty) Video Upload</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Khali (Empty) Video Upload <span className="text-red-500">*</span></label>
  <div className="flex items-center gap-4 py-2">
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="khaliVideoUpload" value="Yes" checked={inwardFormData.khaliVideoUpload === 'Yes'} onChange={handleInwardChange} className="accent-blue-500" /> Yes</label>
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="khaliVideoUpload" value="No" checked={inwardFormData.khaliVideoUpload === 'No'} onChange={handleInwardChange} className="accent-blue-500" /> Uploading</label>
  </div>
+ {inwardErrors.khaliVideoUpload && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.khaliVideoUpload}</span>}
  </div>
  </div>
   <div>
-  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Paddy Boli Record</label>
+  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Paddy Boli Record <span className="text-red-500">*</span></label>
   <select name="paddyBoliRecord" value={inwardFormData.paddyBoliRecord} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
   <option value="Done">Done</option>
   <option value="Not applicable">Not applicable</option>
   </select>
+  {inwardErrors.paddyBoliRecord && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.paddyBoliRecord}</span>}
   </div>
  </div>
 
@@ -952,25 +1221,23 @@ export const ProcurementManagement = () => {
  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">4. Unloading Management</div>
  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4 text-sm">
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Allocation Type</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Allocation Type <span className="text-red-500">*</span></label>
  <select name="allocationType" value={inwardFormData.allocationType} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
  <option value="Hoodi">Hoodi</option>
  <option value="Stacking">Stacking</option>
  </select>
- <label className="flex items-center gap-2 text-red-400 font-medium text-xs mt-2 cursor-pointer">
-   <input type="checkbox" name="allocationQualityAlert" checked={inwardFormData.allocationQualityAlert || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, allocationQualityAlert: e.target.checked }))} className="accent-red-500 w-4 h-4" />
-   Incoming quality/standard is not as per requirement
- </label>
+ {inwardErrors.allocationType && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.allocationType}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Upload @ Hoodi Reg.</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Upload @ Hoodi Reg. <span className="text-red-500">*</span></label>
  <div className="flex items-center gap-4 mt-2">
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="hoodiUpload" value="N.A." checked={inwardFormData.hoodiUpload === 'N.A.'} onChange={handleInwardChange} className="accent-blue-500" /> N.A.</label>
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="hoodiUpload" value="Yes" checked={inwardFormData.hoodiUpload === 'Yes'} onChange={handleInwardChange} className="accent-blue-500" /> Yes</label>
  </div>
+ {inwardErrors.hoodiUpload && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.hoodiUpload}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Allocate Unloader</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Allocate Unloader <span className="text-red-500">*</span></label>
  <select name="allocateUnloader" value={inwardFormData.allocateUnloader} onChange={e => {
    handleInwardChange(e);
    if (e.target.value) {
@@ -980,16 +1247,18 @@ export const ProcurementManagement = () => {
    <option value="">Select Unloader</option>
    {labours.map(l => <option key={l.id} value={l.name}>{l.name}</option>)}
  </select>
+ {inwardErrors.allocateUnloader && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.allocateUnloader}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Pahunch Person Name</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Pahunch Person Name <span className="text-red-500">*</span></label>
  <select name="pahunchPerson" value={inwardFormData.pahunchPerson || ''} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
    <option value="">Select Pahunch Person</option>
    {labours.map(l => <option key={l.id} value={l.name}>{l.name}</option>)}
  </select>
+ {inwardErrors.pahunchPerson && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.pahunchPerson}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between">Stack No. <ScanBarcode size={14} className="text-[#e67e00]" /></label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between"><span>Stack No. <span className="text-red-500">*</span></span> <ScanBarcode size={14} className="text-[#e67e00]" /></label>
  <div className="flex gap-2">
  <div className="relative flex-1">
  <input type="text" name="stackNo" value={inwardFormData.stackNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 pl-8 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Scan stack barcode..." />
@@ -999,41 +1268,44 @@ export const ProcurementManagement = () => {
  <Layers size={16} />
  </button>
  </div>
+ {inwardErrors.stackNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.stackNo}</span>}
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Truck Unload Count (Today)</label>
  <input type="number" readOnly value={inwardFormData.unloaderTruckCount} className="w-full bg-blue-900/10 border border-blue-500/30 rounded px-3 py-2 text-blue-400 font-bold outline-none" />
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Main Unloader Truck Count</label>
- <input type="number" name="mainUnloaderTruckCount" value={inwardFormData.mainUnloaderTruckCount} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
- </div>
- <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Bags in Main Stack</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Bags in Main Stack <span className="text-red-500">*</span></label>
  <input type="number" name="bagsInMainStack" value={inwardFormData.bagsInMainStack} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
+ {inwardErrors.bagsInMainStack && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.bagsInMainStack}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Second part Stack no.</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Second part Stack no. <span className="text-red-500">*</span></label>
  <input type="text" name="secondPartStackNo" value={inwardFormData.secondPartStackNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Stack No." />
+ {inwardErrors.secondPartStackNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.secondPartStackNo}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Bags in second part stack</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Bags in second part stack <span className="text-red-500">*</span></label>
  <input type="number" name="bagsInSecondPartStack" value={inwardFormData.bagsInSecondPartStack} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
+ {inwardErrors.bagsInSecondPartStack && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.bagsInSecondPartStack}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Unloader Name</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Unloader Name <span className="text-red-500">*</span></label>
  <input type="text" name="unloaderName" value={inwardFormData.unloaderName} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Name" />
+ {inwardErrors.unloaderName && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.unloaderName}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Unloading Finish Time</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Unloading Finish Time <span className="text-red-500">*</span></label>
  <input type="time" name="unloadingEndTime" value={inwardFormData.unloadingEndTime} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" />
+ {inwardErrors.unloadingEndTime && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.unloadingEndTime}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Labour Name</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Labour Name <span className="text-red-500">*</span></label>
  <select name="labour" value={inwardFormData.labour} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
  <option value="">Select Labour Contractor</option>
  {labours.map(l => <option key={l.id} value={l.name}>{l.name}</option>)}
  </select>
+ {inwardErrors.labour && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.labour}</span>}
  </div>
  <div>
   <div className="col-span-1 sm:col-span-2 bg-[#e67e00]/10 p-3 rounded-lg border border-[#e67e00]/30 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1043,16 +1315,21 @@ export const ProcurementManagement = () => {
         <input type="checkbox" checked={inwardFormData.loadedVideoVerified} onChange={e => setInwardFormData((prev: any) => ({...prev, loadedVideoVerified: e.target.checked}))} className="accent-[#e67e00] w-4 h-4" />
         Loaded Truck Video Captured & Verified
       </label>
-      <input type="password" placeholder="Supervisor PIN (1234)" value={inwardFormData.startPin} onChange={e => setInwardFormData((prev: any) => ({...prev, startPin: e.target.value}))} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-sm outline-none" />
       <div>
-      <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Starts Time</label>
-      <div className="flex gap-2">
-      <input type="time" name="unloadingStartTime" value={inwardFormData.unloadingStartTime} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`flex-1 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
-      {!hasBackdatePermission && (
-        <button type="button" disabled={!inwardFormData.loadedVideoVerified || inwardFormData.startPin !== '1234'} onClick={() => setInwardFormData((prev: any) => ({...prev, unloadingStartTime: new Date().toTimeString().slice(0,5)}))} className="bg-[#e67e00] hover:bg-[#cc7000] disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 rounded text-xs font-bold transition-colors">NOW</button>
-      )}
-      </div>
-      </div>
+       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Supervisor PIN <span className="text-red-500">*</span></label>
+       <input type="password" name="startPin" placeholder="Supervisor PIN (1234)" value={inwardFormData.startPin} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-sm outline-none" />
+       {inwardErrors.startPin && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.startPin}</span>}
+       </div>
+       <div>
+       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Starts Time <span className="text-red-500">*</span></label>
+       <div className="flex gap-2">
+       <input type="time" name="unloadingStartTime" value={inwardFormData.unloadingStartTime} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`flex-1 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
+       {!hasBackdatePermission && (
+         <button type="button" disabled={!inwardFormData.loadedVideoVerified || inwardFormData.startPin !== '1234'} onClick={() => { setInwardFormData((prev: any) => ({...prev, unloadingStartTime: new Date().toTimeString().slice(0,5)})); setInwardErrors((prev: any) => ({...prev, unloadingStartTime: ''})) }} className="bg-[#e67e00] hover:bg-[#cc7000] disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 rounded text-xs font-bold transition-colors">NOW</button>
+       )}
+       </div>
+       {inwardErrors.unloadingStartTime && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.unloadingStartTime}</span>}
+       </div>
     </div>
     
     <div className="space-y-3">
@@ -1061,16 +1338,21 @@ export const ProcurementManagement = () => {
         <input type="checkbox" checked={inwardFormData.emptyVideoVerified} onChange={e => setInwardFormData((prev: any) => ({...prev, emptyVideoVerified: e.target.checked}))} className="accent-[#e67e00] w-4 h-4" />
         Empty Truck Video Captured & Verified
       </label>
-      <input type="password" placeholder="Supervisor PIN (1234)" value={inwardFormData.finishPin} onChange={e => setInwardFormData((prev: any) => ({...prev, finishPin: e.target.value}))} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-sm outline-none" />
       <div>
-      <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Finish Time</label>
-      <div className="flex gap-2">
-      <input type="time" name="unloadingFinishTime" value={inwardFormData.unloadingFinishTime} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`flex-1 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
-      {!hasBackdatePermission && (
-        <button type="button" disabled={!inwardFormData.emptyVideoVerified || inwardFormData.finishPin !== '1234'} onClick={() => setInwardFormData((prev: any) => ({...prev, unloadingFinishTime: new Date().toTimeString().slice(0,5)}))} className="bg-[#e67e00] hover:bg-[#cc7000] disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 rounded text-xs font-bold transition-colors">NOW</button>
-      )}
-      </div>
-      </div>
+       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Supervisor PIN <span className="text-red-500">*</span></label>
+       <input type="password" name="finishPin" placeholder="Supervisor PIN (1234)" value={inwardFormData.finishPin} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-sm outline-none" />
+       {inwardErrors.finishPin && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.finishPin}</span>}
+       </div>
+       <div>
+       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Finish Time <span className="text-red-500">*</span></label>
+       <div className="flex gap-2">
+       <input type="time" name="unloadingFinishTime" value={inwardFormData.unloadingFinishTime} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`flex-1 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
+       {!hasBackdatePermission && (
+         <button type="button" disabled={!inwardFormData.emptyVideoVerified || inwardFormData.finishPin !== '1234'} onClick={() => { setInwardFormData((prev: any) => ({...prev, unloadingFinishTime: new Date().toTimeString().slice(0,5)})); setInwardErrors((prev: any) => ({...prev, unloadingFinishTime: ''})) }} className="bg-[#e67e00] hover:bg-[#cc7000] disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 rounded text-xs font-bold transition-colors">NOW</button>
+       )}
+       </div>
+       {inwardErrors.unloadingFinishTime && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.unloadingFinishTime}</span>}
+       </div>
     </div>
   </div></div>
  </div>
@@ -1217,15 +1499,33 @@ export const ProcurementManagement = () => {
  <tbody>
  <tr className="border-b border-[var(--border-subtle-alt)]">
  <td className="py-3 text-[var(--text-muted)] font-medium">Bags Rec. @ Mill</td>
- <td className="py-3"><input type="number" min="0" name="origAClass" value={inwardFormData.origAClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"  /></td>
- <td className="py-3"><input type="number" min="0" name="origBClass" value={inwardFormData.origBClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"  /></td>
- <td className="py-3"><input type="number" min="0" name="shortageAClass" value={inwardFormData.shortageAClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]"  /></td>
- <td className="py-3"><input type="number" min="0" name="shortageBClass" value={inwardFormData.shortageBClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]"  /></td>
+ <td className="py-3">
+  <input type="number" min="0" name="origAClass" value={inwardFormData.origAClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"  />
+  {inwardErrors.origAClass && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.origAClass}</span>}
+ </td>
+ <td className="py-3">
+  <input type="number" min="0" name="origBClass" value={inwardFormData.origBClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"  />
+  {inwardErrors.origBClass && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.origBClass}</span>}
+ </td>
+ <td className="py-3">
+  <input type="number" min="0" name="shortageAClass" value={inwardFormData.shortageAClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]"  />
+  {inwardErrors.shortageAClass && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.shortageAClass}</span>}
+ </td>
+ <td className="py-3">
+  <input type="number" min="0" name="shortageBClass" value={inwardFormData.shortageBClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]"  />
+  {inwardErrors.shortageBClass && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.shortageBClass}</span>}
+ </td>
  </tr>
  <tr>
  <td className="py-3 text-[var(--text-muted)] font-medium">Bags @ Agency GP</td>
- <td className="py-3"><input type="number" min="0" name="origAClassAg" value={inwardFormData.origAClassAg} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"  /></td>
- <td className="py-3"><input type="number" min="0" name="origBClassAg" value={inwardFormData.origBClassAg} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"  /></td>
+ <td className="py-3">
+  <input type="number" min="0" name="origAClassAg" value={inwardFormData.origAClassAg} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"  />
+  {inwardErrors.origAClassAg && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.origAClassAg}</span>}
+ </td>
+ <td className="py-3">
+  <input type="number" min="0" name="origBClassAg" value={inwardFormData.origBClassAg} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"  />
+  {inwardErrors.origBClassAg && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.origBClassAg}</span>}
+ </td>
  <td className="py-3 text-center text-gray-500" colSpan={2}>-</td>
  </tr>
  </tbody>
@@ -1246,10 +1546,11 @@ export const ProcurementManagement = () => {
   </div>
   <div>
     <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex justify-between items-center">
-      <span>Net Wt. at Mill : (Qtl)</span>
+      <span>Net Wt. at Mill : (Qtl) <span className="text-red-500">*</span></span>
       {!hasManualWeighbridgePermission && (
         <button type="button" onClick={() => {
           setInwardFormData((prev: any) => ({...prev, netWtMill: (Math.random() * (450 - 350) + 350).toFixed(2)}));
+          setInwardErrors((prev: any) => ({...prev, netWtMill: ''}));
         }} className="text-[#e67e00] hover:text-white transition-colors flex items-center gap-1" title="Fetch from Weighbridge">
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
           Fetch
@@ -1257,14 +1558,17 @@ export const ProcurementManagement = () => {
       )}
     </label>
     <input type="number" min="0" name="netWtMill" value={inwardFormData.netWtMill} onChange={handleInwardChange} disabled={!hasManualWeighbridgePermission} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] font-bold outline-none ${hasManualWeighbridgePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`}  />
+    {inwardErrors.netWtMill && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.netWtMill}</span>}
   </div>
   <div>
-    <label className="block text-[var(--text-main)] font-bold text-xs mb-1">Net Wt. Difference : (Qtl)</label>
+    <label className="block text-[var(--text-main)] font-bold text-xs mb-1">Net Wt. Difference : (Qtl) <span className="text-red-500">*</span></label>
     <input type="number" min="0" name="netWtDiff" value={inwardFormData.netWtDiff} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-blue-400 font-bold outline-none"  />
+    {inwardErrors.netWtDiff && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.netWtDiff}</span>}
   </div>
   <div>
-    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Net Wt. at Party : (Qtl)</label>
+    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Net Wt. at Party : (Qtl) <span className="text-red-500">*</span></label>
     <input type="number" min="0" name="netWtParty" value={inwardFormData.netWtParty} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"  />
+    {inwardErrors.netWtParty && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.netWtParty}</span>}
   </div>
   </div>
  </div>
@@ -1385,8 +1689,9 @@ export const ProcurementManagement = () => {
   </div>
 
   <div className="col-span-2">
-    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Any Discrepancy / Point Raise</label>
+    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Any Discrepancy / Point Raise <span className="text-red-500">*</span></label>
     <textarea name="discrepancy" value={inwardFormData.discrepancy} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none" rows={2}></textarea>
+    {inwardErrors.discrepancy && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.discrepancy}</span>}
   </div>
  </div>
  </div>
@@ -1396,63 +1701,25 @@ export const ProcurementManagement = () => {
  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">9. Driver Information</div>
  <div className="p-4 grid grid-cols-2 gap-4 text-sm">
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center gap-2">Driver Name</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center gap-2">Driver Name <span className="text-red-500">*</span></label>
  <select name="driverName" value={inwardFormData.driverName} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none">
    <option value="">Select Driver</option>
    {drivers.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
  </select>
+ {inwardErrors.driverName && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.driverName}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mobile Number</label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mobile Number <span className="text-red-500">*</span></label>
  <input type="tel" pattern="[0-9]{10}" maxLength={10} title="10 digit mobile number" name="mobileNumber" value={inwardFormData.mobileNumber} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none" />
+ {inwardErrors.mobileNumber && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.mobileNumber}</span>}
  </div>
  </div>
  </div>
 
- {/* 10. Signatures */}
- <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
- <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">10. Signatures</div>
- <div className="p-4 grid grid-cols-3 gap-4 text-sm">
- <div className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded p-2 h-24 flex flex-col justify-between relative group">
- <span className="text-[var(--text-muted-alt)] text-[10px] uppercase font-bold absolute top-2 left-2 pointer-events-none">Driver Sign</span>
- <div className="flex-1 flex items-center justify-center mt-4 h-full">
- <input type="text" name="driverSign" value={inwardFormData.driverSign} onChange={handleInwardChange} className="bg-transparent border-none outline-none text-center font-[cursive] text-[var(--text-muted)] text-lg w-full h-full placeholder:text-gray-700 px-2" placeholder="Type Sign" />
- </div>
- <span onClick={() => setInwardFormData((p: any) => ({...p, driverSign: ''}))} className="text-red-400 text-[10px] absolute bottom-2 right-2 cursor-pointer z-10 opacity-0 group-hover:opacity-100 transition-opacity">Clear</span>
- </div>
- <div className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded p-2 h-32 flex flex-col justify-between relative group">
- <span className="text-[var(--text-muted-alt)] text-[10px] uppercase font-bold absolute top-2 left-2 pointer-events-none">Unloader Sign</span>
- <div className="flex-1 flex items-center justify-center mt-4 h-full">
- <input type="text" name="unloaderSign" value={inwardFormData.unloaderSign} onChange={handleInwardChange} className="bg-transparent border-none outline-none text-center font-[cursive] text-[var(--text-muted)] text-lg w-full h-full placeholder:text-gray-700 px-2" placeholder="Type Sign" />
- </div>
- <div className="absolute top-2 right-2">
-   <label className="flex items-center gap-1 text-[10px] text-[var(--text-muted)] cursor-pointer">
-     <input type="checkbox" name="unloaderSignAndStamp" checked={inwardFormData.unloaderSignAndStamp || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, unloaderSignAndStamp: e.target.checked }))} className="accent-[#e67e00]" />
-     Stamped
-   </label>
- </div>
- <span onClick={() => setInwardFormData((p: any) => ({...p, unloaderSign: ''}))} className="text-red-400 text-[10px] absolute bottom-2 right-2 cursor-pointer z-10 opacity-0 group-hover:opacity-100 transition-opacity">Clear</span>
- </div>
- <div className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded p-2 h-32 flex flex-col justify-between relative group">
- <span className="text-[var(--text-muted-alt)] text-[10px] uppercase font-bold absolute top-2 left-2 pointer-events-none">Pahunch Person</span>
- <div className="flex-1 flex items-center justify-center mt-4 h-full">
- <input type="text" name="pahunchPersonSign" value={inwardFormData.pahunchPersonSign} onChange={handleInwardChange} className="bg-transparent border-none outline-none text-center font-[cursive] text-[var(--text-muted)] text-lg w-full h-full placeholder:text-gray-700 px-2" placeholder="Type Sign" />
- </div>
- <div className="absolute top-2 right-2">
-   <label className="flex items-center gap-1 text-[10px] text-[var(--text-muted)] cursor-pointer">
-     <input type="checkbox" name="pahunchPersonSignAndStamp" checked={inwardFormData.pahunchPersonSignAndStamp || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, pahunchPersonSignAndStamp: e.target.checked }))} className="accent-[#e67e00]" />
-     Stamped
-   </label>
- </div>
- <span onClick={() => setInwardFormData((p: any) => ({...p, pahunchPersonSign: ''}))} className="text-red-400 text-[10px] absolute bottom-2 right-2 cursor-pointer z-10 opacity-0 group-hover:opacity-100 transition-opacity">Clear</span>
- </div>
- </div>
- </div>
-
- {/* 11. Authentication (Biometric) */}
+ {/* 10. Authentication (Biometric) */}
  <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm flex items-center justify-between">
-   <span>11. Authentication (Biometric)</span>
+   <span>10. Authentication (Biometric)</span>
    {inwardFormData.shortageRecoveryOpt === 'Yes' && <span className="text-red-400 text-xs flex items-center gap-1"><AlertTriangle size={14} /> High Risk: 2 Punches Required</span>}
  </div>
  <div className="p-4 flex flex-col gap-4 text-sm">
@@ -1595,6 +1862,41 @@ export const ProcurementManagement = () => {
             <h1 className="text-base font-bold text-[var(--text-muted)]">Inward List</h1>
             <p className="text-[var(--text-muted-alt)] text-xs border-l border-[var(--border-subtle)] pl-3 hidden sm:block">Procurement &gt; Inward List</p>
           </div>
+          <button 
+              onClick={async () => {
+                try {
+                  const params = new URLSearchParams();
+                  if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
+                  if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
+                  if (listFilters.mandi) params.append('mandi', listFilters.mandi);
+                  if (listFilters.supplierId) params.append('supplierId', listFilters.supplierId);
+                  params.append('limit', '1000000');
+                  params.append('page', '1');
+                  const pid = activePlant?.id || 'global';
+                  
+                  const res = await api.get(`/api/procurement/inwards/${pid}?${params.toString()}`);
+                  const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                  
+                  const exportData = data.map((item: any) => ({
+                    "Purchase No": item.purchaseNo,
+                    "Date": item.date,
+                    "GP No": item.gpNo,
+                    "Supplier": item.supplier,
+                    "Mandi EG No": item.mandiEgNo,
+                    "Vehicle No": item.vehicleNo,
+                    "Gross Wt": item.grossWt,
+                    "Tare Wt": item.tareWt,
+                    "Net Wt": item.netWt
+                  }));
+                  exportToExcel(exportData, 'Inward_List_Full.xlsx');
+                } catch (error) {
+                  console.error('Failed to export all records', error);
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2 transition-colors shadow-sm"
+            >
+              <Download size={16} /> Export to Excel
+            </button>
         </div>
 
         <div className="flex flex-wrap items-end gap-4 mb-4">
@@ -1608,7 +1910,12 @@ export const ProcurementManagement = () => {
           </div>
           <div>
             <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi</label>
-            <input type="text" value={listFilters.mandi} onChange={e => setListFilters(f => ({...f, mandi: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" placeholder="Mandi..." />
+            <select value={listFilters.mandi} onChange={e => setListFilters(f => ({...f, mandi: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm">
+              <option value="">Select Mandi</option>
+              {mandis.filter((m: any) => m.isActive).map((m: any) => (
+                <option key={m.id} value={m.name}>{m.name}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Artia (Supplier)</label>
@@ -1664,6 +1971,12 @@ export const ProcurementManagement = () => {
               )}
             </tbody>
           </table>
+          <Pagination
+            currentPage={inwardCurrentPage}
+            totalItems={inwardTotalItems}
+            onPageChange={setInwardCurrentPage}
+            itemsPerPage={10}
+          />
         </div>
 
         
@@ -1743,15 +2056,15 @@ export const ProcurementManagement = () => {
       </div>
    )}
 
-{/* TAB: GLOBAL SETTINGS (GOVT RATE) */}
+{/* TAB: PLANT SETTINGS (GOVT RATE) */}
    {activeTab === 'global_settings' && (
       <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden shadow-2xl">
         <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
           <div>
             <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
-              <Settings className="text-[#e67e00]" /> Global Settings
+              <Settings className="text-[#e67e00]" /> Plant Settings
             </h2>
-            <p className="text-xs text-[var(--text-muted-alt)] mt-1">Configure system-wide variables and defaults</p>
+            <p className="text-xs text-[var(--text-muted-alt)] mt-1">Configure variables for this plant</p>
           </div>
         </div>
         
@@ -1767,57 +2080,56 @@ export const ProcurementManagement = () => {
               
               <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                 
-                {/* Govt Rate Setting */}
-                <div className="space-y-3">
-                  <label className="block text-sm font-bold text-[var(--text-muted)] flex items-center justify-between">
-                    Default Government Rate
-                    {!isEditingGovtRate && (
-                      <button onClick={() => setIsEditingGovtRate(true)} className="text-amber-500 hover:text-amber-400 p-1 bg-amber-500/10 rounded">
-                        <Edit size={14} />
-                      </button>
-                    )}
-                  </label>
-                  
-                  {!isEditingGovtRate ? (
-                    <div className="flex items-center gap-2">
-                       <span className="text-2xl font-bold text-[var(--text-main)]">₹{globalGovtRate || '0.00'}</span>
-                       <span className="text-xs text-[var(--text-muted-alt)]">/ Qtl</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <div className="relative flex-1">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <span className="text-[var(--text-muted-alt)]">₹</span>
-                        </div>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={globalGovtRate}
-                          onChange={(e) => setGlobalGovtRate(e.target.value)}
-                          className="w-full pl-8 pr-4 py-2 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg focus:border-amber-500 transition-colors text-[var(--text-main)] outline-none"
-                          placeholder="Enter rate..."
-                        />
+                  {/* Govt Rate Setting */}
+                  <div className="space-y-3">
+                    <label className="block text-sm font-bold text-[var(--text-muted)] flex items-center justify-between">
+                      Plant Government Rate
+                      {!isEditingGovtRate && (
+                        <button onClick={() => setIsEditingGovtRate(true)} className="text-amber-500 hover:text-amber-400 p-1 bg-amber-500/10 rounded">
+                          <Edit size={14} />
+                        </button>
+                      )}
+                    </label>
+                    
+                    {!isEditingGovtRate ? (
+                      <div className="flex items-center gap-2">
+                         <span className="text-2xl font-bold text-[var(--text-main)]">₹{plantGovtRate || '0.00'}</span>
+                         <span className="text-xs text-[var(--text-muted-alt)]">/ Qtl</span>
                       </div>
-                      <button 
-                        onClick={handleUpdateGovtRate}
-                        className="bg-amber-500 hover:bg-amber-600 text-black px-5 py-2 rounded-lg font-bold shadow-md transition-all"
-                      >
-                        Save
-                      </button>
-                      <button 
-                        onClick={() => setIsEditingGovtRate(false)}
-                        className="bg-[var(--bg-panel)] hover:bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-[var(--text-main)] px-4 py-2 rounded-lg font-bold transition-all"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                  <p className="text-xs text-[var(--text-muted-alt)] leading-relaxed">
-                    This rate is applied globally across all plants. It automatically populates the Govt Rate field during new Paddy Inward entries.
-                  </p>
-                </div>
-
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="relative flex-1">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <span className="text-[var(--text-muted-alt)] font-bold">₹</span>
+                          </div>
+                          <input 
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={plantGovtRate}
+                            onChange={(e) => setPlantGovtRate(e.target.value)}
+                            className="w-full pl-8 pr-4 py-2 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg focus:border-amber-500 transition-colors text-[var(--text-main)] outline-none"
+                            placeholder="Enter rate..."
+                          />
+                        </div>
+                        <button 
+                          onClick={handleUpdateGovtRate}
+                          className="bg-amber-500 hover:bg-amber-600 text-black px-5 py-2 rounded-lg font-bold shadow-md transition-all"
+                        >
+                          Save
+                        </button>
+                        <button 
+                          onClick={() => setIsEditingGovtRate(false)}
+                          className="bg-[var(--bg-panel)] hover:bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-[var(--text-main)] px-4 py-2 rounded-lg font-bold transition-all"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                    <p className="text-xs text-[var(--text-muted-alt)] leading-relaxed">
+                      This rate is applied to the active plant. It automatically populates the Govt Rate field during new Paddy Purchase entries.
+                    </p>
+                  </div>    
               </div>
             </div>
 
@@ -1833,6 +2145,35 @@ export const ProcurementManagement = () => {
  <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
  <ShieldCheck className="text-[#e67e00]" /> Quality Inspection Desk
  </h2>
+ <button 
+            onClick={async () => {
+              try {
+                const params = new URLSearchParams();
+                params.append('limit', '1000000');
+                params.append('page', '1');
+                const pid = activePlant?.id || 'global';
+                
+                const res = await api.get(`/api/procurement/recent/${pid}?${params.toString()}`);
+                const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                const pendingItems = data.filter((p: any) => p.qcStatus === 'PENDING' || p.qcStatus === 'Pending');
+                
+                const exportData = pendingItems.map((item: any) => ({
+                  "Purchase No": item.purchaseNo,
+                  "Date": item.date,
+                  "Supplier": item.supplierName || item.supplier,
+                  "Net Wt": item.netWeight,
+                  "Moisture": item.moisture,
+                  "QC Status": item.qcStatus
+                }));
+                exportToExcel(exportData, `Quality_Inspection_Full`);
+              } catch (error) {
+                console.error('Failed to export all records', error);
+              }
+            }}
+            className="flex items-center gap-2 bg-[#107c41] text-white px-3 py-1.5 rounded hover:bg-[#1f8c51] transition-colors text-sm font-medium"
+          >
+            <Download size={16} /> Export All to Excel
+          </button>
  </div>
  <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
  <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
@@ -1870,6 +2211,11 @@ export const ProcurementManagement = () => {
  )}
  </tbody>
  </table>
+ <Pagination
+            currentPage={recentPurchasesCurrentPage}
+            totalItems={recentPurchasesTotalItems}
+            onPageChange={setRecentPurchasesCurrentPage}
+          />
  </div>
  </div>
  )}
@@ -1883,7 +2229,40 @@ export const ProcurementManagement = () => {
  <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
  <FileText className="text-[#e67e00]" /> Hisab / Paddy Soda Pending
  </h2>
- <div className="text-[var(--text-muted-alt)] text-sm italic">Click on a row's button to settle</div>
+ <button 
+              onClick={async () => {
+                try {
+                  const params = new URLSearchParams();
+                  if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
+                  if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
+                  if (listFilters.mandi) params.append('mandi', listFilters.mandi);
+                  if (listFilters.supplierId) params.append('supplierId', listFilters.supplierId);
+                  params.append('limit', '1000000');
+                  params.append('page', '1');
+                  const pid = activePlant?.id || 'global';
+                  
+                  const res = await api.get(`/api/procurement/soda-pending/${pid}?${params.toString()}`);
+                  const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                  
+                  const exportData = data.map((item: any) => ({
+                    "Party": item.partyMandi,
+                    "Date": item.date,
+                    "Bags": item.bags,
+                    "Govt Rate": item.govtRate,
+                    "Rate": item.rate,
+                    "Diff": item.diff,
+                    "Payment": item.payment,
+                    "Final Hisab Amt": item.finalHisabAmt
+                  }));
+                  exportToExcel(exportData, 'Soda_Pending_Full.xlsx');
+                } catch (error) {
+                  console.error('Failed to export all records', error);
+                }
+              }}
+            className="text-blue-500 hover:text-blue-400 text-xs font-bold flex items-center gap-1 bg-[var(--bg-base)] px-2 py-1 rounded border border-[var(--border-subtle)]"
+          >
+            <Download size={14} /> Export
+          </button>
  </div>
  
  <div className="flex-1 overflow-auto bg-[var(--bg-panel)] rounded-b-xl">
@@ -1947,6 +2326,11 @@ export const ProcurementManagement = () => {
  )}
  </tbody>
  </table>
+ <Pagination
+     currentPage={sodaPendingCurrentPage}
+     totalItems={sodaPendingTotalItems}
+     onPageChange={setSodaPendingCurrentPage}
+   />
  </div>
  </div>
  </div>
@@ -2099,6 +2483,27 @@ export const ProcurementManagement = () => {
   </CustomModal>
 
  <CustomModal 
+     isOpen={addMandiModal.isOpen} 
+     onClose={() => setAddMandiModal({ ...addMandiModal, isOpen: false })}
+     title={addMandiModal.id ? "Edit Mandi" : "Add New Mandi"}
+   >
+     <form onSubmit={handleAddMandi} className="space-y-4">
+       <div>
+         <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Mandi Name</label>
+         <input type="text" value={addMandiModal.name} onChange={e => setAddMandiModal({...addMandiModal, name: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
+       </div>
+       <div className="flex items-center gap-2">
+         <input type="checkbox" id="mandiStatus" checked={addMandiModal.isActive} onChange={e => setAddMandiModal({...addMandiModal, isActive: e.target.checked})} className="w-4 h-4" />
+         <label htmlFor="mandiStatus" className="text-sm text-[var(--text-main)]">Active Status</label>
+       </div>
+       <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
+         <button type="button" onClick={() => setAddMandiModal({...addMandiModal, isOpen: false})} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)]">Cancel</button>
+         <button type="submit" className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold hover:bg-[#cc7000] transition-colors">{addMandiModal.id ? "Update Mandi" : "Add Mandi"}</button>
+       </div>
+     </form>
+   </CustomModal>
+
+ <CustomModal 
     isOpen={addSupplierModal.isOpen} 
     onClose={() => setAddSupplierModal({ ...addSupplierModal, isOpen: false })}
     title="Add New Arthiya"
@@ -2123,7 +2528,12 @@ export const ProcurementManagement = () => {
       </div>
       <div>
         <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Mandi</label>
-        <input type="text" value={addSupplierModal.mandi} onChange={e => setAddSupplierModal({...addSupplierModal, mandi: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" placeholder="E.g. Kurali Mandi" />
+        <select value={addSupplierModal.mandi} onChange={e => setAddSupplierModal({...addSupplierModal, mandi: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]">
+          <option value="">Select Mandi</option>
+          {mandis.filter((m: any) => m.isActive).map((m: any) => (
+            <option key={m.id} value={m.name}>{m.name}</option>
+          ))}
+        </select>
       </div>
       <div>
         <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Contact Details</label>

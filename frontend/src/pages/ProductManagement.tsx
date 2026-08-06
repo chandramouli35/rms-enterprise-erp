@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, Box } from 'lucide-react';
 import api from '../api/axios';
+import Pagination from '../components/Pagination';
 
 import { HasPermission } from '../components/HasPermission';
 
 export const ProductManagement = () => {
   const [products, setProducts] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ id: '', name: '', type: 'PADDY', description: '' });
   const [isEditing, setIsEditing] = useState(false);
@@ -13,8 +16,9 @@ export const ProductManagement = () => {
 
   const fetchProducts = async () => {
     try {
-      const res = await api.get('/api/products');
-      setProducts(res.data);
+      const res = await api.get(`/api/products?page=${currentPage}&limit=10`);
+      setProducts(res.data.data || []);
+      setTotalItems(res.data.total || 0);
     } catch (err) {
       console.error(err);
     }
@@ -22,7 +26,7 @@ export const ProductManagement = () => {
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [currentPage]);
 
   const handleSave = async () => {
     try {
@@ -134,6 +138,12 @@ export const ProductManagement = () => {
               </tbody>
             </table>
           </div>
+          
+          <Pagination 
+            currentPage={currentPage}
+            totalItems={totalItems}
+            onPageChange={setCurrentPage}
+          />
         </div>
       </div>
 

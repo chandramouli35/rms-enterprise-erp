@@ -6,12 +6,34 @@ export class MasterDataService {
   constructor(private readonly prisma: PrismaService) {}
 
   // ===================== TRUCK MASTER =====================
-  async getTrucks(plantId: string) {
-    return this.prisma.truckMaster.findMany({ where: { plantId, isApproved: true }, orderBy: { truckNumber: 'asc' } });
+  async getTrucks(plantId: string, page?: string, limit?: string) {
+    const where = { plantId, isApproved: true };
+    if (page) {
+      const pageNum = parseInt(page || '1', 10);
+      const limitNum = parseInt(limit || '10', 10);
+      const skip = (pageNum - 1) * limitNum;
+      const [total, data] = await this.prisma.$transaction([
+        this.prisma.truckMaster.count({ where }),
+        this.prisma.truckMaster.findMany({ where, orderBy: { truckNumber: 'asc' }, skip, take: limitNum })
+      ]);
+      return { data, total };
+    }
+    return this.prisma.truckMaster.findMany({ where, orderBy: { truckNumber: 'asc' } });
   }
 
-  async getAllTrucks(plantId: string) {
-    return this.prisma.truckMaster.findMany({ where: { plantId }, orderBy: { createdAt: 'desc' } });
+  async getAllTrucks(plantId: string, page?: string, limit?: string) {
+    const where = { plantId };
+    if (page) {
+      const pageNum = parseInt(page || '1', 10);
+      const limitNum = parseInt(limit || '10', 10);
+      const skip = (pageNum - 1) * limitNum;
+      const [total, data] = await this.prisma.$transaction([
+        this.prisma.truckMaster.count({ where }),
+        this.prisma.truckMaster.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limitNum })
+      ]);
+      return { data, total };
+    }
+    return this.prisma.truckMaster.findMany({ where, orderBy: { createdAt: 'desc' } });
   }
 
   async createTruck(plantId: string, data: { truckNumber: string, capacity?: number, isApproved?: boolean }) {
@@ -68,8 +90,19 @@ export class MasterDataService {
   }
 
   // ===================== LABOUR MASTER =====================
-  async getLabour(plantId: string) {
-    return this.prisma.labourMaster.findMany({ where: { plantId, isActive: true }, orderBy: { name: 'asc' } });
+  async getLabour(plantId: string, page?: string, limit?: string) {
+    const where = { plantId, isActive: true };
+    if (page) {
+      const pageNum = parseInt(page || '1', 10);
+      const limitNum = parseInt(limit || '10', 10);
+      const skip = (pageNum - 1) * limitNum;
+      const [total, data] = await this.prisma.$transaction([
+        this.prisma.labourMaster.count({ where }),
+        this.prisma.labourMaster.findMany({ where, orderBy: { name: 'asc' }, skip, take: limitNum })
+      ]);
+      return { data, total };
+    }
+    return this.prisma.labourMaster.findMany({ where, orderBy: { name: 'asc' } });
   }
 
   async createLabour(plantId: string, data: { name: string, type?: string, contact?: string }) {

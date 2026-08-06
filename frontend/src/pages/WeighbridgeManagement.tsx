@@ -62,13 +62,19 @@ export const WeighbridgeManagement = () => {
     const fetchPendingSodas = async () => {
       try {
         const res = await api.get(`/api/procurement/soda-pending/${pid}`);
-        setPendingSodas(res.data);
+        setPendingSodas(Array.isArray(res.data) ? res.data : (res.data?.data || []));
       } catch (err) {
         console.error(err);
       }
     };
     fetchPendingSodas();
   }, [activePlant?.id, activeTab]);
+
+  useEffect(() => {
+    if (!selectedSodaId && pendingSodas.length > 0) {
+      setSelectedSodaId(pendingSodas[0].id);
+    }
+  }, [pendingSodas]);
 
   useEffect(() => {
     if (activeTab === 'history') {

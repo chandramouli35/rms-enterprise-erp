@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
 import { UsersRolesService } from './users-roles.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -17,8 +17,8 @@ export class UsersRolesController {
 
   @Get('list')
   @RequirePermission('Users and Roles', 'canView')
-  getUsersList() {
-    return this.service.getUsersList();
+  async getUsersList(@Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.service.getUsersList(page, limit);
   }
 
   @Post('create')

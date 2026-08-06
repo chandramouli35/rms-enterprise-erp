@@ -256,7 +256,7 @@ export class ProcurementService {
   }
 
 
-  async getInwards(plantId: string, dateFrom?: string, dateTo?: string) {
+  async getInwards(plantId: string, dateFrom?: string, dateTo?: string, mandi?: string, supplierId?: string, page?: string, limit?: string) {
     const whereClause: any = plantId === 'global' ? {} : { plantId };
     
     if (dateFrom || dateTo) {
@@ -268,22 +268,34 @@ export class ProcurementService {
         whereClause.createdAt.lte = to;
       }
     }
+    
+    // Add additional filters for Inwards
+    if (mandi || supplierId) {
+       whereClause.paddyInwardDetails = {};
+       if (mandi) whereClause.paddyInwardDetails.partyMandi = { contains: mandi, mode: 'insensitive' };
+       if (supplierId) whereClause.supplierId = supplierId; // supplierId is usually on ProcurementBatch
+    }
 
-    const inwards = await this.prisma.procurementBatch.findMany({
-      where: {
-        ...whereClause,
-        
-      },
-      include: {
-        supplier: true,
-        paddyInwardDetails: true,
-        weighbridge: true
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100
-    });
+    const pageNum = parseInt(page || '1', 10);
+    const limitNum = parseInt(limit || '10', 10);
+    const skip = (pageNum - 1) * limitNum;
 
-    return inwards.map(b => ({
+    const [total, inwards] = await this.prisma.$transaction([
+      this.prisma.procurementBatch.count({ where: whereClause }),
+      this.prisma.procurementBatch.findMany({
+        where: whereClause,
+        include: {
+          supplier: true,
+          paddyInwardDetails: true,
+          weighbridge: true
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum
+      })
+    ]);
+
+    const mappedData = inwards.map(b => ({
       id: b.id,
       purchaseNo: b.id.substring(0, 8).toUpperCase(),
       date: b.createdAt.toISOString().split('T')[0],
@@ -294,7 +306,10 @@ export class ProcurementService {
       vehicleNo: b.weighbridge?.vehicleNo || b.paddyInwardDetails?.truckNo || '-',
       grossWt: b.grossWeight || '-',
       tareWt: b.tareWeight || '-',
-      netWt: b.netWeight || b.paddyInwardDetails?.netWtAtParty || b.paddyInwardDetails?.netWtAtMill || '-',    }));
+      netWt: b.netWeight || b.paddyInwardDetails?.netWtAtParty || b.paddyInwardDetails?.netWtAtMill || '-',    
+    }));
+    
+    return { data: mappedData, total };
   }
 
   
@@ -312,7 +327,7 @@ export class ProcurementService {
     return batch;
   }
 
-  async getRecentPurchases(plantId: string, dateFrom?: string, dateTo?: string) {
+  async getRecentPurchases(plantId: string, dateFrom?: string, dateTo?: string, page?: string, limit?: string) {
     const whereClause: any = plantId === 'global' ? {} : { plantId };
     
     if (dateFrom || dateTo) {
@@ -325,19 +340,28 @@ export class ProcurementService {
       }
     }
 
-    const batches = await this.prisma.procurementBatch.findMany({
-      where: whereClause,
-      orderBy: { createdAt: 'desc' },
-      take: dateFrom || dateTo ? 100 : 5, // Increase limit if filtering by date
-      include: {
-        supplier: true,
-        quality: true,
-        weighbridge: true,
-        paddyInwardDetails: true
-      }
-    });
+    const pageNum = parseInt(page || '1', 10);
+    const limitNum = parseInt(limit || '10', 10);
+    const skip = (pageNum - 1) * limitNum;
 
-    return batches.map((b: any) => ({
+    const [total, batches] = await this.prisma.$transaction([
+      this.prisma.procurementBatch.count({ where: whereClause }),
+      this.prisma.procurementBatch.findMany({
+        where: whereClause,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum,
+        include: {
+          supplier: true,
+          quality: true,
+          weighbridge: true,
+          paddyInwardDetails: true
+        }
+      })
+    ]);
+
+    const mappedData = batches.map((b: any) => ({
+      id: b.id,
       purchaseNo: b.id.substring(0, 18),
       date: b.createdAt.toISOString().replace('T', ' ').substring(0, 16),
       supplier: b.supplier?.name || b.weighbridge?.supplierName || 'Unknown',
@@ -350,6 +374,8 @@ export class ProcurementService {
       qcStatus: b.quality?.status || 'Pending',
       inwardDetails: b.paddyInwardDetails || null
     }));
+    
+    return { data: mappedData, total };
   }
 
   async getBatch(batchId: string) {
@@ -518,7 +544,7 @@ export class ProcurementService {
   }
 
   async getPurchaseRegister(plantId: string, filters: any) {
-    const { startDate, endDate, supplierId, status } = filters;
+    const { startDate, endDate, supplierId, status, page, limit } = filters;
     const where: any = { plantId };
 
     if (startDate && endDate) {
@@ -535,13 +561,22 @@ export class ProcurementService {
       where.status = status;
     }
 
-    const batches = await this.prisma.procurementBatch.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: { supplier: true, quality: true, weighbridge: true, paddyInwardDetails: true }
-    });
+    const pageNum = parseInt(page || '1', 10);
+    const limitNum = parseInt(limit || '10', 10);
+    const skip = (pageNum - 1) * limitNum;
 
-    return batches.map((b: any) => ({
+    const [total, batches] = await this.prisma.$transaction([
+      this.prisma.procurementBatch.count({ where }),
+      this.prisma.procurementBatch.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum,
+        include: { supplier: true, quality: true, weighbridge: true, paddyInwardDetails: true }
+      })
+    ]);
+
+    const mappedData = batches.map((b: any) => ({
       id: b.id,
       purchaseNo: b.id.substring(0, 18),
       date: b.createdAt.toISOString().replace('T', ' ').substring(0, 10),
@@ -551,6 +586,8 @@ export class ProcurementService {
       status: b.status,
       inwardDetails: b.paddyInwardDetails || null
     }));
+    
+    return { data: mappedData, total };
   }
 
   // Next-Day Correction Guard
@@ -582,7 +619,7 @@ export class ProcurementService {
   }
 
   // Paddy Soda Pending Aggregate Endpoint
-  async getSodaPending(plantId: string, dateFrom?: string, dateTo?: string) {
+  async getSodaPending(plantId: string, dateFrom?: string, dateTo?: string, page?: string, limit?: string) {
     // We group by supplier and aggregate the pending diffs
     const whereClause: any = plantId === 'global' ? {} : { plantId };
     
@@ -596,13 +633,22 @@ export class ProcurementService {
       }
     }
 
-    const pending = await this.prisma.paddySodaPending.findMany({
-      where: whereClause,
-      include: { supplier: true, bolis: true },
-      orderBy: { date: 'desc' }
-    });
+    const pageNum = parseInt(page || '1', 10);
+    const limitNum = parseInt(limit || '10', 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    const [total, pending] = await this.prisma.$transaction([
+      this.prisma.paddySodaPending.count({ where: whereClause }),
+      this.prisma.paddySodaPending.findMany({
+        where: whereClause,
+        include: { supplier: true, bolis: true },
+        orderBy: { date: 'desc' },
+        skip,
+        take: limitNum
+      })
+    ]);
     
-    return pending.map(p => ({
+    const mappedData = pending.map(p => ({
       id: p.id,
       supplierId: p.supplierId,
       partyMandi: p.supplier.name,
@@ -617,6 +663,8 @@ export class ProcurementService {
       finalHisabAmt: p.finalHisabAmt,
       riceCategory: p.riceCategory
     }));
+    
+    return { data: mappedData, total };
   }
 
   async createSodaPending(data: any) {

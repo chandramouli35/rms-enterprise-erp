@@ -1,21 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api/axios';
+import Pagination from '../components/Pagination';
 
-export const PlantsList: React.FC = () => {
+ export const PlantsList: React.FC = () => {
  const [plants, setPlants] = useState<any[]>([]);
+ const [currentPage, setCurrentPage] = useState(1);
+ const [totalItems, setTotalItems] = useState(0);
  const [loading, setLoading] = useState(true);
  const [isModalOpen, setIsModalOpen] = useState(false);
  const [formData, setFormData] = useState({ name: '', location: '', code: '', aClassBagWeight: '0.380', bClassBagWeight: '0.385' });
 
  useEffect(() => {
  fetchPlants();
- }, []);
+ }, [currentPage]);
 
  const fetchPlants = async () => {
  try {
  setLoading(true);
- const res = await api.get('/plants');
- setPlants(res.data);
+ const res = await api.get(`/plants?page=${currentPage}&limit=10`);
+ setPlants(res.data.data || []);
+ setTotalItems(res.data.total || 0);
  } catch (err) {
  console.error('Failed to fetch plants', err);
  } finally {
@@ -72,6 +76,12 @@ export const PlantsList: React.FC = () => {
  </tbody>
  </table>
  )}
+ 
+ <Pagination 
+   currentPage={currentPage}
+   totalItems={totalItems}
+   onPageChange={setCurrentPage}
+ />
  </div>
 
  {isModalOpen && (

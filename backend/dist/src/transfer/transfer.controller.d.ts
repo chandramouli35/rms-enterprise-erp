@@ -1,0 +1,82 @@
+import { TransferService } from './transfer.service';
+import { CreateTransferDto, UpdateTransferStatusDto } from './dto/create-transfer.dto';
+export declare class TransferController {
+    private readonly transferService;
+    constructor(transferService: TransferService);
+    getMetrics(plantId: string): Promise<{
+        total: number;
+        approved: number;
+        approvedValue: number;
+        inTransit: number;
+        inTransitValue: number;
+        delivered: number;
+        deliveredValue: number;
+        cancelled: number;
+        cancelledValue: number;
+        inTransitQuantity: number;
+        delayedTransfers: number;
+    }>;
+    getAllTransfers(plantId: string, status?: string, dateFrom?: string, dateTo?: string, page?: string, limit?: string): Promise<{
+        data: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            date: Date;
+            variety: string | null;
+            status: string;
+            remarks: string | null;
+            quantity: number;
+            vehicleNo: string | null;
+            driverName: string | null;
+            toPlantId: string;
+            fromPlantId: string;
+            requestNo: string;
+            item: string;
+            estimatedValue: number | null;
+            expectedDelivery: Date | null;
+            dispatchedOn: Date | null;
+            receivedOn: Date | null;
+        }[];
+        total: number;
+    }>;
+    createTransfer(createTransferDto: CreateTransferDto): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        date: Date;
+        variety: string | null;
+        status: string;
+        remarks: string | null;
+        quantity: number;
+        vehicleNo: string | null;
+        driverName: string | null;
+        toPlantId: string;
+        fromPlantId: string;
+        requestNo: string;
+        item: string;
+        estimatedValue: number | null;
+        expectedDelivery: Date | null;
+        dispatchedOn: Date | null;
+        receivedOn: Date | null;
+    }>;
+    updateStatus(id: string, updateStatusDto: UpdateTransferStatusDto): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        date: Date;
+        variety: string | null;
+        status: string;
+        remarks: string | null;
+        quantity: number;
+        vehicleNo: string | null;
+        driverName: string | null;
+        toPlantId: string;
+        fromPlantId: string;
+        requestNo: string;
+        item: string;
+        estimatedValue: number | null;
+        expectedDelivery: Date | null;
+        dispatchedOn: Date | null;
+        receivedOn: Date | null;
+    }>;
+}

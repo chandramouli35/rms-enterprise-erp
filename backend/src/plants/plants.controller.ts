@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, UseGuards, Query } from '@nestjs/common';
 import { PlantsService } from './plants.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
@@ -8,8 +8,8 @@ export class PlantsController {
   constructor(private readonly plantsService: PlantsService) {}
 
   @Get()
-  async findAll() {
-    return this.plantsService.findAll();
+  async findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.plantsService.findAll(page, limit);
   }
 
   @Post()

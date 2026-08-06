@@ -71,6 +71,7 @@ export const DashboardShell: React.FC = () => {
  { label: 'Dashboard', href: '/dashboard', icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'WEIGHBRIDGE_OPERATOR', 'ACCOUNTANT'] },
  { label: 'Procurement', href: '/procurement', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
       { label: 'Supplier Master', tab: 'supplier_master' },
+      { label: 'Mandi Master', tab: 'mandi_master' },
       { label: 'Paddy Purchase & Quality', tab: 'paddy_purchase' },
       { label: 'Paddy Inward', tab: 'paddy_inward' },
       { label: 'Inward List', tab: 'inward_register' },
@@ -79,8 +80,7 @@ export const DashboardShell: React.FC = () => {
  { label: 'Production', href: '/production', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
  { label: 'Batch Creation', tab: 'batch_creation' },
  { label: 'Production Tracking', tab: 'production_tracking' },
- // { label: 'Process Loss', tab: 'process_loss' },
- // { label: 'By-products', tab: 'by-products' }
+ { label: 'Intermill History', tab: 'intermill_history' }
  ]},
  { label: 'Yield Mgmt', href: '/yield', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
  { label: 'Yield Calculator', tab: 'yield_calculator' },

@@ -7,6 +7,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { usePlantStore } from '../store/plantStore';
 import { CustomModal } from '../components/CustomModal';
 import { useUiStore } from '../store/uiStore';
+import Pagination from '../components/Pagination';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -88,6 +89,8 @@ export const GatePassManagement = () => {
  const [suppliers, setSuppliers] = useState<any[]>([]);
  const [plants, setPlants] = useState<any[]>([]);
  const [recentEntries, setRecentEntries] = useState<any[]>([]);
+ const [currentPage, setCurrentPage] = useState(1);
+ const [totalItems, setTotalItems] = useState(0);
  const [duplicateLogs, setDuplicateLogs] = useState<any[]>([]);
  const [analytics, setAnalytics] = useState<any>({
  totalGateIn: 0,
@@ -127,7 +130,23 @@ export const GatePassManagement = () => {
  boliChecklist: false
  };
  const [formData, setFormData] = useState(defaultFormData);
- const [generatedPass, setGeneratedPass] = useState<any>(null);
+ 
+  // Auto-select first options for dynamic dropdowns if not already selected
+  useEffect(() => {
+    setFormData((prev: any) => {
+      let updated = false;
+      const next = { ...prev };
+      
+      if (!next.supplierId && suppliers.length > 0) {
+        next.supplierId = suppliers[0].id;
+        updated = true;
+      }
+      
+      return updated ? next : prev;
+    });
+  }, [suppliers]);
+  
+  const [generatedPass, setGeneratedPass] = useState<any>(null);
 
  const [viewPassModalOpen, setViewPassModalOpen] = useState(false);
  const [selectedPass, setSelectedPass] = useState<any>(null);
@@ -263,36 +282,43 @@ export const GatePassManagement = () => {
  }
  };
 
-  const handleDownload = () => {
-  if (activeTab === 'report_summary') {
-  if (recentEntries.length === 0) return;
-  const headers = ['S.No.', 'Type', 'Empty Video Time', 'Loaded Video Time', 'GP No', 'Truck No', 'Party', 'Item', 'Bags', 'Net Weight', 'Soda No.', 'Note'];
-  const rows = recentEntries.map((entry, idx) => [
-  idx + 1,
-  entry.passType,
-  entry.emptyVideoTime || '',
-  entry.loadedVideoTime || '',
-  entry.qrCode,
-  entry.vehicleNo,
-  entry.partyName || entry.supplier?.name || '',
-  entry.material || entry.purpose || '',
-  entry.noOfBags || '',
-  entry.netWeight || '',
-  entry.sodaNo || '',
-  entry.remarks || ''
-  ]);
-  const csvContent = headers.join(',') + '\n' + rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  link.setAttribute('href', url);
-  link.setAttribute('download', `gate_pass_report_${new Date().getTime()}.csv`);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  return;
-  }
+  const handleDownload = async () => {
+    if (activeTab === 'report_summary') {
+    try {
+      const pid = activePlant?.id || 'global';
+      const res = await api.get(`/api/gatepass/recent/${pid}?limit=1000000&status=all`);
+      const allEntries = res.data.data || [];
+      if (allEntries.length === 0) return;
+      const headers = ['S.No.', 'Type', 'Empty Video Time', 'Loaded Video Time', 'GP No', 'Truck No', 'Party', 'Item', 'Bags', 'Net Weight', 'Soda No.', 'Note'];
+      const rows = allEntries.map((entry: any, idx: number) => [
+      idx + 1,
+      entry.passType,
+      entry.emptyVideoTime || '',
+      entry.loadedVideoTime || '',
+      entry.qrCode,
+      entry.vehicleNo,
+      entry.partyName || entry.supplier?.name || '',
+      entry.material || entry.purpose || '',
+      entry.noOfBags || '',
+      entry.netWeight || '',
+      entry.sodaNo || '',
+      entry.remarks || ''
+      ]);
+      const csvContent = headers.join(',') + '\n' + rows.map((r: any) => r.map((v: any) => `"${v}"`).join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `gate_pass_report_${new Date().getTime()}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Failed to export all records', error);
+    }
+    return;
+    }
 
   if (!selectedPass) return;
   
@@ -326,11 +352,11 @@ export const GatePassManagement = () => {
  document.body.removeChild(link);
  };
 
- useEffect(() => {
+  useEffect(() => {
     const pid = activePlant?.id || 'global';
     setFormData(prev => ({ ...prev, plantId: pid }));
     fetchData();
-  }, [activePlant, activeTab]);
+  }, [activePlant, activeTab, currentPage]);
 
   const fetchData = async () => {
     const pid = activePlant?.id || 'global';
@@ -354,12 +380,15 @@ export const GatePassManagement = () => {
     try {
       const [analyticsRes, recentRes, logsRes] = await Promise.allSettled([
         api.get(`/api/gate-pass/analytics/${pid}`),
-        api.get(`/api/gate-pass/recent/${pid}?type=${activeTab === 'report_summary' ? 'ALL' : activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}`),
+        api.get(`/api/gate-pass/recent/${pid}?type=${activeTab === 'report_summary' ? 'ALL' : activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}&page=${currentPage}&limit=10`),
         api.get(`/api/gate-pass/duplicate-logs/${pid}`)
       ]);
       
       if (analyticsRes.status === 'fulfilled') setAnalytics(analyticsRes.value.data);
-      if (recentRes.status === 'fulfilled') setRecentEntries(recentRes.value.data);
+      if (recentRes.status === 'fulfilled') {
+        setRecentEntries(recentRes.value.data.data || []);
+        setTotalItems(recentRes.value.data.total || 0);
+      }
       if (logsRes.status === 'fulfilled') setDuplicateLogs(logsRes.value.data.slice(0, 3));
     } catch (error) {
       console.error('Failed to fetch gate pass data:', error);
@@ -797,18 +826,11 @@ export const GatePassManagement = () => {
  </div>
 
  {/* Pagination */}
- <div className="flex items-center justify-between mt-4 pt-4 border-t border-[var(--border-subtle)]">
- <p className="text-xs text-[var(--text-muted-alt)]">Showing {recentEntries.length > 0 ? 1 : 0} to {recentEntries.length} of {recentEntries.length} entries</p>
- <div className="flex items-center space-x-1">
- <button className="px-2.5 py-1 rounded bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-[var(--text-muted-alt)] hover:bg-[var(--glass-bg)] text-sm">&lt;</button>
- <button className="px-2.5 py-1 rounded bg-blue-600 text-[var(--text-main)] font-medium text-sm">1</button>
- <button className="px-2.5 py-1 rounded bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-[var(--text-muted-alt)] hover:bg-[var(--glass-bg)] text-sm">2</button>
- <button className="px-2.5 py-1 rounded bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-[var(--text-muted-alt)] hover:bg-[var(--glass-bg)] text-sm">3</button>
- <span className="text-gray-600 px-1">...</span>
- <button className="px-2.5 py-1 rounded bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-[var(--text-muted-alt)] hover:bg-[var(--glass-bg)] text-sm">10</button>
- <button className="px-2.5 py-1 rounded bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-[var(--text-muted-alt)] hover:bg-[var(--glass-bg)] text-sm">&gt;</button>
- </div>
- </div>
+ <Pagination 
+   currentPage={currentPage}
+   totalItems={totalItems}
+   onPageChange={setCurrentPage}
+ />
  </div>
  </div>
  )}
@@ -957,6 +979,12 @@ export const GatePassManagement = () => {
   ))}
   </tbody>
   </table>
+  {/* Pagination */}
+  <Pagination 
+    currentPage={currentPage}
+    totalItems={totalItems}
+    onPageChange={setCurrentPage}
+  />
   </div>
   )}
 

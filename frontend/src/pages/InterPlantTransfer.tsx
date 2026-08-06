@@ -8,6 +8,7 @@ import api from '../api/axios';
 import { usePlantStore } from '../store/plantStore';
 import { useUiStore } from '../store/uiStore';
 import { exportToPDF, exportToExcel } from '../utils/exportUtils';
+import Pagination from '../components/Pagination';
 
 export const InterPlantTransfer = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -15,6 +16,10 @@ export const InterPlantTransfer = () => {
   const activePlant = usePlantStore((state) => state.activePlant);
   const [loading, setLoading] = useState(false);
   const [transfers, setTransfers] = useState<any[]>([]);
+  const [transfersCurrentPage, setTransfersCurrentPage] = useState(1);
+  const [transfersTotalItems, setTransfersTotalItems] = useState(0);
+  const [inTransitCurrentPage, setInTransitCurrentPage] = useState(1);
+  const [inTransitTotalItems, setInTransitTotalItems] = useState(0);
   const [metrics, setMetrics] = useState<any>({
     total: 0,
     approved: 0,
@@ -68,14 +73,27 @@ export const InterPlantTransfer = () => {
       const query = new URLSearchParams({ plantId: activePlant.id });
       if (filters.dateFrom) query.append('dateFrom', filters.dateFrom);
       if (filters.dateTo) query.append('dateTo', filters.dateTo);
-      if (filters.status) query.append('status', filters.status);
 
-      const [transfersRes, metricsRes] = await Promise.all([
-        api.get(`/transfer?${query.toString()}`),
-        api.get(`/transfer/metrics?plantId=${activePlant.id}`)
-      ]);
-      setTransfers(transfersRes.data);
+      const metricsRes = await api.get(`/transfer/metrics?plantId=${activePlant.id}`);
       setMetrics(metricsRes.data);
+
+      if (activeTab === 'transfer_request' || activeTab === 'transfer_tracking') {
+        if (filters.status) query.append('status', filters.status);
+        query.append('page', transfersCurrentPage.toString());
+        query.append('limit', activeTab === 'transfer_tracking' ? '100' : '10');
+        
+        const transfersRes = await api.get(`/transfer?${query.toString()}`);
+        setTransfers(transfersRes.data.data || []);
+        setTransfersTotalItems(transfersRes.data.total || 0);
+      } else if (activeTab === 'in_transit_stock') {
+        query.append('status', 'In Transit,Dispatched');
+        query.append('page', inTransitCurrentPage.toString());
+        query.append('limit', '10');
+        
+        const inTransitRes = await api.get(`/transfer?${query.toString()}`);
+        setTransfers(inTransitRes.data.data || []);
+        setInTransitTotalItems(inTransitRes.data.total || 0);
+      }
     } catch (error) {
       console.error('Failed to fetch transfers:', error);
     }
@@ -89,7 +107,7 @@ export const InterPlantTransfer = () => {
     fetchTransfersAndMetrics();
     const interval = setInterval(fetchTransfersAndMetrics, 30000); // 30s poll
     return () => clearInterval(interval);
-  }, [activePlant, filters]);
+  }, [activePlant, filters, activeTab, transfersCurrentPage, inTransitCurrentPage]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -145,7 +163,7 @@ export const InterPlantTransfer = () => {
 
   const getPlantName = (id: string) => plants.find(p => p.id === id)?.name || 'Unknown';
 
-  const inTransitTransfers = transfers.filter(t => t.status === 'In Transit' || t.status === 'Dispatched');
+  const inTransitTransfers = activeTab === 'in_transit_stock' ? transfers : transfers.filter(t => t.status === 'In Transit' || t.status === 'Dispatched');
 
   return (
     <div className="flex flex-col h-full bg-[var(--bg-base)] text-[var(--text-muted)]">
@@ -234,31 +252,63 @@ export const InterPlantTransfer = () => {
                       <option value="Completed">Completed</option>
                     </select>
                   </div>
-                  <button onClick={() => {
-                    const data = transfers.map(t => ({
-                      RequestNo: t.requestNo,
-                      Date: new Date(t.date).toLocaleDateString(),
-                      FromPlant: getPlantName(t.fromPlantId),
-                      ToPlant: getPlantName(t.toPlantId),
-                      Item: t.item,
-                      Quantity: t.quantity,
-                      Status: t.status
-                    }));
-                    exportToPDF('Transfer Requests', Object.keys(data[0]), data.map(d => Object.values(d)), 'transfer_requests.pdf');
+                  <button onClick={async () => {
+                    try {
+                      const query = new URLSearchParams();
+                      query.append('plantId', activePlant?.id || 'global');
+                      if (filters.dateFrom) query.append('dateFrom', filters.dateFrom);
+                      if (filters.dateTo) query.append('dateTo', filters.dateTo);
+                      if (filters.status) query.append('status', filters.status);
+                      query.append('limit', '1000000');
+                      query.append('page', '1');
+                      
+                      const res = await api.get(`/transfer?${query.toString()}`);
+                      const transData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                      
+                      const data = transData.map((t: any) => ({
+                        RequestNo: t.requestNo,
+                        Date: new Date(t.date).toLocaleDateString(),
+                        FromPlant: getPlantName(t.fromPlantId),
+                        ToPlant: getPlantName(t.toPlantId),
+                        Item: t.item,
+                        Quantity: t.quantity,
+                        Status: t.status
+                      }));
+                      if (data.length > 0) {
+                        exportToPDF('Transfer Requests', Object.keys(data[0]), data.map((d: any) => Object.values(d)), 'transfer_requests.pdf');
+                      }
+                    } catch (error) {
+                      console.error('Failed to export all records', error);
+                    }
                   }} className="bg-red-500/10 text-red-500 hover:bg-red-500/20 px-2 py-1 rounded text-xs flex gap-1 items-center font-bold">
                     <FileText size={14} /> PDF
                   </button>
-                  <button onClick={() => {
-                    const data = transfers.map(t => ({
-                      RequestNo: t.requestNo,
-                      Date: new Date(t.date).toLocaleDateString(),
-                      FromPlant: getPlantName(t.fromPlantId),
-                      ToPlant: getPlantName(t.toPlantId),
-                      Item: t.item,
-                      Quantity: t.quantity,
-                      Status: t.status
-                    }));
-                    exportToExcel(data, 'transfer_requests.xlsx');
+                  <button onClick={async () => {
+                    try {
+                      const query = new URLSearchParams();
+                      query.append('plantId', activePlant?.id || 'global');
+                      if (filters.dateFrom) query.append('dateFrom', filters.dateFrom);
+                      if (filters.dateTo) query.append('dateTo', filters.dateTo);
+                      if (filters.status) query.append('status', filters.status);
+                      query.append('limit', '1000000');
+                      query.append('page', '1');
+                      
+                      const res = await api.get(`/transfer?${query.toString()}`);
+                      const transData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                      
+                      const data = transData.map((t: any) => ({
+                        RequestNo: t.requestNo,
+                        Date: new Date(t.date).toLocaleDateString(),
+                        FromPlant: getPlantName(t.fromPlantId),
+                        ToPlant: getPlantName(t.toPlantId),
+                        Item: t.item,
+                        Quantity: t.quantity,
+                        Status: t.status
+                      }));
+                      exportToExcel(data, 'transfer_requests.xlsx');
+                    } catch (error) {
+                      console.error('Failed to export all records', error);
+                    }
                   }} className="bg-green-500/10 text-green-500 hover:bg-green-500/20 px-2 py-1 rounded text-xs flex gap-1 items-center font-bold">
                     <Download size={14} /> Excel
                   </button>
@@ -321,6 +371,11 @@ export const InterPlantTransfer = () => {
                   </tbody>
                 </table>
               </div>
+              <Pagination 
+                currentPage={transfersCurrentPage}
+                totalItems={transfersTotalItems}
+                onPageChange={setTransfersCurrentPage}
+              />
             </div>
           </div>
         )}
@@ -566,6 +621,11 @@ export const InterPlantTransfer = () => {
                   </tbody>
                 </table>
               </div>
+              <Pagination 
+                currentPage={inTransitCurrentPage}
+                totalItems={inTransitTotalItems}
+                onPageChange={setInTransitCurrentPage}
+              />
             </div>
           </div>
         )}

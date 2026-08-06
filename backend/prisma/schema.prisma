@@ -29,6 +29,7 @@ model Plant {
   productionBatches       ProductionBatch[]
   yieldReports            YieldReport[]
   gatePasses              GatePass[]
+  intermillBatches        IntermillBatch[]
   duplicateGatePassLogs   DuplicateGatePassLog[]
   weighbridgeTransactions WeighbridgeTransaction[]
   weighbridgeSettings     WeighbridgeSettings?
@@ -107,6 +108,7 @@ model User {
   plantAccess UserPlantAccess[]
   auditLogs   SystemAuditLog[]
   permissionOverrides PermissionOverride[]
+  intermillBatches    IntermillBatch[] @relation("IntermillSupervisor")
 
   // Tracking
   lastLogin DateTime?
@@ -433,7 +435,7 @@ model WeighbridgeTransaction {
 model GatePass {
   id          String    @id @default(uuid())
   plantId     String
-  plant       Plant     @relation(fields: [plantId], references: [id])
+  plant       Plant    @relation(fields: [plantId], references: [id])
   passType    String // INWARD, OUTWARD
   vehicleNo   String
   vehicleType String?
@@ -702,6 +704,8 @@ model Product {
   description String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  intermillAsRaw     IntermillBatch[]  @relation("IntermillRawMaterial")
+  intermillAsOutput  IntermillOutput[] @relation("IntermillOutputProduct")
 }
 
 // -----------------------------------------------------------------------------
@@ -949,4 +953,48 @@ model GlobalSetting {
   key       String   @unique
   value     String
   updatedAt DateTime @updatedAt
+}
+
+model Mandi {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model IntermillBatch {
+  id              String   @id @default(uuid())
+  batchNo         String   @unique
+  shift           String
+  supervisorId    String
+  supervisor      User     @relation("IntermillSupervisor", fields: [supervisorId], references: [id])
+  date            DateTime
+  startTime       String
+  endTime         String
+  rawMaterialId   String
+  rawMaterial     Product  @relation("IntermillRawMaterial", fields: [rawMaterialId], references: [id])
+  inputBags       Float
+  status          String   @default("COMPLETED") // COMPLETED, PENDING_APPROVAL, REJECTED
+  plantId         String
+  plant           Plant    @relation(fields: [plantId], references: [id])
+  outputs         IntermillOutput[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([plantId])
+  @@index([date])
+}
+
+model IntermillOutput {
+  id              String         @id @default(uuid())
+  batchId         String
+  batch           IntermillBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product        @relation("IntermillOutputProduct", fields: [productId], references: [id])
+  outputBags      Float
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([batchId])
 }

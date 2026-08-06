@@ -99,6 +99,13 @@ export const YieldManagement = () => {
     }
   }, [activePlant?.id, activeTab, filters.dateFrom, filters.dateTo]);
 
+  // Auto-select first batch if available and not selected
+  useEffect(() => {
+    if (batches.length > 0 && !calcBatchInfo.batchNo) {
+      setCalcBatchInfo({ batchNo: batches[0].batchNo, variety: batches[0].variety, date: batches[0].date });
+    }
+  }, [batches]);
+
   const handleCalculateYield = async () => {
     if (!calcBatchInfo.batchNo) {
       setNotification({ message: 'Please select a batch first', type: 'error' });
@@ -556,44 +563,76 @@ export const YieldManagement = () => {
    
    <div className="h-6 w-px bg-[var(--glass-bg)] mx-1"></div>
    
-    <button onClick={() => {
-      const exportData = historicalReports.map((r, i) => ({
-        '#': i + 1,
-        'Date': new Date(r.createdAt).toLocaleDateString(),
-        'Batch No.': r.batch?.batchNo || '-',
-        'Plant': activePlant?.name || 'Unknown',
-        'Variety': r.batch?.variety || '-',
-        'Paddy Used (MT)': r.batch?.paddyUsedQty || 0,
-        'Rice Produced (MT)': r.batch?.riceProducedQty || 0,
-        'Head Rice (%)': r.headRicePercent || 0,
-        'Broken Rice (%)': r.brokenRicePercent || 0,
-        'By-Products (MT)': (r.batch?.paddyUsedQty ? (((r.branPercent || 0) + (r.huskPercent || 0)) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3),
-        'Loss (MT)': (r.batch?.paddyUsedQty ? ((r.lossPercent || 0) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3),
-        'Overall Recovery (%)': r.overallRecovery || 0
-      }));
-      exportToExcel(exportData, 'historical_yield.xlsx');
-    }} className="flex items-center gap-1.5 text-green-400 border border-green-500/30 hover:bg-green-500/10 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+    <button onClick={async () => {
+       try {
+         const query = new URLSearchParams();
+         query.append('plantId', activePlant?.id || 'global');
+         if (filters.dateFrom) query.append('startDate', filters.dateFrom);
+         if (filters.dateTo) query.append('endDate', filters.dateTo);
+         if (filters.variety) query.append('variety', filters.variety);
+         query.append('limit', '1000000');
+         query.append('page', '1');
+         
+         const res = await api.get(`/yield/historical?${query.toString()}`);
+         const historyData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+         
+         const exportData = historyData.map((r: any, i: number) => ({
+           '#': i + 1,
+           'Date': new Date(r.createdAt).toLocaleDateString(),
+           'Batch No.': r.batch?.batchNo || '-',
+           'Plant': activePlant?.name || 'Unknown',
+           'Variety': r.batch?.variety || '-',
+           'Paddy Used (MT)': r.batch?.paddyUsedQty || 0,
+           'Rice Produced (MT)': r.batch?.riceProducedQty || 0,
+           'Head Rice (%)': r.headRicePercent || 0,
+           'Broken Rice (%)': r.brokenRicePercent || 0,
+           'By-Products (MT)': (r.batch?.paddyUsedQty ? (((r.branPercent || 0) + (r.huskPercent || 0)) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3),
+           'Loss (MT)': (r.batch?.paddyUsedQty ? ((r.lossPercent || 0) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3),
+           'Overall Recovery (%)': r.overallRecovery || 0
+         }));
+         exportToExcel(exportData, 'historical_yield.xlsx');
+       } catch (error) {
+         console.error('Failed to export all records', error);
+       }
+     }} className="flex items-center gap-1.5 text-green-400 border border-green-500/30 hover:bg-green-500/10 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
     <Download size={14} /> Excel
     </button>
-    <button onClick={() => {
-      const exportData = historicalReports.map((r, i) => ({
-        '#': i + 1,
-        'Date': new Date(r.createdAt).toLocaleDateString(),
-        'Batch No.': r.batch?.batchNo || '-',
-        'Plant': activePlant?.name || 'Unknown',
-        'Variety': r.batch?.variety || '-',
-        'Paddy Used (MT)': r.batch?.paddyUsedQty || 0,
-        'Rice Produced (MT)': r.batch?.riceProducedQty || 0,
-        'Head Rice (%)': r.headRicePercent || 0,
-        'Broken Rice (%)': r.brokenRicePercent || 0,
-        'By-Products (MT)': (r.batch?.paddyUsedQty ? (((r.branPercent || 0) + (r.huskPercent || 0)) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3),
-        'Loss (MT)': (r.batch?.paddyUsedQty ? ((r.lossPercent || 0) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3),
-        'Overall Recovery (%)': r.overallRecovery || 0
-      }));
-      exportToPDF('Historical Yield Reports', Object.keys(exportData[0]), exportData.map(d => Object.values(d)), 'historical_yield.pdf');
-    }} className="flex items-center gap-1.5 text-red-400 border border-red-500/30 hover:bg-red-500/10 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
-    <FileText size={14} /> PDF
-    </button>
+     <button onClick={async () => {
+       try {
+         const query = new URLSearchParams();
+         query.append('plantId', activePlant?.id || 'global');
+         if (filters.dateFrom) query.append('startDate', filters.dateFrom);
+         if (filters.dateTo) query.append('endDate', filters.dateTo);
+         if (filters.variety) query.append('variety', filters.variety);
+         query.append('limit', '1000000');
+         query.append('page', '1');
+         
+         const res = await api.get(`/yield/historical?${query.toString()}`);
+         const historyData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+         
+         const exportData = historyData.map((r: any, i: number) => ({
+           '#': i + 1,
+           'Date': new Date(r.createdAt).toLocaleDateString(),
+           'Batch No.': r.batch?.batchNo || '-',
+           'Plant': activePlant?.name || 'Unknown',
+           'Variety': r.batch?.variety || '-',
+           'Paddy Used (MT)': r.batch?.paddyUsedQty || 0,
+           'Rice Produced (MT)': r.batch?.riceProducedQty || 0,
+           'Head Rice (%)': r.headRicePercent || 0,
+           'Broken Rice (%)': r.brokenRicePercent || 0,
+           'By-Products (MT)': (r.batch?.paddyUsedQty ? (((r.branPercent || 0) + (r.huskPercent || 0)) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3),
+           'Loss (MT)': (r.batch?.paddyUsedQty ? ((r.lossPercent || 0) / 100 * r.batch.paddyUsedQty) : 0).toFixed(3),
+           'Overall Recovery (%)': r.overallRecovery || 0
+         }));
+         if (exportData.length > 0) {
+           exportToPDF('Historical Yield Reports', Object.keys(exportData[0]), exportData.map((d: any) => Object.values(d)), 'historical_yield.pdf');
+         }
+       } catch (error) {
+         console.error('Failed to export all records', error);
+       }
+     }} className="flex items-center gap-1.5 text-red-400 border border-red-500/30 hover:bg-red-500/10 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+     <FileText size={14} /> PDF
+     </button>
    </div>
    </div>
    

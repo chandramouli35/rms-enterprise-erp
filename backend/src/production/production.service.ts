@@ -80,7 +80,7 @@ export class ProductionService {
     };
   }
 
-  async getBatches(plantId: string, status?: string, dateFrom?: string, dateTo?: string, role?: string) {
+  async getBatches(plantId: string, status?: string, dateFrom?: string, dateTo?: string, role?: string, page?: string, limit?: string) {
     const where: any = plantId === 'global' ? {} : { plantId };
     if (status && status !== 'All') where.status = status;
     
@@ -108,10 +108,21 @@ export class ProductionService {
       if (toDate) where.date.lte = toDate;
     }
 
-    return this.prisma.productionBatch.findMany({
-      where,
-      orderBy: { date: 'desc' }
-    });
+    const pageNum = parseInt(page || '1', 10);
+    const limitNum = parseInt(limit || '10', 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    const [total, data] = await this.prisma.$transaction([
+      this.prisma.productionBatch.count({ where }),
+      this.prisma.productionBatch.findMany({
+        where,
+        orderBy: { date: 'desc' },
+        skip,
+        take: limitNum
+      })
+    ]);
+
+    return { data, total };
   }
 
   async getBatchDetails(id: string) {

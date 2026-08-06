@@ -20,9 +20,11 @@ import { FinanceModule } from './finance/finance.module';
 import { PowerManagementModule } from './power-management/power-management.module';
 import { MasterDataModule } from './master-data/master-data.module';
 import { SettingsModule } from './settings/settings.module';
+import { MandisModule } from './mandis/mandis.module';
+import { IntermillModule } from './intermill/intermill.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, PlantsModule, DashboardModule, UsersModule, UsersRolesModule, ProcurementModule, WeighbridgeModule, GatePassModule, ProductionModule, YieldModule, InventoryModule, TransferModule, ProductsModule, DispatchFinanceModule, FinanceModule, PowerManagementModule, MasterDataModule, SettingsModule],
+  imports: [PrismaModule, AuthModule, PlantsModule, DashboardModule, UsersModule, UsersRolesModule, ProcurementModule, WeighbridgeModule, GatePassModule, ProductionModule, YieldModule, InventoryModule, TransferModule, ProductsModule, DispatchFinanceModule, FinanceModule, PowerManagementModule, MasterDataModule, SettingsModule, MandisModule, IntermillModule],
   controllers: [AppController],
   providers: [AppService],
 })

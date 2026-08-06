@@ -65,18 +65,36 @@ export class TransferService {
     };
   }
 
-  async getAllTransfers(plantId?: string, status?: string, dateFrom?: string, dateTo?: string) {
+  async getAllTransfers(plantId?: string, status?: string, dateFrom?: string, dateTo?: string, page?: string, limit?: string) {
     const where: any = plantId ? { OR: [{ fromPlantId: plantId }, { toPlantId: plantId }] } : {};
     
-    if (status && status !== 'All') where.status = status;
+    if (status && status !== 'All') {
+      const statuses = status.split(',');
+      if (statuses.length > 1) {
+        where.status = { in: statuses };
+      } else {
+        where.status = status;
+      }
+    }
     if (dateFrom && dateTo) {
       where.date = { gte: new Date(dateFrom), lte: new Date(dateTo) };
     }
 
-    return this.prisma.interPlantTransfer.findMany({
-      where,
-      orderBy: { date: 'desc' },
-    });
+    const pageNum = parseInt(page || '1', 10);
+    const limitNum = parseInt(limit || '10', 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    const [total, data] = await this.prisma.$transaction([
+      this.prisma.interPlantTransfer.count({ where }),
+      this.prisma.interPlantTransfer.findMany({
+        where,
+        orderBy: { date: 'desc' },
+        skip,
+        take: limitNum
+      })
+    ]);
+
+    return { data, total };
   }
 
   async createTransfer(dto: CreateTransferDto) {

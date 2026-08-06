@@ -11,6 +11,7 @@ import {
 import { exportToPDF, exportToExcel } from '../utils/exportUtils';
 import { usePlantStore } from '../store/plantStore';
 import { inventoryApi } from '../api/inventory';
+import api from '../api/axios';
 import { StockReport } from './StockReport';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -311,33 +312,65 @@ export const InventoryManagement = () => {
             <Search size={14} className="text-[var(--text-muted-alt)]" />
             <input type="text" value={filters.search} onChange={e => setFilters(f => ({...f, search: e.target.value}))} placeholder="Search Item / Godown" className="bg-transparent text-xs text-[var(--text-main)] outline-none w-40" />
           </div>
-          <button onClick={() => {
-            const data = inventoryList.map(i => ({
-              Item: i.variety || i.itemType,
-              Category: i.itemType,
-              Godown: i.godown,
-              Stock: i.quantity,
-              Usable: i.usable,
-              Reserved: i.reserved,
-              Damaged: i.damaged,
-              Value: i.stockValue
-            }));
-            exportToExcel(data, 'inventory_stock.xlsx');
+          <button onClick={async () => {
+            try {
+              const res = await api.get('/inventory', {
+                params: {
+                  itemType: activeTab,
+                  godown: activeGodown === 'all' ? undefined : activeGodown,
+                  search: filters.search,
+                  category: filters.category,
+                  variety: filters.variety,
+                  limit: 1000000,
+                  page: 1
+                }
+              });
+              const inventoryData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+              const data = inventoryData.map((i: any) => ({
+                Item: i.variety || i.itemType,
+                Category: i.itemType,
+                Godown: i.godown,
+                Stock: i.quantity,
+                Usable: i.usable,
+                Reserved: i.reserved,
+                Damaged: i.damaged,
+                Value: i.stockValue
+              }));
+              exportToExcel(data, 'inventory_stock.xlsx');
+            } catch (error) {
+              console.error('Failed to export all records', error);
+            }
           }} className="bg-transparent border border-green-500/50 text-green-500 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold">
             <Download size={14} /> Excel
           </button>
-          <button onClick={() => {
-            const data = inventoryList.map(i => ({
-              Item: i.variety || i.itemType,
-              Category: i.itemType,
-              Godown: i.godown,
-              Stock: i.quantity,
-              Usable: i.usable,
-              Reserved: i.reserved,
-              Damaged: i.damaged,
-              Value: i.stockValue
-            }));
-            exportToPDF('Inventory Stock List', Object.keys(data[0]), data.map(d => Object.values(d)), 'inventory_stock.pdf');
+          <button onClick={async () => {
+            try {
+              const res = await api.get('/inventory', {
+                params: {
+                  itemType: activeTab,
+                  godown: activeGodown === 'all' ? undefined : activeGodown,
+                  search: filters.search,
+                  category: filters.category,
+                  variety: filters.variety,
+                  limit: 1000000,
+                  page: 1
+                }
+              });
+              const inventoryData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+              const data = inventoryData.map((i: any) => ({
+                Item: i.variety || i.itemType,
+                Category: i.itemType,
+                Godown: i.godown,
+                Stock: i.quantity,
+                Usable: i.usable,
+                Reserved: i.reserved,
+                Damaged: i.damaged,
+                Value: i.stockValue
+              }));
+              exportToPDF('Inventory Stock List', Object.keys(data[0]), data.map((d: any) => Object.values(d)), 'inventory_stock.pdf');
+            } catch (error) {
+              console.error('Failed to export all records', error);
+            }
           }} className="bg-transparent border border-red-500/50 text-red-500 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2 text-xs font-semibold">
             <Download size={14} /> PDF
           </button>

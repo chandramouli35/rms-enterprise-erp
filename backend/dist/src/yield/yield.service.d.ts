@@ -1,0 +1,125 @@
+import { PrismaService } from '../prisma/prisma.service';
+export declare class YieldService {
+    private prisma;
+    constructor(prisma: PrismaService);
+    saveCalculatorData(plantId: string, data: any): Promise<{
+        success: boolean;
+        message: string;
+        data?: undefined;
+    } | {
+        success: boolean;
+        data: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            plantId: string;
+            productionBatchId: string;
+            headRicePercent: number;
+            brokenRicePercent: number;
+            branPercent: number;
+            huskPercent: number;
+            lossPercent: number;
+            overallRecovery: number;
+            yieldTarget: number | null;
+            targetAchieved: boolean;
+        };
+        message?: undefined;
+    }>;
+    getAnalytics(plantId: string): Promise<{
+        bestPlant: string;
+        highestYield: number;
+        lowestYield: number;
+        averageYield: number;
+        predictedYield: number;
+        latestBatch: null;
+        batchStart: null;
+        batchEnd: null;
+        batchPaddy: number;
+        batchRice: number;
+        batchByProducts: number;
+        batchLoss: number;
+        batchRecovery: number;
+        batchTarget: number;
+        batchAchievement: number;
+        chartData: never[];
+    } | {
+        bestPlant: string;
+        highestYield: string;
+        lowestYield: string;
+        averageYield: string;
+        predictedYield: string;
+        latestBatch: string;
+        batchStart: string;
+        batchEnd: string;
+        batchPaddy: string;
+        batchRice: string;
+        batchByProducts: string;
+        batchLoss: string;
+        batchRecovery: string;
+        batchTarget: string;
+        batchAchievement: string;
+        chartData: {
+            name: string;
+            yield: number;
+            date: Date;
+        }[];
+    }>;
+    getHistorical(plantId: string, dateFrom?: string, dateTo?: string, variety?: string): Promise<({
+        batch: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            batchNo: string;
+            date: Date;
+            shift: string;
+            productionLine: string;
+            paddyType: string;
+            variety: string;
+            paddySource: string | null;
+            paddyUsedQty: number;
+            riceProducedQty: number | null;
+            rBranBags: number;
+            kPhuckBags: number;
+            brokenRiceBags: number;
+            nakku1Bags: number;
+            nakku2Bags: number;
+            rejectionBags: number;
+            finalRiceBags: number;
+            mansooriBags: number;
+            wandBags: number;
+            parmalBags: number;
+            frkBags: number;
+            rBranReused: number;
+            kPhuckReused: number;
+            brokenRiceReused: number;
+            nakku1Reused: number;
+            nakku2Reused: number;
+            rejectionReused: number;
+            finalRiceReused: number;
+            mansooriReused: number;
+            wandReused: number;
+            parmalReused: number;
+            frkReused: number;
+            status: string;
+            progress: number;
+            remarks: string | null;
+            startTime: Date | null;
+            endTime: Date | null;
+            plantId: string;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        productionBatchId: string;
+        headRicePercent: number;
+        brokenRicePercent: number;
+        branPercent: number;
+        huskPercent: number;
+        lossPercent: number;
+        overallRecovery: number;
+        yieldTarget: number | null;
+        targetAchieved: boolean;
+    })[]>;
+}

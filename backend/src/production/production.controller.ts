@@ -24,9 +24,11 @@ export class ProductionController {
     @Query('plantId') plantId: string,
     @Query('status') status?: string,
     @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string
+    @Query('dateTo') dateTo?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
   ) {
-    return this.productionService.getBatches(plantId, status, dateFrom, dateTo, req.user?.role);
+    return this.productionService.getBatches(plantId, status, dateFrom, dateTo, req.user?.role, page, limit);
   }
 
   @Get('batches/:id')

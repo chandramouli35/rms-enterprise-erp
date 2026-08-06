@@ -3,6 +3,7 @@ import api from '../api/axios';
 import { Users, Plus, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { usePlantStore } from '../store/plantStore';
+import Pagination from '../components/Pagination';
 
 export default function LabourManagement() {
   const user = useAuthStore(state => state.user);
@@ -10,6 +11,8 @@ export default function LabourManagement() {
   const activePlantId = activePlant?.id || '';
   
   const [labours, setLabours] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   
   // Modal state
@@ -18,10 +21,11 @@ export default function LabourManagement() {
   const fetchLabours = async () => {
     setIsLoading(true);
     try {
-      const res = await api.get('/api/master-data/labour', {
+      const res = await api.get(`/api/master-data/labour?page=${currentPage}&limit=10`, {
         headers: { 'x-plant-id': activePlantId }
       });
-      setLabours(res.data);
+      setLabours(res.data.data || []);
+      setTotalItems(res.data.total || 0);
     } catch (err) {
       console.error(err);
     } finally {
@@ -31,7 +35,7 @@ export default function LabourManagement() {
 
   useEffect(() => {
     fetchLabours();
-  }, [activePlantId]);
+  }, [activePlantId, currentPage]);
 
   const handleAddLabour = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,6 +125,12 @@ export default function LabourManagement() {
           </tbody>
         </table>
       </div>
+      
+      <Pagination 
+        currentPage={currentPage}
+        totalItems={totalItems}
+        onPageChange={setCurrentPage}
+      />
 
       {/* Add Modal */}
       {addModal.isOpen && (

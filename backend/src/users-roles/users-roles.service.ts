@@ -23,7 +23,43 @@ export class UsersRolesService {
     };
   }
 
-  async getUsersList() {
+  async getUsersList(page?: string, limit?: string) {
+    if (page) {
+      const pageNum = parseInt(page || '1', 10);
+      const limitNum = parseInt(limit || '10', 10);
+      const skip = (pageNum - 1) * limitNum;
+      
+      const [total, users] = await this.prisma.$transaction([
+        this.prisma.user.count(),
+        this.prisma.user.findMany({
+          include: {
+            role: true,
+            plantAccess: {
+              include: { plant: true }
+            }
+          },
+          skip,
+          take: limitNum
+        })
+      ]);
+
+      const data = users.map(user => ({
+        id: user.id,
+        username: user.username,
+        fullname: user.username, // Assuming username as fullname for now
+        email: user.email,
+        role: user.role.name,
+        roleId: user.roleId,
+        plant: user.plantAccess.length > 0 ? user.plantAccess.map(pa => pa.plant.name).join(', ') : 'None',
+        plantId: user.plantAccess.length > 0 ? user.plantAccess[0].plantId : '',
+        status: user.isActive ? 'Active' : 'Inactive',
+        lastLogin: user.lastLogin ? user.lastLogin.toLocaleDateString() : 'Never',
+        avatar: `https://ui-avatars.com/api/?name=${user.username}`
+      }));
+
+      return { data, total };
+    }
+
     const users = await this.prisma.user.findMany({
       include: {
         role: true,

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Headers, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Headers, BadRequestException, Query } from '@nestjs/common';
 import { MasterDataService } from './master-data.service';
 
 @Controller('api/master-data')
@@ -15,15 +15,15 @@ export class MasterDataController {
 
   // ===================== TRUCKS =====================
   @Get('trucks')
-  async getTrucks(@Headers() headers) {
+  async getTrucks(@Headers() headers, @Query('page') page?: string, @Query('limit') limit?: string) {
     const plantId = this.extractPlantId(headers);
-    return this.masterDataService.getTrucks(plantId);
+    return this.masterDataService.getTrucks(plantId, page, limit);
   }
 
   @Get('trucks/all')
-  async getAllTrucks(@Headers() headers) {
+  async getAllTrucks(@Headers() headers, @Query('page') page?: string, @Query('limit') limit?: string) {
     const plantId = this.extractPlantId(headers);
-    return this.masterDataService.getAllTrucks(plantId);
+    return this.masterDataService.getAllTrucks(plantId, page, limit);
   }
 
   @Post('trucks')
@@ -85,9 +85,9 @@ export class MasterDataController {
 
   // ===================== LABOUR MASTER =====================
   @Get('labour')
-  async getLabour(@Headers() headers) {
+  async getLabour(@Headers() headers, @Query('page') page?: string, @Query('limit') limit?: string) {
     const plantId = this.extractPlantId(headers);
-    return this.masterDataService.getLabour(plantId);
+    return this.masterDataService.getLabour(plantId, page, limit);
   }
 
   @Post('labour')

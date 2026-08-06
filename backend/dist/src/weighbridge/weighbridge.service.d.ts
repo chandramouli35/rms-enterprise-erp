@@ -1,0 +1,85 @@
+import { PrismaService } from '../prisma/prisma.service';
+export declare class WeighbridgeService {
+    private prisma;
+    constructor(prisma: PrismaService);
+    streamWeight(vehicleNo: string): Promise<{
+        vehicleNo: string;
+        grossWeight: number;
+        status: string;
+        timestamp: Date;
+    }>;
+    saveTransaction(data: any): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        status: string;
+        remarks: string | null;
+        plantId: string;
+        netWeight: number | null;
+        grossWeight: number | null;
+        tareWeight: number | null;
+        vehicleNo: string;
+        driverName: string | null;
+        challanNo: string | null;
+        gatePassId: string | null;
+        transactionType: string;
+        materialType: string | null;
+        supplierName: string | null;
+        grossTime: Date | null;
+        tareTime: Date | null;
+    }>;
+    getHistory(plantId: string): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        status: string;
+        remarks: string | null;
+        plantId: string;
+        netWeight: number | null;
+        grossWeight: number | null;
+        tareWeight: number | null;
+        vehicleNo: string;
+        driverName: string | null;
+        challanNo: string | null;
+        gatePassId: string | null;
+        transactionType: string;
+        materialType: string | null;
+        supplierName: string | null;
+        grossTime: Date | null;
+        tareTime: Date | null;
+    }[]>;
+    getSettings(plantId: string): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        indicatorModel: string;
+        connectionType: string;
+        port: string;
+        baudRate: string;
+        dataBits: string;
+        stopBits: string;
+        parity: string;
+        weightUnit: string;
+        autoCapture: boolean;
+        autoSave: boolean;
+        autoTare: boolean;
+    } | null>;
+    updateSettings(plantId: string, data: any): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        indicatorModel: string;
+        connectionType: string;
+        port: string;
+        baudRate: string;
+        dataBits: string;
+        stopBits: string;
+        parity: string;
+        weightUnit: string;
+        autoCapture: boolean;
+        autoSave: boolean;
+        autoTare: boolean;
+    }>;
+}

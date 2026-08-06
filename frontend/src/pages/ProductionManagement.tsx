@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
  Plus, Play, AlertCircle, Package, Search, Calendar, ChevronDown, 
- Settings, Download, Printer, PieChart as PieChartIcon 
+ Settings, Download, Printer, PieChart as PieChartIcon, CheckCircle
 } from 'lucide-react';
 import api from '../api/axios';
 import { usePlantStore } from '../store/plantStore';
@@ -10,23 +10,41 @@ import {
  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend 
 } from 'recharts';
 import { exportToPDF, exportToExcel } from '../utils/exportUtils';
+import { useIntermillStore } from '../store/intermillStore';
+import { useAuthStore } from '../store/authStore';
+import { IntermillProcessing } from './IntermillProcessing';
 
+const INTERMILL_ITEMS = [
+  'R. Bran', 'K. Phuck', 'Broken Rice', 'Nakku 1', 'Nakku 2', 
+  'Rejection', 'Final Rice', 'Mansoori', 'Wand', 'Parmal', 'FRK'
+];
 export const ProductionManagement = () => {
  const activePlant = usePlantStore(state => state.activePlant);
+ const [productionType, setProductionType] = useState('Rice Milling');
  const [searchParams] = useSearchParams();
  const activeTab = searchParams.get('tab') || 'batch_creation';
  
  const [loading, setLoading] = useState(false);
- const [batches, setBatches] = useState<any[]>([]);
- const [selectedBatchId, setSelectedBatchId] = useState<string>('');
- const [selectedBatchDetails, setSelectedBatchDetails] = useState<any>(null);
- const [metricsData, setMetricsData] = useState<any>(null);
+  const [batches, setBatches] = useState<any[]>([]);
+  const [selectedBatchId, setSelectedBatchId] = useState<string>('');
+  const [selectedBatchDetails, setSelectedBatchDetails] = useState<any>(null);
+  const [metricsData, setMetricsData] = useState<any>(null);
   const [currentStock, setCurrentStock] = useState<Record<string, number>>({});
+
+  // Intermill States
+  const { createBatch: createIntermillBatch, batches: intermillBatches, fetchBatches: fetchIntermillBatches, approveBatch: approveIntermillBatch } = useIntermillStore();
+  const user = useAuthStore(state => state.user);
+  const [products, setProducts] = useState<any[]>([]);
+  const [intermillData, setIntermillData] = useState({ rawMaterialId: '', inputBags: '' });
+  const [selectedOutputs, setSelectedOutputs] = useState<Record<string, boolean>>({});
+  const [outputQuantities, setOutputQuantities] = useState<Record<string, string>>({});
 
  const [filters, setFilters] = useState({ dateFrom: '', dateTo: '', status: '' });
  
+ const generateBatchNo = () => `BATCH-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
+
  const [formData, setFormData] = useState({
- batchNo: '',
+ batchNo: generateBatchNo(),
  date: new Date().toISOString().split('T')[0],
  shift: 'Day Shift',
  productionLine: 'Line 1',
@@ -81,9 +99,10 @@ export const ProductionManagement = () => {
       if (filters.status) query.append('status', filters.status);
       
       const res = await api.get(`/production/batches?${query.toString()}`);
-      setBatches(res.data);
-      if (res.data.length > 0 && !selectedBatchId) {
-        setSelectedBatchId(res.data[0].id);
+      const fetchedBatches = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setBatches(fetchedBatches);
+      if (fetchedBatches.length > 0 && !selectedBatchId) {
+        setSelectedBatchId(fetchedBatches[0].id);
       }
     } catch (error) {
       console.error('Error fetching batches', error);
@@ -112,10 +131,22 @@ export const ProductionManagement = () => {
     if (activePlant?.id) {
       fetchMetrics();
       fetchBatches();
+      fetchProducts();
+      fetchIntermillBatches();
     }
   }, [activePlant?.id, filters.dateFrom, filters.dateTo, filters.status]);
 
- const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const fetchProducts = async () => {
+    try {
+      const res = await api.get('/inventory/products');
+      setProducts(res.data);
+    } catch (error) {
+      console.error('Error fetching products', error);
+    }
+  };
+
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
  const { name, value } = e.target;
  setFormData(prev => ({ ...prev, [name]: value }));
  };
@@ -192,7 +223,7 @@ export const ProductionManagement = () => {
  
  setFormData(prev => ({
       ...prev,
-      batchNo: '',
+      batchNo: generateBatchNo(),
       paddyUsedQty: '',
       additionalOutputs: {
         'R. Bran': { produced: '', reused: '' },
@@ -215,6 +246,66 @@ export const ProductionManagement = () => {
  setLoading(false);
  }
  };
+
+  const handleCreateIntermillBatch = async () => {
+    if (!activePlant?.id) return;
+    
+    if (!intermillData.rawMaterialId || !intermillData.inputBags) {
+      alert('Please enter input material details');
+      return;
+    }
+    
+    const outputIds = Object.keys(selectedOutputs).filter(id => selectedOutputs[id]);
+    if (outputIds.length === 0) {
+      alert('Please select at least one expected output');
+      return;
+    }
+
+    // Wastage validation
+    const totalInput = Number(intermillData.inputBags);
+    const totalOutput = outputIds.reduce((sum, id) => sum + Number(outputQuantities[id] || 0), 0);
+    const difference = totalInput - totalOutput;
+    const wastagePercent = (difference / totalInput) * 100;
+    
+    if (wastagePercent > 2) {
+      alert(`Wastage exceeds 2% limit (${wastagePercent.toFixed(2)}%). Admin Approval Required. Batch will be saved as Pending Approval.`);
+    }
+
+    try {
+      setLoading(true);
+      const outputs = outputIds.map(id => ({
+        productId: id,
+        outputBags: outputQuantities[id] || '0'
+      }));
+
+      await createIntermillBatch({
+        batchNo: formData.batchNo,
+        shift: formData.shift,
+        date: formData.date,
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString(),
+        rawMaterialId: intermillData.rawMaterialId,
+        inputBags: intermillData.inputBags,
+        outputs,
+        plantId: activePlant.id,
+        status: wastagePercent > 2 ? 'Pending Approval' : 'Completed',
+        wastagePercent
+      });
+      alert(wastagePercent > 2 ? 'Batch saved and pending admin approval.' : 'Intermill Batch created successfully');
+      
+      setFormData(prev => ({...prev, batchNo: generateBatchNo()}));
+      setIntermillData({ rawMaterialId: '', inputBags: '' });
+      setSelectedOutputs({});
+      setOutputQuantities({});
+      fetchBatches();
+      fetchIntermillBatches();
+    } catch (error) {
+      console.error('Error creating batch', error);
+      alert('Failed to create batch');
+    } finally {
+      setLoading(false);
+    }
+  };
  
  const metrics = [
  { title: 'Batches Today', value: metricsData?.batchesToday || '0', label: 'Total Batches', icon: Package, color: 'text-blue-500' },
@@ -303,16 +394,22 @@ export const ProductionManagement = () => {
  </div>
 
  {/* Tab Content */}
- {activeTab === 'batch_creation' && (
- <div className="flex flex-col gap-6 flex-1">
- 
- {/* Top Row: Batch Creation & Batch Summary */}
- <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
- 
+  {activeTab === 'batch_creation' && (
+  <div className="flex flex-col gap-6 flex-1">
+  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
  {/* 1. Batch Creation Container */}
  <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-5 flex flex-col h-full">
  <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border-subtle)]">
  <h2 className="text-lg font-bold text-[var(--text-main)]">1. Batch Creation</h2>
+ <select 
+ value={productionType} 
+ onChange={e => setProductionType(e.target.value)}
+ className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1 text-[var(--text-main)] text-sm font-bold focus:border-[#e67e00] outline-none"
+ >
+ <option value="Rice Milling">Rice Milling</option>
+ <option value="Intermill Processing">Intermill Processing</option>
+ </select>
  </div>
  <div className="space-y-4 flex-1">
  <div className="grid grid-cols-2 gap-4">
@@ -341,6 +438,10 @@ export const ProductionManagement = () => {
  </select>
  </div>
  </div>
+ </div>
+
+ {productionType === 'Rice Milling' ? (
+  <>
  <div className="grid grid-cols-2 gap-4">
  <div>
  <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Paddy Type <span className="text-red-500">*</span></label>
@@ -510,20 +611,147 @@ export const ProductionManagement = () => {
     </table>
   </div>
 </div>
-<div className="col-span-2">
-<label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Remarks</label>
-<textarea rows={2} name="remarks" value={formData.remarks} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none"></textarea>
- </div>
- </div>
- <div className="flex gap-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
- <button onClick={() => setFormData(prev => ({...prev, paddyUsedQty: '', batchNo: '', additionalOutputs: { 'R. Bran': { produced: '', reused: '' }, 'K. Phuck': { produced: '', reused: '' }, 'Broken Rice': { produced: '', reused: '' }, 'Nakku 1': { produced: '', reused: '' }, 'Nakku 2': { produced: '', reused: '' }, 'Rejection': { produced: '', reused: '' }, 'Final Rice': { produced: '', reused: '' }, 'Mansoori': { produced: '', reused: '' }, 'Wand': { produced: '', reused: '' }, 'Parmal': { produced: '', reused: '' }, 'FRK': { produced: '', reused: '' } }}))} className="flex-1 py-2 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded font-bold text-sm transition-colors border border-[var(--border-subtle)]">Reset</button>
- <button onClick={handleCreateBatch} disabled={loading} className="flex-[2] py-2 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded font-bold text-sm transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50">
- {loading ? 'Creating...' : 'Create Batch'}
- </button>
- </div>
- </div>
+  </>
+ ) : (
+  <div className="mt-4 pt-4 border-t border-[var(--border-subtle)]">
+    <div className="bg-[var(--bg-base)] p-4 rounded-lg border border-[var(--border-subtle)] mb-6">
+      <h4 className="font-bold text-[var(--text-main)] mb-4">Input Material</h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Raw Material</label>
+          <select value={intermillData.rawMaterialId} onChange={e => setIntermillData({...intermillData, rawMaterialId: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]">
+            <option value="">Select Material...</option>
+            {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Input Quantity (Bags)</label>
+          <input type="number" value={intermillData.inputBags} onChange={e => setIntermillData({...intermillData, inputBags: e.target.value})} placeholder="e.g. 100" className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+        </div>
+      </div>
+    </div>
 
- {/* 2. Batch Summary Container */}
+    <div className="bg-[var(--bg-base)] p-4 rounded-lg border border-[var(--border-subtle)] mb-6">
+      <h4 className="font-bold text-[var(--text-main)] mb-4">Select Expected Output Products</h4>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {INTERMILL_ITEMS.map(item => (
+          <label key={item} className="flex items-center gap-2 text-sm text-[var(--text-main)]">
+            <input 
+              type="checkbox" 
+              checked={!!selectedOutputs[item]} 
+              onChange={e => {
+                if (e.target.checked) {
+                  setSelectedOutputs({...selectedOutputs, [item]: true});
+                  setOutputQuantities({...outputQuantities, [item]: ''});
+                } else {
+                  const newSelected = {...selectedOutputs};
+                  delete newSelected[item];
+                  setSelectedOutputs(newSelected);
+                  
+                  const newQuantities = {...outputQuantities};
+                  delete newQuantities[item];
+                  setOutputQuantities(newQuantities);
+                }
+              }} 
+              className="accent-[#e67e00] w-4 h-4 bg-[var(--bg-panel)] border-[var(--border-subtle)]" 
+            />
+            {item}
+          </label>
+        ))}
+      </div>
+    </div>
+
+    {Object.keys(selectedOutputs).some(id => selectedOutputs[id]) && intermillData.rawMaterialId && intermillData.inputBags && (
+      <div className="bg-[var(--bg-base)] p-4 rounded-lg border border-[var(--border-subtle)] mb-6 overflow-x-auto">
+        <h4 className="font-bold text-[var(--text-main)] mb-6 text-center">Output Processing Details</h4>
+        <div className="flex flex-col md:flex-row gap-6 items-center md:items-start justify-center py-4">
+          
+          {/* Left Side: Input */}
+          <div className="bg-[#e67e00]/20 border border-[#e67e00]/50 p-4 rounded-xl flex flex-col items-center justify-center min-w-[150px] shadow-lg shadow-amber-500/10">
+            <span className="text-xs text-[var(--text-muted-alt)] mb-1">Raw Material</span>
+            <span className="font-bold text-[#e67e00] text-center mb-2">
+              {products.find(p => p.id === intermillData.rawMaterialId)?.name || intermillData.rawMaterialId}
+            </span>
+            <span className="bg-[#e67e00] text-black text-xs font-bold px-2 py-1 rounded">
+              {intermillData.inputBags} Bags
+            </span>
+          </div>
+
+          {/* Lines */}
+          <div className="hidden md:flex flex-col justify-center text-[var(--border-subtle)] font-light -mx-2 h-full py-4 relative min-h-[100px]">
+            <svg width="40" height="100%" style={{ minHeight: '100px' }} className="stroke-[var(--border-subtle)]">
+               <path d="M 0 50% L 40 50%" strokeWidth="2" fill="none" />
+            </svg>
+          </div>
+
+          {/* Right Side: Outputs */}
+          <div className="flex flex-col gap-3 justify-center">
+            {Object.keys(selectedOutputs).filter(id => selectedOutputs[id]).map(id => (
+              <div key={id} className="flex items-center gap-4 bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] p-2 rounded-lg min-w-[250px]">
+                <p className="flex-1 font-medium text-[var(--text-main)]">{id}</p>
+                <input 
+                  type="number" 
+                  placeholder="0" 
+                  value={outputQuantities[id] || ''}
+                  onChange={e => setOutputQuantities({...outputQuantities, [id]: e.target.value})}
+                  className="w-24 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-sm text-[var(--text-main)] text-right focus:border-[#e67e00] outline-none"
+                />
+                <span className="text-xs text-[var(--text-muted-alt)]">Bags</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* System Calculates Block */}
+        <div className="mt-8 border-t border-[var(--border-subtle)] pt-6 flex justify-center">
+          <div className="bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg p-5 min-w-[300px]">
+            <h4 className="text-sm font-bold text-[var(--text-main)] mb-4 flex items-center gap-2">
+              <div className="w-2 h-2 bg-[#e67e00] rounded-full"></div> System Calculates
+            </h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-[var(--text-muted-alt)]">Total Input</span>
+                <span className="font-bold text-[var(--text-main)]">{intermillData.inputBags} Bags</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--text-muted-alt)]">Total Output</span>
+                <span className="font-bold text-[var(--text-main)]">
+                  {Object.keys(selectedOutputs).filter(id => selectedOutputs[id]).reduce((sum, id) => sum + (Number(outputQuantities[id]) || 0), 0)} Bags
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-[var(--border-subtle)] pt-2 mt-2">
+                <span className="text-[var(--text-muted-alt)]">Process Loss</span>
+                <span className="font-bold text-red-500">
+                  {Math.max(0, Number(intermillData.inputBags) - Object.keys(selectedOutputs).filter(id => selectedOutputs[id]).reduce((sum, id) => sum + (Number(outputQuantities[id]) || 0), 0))} Bags
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--text-muted-alt)]">Yield %</span>
+                <span className="font-bold text-green-500">
+                  {(Number(intermillData.inputBags) > 0 ? (Object.keys(selectedOutputs).filter(id => selectedOutputs[id]).reduce((sum, id) => sum + (Number(outputQuantities[id]) || 0), 0) / Number(intermillData.inputBags)) * 100 : 0).toFixed(2)}%
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    )}
+   </div>
+  )}
+  <div className="col-span-2">
+    <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Remarks</label>
+    <textarea rows={2} name="remarks" value={formData.remarks} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none"></textarea>
+  </div>
+  <div className="flex gap-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
+    <button onClick={() => setFormData(prev => ({...prev, paddyUsedQty: '', batchNo: generateBatchNo(), additionalOutputs: { 'R. Bran': { produced: '', reused: '' }, 'K. Phuck': { produced: '', reused: '' }, 'Broken Rice': { produced: '', reused: '' }, 'Nakku 1': { produced: '', reused: '' }, 'Nakku 2': { produced: '', reused: '' }, 'Rejection': { produced: '', reused: '' }, 'Final Rice': { produced: '', reused: '' }, 'Mansoori': { produced: '', reused: '' }, 'Wand': { produced: '', reused: '' }, 'Parmal': { produced: '', reused: '' }, 'FRK': { produced: '', reused: '' } }}))} className="flex-1 py-2 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded font-bold text-sm transition-colors border border-[var(--border-subtle)]">Reset</button>
+    <button onClick={productionType === 'Rice Milling' ? handleCreateBatch : handleCreateIntermillBatch} disabled={loading} className="flex-[2] py-2 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded font-bold text-sm transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50">
+      {loading ? 'Creating...' : 'Create Batch'}
+    </button>
+  </div>
+</div>
+
+{/* 2. Batch Summary Container */}
  <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-5 flex flex-col h-full">
  <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border-subtle)]">
  <h2 className="text-lg font-bold text-[var(--text-main)]">2. Batch Summary</h2>
@@ -657,18 +885,18 @@ export const ProductionManagement = () => {
  <div className="flex-1 flex items-center justify-center text-center text-[var(--text-muted-alt)] py-12">Select or create a batch to view breakdown</div>
  )}
  
- <div className="mt-6 pt-4 border-t border-[var(--border-subtle)] flex justify-end">
- <button className="flex items-center gap-2 border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--glass-bg)] px-4 py-2 rounded font-medium text-sm transition-colors">
- <Printer size={16} /> Print Batch Report
- </button>
- </div>
- </div>
-  </>
- )}
- </div>
- )}
+  <div className="mt-6 pt-4 border-t border-[var(--border-subtle)] flex justify-end">
+    <button className="flex items-center gap-2 border border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--glass-bg)] px-4 py-2 rounded font-medium text-sm transition-colors">
+      <Printer size={16} /> Print Batch Report
+    </button>
+  </div>
+</div>
+</>
+)}
+</div>
+)}
 
- {activeTab === 'production_tracking' && (
+{activeTab === 'production_tracking' && (
  <div className="grid grid-cols-1 gap-6">
  {/* 2. Production Tracking */}
  <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-5 flex flex-col">
@@ -830,6 +1058,57 @@ export const ProductionManagement = () => {
  </div>
  </div>
  </div>
+ )}
+
+ {activeTab === 'intermill_history' && (
+  <div className="grid grid-cols-1 gap-6">
+    <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+      <div className="flex items-center justify-between p-4 border-b border-[var(--border-subtle)]">
+        <h2 className="text-lg font-bold text-[var(--text-main)]">Intermill Batch History</h2>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm whitespace-nowrap">
+          <thead className="bg-[var(--bg-panel-alt)] border-b border-[var(--border-subtle)]">
+            <tr>
+              <th className="p-3 text-[var(--text-muted-alt)] font-medium">Batch No</th>
+              <th className="p-3 text-[var(--text-muted-alt)] font-medium">Date / Shift</th>
+              <th className="p-3 text-[var(--text-muted-alt)] font-medium">Input Material</th>
+              <th className="p-3 text-[var(--text-muted-alt)] font-medium">Input Bags</th>
+              <th className="p-3 text-[var(--text-muted-alt)] font-medium">Status</th>
+              <th className="p-3 text-[var(--text-muted-alt)] font-medium">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {intermillBatches.map((batch: any) => (
+              <tr key={batch.id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-panel-hover)]">
+                <td className="p-3 text-[var(--text-main)] font-medium">{batch.batchNo}</td>
+                <td className="p-3 text-[var(--text-main)]">{new Date(batch.date).toLocaleDateString()} / {batch.shift}</td>
+                <td className="p-3 text-[var(--text-main)]">{batch.rawMaterial?.name}</td>
+                <td className="p-3 text-[var(--text-main)]">{batch.inputBags}</td>
+                <td className="p-3">
+                  {batch.status === 'COMPLETED' ? (
+                    <span className="flex items-center gap-1 text-green-500 bg-green-500/10 px-2 py-1 rounded w-max"><CheckCircle className="w-4 h-4"/> Completed</span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-orange-500 bg-orange-500/10 px-2 py-1 rounded w-max"><AlertCircle className="w-4 h-4"/> Pending Approval</span>
+                  )}
+                </td>
+                <td className="p-3">
+                  {batch.status === 'PENDING_APPROVAL' && user?.role === 'Admin' && (
+                    <button onClick={() => approveIntermillBatch(batch.id)} className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-xs font-bold">Approve</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {intermillBatches.length === 0 && !loading && (
+              <tr>
+                <td colSpan={6} className="p-6 text-center text-[var(--text-muted)]">No intermill batches found.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
  )}
 
  {activeTab === 'by-products' && (

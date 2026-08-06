@@ -105,18 +105,32 @@ export class GatePassService {
     return newPass;
   }
 
-  async getRecentGatePasses(plantId: string, type: string) {
+  async getRecentGatePasses(plantId: string, type: string, page?: string, limit?: string) {
     const whereClause: any = plantId === 'global' ? {} : { plantId };
     if (type !== 'ALL') {
       whereClause.passType = type;
     }
-    
-    return this.prisma.gatePass.findMany({
-      where: whereClause,
-      orderBy: { createdAt: 'desc' },
-      take: type === 'ALL' ? 50 : 5,
-      include: { supplier: true }
-    });
+
+    const pageNum = parseInt(page || '1', 10);
+    // If not provided, default to ALL = 50, otherwise 10
+    let limitNum = parseInt(limit || '0', 10);
+    if (!limitNum) {
+      limitNum = type === 'ALL' ? 50 : 10;
+    }
+    const skip = (pageNum - 1) * limitNum;
+
+    const [total, data] = await this.prisma.$transaction([
+      this.prisma.gatePass.count({ where: whereClause }),
+      this.prisma.gatePass.findMany({
+        where: whereClause,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum,
+        include: { supplier: true }
+      })
+    ]);
+
+    return { data, total };
   }
 
   async getGatePassByQr(qrCode: string) {

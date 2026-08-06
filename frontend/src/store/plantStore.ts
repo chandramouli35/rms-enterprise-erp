@@ -5,6 +5,7 @@ interface Plant {
   id: string;
   name: string;
   code: string;
+  govtRate?: number;
 }
 
 interface PlantState {

@@ -23,9 +23,11 @@ export class TransferController {
     @Query('plantId') plantId: string,
     @Query('status') status?: string,
     @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string
+    @Query('dateTo') dateTo?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
   ) {
-    return this.transferService.getAllTransfers(plantId, status, dateFrom, dateTo);
+    return this.transferService.getAllTransfers(plantId, status, dateFrom, dateTo, page, limit);
   }
 
   @Post()

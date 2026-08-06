@@ -3,6 +3,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { CustomModal } from '../components/CustomModal';
 import { usePlantStore } from '../store/plantStore';
+import Pagination from '../components/Pagination';
 import { 
  Users, Shield, Lock, FileText, Plus, Search, 
  Filter, Edit2, Trash2, ChevronDown, ChevronRight, Check,
@@ -16,6 +17,8 @@ export const UsersAndRoles: React.FC = () => {
  
  const [stats, setStats] = useState<any>(null);
  const [users, setUsers] = useState<any[]>([]);
+ const [userCurrentPage, setUserCurrentPage] = useState(1);
+ const [userTotalItems, setUserTotalItems] = useState(0);
  const [roles, setRoles] = useState<any[]>([]);
  const [selectedRole, setSelectedRole] = useState<any>(null);
  const [permissions, setPermissions] = useState<any[]>([]);
@@ -56,9 +59,9 @@ export const UsersAndRoles: React.FC = () => {
     setExpandedModules(next);
   };
 
-  useEffect(() => {
+ useEffect(() => {
     fetchInitialData();
-  }, [activeTab]);
+  }, [activeTab, userCurrentPage]);
 
  useEffect(() => {
  if (location.state?.defaultTab) {
@@ -71,14 +74,15 @@ export const UsersAndRoles: React.FC = () => {
  setLoading(true);
  const [statsRes, usersRes, auditRes, rolesRes, auditListRes, plantsRes] = await Promise.all([
  api.get('/users-roles/summary-metrics'),
- api.get('/users-roles/list'),
+ api.get(`/users-roles/list?page=${userCurrentPage}&limit=10`),
  api.get('/users-roles/audit-summary'),
  api.get('/users-roles/roles'),
  api.get('/users-roles/audit-list'),
  api.get('/plants')
  ]);
  setStats(statsRes.data);
- setUsers(usersRes.data);
+ setUsers(usersRes.data.data || usersRes.data);
+ setUserTotalItems(usersRes.data.total || (usersRes.data.length || 0));
  setAudit(auditRes.data);
  setRoles(rolesRes.data);
  setAuditList(auditListRes.data);
@@ -396,6 +400,11 @@ export const UsersAndRoles: React.FC = () => {
  </table>
  </div>
  </div>
+ <Pagination 
+   currentPage={userCurrentPage}
+   totalItems={userTotalItems}
+   onPageChange={setUserCurrentPage}
+ />
  </div>
  )}
 

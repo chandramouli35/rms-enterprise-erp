@@ -23,8 +23,13 @@ export class GatePassController {
 
   @Get('recent/:plantId')
   @RequirePermission('Gate Pass', 'canView')
-  getRecentGatePasses(@Param('plantId') plantId: string, @Query('type') type: string) {
-    return this.gatePassService.getRecentGatePasses(plantId, type || 'INWARD');
+  getRecentGatePasses(
+    @Param('plantId') plantId: string, 
+    @Query('type') type: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string
+  ) {
+    return this.gatePassService.getRecentGatePasses(plantId, type || 'INWARD', page, limit);
   }
 
   @Get('scan/:qrCode')
