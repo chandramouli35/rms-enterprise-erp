@@ -10,6 +10,7 @@ export declare class MasterDataController {
         plantId: string;
         truckNumber: string;
         capacity: number | null;
+        imageUrl: string | null;
         isApproved: boolean;
     }[] | {
         data: {
@@ -19,6 +20,7 @@ export declare class MasterDataController {
             plantId: string;
             truckNumber: string;
             capacity: number | null;
+            imageUrl: string | null;
             isApproved: boolean;
         }[];
         total: number;
@@ -30,6 +32,7 @@ export declare class MasterDataController {
         plantId: string;
         truckNumber: string;
         capacity: number | null;
+        imageUrl: string | null;
         isApproved: boolean;
     }[] | {
         data: {
@@ -39,6 +42,7 @@ export declare class MasterDataController {
             plantId: string;
             truckNumber: string;
             capacity: number | null;
+            imageUrl: string | null;
             isApproved: boolean;
         }[];
         total: number;
@@ -47,13 +51,14 @@ export declare class MasterDataController {
         truckNumber: string;
         capacity?: number;
         isApproved?: boolean;
-    }): Promise<{
+    }, file?: Express.Multer.File): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
+        imageUrl: string | null;
         isApproved: boolean;
     }>;
     approveTruck(id: string): Promise<{
@@ -63,6 +68,7 @@ export declare class MasterDataController {
         plantId: string;
         truckNumber: string;
         capacity: number | null;
+        imageUrl: string | null;
         isApproved: boolean;
     }>;
     rejectTruck(id: string): Promise<{
@@ -72,6 +78,7 @@ export declare class MasterDataController {
         plantId: string;
         truckNumber: string;
         capacity: number | null;
+        imageUrl: string | null;
         isApproved: boolean;
     }>;
     deleteTruck(id: string): Promise<{
@@ -81,6 +88,7 @@ export declare class MasterDataController {
         plantId: string;
         truckNumber: string;
         capacity: number | null;
+        imageUrl: string | null;
         isApproved: boolean;
     }>;
     getDrivers(headers: any): Promise<{

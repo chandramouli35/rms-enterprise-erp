@@ -12,9 +12,31 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MasterDataService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const cloudinary_1 = require("cloudinary");
+const stream_1 = require("stream");
+cloudinary_1.v2.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 let MasterDataService = class MasterDataService {
     constructor(prisma) {
         this.prisma = prisma;
+    }
+    async uploadImageToCloudinary(file) {
+        if (!file)
+            return null;
+        return new Promise((resolve, reject) => {
+            const uploadStream = cloudinary_1.v2.uploader.upload_stream({ folder: 'trucks' }, (error, result) => {
+                if (error)
+                    return reject(error);
+                resolve(result?.secure_url || null);
+            });
+            const readableStream = new stream_1.Readable();
+            readableStream.push(file.buffer);
+            readableStream.push(null);
+            readableStream.pipe(uploadStream);
+        });
     }
     async getTrucks(plantId, page, limit) {
         const where = { plantId, isApproved: true };
@@ -44,9 +66,28 @@ let MasterDataService = class MasterDataService {
         }
         return this.prisma.truckMaster.findMany({ where, orderBy: { createdAt: 'desc' } });
     }
-    async createTruck(plantId, data) {
+    async createTruck(plantId, data, file) {
+        const existing = await this.prisma.truckMaster.findFirst({
+            where: { plantId, truckNumber: data.truckNumber }
+        });
+        if (existing) {
+            const { BadRequestException } = require('@nestjs/common');
+            throw new BadRequestException(`Truck number ${data.truckNumber} already exists in this plant`);
+        }
+        let imageUrl = null;
+        if (file) {
+            imageUrl = await this.uploadImageToCloudinary(file);
+        }
+        const capacityNum = data.capacity ? Number(data.capacity) : undefined;
+        const isApprovedBool = typeof data.isApproved === 'string' ? data.isApproved === 'true' : data.isApproved;
         return this.prisma.truckMaster.create({
-            data: { plantId, ...data }
+            data: {
+                plantId,
+                truckNumber: data.truckNumber,
+                capacity: capacityNum,
+                isApproved: isApprovedBool,
+                imageUrl
+            }
         });
     }
     async approveTruck(id) {

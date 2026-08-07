@@ -9,83 +9,83 @@ export declare class IntermillService {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            batchId: string;
             outputBags: number;
             productId: string;
-            batchId: string;
         }[];
     } & {
         id: string;
-        batchNo: string;
-        shift: string;
-        date: Date;
-        startTime: string;
-        endTime: string;
-        inputBags: number;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        supervisorId: string;
-        rawMaterialId: string;
+        batchNo: string;
+        date: Date;
+        shift: string;
+        status: string;
+        startTime: string;
+        endTime: string;
         plantId: string;
+        rawMaterialId: string;
+        inputBags: number;
+        supervisorId: string;
     }>;
     findAll(user: any): Promise<({
-        supervisor: {
-            username: string;
-        };
-        rawMaterial: {
-            id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            name: string;
-            type: string;
-            description: string | null;
-        };
         outputs: ({
             product: {
                 id: string;
+                name: string;
                 createdAt: Date;
                 updatedAt: Date;
-                name: string;
-                type: string;
                 description: string | null;
+                type: string;
             };
         } & {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            batchId: string;
             outputBags: number;
             productId: string;
-            batchId: string;
         })[];
+        supervisor: {
+            username: string;
+        };
+        rawMaterial: {
+            id: string;
+            name: string;
+            createdAt: Date;
+            updatedAt: Date;
+            description: string | null;
+            type: string;
+        };
     } & {
         id: string;
-        batchNo: string;
-        shift: string;
-        date: Date;
-        startTime: string;
-        endTime: string;
-        inputBags: number;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        supervisorId: string;
-        rawMaterialId: string;
+        batchNo: string;
+        date: Date;
+        shift: string;
+        status: string;
+        startTime: string;
+        endTime: string;
         plantId: string;
+        rawMaterialId: string;
+        inputBags: number;
+        supervisorId: string;
     })[]>;
     approve(id: string, user: any): Promise<{
         id: string;
-        batchNo: string;
-        shift: string;
-        date: Date;
-        startTime: string;
-        endTime: string;
-        inputBags: number;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        supervisorId: string;
-        rawMaterialId: string;
+        batchNo: string;
+        date: Date;
+        shift: string;
+        status: string;
+        startTime: string;
+        endTime: string;
         plantId: string;
+        rawMaterialId: string;
+        inputBags: number;
+        supervisorId: string;
     }>;
     private processInventoryUpdate;
     private updateStock;

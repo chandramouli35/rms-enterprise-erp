@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
-import { Truck, Plus, Trash2, Check, X } from 'lucide-react';
+import { Truck, Plus, Trash2, Check, X, Eye } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { usePlantStore } from '../store/plantStore';
 import Pagination from '../components/Pagination';
@@ -14,9 +14,12 @@ export default function TruckManagement() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   
   // Modal state
-  const [addModal, setAddModal] = useState({ isOpen: false, truckNumber: '', capacity: '' });
+  const [addModal, setAddModal] = useState<{isOpen: boolean, truckNumber: string, capacity: string, image: File | null}>({ isOpen: false, truckNumber: '', capacity: '', image: null });
 
   const fetchTrucks = async () => {
     // We allow super admin to fetch all trucks even if no plant is selected if the backend supports it, 
@@ -44,18 +47,29 @@ export default function TruckManagement() {
 
   const handleAddTruck = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
-      await api.post('/api/master-data/trucks', {
-        truckNumber: addModal.truckNumber,
-        capacity: addModal.capacity ? parseFloat(addModal.capacity) : undefined
-      }, {
-        headers: { 'x-plant-id': activePlantId }
+      const formData = new FormData();
+      formData.append('truckNumber', addModal.truckNumber);
+      if (addModal.capacity) formData.append('capacity', addModal.capacity);
+      if (addModal.image) formData.append('image', addModal.image);
+
+      await api.post('/api/master-data/trucks', formData, {
+        headers: { 
+          'x-plant-id': activePlantId,
+          'Content-Type': 'multipart/form-data'
+        }
       });
-      setAddModal({ isOpen: false, truckNumber: '', capacity: '' });
+      setAddModal({ isOpen: false, truckNumber: '', capacity: '', image: null });
+      setToastMessage('Truck created successfully!');
+      setTimeout(() => setToastMessage(''), 3000);
       fetchTrucks();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Failed to add truck');
+      const msg = err.response?.data?.message || 'Failed to add truck';
+      alert(msg);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -113,7 +127,7 @@ export default function TruckManagement() {
           <p className="text-[var(--text-muted-alt)] text-sm mt-1">Manage and approve trucks</p>
         </div>
         <button 
-          onClick={() => setAddModal({ isOpen: true, truckNumber: '', capacity: '' })}
+          onClick={() => setAddModal({ isOpen: true, truckNumber: '', capacity: '', image: null })}
           className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold shadow hover:bg-[#cc7000] transition-colors flex items-center gap-2"
         >
           <Plus size={18} /> Add Truck
@@ -127,17 +141,18 @@ export default function TruckManagement() {
               <th className="p-4 font-semibold">Truck Number</th>
               <th className="p-4 font-semibold">Capacity (MT)</th>
               <th className="p-4 font-semibold">Status</th>
+              <th className="p-4 font-semibold">View</th>
               <th className="p-4 font-semibold text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={4} className="p-8 text-center text-[var(--text-muted)]">Loading trucks...</td>
+                <td colSpan={5} className="p-8 text-center text-[var(--text-muted)]">Loading trucks...</td>
               </tr>
             ) : trucks.length === 0 ? (
               <tr>
-                <td colSpan={4} className="p-8 text-center text-[var(--text-muted)]">No trucks found.</td>
+                <td colSpan={5} className="p-8 text-center text-[var(--text-muted)]">No trucks found.</td>
               </tr>
             ) : (
               trucks.map(truck => (
@@ -149,6 +164,19 @@ export default function TruckManagement() {
                       <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-xs font-bold">Approved</span>
                     ) : (
                       <span className="bg-yellow-500/20 text-yellow-500 px-2 py-1 rounded text-xs font-bold">Pending</span>
+                    )}
+                  </td>
+                  <td className="p-4">
+                    {truck.imageUrl ? (
+                      <button 
+                        onClick={() => setPreviewImage(truck.imageUrl)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#e67e00]/10 text-[#e67e00] hover:bg-[#e67e00]/20 rounded-md text-sm font-medium transition-colors w-fit tooltip-trigger"
+                        title="View Image"
+                      >
+                        <Eye size={16} /> View
+                      </button>
+                    ) : (
+                      <span className="text-[var(--text-muted-alt)] text-sm italic">-</span>
                     )}
                   </td>
                   <td className="p-4 text-right flex items-center justify-end gap-2">
@@ -207,12 +235,58 @@ export default function TruckManagement() {
                   placeholder="e.g. 25"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Upload Image <span className="text-red-500">*</span></label>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={e => setAddModal({...addModal, image: e.target.files ? e.target.files[0] : null})}
+                  className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-[#e67e00]/20 file:text-[#e67e00] hover:file:bg-[#e67e00]/30 transition-colors"
+                  required
+                />
+                <p className="text-[var(--text-muted-alt)] text-xs mt-1.5 flex items-center gap-1">
+                  <span className="text-[#e67e00]">ℹ</span> Supports only image files (JPG, PNG, WebP)
+                </p>
+              </div>
               <div className="flex gap-3 justify-end mt-6">
-                <button type="button" onClick={() => setAddModal({...addModal, isOpen: false})} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold shadow hover:bg-[#cc7000] transition-colors">Submit</button>
+                <button type="button" onClick={() => setAddModal({...addModal, isOpen: false})} disabled={isSubmitting} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors disabled:opacity-50">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold shadow hover:bg-[#cc7000] transition-colors disabled:opacity-70 disabled:cursor-not-allowed">
+                  {isSubmitting ? 'Submitting...' : 'Submit'}
+                </button>
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in duration-200"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-4xl w-full flex flex-col items-center justify-center">
+            <button 
+              className="absolute -top-12 right-0 text-white/70 hover:text-white p-2 transition-colors rounded-full hover:bg-white/10" 
+              onClick={() => setPreviewImage(null)}
+            >
+              <X size={32} />
+            </button>
+            <img 
+              src={previewImage} 
+              alt="Truck Document" 
+              className="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain ring-4 ring-white/10" 
+              onClick={e => e.stopPropagation()} 
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 bg-green-500 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-2 z-[70] animate-bounce">
+          <Check size={20} />
+          <span className="font-bold">{toastMessage}</span>
         </div>
       )}
     </div>

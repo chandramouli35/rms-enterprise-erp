@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Headers, BadRequestException, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Headers, BadRequestException, Query, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { MasterDataService } from './master-data.service';
 
 @Controller('api/master-data')
@@ -27,9 +28,17 @@ export class MasterDataController {
   }
 
   @Post('trucks')
-  async createTruck(@Headers() headers, @Body() data: { truckNumber: string, capacity?: number, isApproved?: boolean }) {
+  @UseInterceptors(FileInterceptor('image'))
+  async createTruck(
+    @Headers() headers, 
+    @Body() data: { truckNumber: string, capacity?: number, isApproved?: boolean },
+    @UploadedFile() file?: Express.Multer.File
+  ) {
+    if (!file) {
+      throw new BadRequestException('Image upload is required for trucks');
+    }
     const plantId = this.extractPlantId(headers);
-    return this.masterDataService.createTruck(plantId, data);
+    return this.masterDataService.createTruck(plantId, data, file);
   }
 
   @Put('trucks/:id/approve')

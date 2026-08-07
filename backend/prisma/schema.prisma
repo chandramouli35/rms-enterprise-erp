@@ -878,6 +878,7 @@ model TruckMaster {
   plant       Plant    @relation(fields: [plantId], references: [id])
   truckNumber String
   capacity    Float?   // Optional capacity in MT
+  imageUrl    String?  // Optional Cloudinary image URL
   isApproved  Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

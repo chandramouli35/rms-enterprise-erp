@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MasterDataController = void 0;
 const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
 const master_data_service_1 = require("./master-data.service");
 let MasterDataController = class MasterDataController {
     constructor(masterDataService) {
@@ -34,9 +35,12 @@ let MasterDataController = class MasterDataController {
         const plantId = this.extractPlantId(headers);
         return this.masterDataService.getAllTrucks(plantId, page, limit);
     }
-    async createTruck(headers, data) {
+    async createTruck(headers, data, file) {
+        if (!file) {
+            throw new common_1.BadRequestException('Image upload is required for trucks');
+        }
         const plantId = this.extractPlantId(headers);
-        return this.masterDataService.createTruck(plantId, data);
+        return this.masterDataService.createTruck(plantId, data, file);
     }
     async approveTruck(id) {
         return this.masterDataService.approveTruck(id);
@@ -102,10 +106,12 @@ __decorate([
 ], MasterDataController.prototype, "getAllTrucks", null);
 __decorate([
     (0, common_1.Post)('trucks'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('image')),
     __param(0, (0, common_1.Headers)()),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.UploadedFile)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [Object, Object, Object]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "createTruck", null);
 __decorate([
