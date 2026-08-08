@@ -21,6 +21,7 @@ import { FinanceManagement } from './pages/FinanceManagement';
 import { PowerManagement } from './pages/PowerManagement';
 import TruckManagement from './pages/TruckManagement';
 import LabourManagement from './pages/LabourManagement';
+import PahunchManagement from './pages/PahunchManagement';
 import { BackupRestore } from './pages/BackupRestore';
 
 function App() {
@@ -50,6 +51,7 @@ function App() {
             <Route path="power" element={<PowerManagement />} />
             <Route path="trucks" element={<TruckManagement />} />
             <Route path="labours" element={<LabourManagement />} />
+            <Route path="pahunch" element={<PahunchManagement />} />
             <Route path="backup" element={<BackupRestore />} />
           </Route>
         </Route>

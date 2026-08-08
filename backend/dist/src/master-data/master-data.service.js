@@ -146,7 +146,35 @@ let MasterDataService = class MasterDataService {
         });
     }
     async deleteLabour(id) {
-        return this.prisma.labourMaster.delete({ where: { id } });
+        return this.prisma.labourMaster.update({
+            where: { id },
+            data: { isActive: false }
+        });
+    }
+    async getPahunch(plantId, page, limit) {
+        const where = { plantId, isActive: true };
+        if (page) {
+            const pageNum = parseInt(page || '1', 10);
+            const limitNum = parseInt(limit || '10', 10);
+            const skip = (pageNum - 1) * limitNum;
+            const [total, data] = await this.prisma.$transaction([
+                this.prisma.pahunchMaster.count({ where }),
+                this.prisma.pahunchMaster.findMany({ where, orderBy: { name: 'asc' }, skip, take: limitNum })
+            ]);
+            return { data, total };
+        }
+        return this.prisma.pahunchMaster.findMany({ where, orderBy: { name: 'asc' } });
+    }
+    async createPahunch(plantId, data) {
+        return this.prisma.pahunchMaster.create({
+            data: { plantId, ...data }
+        });
+    }
+    async deletePahunch(id) {
+        return this.prisma.pahunchMaster.update({
+            where: { id },
+            data: { isActive: false }
+        });
     }
 };
 exports.MasterDataService = MasterDataService;

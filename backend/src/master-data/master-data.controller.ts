@@ -100,7 +100,7 @@ export class MasterDataController {
   }
 
   @Post('labour')
-  async createLabour(@Headers() headers, @Body() data: { name: string, type?: string, contact?: string }) {
+  async createLabour(@Headers() headers, @Body() data: { name: string, type?: string, contact?: string, firmName?: string }) {
     const plantId = this.extractPlantId(headers);
     return this.masterDataService.createLabour(plantId, data);
   }
@@ -108,5 +108,23 @@ export class MasterDataController {
   @Delete('labour/:id')
   async deleteLabour(@Param('id') id: string) {
     return this.masterDataService.deleteLabour(id);
+  }
+
+  // ===================== PAHUNCH MASTER =====================
+  @Get('pahunch')
+  async getPahunch(@Headers() headers, @Query('page') page?: string, @Query('limit') limit?: string) {
+    const plantId = this.extractPlantId(headers);
+    return this.masterDataService.getPahunch(plantId, page, limit);
+  }
+
+  @Post('pahunch')
+  async createPahunch(@Headers() headers, @Body() data: { name: string, contact?: string }) {
+    const plantId = this.extractPlantId(headers);
+    return this.masterDataService.createPahunch(plantId, data);
+  }
+
+  @Delete('pahunch/:id')
+  async deletePahunch(@Param('id') id: string) {
+    return this.masterDataService.deletePahunch(id);
   }
 }

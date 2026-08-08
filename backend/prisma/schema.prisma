@@ -19,6 +19,9 @@ model Plant {
   aClassBagWeight   Float @default(0.380)
   bClassBagWeight   Float @default(0.385)
   govtRate          Float? @default(0)
+  benchmarkMoisture Float? @default(17.0)
+  safaiCut          Float? @default(2.0)
+  processingCut     Float? @default(4.0)
 
   // Relations
   users                   UserPlantAccess[]
@@ -49,6 +52,7 @@ model Plant {
   driverMasters           DriverMaster[]
   staffMasters            StaffMaster[]
   labourMasters           LabourMaster[]
+  pahunchMasters          PahunchMaster[]
   permissionOverrides     PermissionOverride[]
 
   // Tracking
@@ -940,8 +944,22 @@ model LabourMaster {
   plantId     String
   plant       Plant    @relation(fields: [plantId], references: [id])
   name        String
+  firmName    String?
   contact     String?
   type        String?  // e.g. Inside, Outside, General
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([plantId])
+}
+
+model PahunchMaster {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  name        String
+  contact     String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

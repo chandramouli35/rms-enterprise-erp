@@ -138,7 +138,7 @@ export const ProductionManagement = () => {
 
   const fetchProducts = async () => {
     try {
-      const res = await api.get('/inventory/products');
+      const res = await api.get('/api/inventory/products');
       setProducts(res.data);
     } catch (error) {
       console.error('Error fetching products', error);
@@ -402,14 +402,20 @@ export const ProductionManagement = () => {
  <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-5 flex flex-col h-full">
  <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border-subtle)]">
  <h2 className="text-lg font-bold text-[var(--text-main)]">1. Batch Creation</h2>
- <select 
- value={productionType} 
- onChange={e => setProductionType(e.target.value)}
- className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1 text-[var(--text-main)] text-sm font-bold focus:border-[#e67e00] outline-none"
- >
- <option value="Rice Milling">Rice Milling</option>
- <option value="Intermill Processing">Intermill Processing</option>
- </select>
+ <div className="flex bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded overflow-hidden">
+  <button 
+    onClick={() => setProductionType('Rice Milling')}
+    className={`px-4 py-1.5 text-sm font-bold transition-colors ${productionType === 'Rice Milling' ? 'bg-[#e67e00] text-black' : 'text-[var(--text-muted-alt)] hover:text-[var(--text-main)]'}`}
+  >
+    Rice Milling
+  </button>
+  <button 
+    onClick={() => setProductionType('Intermill Processing')}
+    className={`px-4 py-1.5 text-sm font-bold transition-colors ${productionType === 'Intermill Processing' ? 'bg-[#e67e00] text-black' : 'text-[var(--text-muted-alt)] hover:text-[var(--text-main)]'}`}
+  >
+    Inter-Mill Processing
+  </button>
+ </div>
  </div>
  <div className="space-y-4 flex-1">
  <div className="grid grid-cols-2 gap-4">

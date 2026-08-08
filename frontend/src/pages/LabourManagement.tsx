@@ -16,7 +16,7 @@ export default function LabourManagement() {
   const [isLoading, setIsLoading] = useState(false);
   
   // Modal state
-  const [addModal, setAddModal] = useState({ isOpen: false, name: '', type: '', contact: '' });
+  const [addModal, setAddModal] = useState({ isOpen: false, name: '', type: '', contact: '', firmName: '' });
 
   const fetchLabours = async () => {
     setIsLoading(true);
@@ -43,11 +43,12 @@ export default function LabourManagement() {
       await api.post('/api/master-data/labour', {
         name: addModal.name,
         type: addModal.type,
-        contact: addModal.contact
+        contact: addModal.contact,
+        firmName: addModal.firmName
       }, {
         headers: { 'x-plant-id': activePlantId }
       });
-      setAddModal({ isOpen: false, name: '', type: '', contact: '' });
+      setAddModal({ isOpen: false, name: '', type: '', contact: '', firmName: '' });
       fetchLabours();
     } catch (err) {
       console.error(err);
@@ -82,7 +83,7 @@ export default function LabourManagement() {
           <p className="text-[var(--text-muted-alt)] text-sm mt-1">Manage labour contractors</p>
         </div>
         <button 
-          onClick={() => setAddModal({ isOpen: true, name: '', type: '', contact: '' })}
+          onClick={() => setAddModal({ isOpen: true, name: '', type: 'Pahunch Person', contact: '', firmName: '' })}
           className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold shadow hover:bg-[#cc7000] transition-colors flex items-center gap-2"
         >
           <Plus size={18} /> Add Contractor
@@ -92,17 +93,18 @@ export default function LabourManagement() {
       <div className="flex-1 overflow-auto bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)]">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-[var(--bg-panel-hover)] border-b border-[var(--border-subtle)]">
-              <th className="p-4 font-semibold">Name</th>
-              <th className="p-4 font-semibold">Type</th>
-              <th className="p-4 font-semibold">Contact</th>
-              <th className="p-4 font-semibold text-right">Actions</th>
+            <tr className="text-left text-xs uppercase tracking-wider text-[var(--text-muted-alt)] border-b border-[var(--border-subtle)]">
+              <th className="p-4 font-semibold w-1/4">Name</th>
+              <th className="p-4 font-semibold w-1/4">Firm Name</th>
+              <th className="p-4 font-semibold w-1/4">Type</th>
+              <th className="p-4 font-semibold w-1/4">Contact No.</th>
+              <th className="p-4 font-semibold text-right w-16">Actions</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={4} className="p-8 text-center text-[var(--text-muted)]">Loading labours...</td>
+                <td colSpan={5} className="p-8 text-center text-[var(--text-muted)]">Loading labours...</td>
               </tr>
             ) : labours.length === 0 ? (
               <tr>
@@ -112,6 +114,7 @@ export default function LabourManagement() {
               labours.map(labour => (
                 <tr key={labour.id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-panel-hover)]">
                   <td className="p-4 font-bold">{labour.name}</td>
+                  <td className="p-4 text-green-400">{labour.firmName || '-'}</td>
                   <td className="p-4">{labour.type || '-'}</td>
                   <td className="p-4">{labour.contact || '-'}</td>
                   <td className="p-4 text-right">
@@ -147,6 +150,16 @@ export default function LabourManagement() {
                   className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
                   placeholder="e.g. Ramesh Kumar"
                   required 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Firm Name <span className="text-[var(--text-muted-alt)] text-xs">(Optional)</span></label>
+                <input 
+                  type="text" 
+                  value={addModal.firmName} 
+                  onChange={e => setAddModal({...addModal, firmName: e.target.value})}
+                  className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
+                  placeholder="e.g. ABC Agency"
                 />
               </div>
               <div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Users, Package, ShieldCheck, FileText, Search, Plus, Calendar, ChevronDown, Download, Printer, Settings, Upload, Edit, Layers, ScanBarcode, X, AlertTriangle, Trash } from 'lucide-react';
+import { Users, Package, ShieldCheck, FileText, Search, Plus, Calendar, ChevronDown, Download, Printer, Settings, Upload, Edit, Layers, ScanBarcode, X, AlertTriangle, Trash, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import BoliCompletionTable from '../components/Procurement/BoliCompletionTable';
 import api from '../api/axios';
 import { CustomModal } from '../components/CustomModal';
 import { usePlantStore } from '../store/plantStore';
@@ -80,6 +81,7 @@ export const ProcurementManagement = () => {
 
  const [formData, setFormData] = useState<any>(defaultFormData);
  const [suppliers, setSuppliers] = useState<any[]>([]);
+ const [pahunchs, setPahunchs] = useState<any[]>([]);
  const [sodaPending, setSodaPending] = useState<any[]>([]);
  const [recentPurchases, setRecentPurchases] = useState<any[]>([]);
   const [inwardList, setInwardList] = useState<any[]>([]);
@@ -107,7 +109,7 @@ export const ProcurementManagement = () => {
     gpNo: '', date: '', timeIn: '', timeOut: '', truckNo: '', mandiEgpNo: '', rstNo: '', mandiParchiNo: '', supplierId: '',
     mandi: '', pahunchPersonName: '',
     moisture: '', safai: 'Good', mandiIntimation: 'N.A.', remarks: '',
-    allocationType: 'Hoodi',
+    allocationType: '',
     origBagsRec: 0, origAClass: 0, origBClass: 0, origAClassAg: 0, origBClassAg: 0,
     shortageAClass: 0, shortageBClass: 0,
     qualityCutType: 'NONE', qualityCutValue: 0, qualityCutReason: '',
@@ -153,23 +155,6 @@ export const ProcurementManagement = () => {
         next.supplierId = suppliers[0].id;
         updated = true;
       }
-      if (!next.pahunchPersonName && staff.length > 0) {
-        next.pahunchPersonName = staff[0].name;
-        updated = true;
-      }
-      if (!next.allocateUnloader && labours.length > 0) {
-        next.allocateUnloader = labours[0].name;
-        next.unloaderTruckCount = Math.floor(Math.random() * 5) + 1;
-        updated = true;
-      }
-      if (!next.pahunchPerson && labours.length > 0) {
-        next.pahunchPerson = labours[0].name;
-        updated = true;
-      }
-      if (!next.unloaderName && labours.length > 0) {
-        next.unloaderName = labours[0].name;
-        updated = true;
-      }
       
       return updated ? next : prev;
     });
@@ -178,31 +163,46 @@ export const ProcurementManagement = () => {
   // Track Boli bags input from supervisor
   const [boliInputs, setBoliInputs] = useState<Record<string, string>>({});
   
-  // Plant Govt Rate Setting
-  const [plantGovtRate, setPlantGovtRate] = useState<string>('');
-  const [isEditingGovtRate, setIsEditingGovtRate] = useState<boolean>(false);
+  // Plant Procurement Settings
+  const [plantSettings, setPlantSettings] = useState({
+    govtRate: '',
+    benchmarkMoisture: '',
+    safaiCut: '',
+    processingCut: ''
+  });
+  const [isEditingSettings, setIsEditingSettings] = useState<boolean>(false);
 
   useEffect(() => {
     if (activePlant) {
-      setPlantGovtRate(activePlant.govtRate?.toString() || '');
+      setPlantSettings({
+        govtRate: activePlant.govtRate?.toString() || '',
+        benchmarkMoisture: activePlant.benchmarkMoisture?.toString() || '17',
+        safaiCut: activePlant.safaiCut?.toString() || '2',
+        processingCut: activePlant.processingCut?.toString() || '4',
+      });
     }
   }, [activePlant]);
 
-  const handleUpdateGovtRate = async () => {
+  const handleUpdateSettings = async () => {
     if (!activePlant) {
       useUiStore.getState().addToast('No active plant selected', 'error');
       return;
     }
     try {
-      const rate = parseFloat(plantGovtRate) || 0;
-      await api.put(`/api/plants/${activePlant.id}`, { govtRate: rate });
-      setIsEditingGovtRate(false);
+      const payload = {
+        govtRate: parseFloat(plantSettings.govtRate) || 0,
+        benchmarkMoisture: parseFloat(plantSettings.benchmarkMoisture) || 17,
+        safaiCut: parseFloat(plantSettings.safaiCut) || 2,
+        processingCut: parseFloat(plantSettings.processingCut) || 4,
+      };
+      await api.put(`/api/plants/${activePlant.id}`, payload);
+      setIsEditingSettings(false);
       const { setActivePlant } = usePlantStore.getState();
-      setActivePlant({ ...activePlant, govtRate: rate });
-      useUiStore.getState().addToast('Plant Govt Rate updated successfully', 'success');
+      setActivePlant({ ...activePlant, ...payload });
+      useUiStore.getState().addToast('Plant Settings updated successfully', 'success');
     } catch (err) {
-      console.error('Failed to update govt rate', err);
-      useUiStore.getState().addToast('Failed to update Govt Rate', 'error');
+      console.error('Failed to update plant settings', err);
+      useUiStore.getState().addToast('Failed to update Plant Settings', 'error');
     }
   };
 
@@ -242,7 +242,17 @@ export const ProcurementManagement = () => {
     const req = (reqA + reqB).toFixed(3);
     
     const actualWt = parseFloat(inwardFormData.netWtMill) || 0;
-    const shortageQtl = (parseFloat(req) - actualWt).toFixed(2);
+    
+    const qualityCutType = inwardFormData.qualityCutType || 'NONE';
+    const qualityCutValue = parseFloat(inwardFormData.qualityCutValue) || 0;
+    let qualityCutQtl = 0;
+    if (qualityCutType === 'BAGS') {
+      qualityCutQtl = qualityCutValue * 0.382;
+    } else if (qualityCutType === 'PERCENTAGE') {
+      qualityCutQtl = (actualWt * qualityCutValue) / 100;
+    }
+    
+    const shortageQtl = (parseFloat(req) - actualWt + qualityCutQtl).toFixed(2);
     
     // Shortage Bags = Agency Bags - Bags Rec
     const agencyA = parseFloat(inwardFormData.origAClassAg) || 0;
@@ -258,7 +268,7 @@ export const ProcurementManagement = () => {
       shortageQtl: parseFloat(shortageQtl) > 0 ? shortageQtl : '0.00',
       shortageBags: parseFloat(shortageBags) > 0 ? shortageBags : '0.00'
     }));
-  }, [inwardFormData.origAClass, inwardFormData.origBClass, inwardFormData.shortageAClass, inwardFormData.shortageBClass, inwardFormData.netWtMill, activePlant, plants]);
+  }, [inwardFormData.origAClass, inwardFormData.origBClass, inwardFormData.shortageAClass, inwardFormData.shortageBClass, inwardFormData.netWtMill, inwardFormData.qualityCutType, inwardFormData.qualityCutValue, activePlant, plants]);
  const [dhanakLots, setDhanakLots] = useState([{ id: 1, sNo: '', bags: 0, moisture: 0, bardanaClass: '' }]);
 
   const [inwardErrors, setInwardErrors] = useState<Record<string, string>>({});
@@ -361,6 +371,7 @@ export const ProcurementManagement = () => {
         try { const res = await api.get('/api/master-data/drivers'); setDrivers(res.data); } catch (e) { console.error('Failed to fetch drivers', e); }
         try { const res = await api.get('/api/master-data/staff'); setStaff(res.data); } catch (e) { console.error('Failed to fetch staff', e); }
         try { const res = await api.get('/api/master-data/labour'); setLabours(res.data); } catch (e) { console.error('Failed to fetch labour', e); }
+        try { const res = await api.get('/api/master-data/pahunch'); setPahunchs(res.data); } catch (e) { console.error('Failed to fetch pahunchs', e); }
       };
       
       fetchMasterData();
@@ -688,6 +699,54 @@ export const ProcurementManagement = () => {
     return matches;
   });
 
+  const dailyStats = React.useMemo(() => {
+    const stats: Record<string, { maxRate: number, minRate: number, totalBags: number, purchases: number, govtRate: number, overPricedValue: number }> = {};
+    
+    filteredSodaPending.forEach((p: any) => {
+      const d = new Date(p.date).toLocaleDateString();
+      const govtRate = parseFloat(p.govtRate) || (activePlant?.govtRate) || 0;
+      if (!stats[d]) {
+        stats[d] = { maxRate: 0, minRate: Infinity, totalBags: 0, purchases: 0, govtRate, overPricedValue: 0 };
+      }
+      
+      const processRate = (rate: number, bags: number, moisture: number) => {
+        if (rate > 0) {
+          if (rate > stats[d].maxRate) stats[d].maxRate = rate;
+          if (rate < stats[d].minRate) stats[d].minRate = rate;
+          if (stats[d].govtRate > 0) {
+             const bMoisture = activePlant?.benchmarkMoisture || 17;
+             const safaiCut = activePlant?.safaiCut || 2;
+             const procCut = activePlant?.processingCut || 4;
+             const mCut = moisture > bMoisture ? (moisture - bMoisture) : 0;
+             const totalCut = mCut + safaiCut + procCut;
+             const requiredRate = stats[d].govtRate - (stats[d].govtRate * (totalCut / 100));
+             
+             if (rate > requiredRate) {
+                stats[d].overPricedValue += (rate - requiredRate) * bags;
+             }
+          }
+        }
+      };
+
+      if (p.bolis && p.bolis.length > 0) {
+        p.bolis.forEach((b: any) => {
+           processRate(parseFloat(b.rate) || 0, parseFloat(b.bags) || 0, parseFloat(b.moisture || p.mc) || 0);
+           stats[d].totalBags += parseFloat(b.bags) || 0;
+        });
+        stats[d].purchases += p.bolis.length;
+      } else {
+        processRate(parseFloat(p.rate) || 0, parseFloat(p.bags) || 0, parseFloat(p.mc) || 0);
+        stats[d].totalBags += parseFloat(p.bags) || 0;
+        stats[d].purchases += 1;
+      }
+    });
+    
+    Object.keys(stats).forEach(k => {
+       if (stats[k].minRate === Infinity) stats[k].minRate = 0;
+    });
+    return Object.entries(stats).map(([date, data]) => ({ date, ...data }));
+  }, [filteredSodaPending, activePlant]);
+
  return (
  <div className="flex flex-col h-full bg-[var(--bg-base)]">
  {/* Header & Category Toggle */}
@@ -901,13 +960,38 @@ export const ProcurementManagement = () => {
               <button onClick={() => setListFilters({dateFrom: '', dateTo: '', mandi: '', supplierId: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
             </div>
           </div>
+          
+          {/* Daily Stats Dashboard */}
+          {dailyStats.length > 0 && (
+            <div className="flex gap-4 overflow-x-auto pb-4 mb-4 hide-scrollbar">
+              {dailyStats.map((stat, idx) => (
+                <div key={idx} className="min-w-[200px] bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-xl p-3 shadow flex flex-col gap-1">
+                  <div className="text-xs font-bold text-[var(--text-muted-alt)]">{stat.date}</div>
+                  <div className="flex justify-between items-end mt-1">
+                    <span className="text-[10px] text-[var(--text-muted)]">Highest</span>
+                    <span className="text-sm font-bold text-red-400">₹{stat.maxRate}</span>
+                  </div>
+                  <div className="flex justify-between items-end">
+                    <span className="text-[10px] text-[var(--text-muted)]">Lowest</span>
+                    <span className="text-sm font-bold text-green-400">₹{stat.minRate}</span>
+                  </div>
+                  <div className="flex justify-between items-end mt-1 border-t border-[var(--border-subtle)] pt-1">
+                    <span className="text-[10px] text-[var(--text-muted)]">Overpriced Diff</span>
+                    <span className="text-sm font-bold text-[#e67e00]">₹{stat.overPricedValue.toLocaleString()}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
           <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
           <thead>
             <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)]">
               <th className="p-3">Party - Supplier</th>
               <th className="p-3">Date</th>
               <th className="p-3">Mc</th>
-              <th className="p-3">Bags</th>
+              <th className="p-3">Estimated Bags</th>
+              <th className="p-3">Final Bags</th>
               <th className="p-3">Rate</th>
               <th className="p-3">Diff</th>
               <th className="p-3">Payment</th>
@@ -917,19 +1001,62 @@ export const ProcurementManagement = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredSodaPending.map((p, i) => (
+            {filteredSodaPending.map((p, i) => {
+              // Calculate Overpriced Flag
+              const govtRate = parseFloat(p.govtRate) || activePlant?.govtRate || 0;
+              const bMoisture = activePlant?.benchmarkMoisture || 17;
+              const safaiCut = activePlant?.safaiCut || 2;
+              const procCut = activePlant?.processingCut || 4;
+              
+              const mVal = parseFloat(p.mc) || 0;
+              const mCut = mVal > bMoisture ? (mVal - bMoisture) : 0;
+              const totalCut = mCut + safaiCut + procCut;
+              const requiredRate = govtRate > 0 ? (govtRate - (govtRate * (totalCut / 100))) : 0;
+              const actRate = parseFloat(p.rate) || 0;
+              const isOverpriced = govtRate > 0 && actRate > requiredRate;
+              
+              // Calculate Final Bags if bolis exist
+              const totalFinalBags = p.bolis?.reduce((acc: number, b: any) => acc + (parseFloat(b.bags) || 0), 0) || 0;
+
+              return (
               <tr key={p.id} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)]">
                   <td className="p-3 font-medium text-[var(--text-main)]">{p.partyMandi}</td>
                   <td className="p-3">{new Date(p.date).toLocaleDateString()}</td>
                   <td className="p-3">
-                    {p.bolis?.length ? <button onClick={() => setViewBolisModal({isOpen: true, bolis: p.bolis, partyMandi: p.partyMandi, date: p.date})} className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded hover:bg-blue-500/30">View {p.bolis.length} Bolis</button> : p.mc || '-'}
+                    {p.bolis?.length ? <button onClick={() => setViewBolisModal({isOpen: true, soda: p, partyMandi: p.partyMandi, date: p.date})} className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded hover:bg-blue-500/30">View {p.bolis.length} Bolis</button> : p.mc || '-'}
                   </td>
                   <td className="p-3 font-bold text-[var(--text-muted)]">{p.bolis?.length ? '-' : p.bags || '-'}</td>
-                  <td className="p-3 font-bold text-[#e67e00]">{p.bolis?.length ? '-' : p.rate || '-'}</td>
-                <td className="p-3 text-red-400">{p.diff || '0'}</td>
-                <td className="p-3 text-green-400">{p.payment || '0'}</td>
+                  <td className="p-3 font-bold text-[var(--text-main)]">{p.bolis?.length ? totalFinalBags : '-'}</td>
+                  <td className="p-3">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-[#e67e00]">{p.bolis?.length ? '-' : p.rate || '-'}</span>
+                      {!p.bolis?.length && govtRate > 0 && actRate > 0 && (
+                        isOverpriced 
+                          ? <span className="text-[10px] text-red-500 font-bold bg-red-500/10 px-1 py-0.5 rounded mt-0.5 inline-block w-max">OVERPRICED (Req: ₹{requiredRate.toFixed(2)})</span> 
+                          : <span className="text-[10px] text-green-500 font-bold bg-green-500/10 px-1 py-0.5 rounded mt-0.5 inline-block w-max">GOOD BUY</span>
+                      )}
+                    </div>
+                  </td>
+                <td className="p-3">
+                  {parseFloat(p.diff) > 0 ? (
+                    <span className="text-red-500 font-bold">₹{p.diff} (Pending)</span>
+                  ) : parseFloat(p.diff) < 0 ? (
+                    <span className="text-green-500 font-bold">₹{Math.abs(parseFloat(p.diff))} (Advance)</span>
+                  ) : (
+                    <span className="text-[var(--text-muted)]">₹0</span>
+                  )}
+                </td>
+                <td className="p-3 text-[var(--text-main)] font-bold">{p.payment || '0'}</td>
                 <td className="p-3">{p.note || '-'}</td>
-                <td className="p-3 font-bold text-[var(--text-main)]">{p.finalHisabAmt || '0'}</td>
+                <td className="p-3">
+                  {parseFloat(p.finalHisabAmt) > 0 ? (
+                    <span className="text-red-500 font-bold flex items-center gap-1"><ArrowUpRight size={14}/> ₹{p.finalHisabAmt}</span>
+                  ) : parseFloat(p.finalHisabAmt) < 0 ? (
+                    <span className="text-green-500 font-bold flex items-center gap-1"><ArrowDownRight size={14}/> ₹{Math.abs(parseFloat(p.finalHisabAmt))}</span>
+                  ) : (
+                    <span className="text-[var(--text-main)] font-bold">₹{p.finalHisabAmt || '0'}</span>
+                  )}
+                </td>
                 <td className="p-3 text-right">
                   <button onClick={() => setPaddyPurchaseModal({
                     isOpen: true, id: p.id, plantId: activePlant?.id || '', supplierId: p.supplierId, riceCategory: p.riceCategory || 'ANY',
@@ -942,7 +1069,8 @@ export const ProcurementManagement = () => {
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {filteredSodaPending.length === 0 && (
               <tr>
                 <td colSpan={10} className="p-6 text-center text-[var(--text-muted-alt)]">No records found.</td>
@@ -960,77 +1088,26 @@ export const ProcurementManagement = () => {
   )}
 
   {/* View Bolis Modal */}
-  {viewBolisModal.isOpen && (
+  {viewBolisModal.isOpen && viewBolisModal.soda && (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[var(--bg-panel)] rounded-xl w-full max-w-lg shadow-2xl border border-[var(--border-subtle)] overflow-hidden">
+      <div className="bg-[var(--bg-panel)] rounded-xl w-full max-w-4xl shadow-2xl border border-[var(--border-subtle)] overflow-hidden">
         <div className="flex justify-between items-center p-5 border-b border-[var(--border-subtle)] bg-[var(--bg-base)]">
           <div>
-            <h3 className="text-lg font-bold text-[var(--text-main)]">Bolis Breakdown</h3>
+            <h3 className="text-lg font-bold text-[var(--text-main)]">Bolis Breakdown & Completion</h3>
             <p className="text-xs text-[var(--text-muted-alt)] mt-1">{viewBolisModal.partyMandi} - {new Date(viewBolisModal.date).toLocaleDateString()}</p>
           </div>
-          <button onClick={() => setViewBolisModal({isOpen: false, bolis: []})} className="text-[var(--text-muted)] hover:text-white transition-colors">
+          <button onClick={() => setViewBolisModal({isOpen: false, soda: null})} className="text-[var(--text-muted)] hover:text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="p-5">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-[var(--border-subtle)]">
-                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase">#</th>
-                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase">Moisture (%)</th>
-                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-right">Rate</th>
-                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-right">Expected Bags</th>
-                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-right">Final Bags</th>
-                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-right">Bags Rec in soda</th>
-                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-right text-blue-400">Bags Rec Today</th>
-                <th className="py-2 text-xs text-[var(--text-muted-alt)] uppercase text-center">Completed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {viewBolisModal.bolis.map((b: any, idx: number) => (
-                <tr key={idx} className="border-b border-[var(--border-subtle-alt)] last:border-0 hover:bg-[var(--glass-bg)]">
-                  <td className="py-3 text-sm text-[var(--text-muted)]">{idx + 1}</td>
-                  <td className="py-3 text-sm text-[var(--text-main)]">{b.moisture}%</td>
-                  <td className="py-3 text-sm text-right text-[#e67e00] font-bold">{b.rate}</td>
-                  <td className="py-3 text-sm text-right text-[var(--text-main)]">{b.expectedBags || b.bags}</td>
-                  <td className="py-3 text-sm text-right text-[var(--text-main)] font-bold">{b.bags}</td>
-                  <td className="py-3 text-sm text-right text-[var(--text-main)]">{b.bagsRecInSoda || 0}</td>
-                  <td className="py-3 text-sm text-right">
-                    <input type="number" min="0" 
-                           value={boliInputs[b.id] || ''} 
-                           onChange={(e) => setBoliInputs(prev => ({...prev, [b.id]: e.target.value}))}
-                           className="w-16 bg-[var(--bg-base)] border border-blue-500/50 rounded px-1 py-1 text-[var(--text-main)] outline-none focus:border-blue-500 text-right" 
-                           placeholder="0" />
-                  </td>
-                  <td className="py-3 text-sm text-center">
-                    <input type="checkbox" checked={b.isCompleted || false} onChange={(e) => {
-                      if(e.target.checked) {
-                        const finalBags = parseFloat(b.bags) || 0;
-                        const recInSoda = parseFloat(b.bagsRecInSoda) || 0;
-                        const recToday = parseFloat(boliInputs[b.id]) || 0;
-                        const totalRec = recInSoda + recToday;
-                        const variance = Math.abs(finalBags - totalRec) / finalBags;
-                        if(variance > 0.05) {
-                          useUiStore.getState().addToast('Admin Notified: Variance exceeds 5%', 'error');
-                        }
-                      }
-                      // Update state (mock)
-                      const updatedBolis = viewBolisModal.bolis.map((boli: any) => boli.id === b.id ? {...boli, isCompleted: e.target.checked} : boli);
-                      setViewBolisModal({...viewBolisModal, bolis: updatedBolis});
-                    }} className="accent-[#e67e00] w-4 h-4" />
-                  </td>
-                </tr>
-              ))}
-              <tr className="bg-[var(--bg-base)]">
-                <td colSpan={4} className="py-3 text-sm font-bold text-right text-[var(--text-muted)]">Total Final Bags:</td>
-                <td className="py-3 text-sm text-right text-[var(--text-main)] font-bold">{viewBolisModal.bolis.reduce((acc: number, b: any) => acc + (parseFloat(b.bags) || 0), 0)}</td>
-                <td colSpan={3}></td>
-              </tr>
-            </tbody>
-          </table>
-          <div className="mt-6 flex justify-end">
-            <button onClick={() => setViewBolisModal({isOpen: false, bolis: []})} className="px-4 py-2 bg-[var(--bg-base)] hover:bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded text-[var(--text-main)] text-sm">Close</button>
-          </div>
+        <div className="p-5 overflow-auto max-h-[70vh]">
+          <BoliCompletionTable
+            sodaPending={[viewBolisModal.soda]}
+            supplierId={viewBolisModal.soda.supplierId}
+            boliInputs={boliInputs}
+            setBoliInputs={setBoliInputs}
+            onSodaComplete={fetchSodaPending}
+          />
         </div>
       </div>
     </div>
@@ -1114,12 +1191,23 @@ export const ProcurementManagement = () => {
   <input type="number" name="kmsDriven" value={inwardFormData.kmsDriven} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
   {inwardErrors.kmsDriven && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.kmsDriven}</span>}
   </div>
- <div>
+  <div>
   <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Party / Supplier Name <span className="text-red-500">*</span></label>
-  <select name="supplierId" value={inwardFormData.supplierId} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
-  <option value="">Select Supplier</option>
-  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name} - {s.mandi || 'No Mandi'}</option>)}
-  </select>
+  <input 
+    list="supplier-options"
+    name="supplierId"
+    value={suppliers.find(s => s.id === inwardFormData.supplierId)?.name || inwardFormData.supplierId || ''}
+    onChange={(e) => {
+      const val = e.target.value;
+      const matched = suppliers.find(s => s.name === val);
+      handleInwardChange({ target: { name: 'supplierId', value: matched ? matched.id : val } });
+    }}
+    className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+    placeholder="Type to search supplier..."
+  />
+  <datalist id="supplier-options">
+    {suppliers.map(s => <option key={s.id} value={s.name}>{s.mandi || 'No Mandi'}</option>)}
+  </datalist>
   {inwardErrors.supplierId && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.supplierId}</span>}
   </div>
  <div>
@@ -1141,7 +1229,7 @@ export const ProcurementManagement = () => {
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center gap-2">Pahunch Person / Staff <span className="text-red-500">*</span></label>
  <select name="pahunchPersonName" value={inwardFormData.pahunchPersonName} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none">
    <option value="">Select Staff</option>
-   {staff.map(s => <option key={s.id} value={s.name}>{s.name} ({s.role})</option>)}
+   {pahunchs.map(s => <option key={s.id} value={s.name}>{s.name} {s.contact ? `(${s.contact})` : ''}</option>)}
  </select>
  {inwardErrors.pahunchPersonName && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.pahunchPersonName}</span>}
  </div>
@@ -1192,16 +1280,14 @@ export const ProcurementManagement = () => {
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Bhari (Loaded) Video Upload <span className="text-red-500">*</span></label>
  <div className="flex items-center gap-4 py-2">
- <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="bhariVideoUpload" value="Yes" checked={inwardFormData.bhariVideoUpload === 'Yes'} onChange={handleInwardChange} className="accent-blue-500" /> Yes</label>
- <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="bhariVideoUpload" value="No" checked={inwardFormData.bhariVideoUpload === 'No'} onChange={handleInwardChange} className="accent-blue-500" /> Uploading</label>
+ <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="checkbox" name="bhariVideoUpload" checked={inwardFormData.bhariVideoUpload === 'Yes'} onChange={(e) => handleInwardChange({ target: { name: 'bhariVideoUpload', value: e.target.checked ? 'Yes' : '' } } as any)} className="accent-blue-500" /> Yes Done</label>
  </div>
  {inwardErrors.bhariVideoUpload && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.bhariVideoUpload}</span>}
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Khali (Empty) Video Upload <span className="text-red-500">*</span></label>
  <div className="flex items-center gap-4 py-2">
- <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="khaliVideoUpload" value="Yes" checked={inwardFormData.khaliVideoUpload === 'Yes'} onChange={handleInwardChange} className="accent-blue-500" /> Yes</label>
- <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="khaliVideoUpload" value="No" checked={inwardFormData.khaliVideoUpload === 'No'} onChange={handleInwardChange} className="accent-blue-500" /> Uploading</label>
+ <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="checkbox" name="khaliVideoUpload" checked={inwardFormData.khaliVideoUpload === 'Yes'} onChange={(e) => handleInwardChange({ target: { name: 'khaliVideoUpload', value: e.target.checked ? 'Yes' : '' } } as any)} className="accent-blue-500" /> Yes Done</label>
  </div>
  {inwardErrors.khaliVideoUpload && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.khaliVideoUpload}</span>}
  </div>
@@ -1222,10 +1308,19 @@ export const ProcurementManagement = () => {
  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4 text-sm">
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Allocation Type <span className="text-red-500">*</span></label>
- <select name="allocationType" value={inwardFormData.allocationType} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
- <option value="Hoodi">Hoodi</option>
- <option value="Stacking">Stacking</option>
- </select>
+ <div className="flex items-center gap-2">
+   <select name="allocationType" value={inwardFormData.allocationType} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
+   <option value="" disabled>Select Allocation Type</option>
+   <option value="Hoodi">Hoodi</option>
+   <option value="Stacking">Stacking</option>
+   </select>
+   {inwardFormData.allocationType === 'Hoodi' && (
+     <label className="flex items-center gap-1 text-[10px] text-gray-500 font-medium whitespace-nowrap whitespace-nowrap cursor-pointer">
+       <input type="checkbox" name="informBauji" checked={inwardFormData.informBauji || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, informBauji: e.target.checked }))} className="accent-[#e67e00]" />
+       Inform Bauji
+     </label>
+   )}
+ </div>
  {inwardErrors.allocationType && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.allocationType}</span>}
  </div>
  <div>
@@ -1251,10 +1346,10 @@ export const ProcurementManagement = () => {
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Pahunch Person Name <span className="text-red-500">*</span></label>
- <select name="pahunchPerson" value={inwardFormData.pahunchPerson || ''} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
-   <option value="">Select Pahunch Person</option>
-   {labours.map(l => <option key={l.id} value={l.name}>{l.name}</option>)}
- </select>
+<select name="pahunchPerson" value={inwardFormData.pahunchPerson || ''} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
+  <option value="">Select Pahunch Person</option>
+  {pahunchs.map(l => <option key={l.id} value={l.name}>{l.name}</option>)}
+</select>
  {inwardErrors.pahunchPerson && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.pahunchPerson}</span>}
  </div>
  <div>
@@ -1365,59 +1460,13 @@ export const ProcurementManagement = () => {
        <span>Pending Bolis / Soda for Selected Arthiya</span>
      </div>
      <div className="p-4">
-       <div className="overflow-x-auto mb-4 border border-[var(--border-subtle)] rounded">
-         <table className="w-full text-sm text-left whitespace-nowrap">
-           <thead>
-              <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)] bg-[var(--bg-base)]">
-               <th className="p-2 font-medium">Date</th>
-               <th className="p-2 font-medium">Final Bags</th>
-               <th className="p-2 font-medium">Bags Rec in soda</th>
-               <th className="p-2 font-medium text-blue-400">Bags Rec Today</th>
-               <th className="p-2 font-medium text-center">Completed</th>
-               <th className="p-2 font-medium">Note</th>
-             </tr>
-           </thead>
-           <tbody>
-             {sodaPending.filter((s: any) => s.supplierId === inwardFormData.supplierId).length === 0 ? (
-               <tr><td colSpan={7} className="p-3 text-center text-gray-500 italic">No pending bolis found.</td></tr>
-             ) : (
-               sodaPending.filter((s: any) => s.supplierId === inwardFormData.supplierId).map((soda: any) => (
-                 <React.Fragment key={soda.id}>
-                   {soda.bolis?.filter((b: any) => !b.isCompleted).map((boli: any) => (
-                     <tr key={boli.id} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--bg-base)]">
-                       <td className="p-2">{new Date(soda.date).toLocaleDateString()}</td>
-                       <td className="p-2">{boli.bags}</td>
-                       <td className="p-2">{boli.bagsRecInSoda || 0}</td>
-                       <td className="p-2">
-                         <input type="number" min="0" 
-                                value={boliInputs[boli.id] || ''} 
-                                onChange={(e) => setBoliInputs(prev => ({...prev, [boli.id]: e.target.value}))}
-                                className="w-20 bg-[var(--bg-base)] border border-blue-500/50 rounded px-2 py-1 text-[var(--text-main)] outline-none focus:border-blue-500" 
-                                placeholder="Enter bags" />
-                       </td>
-                       <td className="p-2 text-center">
-                         <input type="checkbox" onChange={(e) => {
-                           if(e.target.checked) {
-                             const finalBags = parseFloat(boli.bags) || 0;
-                             const recInSoda = parseFloat(boli.bagsRecInSoda) || 0;
-                             const recToday = parseFloat(boliInputs[boli.id]) || 0;
-                             const totalRec = recInSoda + recToday;
-                             const variance = Math.abs(finalBags - totalRec) / finalBags;
-                             if(variance > 0.05) {
-                               useUiStore.getState().addToast('Admin Notified: Variance exceeds 5%', 'error');
-                               alert("Variance exceeds 5%. Admin has been notified.");
-                             }
-                           }
-                         }} className="accent-blue-500 w-4 h-4" />
-                       </td>
-                       <td className="p-2 text-[var(--text-muted)] truncate max-w-[150px]">{soda.note || '-'}</td>
-                     </tr>
-                   ))}
-                 </React.Fragment>
-               ))
-             )}
-           </tbody>
-         </table>
+        <BoliCompletionTable 
+          sodaPending={sodaPending} 
+          supplierId={inwardFormData.supplierId} 
+          boliInputs={boliInputs} 
+          setBoliInputs={setBoliInputs} 
+          onSodaComplete={fetchSodaPending}
+        />
        </div>
        
        <div className="bg-[var(--bg-base)] rounded border border-[var(--border-subtle)] p-3">
@@ -1451,24 +1500,33 @@ export const ProcurementManagement = () => {
               <input type="text" name="qualityCutReason" value={inwardFormData.qualityCutReason} onChange={handleInwardChange} disabled={inwardFormData.qualityCutType === 'NONE'} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)] outline-none disabled:opacity-50" placeholder="e.g. High Moisture" />
             </div>
           </div>
-          <div className="flex gap-4 mt-2">
-             <label className="flex items-center gap-2 text-xs text-[var(--text-main)] cursor-pointer">
-               <input type="checkbox" name="cutToBeAddedInShortage" checked={inwardFormData.cutToBeAddedInShortage || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, cutToBeAddedInShortage: e.target.checked }))} className="accent-[#e67e00] w-4 h-4" />
-               Cut to be added in shortage
-             </label>
+          <div className="flex flex-wrap gap-4 mt-2">
              <label className="flex items-center gap-2 text-xs text-[var(--text-main)] cursor-pointer">
                <input type="checkbox" name="bagsRecLessThanAgencyGp" checked={inwardFormData.bagsRecLessThanAgencyGp || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, bagsRecLessThanAgencyGp: e.target.checked }))} className="accent-[#e67e00] w-4 h-4" />
                Bags Rec. less than Agency GP: N/A
              </label>
+             <label className="flex items-center gap-2 text-xs text-[var(--text-main)] cursor-pointer">
+               <input type="checkbox" name="plusWeight" checked={inwardFormData.plusWeight || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, plusWeight: e.target.checked }))} className="accent-[#e67e00] w-4 h-4" />
+               + Weight
+             </label>
+             {inwardFormData.plusWeight && (
+               <label className="flex items-center gap-2 text-xs text-[var(--text-main)] cursor-pointer bg-red-900/20 px-2 py-1 rounded">
+                 <input type="checkbox" name="baujiPermission" checked={inwardFormData.baujiPermission || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, baujiPermission: e.target.checked }))} className="accent-red-500 w-4 h-4" />
+                 Bauji Permission Required
+               </label>
+             )}
           </div>
-          {inwardFormData.qualityCutType === 'PERCENTAGE' && inwardFormData.qualityCutValue > 0 && inwardFormData.netWtMill > 0 && (
+          {inwardFormData.qualityCutType && inwardFormData.qualityCutType !== 'NONE' && inwardFormData.qualityCutValue > 0 && inwardFormData.netWtMill > 0 && (
             <div className="mt-2 text-xs text-orange-400">
-              <span className="font-bold">Calculated Cut equivalent:</span> {((parseFloat(inwardFormData.netWtMill) * parseFloat(inwardFormData.qualityCutValue)) / 100).toFixed(2)} Qtl (Will be added to Shortage)
+              <span className="font-bold">Calculated Cut equivalent:</span> {
+                inwardFormData.qualityCutType === 'BAGS' 
+                  ? (parseFloat(inwardFormData.qualityCutValue) * 0.382).toFixed(2)
+                  : ((parseFloat(inwardFormData.netWtMill) * parseFloat(inwardFormData.qualityCutValue)) / 100).toFixed(2)
+              } Qtl (Will be added to Shortage)
             </div>
           )}
         </div>
       </div>
-    </div>
   )}
 
   </div>
@@ -1638,33 +1696,7 @@ export const ProcurementManagement = () => {
     </div>
   </div>
   
-  {inwardFormData.actualShortageQtl < 0 && (
-    <div className="col-span-2 bg-yellow-900/10 border border-yellow-500/30 p-4 rounded-lg flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <span className="text-yellow-500 font-bold text-sm">Excess Weight Received: {Math.abs(inwardFormData.actualShortageQtl)} Qtl</span>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-[var(--text-muted-alt)]">Consider in Shortage Recovery?</span>
-          <label className="flex items-center gap-1"><input type="radio" name="shortageRecoveryOpt" value="Yes" checked={inwardFormData.shortageRecoveryOpt === 'Yes'} onChange={(e) => {
-            if(e.target.checked) {
-              const confirm1 = window.confirm("Are you sure you want to recover this excess weight?");
-              if(confirm1) {
-                const confirm2 = window.confirm("Final Confirmation: This action will notify the Admin and reduce the supplier's net shortage. Proceed?");
-                if(confirm2) {
-                  setInwardFormData((p: any) => ({...p, shortageRecoveryOpt: 'Yes'}));
-                  useUiStore.getState().addToast('Admin notified. Excess weight will be recovered.', 'success');
-                } else {
-                  e.preventDefault();
-                }
-              } else {
-                e.preventDefault();
-              }
-            }
-          }} className="accent-yellow-500" /> Yes</label>
-          <label className="flex items-center gap-1"><input type="radio" name="shortageRecoveryOpt" value="No" checked={inwardFormData.shortageRecoveryOpt === 'No' || !inwardFormData.shortageRecoveryOpt} onChange={() => setInwardFormData((p: any) => ({...p, shortageRecoveryOpt: 'No'}))} className="accent-yellow-500" /> No</label>
-        </div>
-      </div>
-    </div>
-  )}
+
 
   {/* Removed Shortage Received / Occurred as per feedback */}
   <div>
@@ -1686,6 +1718,34 @@ export const ProcurementManagement = () => {
   <div>
     <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Total shortage of Artia (Bags)</label>
     <input type="text" value={inwardFormData.shortageBags || '0'} disabled className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed font-bold text-red-400" />
+  </div>
+
+  {inwardFormData.actualShortageQtl < 0 && (
+    <div className="col-span-2">
+      <span className="text-yellow-500 font-bold text-sm block mb-2">Excess Weight Received: {Math.abs(inwardFormData.actualShortageQtl)} Qtl</span>
+    </div>
+  )}
+
+  <div className="col-span-2">
+    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Plus wt. consider in shortage recovery :</label>
+    <div className="flex flex-wrap items-center gap-4 mt-2">
+      <label className="flex items-center gap-1 cursor-pointer text-[var(--text-main)]">
+        <input type="radio" name="shortageRecoveryOpt" value="No" checked={inwardFormData.shortageRecoveryOpt === 'No' || !inwardFormData.shortageRecoveryOpt} onChange={() => setInwardFormData((p: any) => ({...p, shortageRecoveryOpt: 'No', baujiPermissionPlusWt: false}))} className="accent-blue-500" /> No
+      </label>
+      <label className="flex items-center gap-1 cursor-pointer text-[var(--text-main)]">
+        <input type="radio" name="shortageRecoveryOpt" value="Yes" checked={inwardFormData.shortageRecoveryOpt === 'Yes'} onChange={(e) => {
+          if (e.target.checked) setInwardFormData((p: any) => ({...p, shortageRecoveryOpt: 'Yes'}));
+        }} className="accent-blue-500" /> Yes
+        <span className="text-[10px] text-[var(--text-muted-alt)] ml-1">( if Yes inform Bauji on each entry )</span>
+      </label>
+      
+      {inwardFormData.shortageRecoveryOpt === 'Yes' && (
+        <label className="flex items-center gap-2 text-sm text-[var(--text-main)] font-medium cursor-pointer ml-4 animate-in fade-in slide-in-from-left-2 duration-200">
+          <input type="checkbox" checked={inwardFormData.baujiPermissionPlusWt} onChange={(e) => setInwardFormData((p: any) => ({...p, baujiPermissionPlusWt: e.target.checked}))} className="accent-blue-500 w-4 h-4" />
+          Bauji Permission Obtained
+        </label>
+      )}
+    </div>
   </div>
 
   <div className="col-span-2">
@@ -1935,28 +1995,35 @@ export const ProcurementManagement = () => {
               <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)]">
                 <th className="p-3">Purchase No.</th>
                 <th className="p-3">Date</th>
-                <th className="p-3">GP No</th>
                 <th className="p-3">Supplier</th>
-                <th className="p-3">Mandi EG No</th>
+                <th className="p-3">Mandi EG / GP</th>
                 <th className="p-3">Vehicle</th>
                 <th className="p-3 text-right">Gross Wt</th>
                 <th className="p-3 text-right">Tare Wt</th>
                 <th className="p-3 text-right">Net Wt</th>
+                <th className="p-3 text-right">Bags</th>
+                <th className="p-3">Quality</th>
                 <th className="p-3 text-center">Action</th>
               </tr>
             </thead>
             <tbody>
               {inwardList.map((p, i) => (
-                <tr key={i} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)]">
-                  <td className="p-3 font-mono text-xs">{p.purchaseNo}</td>
-                  <td className="p-3">{p.date}</td>
-                  <td className="p-3">{p.gpNo}</td>
-                  <td className="p-3 text-[var(--text-main)] font-bold">{p.supplier}</td>
-                  <td className="p-3">{p.mandiEgNo}</td>
-                  <td className="p-3">{p.vehicleNo}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.grossWt || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.tareWt || '-'}</td>
-                  <td className="p-3 text-right font-bold text-[#e67e00]">{p.netWt || '-'}</td>
+                <tr key={i} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)] whitespace-nowrap">
+                  <td className="p-3 font-mono text-xs">{p.purchaseNo || p.id?.substring(0,8).toUpperCase()}</td>
+                  <td className="p-3">{p.date || (p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '-')}</td>
+                  <td className="p-3 text-[var(--text-main)] font-bold">{p.supplier || p.supplier?.name || '-'}</td>
+                  <td className="p-3 text-xs">EG: {p.mandiEgNo || p.paddyInwardDetails?.mandiEgNo || '-'}<br/>GP: {p.gpNo || p.paddyInwardDetails?.gpNo || '-'}</td>
+                  <td className="p-3">{p.vehicleNo || p.weighbridge?.vehicleNo || p.paddyInwardDetails?.truckNo || '-'}</td>
+                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.grossWt || p.weighbridge?.grossWeight || '-'}</td>
+                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.tareWt || p.weighbridge?.tareWeight || '-'}</td>
+                  <td className="p-3 text-right font-bold text-[#e67e00]">{p.netWt || p.weighbridge?.netWeight || '-'}</td>
+                  <td className="p-3 text-right">Total: {p.bags || p.paddyInwardDetails?.totalBags || '-'}<br/><span className="text-[10px] text-[var(--text-muted)]">Std: {p.paddyInwardDetails?.standardBags || '0'} | A: {p.paddyInwardDetails?.aClassBags || '0'}</span></td>
+                  <td className="p-3 text-[10px]">
+                    <div className="flex flex-col gap-0.5">
+                       <span>MC: {p.quality?.moisture || '-'}%</span>
+                       <span>BR: {p.quality?.broken || '-'}%</span>
+                    </div>
+                  </td>
                   <td className="p-3 text-center">
                     <button onClick={() => handleViewInward(p)} className="text-blue-500 hover:text-blue-400 p-1 rounded hover:bg-[var(--bg-base)]" title="View Full Details">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -2080,54 +2147,65 @@ export const ProcurementManagement = () => {
               
               <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                 
-                  {/* Govt Rate Setting */}
-                  <div className="space-y-3">
-                    <label className="block text-sm font-bold text-[var(--text-muted)] flex items-center justify-between">
-                      Plant Government Rate
-                      {!isEditingGovtRate && (
-                        <button onClick={() => setIsEditingGovtRate(true)} className="text-amber-500 hover:text-amber-400 p-1 bg-amber-500/10 rounded">
-                          <Edit size={14} />
+                  {/* Procurement Cut Settings */}
+                  <div className="col-span-1 md:col-span-2 bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle)] p-6 mt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-2">
+                        <Settings className="w-4 h-4 text-amber-500" />
+                        Procurement & Cut Configurations
+                      </h4>
+                      {!isEditingSettings && (
+                        <button onClick={() => setIsEditingSettings(true)} className="text-amber-500 hover:text-amber-400 px-3 py-1 bg-amber-500/10 rounded font-bold text-xs">
+                          Edit Settings
                         </button>
                       )}
-                    </label>
-                    
-                    {!isEditingGovtRate ? (
-                      <div className="flex items-center gap-2">
-                         <span className="text-2xl font-bold text-[var(--text-main)]">₹{plantGovtRate || '0.00'}</span>
-                         <span className="text-xs text-[var(--text-muted-alt)]">/ Qtl</span>
+                    </div>
+
+                    {!isEditingSettings ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div>
+                          <p className="text-xs text-[var(--text-muted-alt)] mb-1">Govt Purchase Rate</p>
+                          <p className="text-xl font-bold text-[var(--text-main)]">₹{plantSettings.govtRate || '0.00'}<span className="text-xs text-[var(--text-muted)] font-normal ml-1">/ Qtl</span></p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[var(--text-muted-alt)] mb-1">Benchmark Moisture</p>
+                          <p className="text-xl font-bold text-[var(--text-main)]">{plantSettings.benchmarkMoisture || '17'}%</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[var(--text-muted-alt)] mb-1">Safai Cut</p>
+                          <p className="text-xl font-bold text-[var(--text-main)]">{plantSettings.safaiCut || '2'}%</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[var(--text-muted-alt)] mb-1">Processing Cut</p>
+                          <p className="text-xl font-bold text-[var(--text-main)]">{plantSettings.processingCut || '4'}%</p>
+                        </div>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-3">
-                        <div className="relative flex-1">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <span className="text-[var(--text-muted-alt)] font-bold">₹</span>
-                          </div>
-                          <input 
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={plantGovtRate}
-                            onChange={(e) => setPlantGovtRate(e.target.value)}
-                            className="w-full pl-8 pr-4 py-2 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg focus:border-amber-500 transition-colors text-[var(--text-main)] outline-none"
-                            placeholder="Enter rate..."
-                          />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                          <label className="text-xs text-[var(--text-muted-alt)] mb-1 block">Govt Rate (₹)</label>
+                          <input type="number" min="0" step="0.01" value={plantSettings.govtRate} onChange={(e) => setPlantSettings({...plantSettings, govtRate: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-amber-500" />
                         </div>
-                        <button 
-                          onClick={handleUpdateGovtRate}
-                          className="bg-amber-500 hover:bg-amber-600 text-black px-5 py-2 rounded-lg font-bold shadow-md transition-all"
-                        >
-                          Save
-                        </button>
-                        <button 
-                          onClick={() => setIsEditingGovtRate(false)}
-                          className="bg-[var(--bg-panel)] hover:bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-[var(--text-main)] px-4 py-2 rounded-lg font-bold transition-all"
-                        >
-                          Cancel
-                        </button>
+                        <div>
+                          <label className="text-xs text-[var(--text-muted-alt)] mb-1 block">Benchmark Moisture (%)</label>
+                          <input type="number" min="0" step="0.1" value={plantSettings.benchmarkMoisture} onChange={(e) => setPlantSettings({...plantSettings, benchmarkMoisture: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-amber-500" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-[var(--text-muted-alt)] mb-1 block">Safai Cut (%)</label>
+                          <input type="number" min="0" step="0.1" value={plantSettings.safaiCut} onChange={(e) => setPlantSettings({...plantSettings, safaiCut: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-amber-500" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-[var(--text-muted-alt)] mb-1 block">Processing Cut (%)</label>
+                          <input type="number" min="0" step="0.1" value={plantSettings.processingCut} onChange={(e) => setPlantSettings({...plantSettings, processingCut: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-amber-500" />
+                        </div>
+                        <div className="col-span-1 sm:col-span-2 lg:col-span-4 flex justify-end gap-3 mt-2">
+                          <button onClick={() => setIsEditingSettings(false)} className="bg-[var(--bg-panel)] hover:bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-[var(--text-main)] px-4 py-2 rounded-lg font-bold text-sm transition-all">Cancel</button>
+                          <button onClick={handleUpdateSettings} className="bg-amber-500 hover:bg-amber-600 text-black px-6 py-2 rounded-lg font-bold shadow-md text-sm transition-all">Save Changes</button>
+                        </div>
                       </div>
                     )}
-                    <p className="text-xs text-[var(--text-muted-alt)] leading-relaxed">
-                      This rate is applied to the active plant. It automatically populates the Govt Rate field during new Paddy Purchase entries.
+                    <p className="text-[10px] text-[var(--text-muted-alt)] mt-4 pt-3 border-t border-[var(--border-subtle)]">
+                      These settings are applied globally to this active plant and directly affect the Overpriced Purchase Tagging algorithms.
                     </p>
                   </div>    
               </div>

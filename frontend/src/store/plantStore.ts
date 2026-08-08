@@ -6,6 +6,9 @@ interface Plant {
   name: string;
   code: string;
   govtRate?: number;
+  benchmarkMoisture?: number;
+  safaiCut?: number;
+  processingCut?: number;
 }
 
 interface PlantState {

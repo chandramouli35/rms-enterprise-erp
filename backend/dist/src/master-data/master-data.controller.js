@@ -84,6 +84,17 @@ let MasterDataController = class MasterDataController {
     async deleteLabour(id) {
         return this.masterDataService.deleteLabour(id);
     }
+    async getPahunch(headers, page, limit) {
+        const plantId = this.extractPlantId(headers);
+        return this.masterDataService.getPahunch(plantId, page, limit);
+    }
+    async createPahunch(headers, data) {
+        const plantId = this.extractPlantId(headers);
+        return this.masterDataService.createPahunch(plantId, data);
+    }
+    async deletePahunch(id) {
+        return this.masterDataService.deletePahunch(id);
+    }
 };
 exports.MasterDataController = MasterDataController;
 __decorate([
@@ -203,6 +214,30 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "deleteLabour", null);
+__decorate([
+    (0, common_1.Get)('pahunch'),
+    __param(0, (0, common_1.Headers)()),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", Promise)
+], MasterDataController.prototype, "getPahunch", null);
+__decorate([
+    (0, common_1.Post)('pahunch'),
+    __param(0, (0, common_1.Headers)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], MasterDataController.prototype, "createPahunch", null);
+__decorate([
+    (0, common_1.Delete)('pahunch/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], MasterDataController.prototype, "deletePahunch", null);
 exports.MasterDataController = MasterDataController = __decorate([
     (0, common_1.Controller)('api/master-data'),
     __metadata("design:paramtypes", [master_data_service_1.MasterDataService])

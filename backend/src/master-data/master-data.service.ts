@@ -155,13 +155,45 @@ export class MasterDataService {
     return this.prisma.labourMaster.findMany({ where, orderBy: { name: 'asc' } });
   }
 
-  async createLabour(plantId: string, data: { name: string, type?: string, contact?: string }) {
+  async createLabour(plantId: string, data: { name: string, type?: string, contact?: string, firmName?: string }) {
     return this.prisma.labourMaster.create({
       data: { plantId, ...data }
     });
   }
 
   async deleteLabour(id: string) {
-    return this.prisma.labourMaster.delete({ where: { id } });
+    return this.prisma.labourMaster.update({
+      where: { id },
+      data: { isActive: false }
+    });
+  }
+
+  // ===================== PAHUNCH MASTER =====================
+  async getPahunch(plantId: string, page?: string, limit?: string) {
+    const where = { plantId, isActive: true };
+    if (page) {
+      const pageNum = parseInt(page || '1', 10);
+      const limitNum = parseInt(limit || '10', 10);
+      const skip = (pageNum - 1) * limitNum;
+      const [total, data] = await this.prisma.$transaction([
+        this.prisma.pahunchMaster.count({ where }),
+        this.prisma.pahunchMaster.findMany({ where, orderBy: { name: 'asc' }, skip, take: limitNum })
+      ]);
+      return { data, total };
+    }
+    return this.prisma.pahunchMaster.findMany({ where, orderBy: { name: 'asc' } });
+  }
+
+  async createPahunch(plantId: string, data: { name: string, contact?: string }) {
+    return this.prisma.pahunchMaster.create({
+      data: { plantId, ...data }
+    });
+  }
+
+  async deletePahunch(id: string) {
+    return this.prisma.pahunchMaster.update({
+      where: { id },
+      data: { isActive: false }
+    });
   }
 }
