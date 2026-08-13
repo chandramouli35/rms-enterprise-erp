@@ -880,14 +880,13 @@ model TruckMaster {
   id          String   @id @default(uuid())
   plantId     String
   plant       Plant    @relation(fields: [plantId], references: [id])
-  truckNumber String
+  truckNumber String   @unique
   capacity    Float?   // Optional capacity in MT
   imageUrl    String?  // Optional Cloudinary image URL
   isApproved  Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  @@unique([plantId, truckNumber])
   @@index([plantId])
 }
 

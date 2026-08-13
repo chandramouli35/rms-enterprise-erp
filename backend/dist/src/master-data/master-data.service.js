@@ -39,7 +39,7 @@ let MasterDataService = class MasterDataService {
         });
     }
     async getTrucks(plantId, page, limit) {
-        const where = { plantId, isApproved: true };
+        const where = { isApproved: true };
         if (page) {
             const pageNum = parseInt(page || '1', 10);
             const limitNum = parseInt(limit || '10', 10);
@@ -53,7 +53,7 @@ let MasterDataService = class MasterDataService {
         return this.prisma.truckMaster.findMany({ where, orderBy: { truckNumber: 'asc' } });
     }
     async getAllTrucks(plantId, page, limit) {
-        const where = { plantId };
+        const where = {};
         if (page) {
             const pageNum = parseInt(page || '1', 10);
             const limitNum = parseInt(limit || '10', 10);
@@ -68,7 +68,7 @@ let MasterDataService = class MasterDataService {
     }
     async createTruck(plantId, data, file) {
         const existing = await this.prisma.truckMaster.findFirst({
-            where: { plantId, truckNumber: data.truckNumber }
+            where: { truckNumber: data.truckNumber }
         });
         if (existing) {
             const { BadRequestException } = require('@nestjs/common');

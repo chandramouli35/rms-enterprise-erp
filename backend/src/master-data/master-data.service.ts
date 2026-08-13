@@ -33,7 +33,7 @@ export class MasterDataService {
 
   // ===================== TRUCK MASTER =====================
   async getTrucks(plantId: string, page?: string, limit?: string) {
-    const where = { plantId, isApproved: true };
+    const where = { isApproved: true };
     if (page) {
       const pageNum = parseInt(page || '1', 10);
       const limitNum = parseInt(limit || '10', 10);
@@ -48,7 +48,7 @@ export class MasterDataService {
   }
 
   async getAllTrucks(plantId: string, page?: string, limit?: string) {
-    const where = { plantId };
+    const where = {};
     if (page) {
       const pageNum = parseInt(page || '1', 10);
       const limitNum = parseInt(limit || '10', 10);
@@ -64,7 +64,7 @@ export class MasterDataService {
 
   async createTruck(plantId: string, data: { truckNumber: string, capacity?: number, isApproved?: boolean }, file?: Express.Multer.File) {
     const existing = await this.prisma.truckMaster.findFirst({
-      where: { plantId, truckNumber: data.truckNumber }
+      where: { truckNumber: data.truckNumber }
     });
     
     if (existing) {
