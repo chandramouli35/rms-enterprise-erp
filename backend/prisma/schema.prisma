@@ -573,6 +573,7 @@ model ProductionBatch {
   rejectionBags   Int @default(0)
   finalRiceBags   Int @default(0)
   mansooriBags    Int @default(0)
+  wandProducedBags Int @default(0)
   wandBags        Int @default(0)
   parmalBags      Int @default(0)
   frkBags         Int @default(0)

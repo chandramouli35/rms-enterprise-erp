@@ -14,6 +14,7 @@ export default function LabourManagement() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [plants, setPlants] = useState<any[]>([]);
   
   // Modal state
   const [addModal, setAddModal] = useState({ isOpen: false, name: '', type: '', contact: '', firmName: '' });
@@ -33,8 +34,18 @@ export default function LabourManagement() {
     }
   };
 
+  const fetchPlants = async () => {
+    try {
+      const res = await api.get('/plants');
+      setPlants(Array.isArray(res.data) ? res.data : (res.data?.data || []));
+    } catch (err) {
+      console.error('Failed to fetch plants', err);
+    }
+  };
+
   useEffect(() => {
     fetchLabours();
+    fetchPlants();
   }, [activePlantId, currentPage]);
 
   const handleAddLabour = async (e: React.FormEvent) => {
@@ -154,13 +165,16 @@ export default function LabourManagement() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Firm Name <span className="text-[var(--text-muted-alt)] text-xs">(Optional)</span></label>
-                <input 
-                  type="text" 
+                <select 
                   value={addModal.firmName} 
                   onChange={e => setAddModal({...addModal, firmName: e.target.value})}
                   className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
-                  placeholder="e.g. ABC Agency"
-                />
+                >
+                  <option value="">Select Firm</option>
+                  {plants.map(plant => (
+                    <option key={plant.id} value={plant.name}>{plant.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Type <span className="text-[var(--text-muted-alt)] text-xs">(Optional)</span></label>

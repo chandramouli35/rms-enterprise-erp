@@ -160,6 +160,7 @@ export class ProductionService {
         rejectionBags: dto.additionalOutputs?.['Rejection']?.produced || 0,
         finalRiceBags: dto.additionalOutputs?.['Final Rice']?.produced || 0,
         mansooriBags: dto.additionalOutputs?.['Mansoori']?.produced || 0,
+        wandProducedBags: dto.additionalOutputs?.['Wand']?.wandProduced || 0,
         wandBags: dto.additionalOutputs?.['Wand']?.produced || 0,
         parmalBags: dto.additionalOutputs?.['Parmal']?.produced || 0,
         frkBags: dto.additionalOutputs?.['FRK']?.produced || 0,

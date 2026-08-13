@@ -623,10 +623,7 @@ export const UsersAndRoles: React.FC = () => {
  </div>
  <div>
  <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Username / Email</label>
- <div className="flex gap-3">
- <input type="text" required value={newUserForm.username} onChange={e => setNewUserForm({...newUserForm, username: e.target.value})} className="w-1/2 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500" placeholder="Username" />
- <input type="email" required value={newUserForm.email} onChange={e => setNewUserForm({...newUserForm, email: e.target.value})} className="w-1/2 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500" placeholder="Email Address" />
- </div>
+ <input type="text" required value={newUserForm.username} onChange={e => setNewUserForm({...newUserForm, username: e.target.value, email: e.target.value})} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500" placeholder="Username or Email" />
  </div>
  <div>
  <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Secure Password</label>
@@ -676,11 +673,11 @@ export const UsersAndRoles: React.FC = () => {
        className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] cursor-pointer flex justify-between items-center focus:border-blue-500 hover:border-[var(--border-subtle-alt)] transition-colors"
        onClick={() => setIsAddPlantDropdownOpen(!isAddPlantDropdownOpen)}
      >
-       <span className={newUserForm.plantIds.length === 0 ? "text-[var(--text-muted-alt)]" : ""}>
-         {newUserForm.plantIds.length === 0 
-           ? "Select Plant Context..." 
-           : `${newUserForm.plantIds.length} plant(s) selected`}
-       </span>
+       <span className={newUserForm.plantIds.length === 0 ? "text-[var(--text-muted-alt)]" : "flex-1 overflow-x-auto whitespace-nowrap mr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"}>
+        {newUserForm.plantIds.length === 0 
+          ? "Select Plant Context..." 
+          : newUserForm.plantIds.map(id => plants.find(p => p.id === id)?.name).filter(Boolean).join(', ')}
+      </span>
        <ChevronDown size={16} className={`text-[var(--text-muted-alt)] transition-transform ${isAddPlantDropdownOpen ? 'rotate-180' : ''}`} />
      </div>
      
@@ -736,8 +733,8 @@ export const UsersAndRoles: React.FC = () => {
  </div>
  
  <div>
- <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Email Address</label>
- <input required type="email" value={editUserForm.email} onChange={e => setEditUserForm({...editUserForm, email: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors" placeholder="e.g. john@example.com" />
+ <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Username / Email</label>
+ <input required type="text" value={editUserForm.email} onChange={e => setEditUserForm({...editUserForm, email: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors" placeholder="e.g. john@example.com" />
  </div>
 
  <div>
@@ -803,11 +800,11 @@ export const UsersAndRoles: React.FC = () => {
        className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] cursor-pointer flex justify-between items-center focus:border-blue-500 hover:border-[var(--border-subtle-alt)] transition-colors"
        onClick={() => setIsEditPlantDropdownOpen(!isEditPlantDropdownOpen)}
      >
-       <span className={editUserForm.plantIds.length === 0 ? "text-[var(--text-muted-alt)]" : ""}>
-         {editUserForm.plantIds.length === 0 
-           ? "Select Plant Context..." 
-           : `${editUserForm.plantIds.length} plant(s) selected`}
-       </span>
+       <span className={editUserForm.plantIds.length === 0 ? "text-[var(--text-muted-alt)]" : "flex-1 overflow-x-auto whitespace-nowrap mr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"}>
+        {editUserForm.plantIds.length === 0 
+          ? "Select Plant Context..." 
+          : editUserForm.plantIds.map(id => plants.find(p => p.id === id)?.name).filter(Boolean).join(', ')}
+      </span>
        <ChevronDown size={16} className={`text-[var(--text-muted-alt)] transition-transform ${isEditPlantDropdownOpen ? 'rotate-180' : ''}`} />
      </div>
      

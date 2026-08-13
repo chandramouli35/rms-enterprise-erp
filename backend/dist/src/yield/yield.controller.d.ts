@@ -86,6 +86,7 @@ export declare class YieldController {
             rejectionBags: number;
             finalRiceBags: number;
             mansooriBags: number;
+            wandProducedBags: number;
             wandBags: number;
             parmalBags: number;
             frkBags: number;

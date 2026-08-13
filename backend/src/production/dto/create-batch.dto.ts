@@ -34,5 +34,5 @@ export class CreateBatchDto {
   remarks?: string;
 
   @IsOptional()
-  additionalOutputs?: Record<string, { produced: number; reused: number }>;
+  additionalOutputs?: Record<string, { produced: number; reused: number; wandProduced?: number }>;
 }

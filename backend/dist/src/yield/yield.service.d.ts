@@ -86,6 +86,7 @@ export declare class YieldService {
             rejectionBags: number;
             finalRiceBags: number;
             mansooriBags: number;
+            wandProducedBags: number;
             wandBags: number;
             parmalBags: number;
             frkBags: number;

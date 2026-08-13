@@ -303,7 +303,7 @@ export const ProcurementManagement = () => {
     supplierId: '',
     riceCategory: 'ANY',
     date: new Date().toISOString().split('T')[0],
-    bolis: [{ moisture: '', bags: '', rate: '' }],
+    bolis: [{ moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }],
     govtRate: '',
     diff: '',
     payment: '',
@@ -920,7 +920,7 @@ export const ProcurementManagement = () => {
             onClick={() => setPaddyPurchaseModal({
               isOpen: true, id: '', plantId: activePlant?.id || '', supplierId: '', riceCategory: 'ANY',
               date: new Date().toISOString().split('T')[0], 
-              bolis: [{ moisture: '', bags: '', rate: '' }],
+              bolis: [{ moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }],
               govtRate: activePlant?.govtRate?.toString() || '', diff: '', payment: '', note: '', finalHisabAmt: ''
             })}
             className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
@@ -1454,7 +1454,6 @@ export const ProcurementManagement = () => {
  </div>
 
  {/* Pending Bolis & Quality Cut (Supervisor Input) */}
- {inwardFormData.supplierId && (
    <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[#e67e00]/30 overflow-hidden mt-6">
      <div className="bg-[#e67e00]/10 px-4 py-2 border-b border-[#e67e00]/20 text-[#e67e00] font-bold text-sm flex items-center justify-between">
        <span>Pending Bolis / Soda for Selected Arthiya</span>
@@ -1493,7 +1492,19 @@ export const ProcurementManagement = () => {
               <label className="block text-[var(--text-muted-alt)] text-[10px] mb-1">
                 Value {inwardFormData.qualityCutType === 'PERCENTAGE' ? '(%)' : inwardFormData.qualityCutType === 'BAGS' ? '(Bags)' : ''}
               </label>
-              <input type="number" min="0" name="qualityCutValue" value={inwardFormData.qualityCutValue} onChange={handleInwardChange} disabled={inwardFormData.qualityCutType === 'NONE'} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)] outline-none disabled:opacity-50" />
+              <div className="relative">
+                <input type="number" min="0" name="qualityCutValue" value={inwardFormData.qualityCutValue} onChange={handleInwardChange} disabled={inwardFormData.qualityCutType === 'NONE'} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)] outline-none disabled:opacity-50 pr-16" />
+                {inwardFormData.qualityCutType === 'BAGS' && inwardFormData.qualityCutValue > 0 && (
+                  <span className="absolute right-2 top-1.5 text-[10px] font-bold text-orange-400 flex items-center h-5">
+                    {(parseFloat(inwardFormData.qualityCutValue) * 0.382).toFixed(2)} Qtl
+                  </span>
+                )}
+                {inwardFormData.qualityCutType === 'PERCENTAGE' && inwardFormData.qualityCutValue > 0 && (
+                  <span className="absolute right-2 top-1.5 text-[10px] font-bold text-orange-400 flex items-center h-5">
+                    {inwardFormData.netWtMill > 0 ? `${((parseFloat(inwardFormData.netWtMill) * parseFloat(inwardFormData.qualityCutValue)) / 100).toFixed(2)} Qtl` : 'Wait for Net Wt'}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="sm:col-span-4">
               <label className="block text-[var(--text-muted-alt)] text-[10px] mb-1">Reason</label>
@@ -1506,18 +1517,9 @@ export const ProcurementManagement = () => {
                Bags Rec. less than Agency GP: N/A
              </label>
           </div>
-          {inwardFormData.qualityCutType && inwardFormData.qualityCutType !== 'NONE' && inwardFormData.qualityCutValue > 0 && inwardFormData.netWtMill > 0 && (
-            <div className="mt-2 text-xs text-orange-400">
-              <span className="font-bold">Calculated Cut equivalent:</span> {
-                inwardFormData.qualityCutType === 'BAGS' 
-                  ? (parseFloat(inwardFormData.qualityCutValue) * 0.382).toFixed(2)
-                  : ((parseFloat(inwardFormData.netWtMill) * parseFloat(inwardFormData.qualityCutValue)) / 100).toFixed(2)
-              } Qtl (Will be added to Shortage)
-            </div>
-          )}
+
         </div>
       </div>
-  )}
 
   </div>
 
@@ -1618,6 +1620,7 @@ export const ProcurementManagement = () => {
     <input type="number" min="0" name="netWtParty" value={inwardFormData.netWtParty} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"  />
     {inwardErrors.netWtParty && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.netWtParty}</span>}
   </div>
+  {/*
   <div className="sm:col-span-2 flex flex-wrap gap-4 mt-2">
     <label className="flex items-center gap-2 text-xs text-[var(--text-main)] cursor-pointer">
       <input type="checkbox" name="plusWeight" checked={inwardFormData.plusWeight || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, plusWeight: e.target.checked }))} className="accent-[#e67e00] w-4 h-4" />
@@ -1630,6 +1633,7 @@ export const ProcurementManagement = () => {
       </label>
     )}
   </div>
+  */}
   </div>
  </div>
  </div>
@@ -1994,167 +1998,53 @@ export const ProcurementManagement = () => {
         <div className="flex-1 overflow-auto">
           <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
             <thead>
-              <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)]">
-                <th className="p-3 whitespace-nowrap">Purchase No.</th>
+              <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)] text-xs">
+                {!listFilters.supplierId && <th className="p-3 whitespace-nowrap">S.No</th>}
                 <th className="p-3 whitespace-nowrap">Date</th>
-                <th className="p-3 whitespace-nowrap">Time In</th>
-                <th className="p-3 whitespace-nowrap">Time Out</th>
-                <th className="p-3 whitespace-nowrap">Supplier</th>
-                <th className="p-3 whitespace-nowrap">Party Name</th>
-                <th className="p-3 whitespace-nowrap">Mandi Name</th>
-                <th className="p-3 whitespace-nowrap">Mandi EG No</th>
-                <th className="p-3 whitespace-nowrap">GP No</th>
-                <th className="p-3 whitespace-nowrap">Mandi Parchi No</th>
                 <th className="p-3 whitespace-nowrap">RST No</th>
-                <th className="p-3 whitespace-nowrap">Vehicle</th>
-                <th className="p-3 whitespace-nowrap">Paddy Boli Record</th>
-                <th className="p-3 whitespace-nowrap">Driver Name</th>
-                <th className="p-3 whitespace-nowrap">Mobile Number</th>
-                <th className="p-3 text-right whitespace-nowrap">Previous Truck Reading</th>
-                <th className="p-3 text-right whitespace-nowrap">New Truck Reading</th>
-                <th className="p-3 text-right whitespace-nowrap">Kms Driven</th>
-                <th className="p-3 text-right whitespace-nowrap">Gross Wt</th>
-                <th className="p-3 text-right whitespace-nowrap">Tare Wt</th>
-                <th className="p-3 text-right whitespace-nowrap">Net Wt</th>
-                <th className="p-3 text-right whitespace-nowrap">Req Net Wt</th>
-                <th className="p-3 text-right whitespace-nowrap">Net Wt Mill</th>
-                <th className="p-3 text-right whitespace-nowrap">Net Wt Party</th>
-                <th className="p-3 text-right whitespace-nowrap">Net Wt Diff</th>
-                <th className="p-3 text-right whitespace-nowrap">Bags Rec @ Mill</th>
-                <th className="p-3 text-right whitespace-nowrap">Bags @ Agency GP</th>
-                <th className="p-3 text-right whitespace-nowrap">Total Bags Received</th>
-                <th className="p-3 text-right whitespace-nowrap">Orig Bags Rec</th>
-                <th className="p-3 text-right whitespace-nowrap">Orig A Class</th>
-                <th className="p-3 text-right whitespace-nowrap">Orig B Class</th>
-                <th className="p-3 text-right whitespace-nowrap">Orig A Class Ag</th>
-                <th className="p-3 text-right whitespace-nowrap">Orig B Class Ag</th>
-                <th className="p-3 text-right whitespace-nowrap">Agency Bags Rec</th>
-                <th className="p-3 text-right whitespace-nowrap">Agency A Class</th>
-                <th className="p-3 text-right whitespace-nowrap">Agency B Class</th>
-                <th className="p-3 text-right whitespace-nowrap">Agency A Class Ag</th>
-                <th className="p-3 text-right whitespace-nowrap">Agency B Class Ag</th>
-                <th className="p-3 whitespace-nowrap">Moisture</th>
-                <th className="p-3 whitespace-nowrap">Safai Type</th>
-                <th className="p-3 whitespace-nowrap">Q. Cut Type</th>
-                <th className="p-3 whitespace-nowrap">Q. Cut Value</th>
-                <th className="p-3 whitespace-nowrap">Q. Cut Reason</th>
-                <th className="p-3 whitespace-nowrap">Cut Added In Shortage</th>
-                <th className="p-3 whitespace-nowrap">Shortage Type</th>
-                <th className="p-3 text-right whitespace-nowrap">Shortage A Class</th>
-                <th className="p-3 text-right whitespace-nowrap">Shortage B Class</th>
-                <th className="p-3 whitespace-nowrap">Update Shortage Reg</th>
-                <th className="p-3 whitespace-nowrap">Bags Rec &lt; Agency GP</th>
-                <th className="p-3 whitespace-nowrap">+Wt Consider Shortage Rec</th>
-                <th className="p-3 whitespace-nowrap">Allocation Type</th>
-                <th className="p-3 whitespace-nowrap">Allocate Unloader</th>
-                <th className="p-3 whitespace-nowrap">Stack No</th>
-                <th className="p-3 whitespace-nowrap">Main Unloader Truck Count</th>
-                <th className="p-3 whitespace-nowrap">Bags In Main Stack</th>
-                <th className="p-3 whitespace-nowrap">Second Part Stack No</th>
-                <th className="p-3 whitespace-nowrap">Bags In Second Part Stack</th>
-                <th className="p-3 whitespace-nowrap">Pahunch Person</th>
-                <th className="p-3 whitespace-nowrap">Unloader Name</th>
-                <th className="p-3 whitespace-nowrap">Unloader Truck Count</th>
-                <th className="p-3 whitespace-nowrap">Unloading Start</th>
-                <th className="p-3 whitespace-nowrap">Unloading End</th>
-                <th className="p-3 whitespace-nowrap">Labour Type</th>
-                <th className="p-3 whitespace-nowrap">Intimation To Mandi</th>
-                <th className="p-3 whitespace-nowrap">Mandi Quality Alert</th>
-                <th className="p-3 whitespace-nowrap">Remarks</th>
-                <th className="p-3 whitespace-nowrap">Hoodi Upload</th>
-                <th className="p-3 whitespace-nowrap">Bhari Video</th>
-                <th className="p-3 whitespace-nowrap">Khali Video</th>
-                <th className="p-3 whitespace-nowrap">Driver Sign</th>
-                <th className="p-3 whitespace-nowrap">Unloader Sign</th>
-                <th className="p-3 whitespace-nowrap">Unloader Sign & Stamp</th>
-                <th className="p-3 whitespace-nowrap">Pahunch Person Sign</th>
-                <th className="p-3 whitespace-nowrap">Pahunch Person Sign & Stamp</th>
-                <th className="p-3 whitespace-nowrap">Biometric Data</th>
+                {!listFilters.supplierId && <th className="p-3 whitespace-nowrap">In Time</th>}
+                {!listFilters.supplierId && <th className="p-3 whitespace-nowrap">Out Time</th>}
+                <th className="p-3 whitespace-nowrap">Mill G.P. No.</th>
+                <th className="p-3 whitespace-nowrap">Agency G.P. No.</th>
+                <th className="p-3 whitespace-nowrap">Truck No</th>
+                {!listFilters.supplierId && <th className="p-3 whitespace-nowrap">Mandi</th>}
+                {!listFilters.supplierId && <th className="p-3 whitespace-nowrap">Party Name</th>}
+                <th className="p-3 whitespace-nowrap text-center">Bardana A/B</th>
+                <th className="p-3 whitespace-nowrap text-center">Bag's A | B</th>
+                <th className="p-3 whitespace-nowrap text-right text-[#e67e00]">Total A+B</th>
+                <th className="p-3 whitespace-nowrap text-right">M/c</th>
+                <th className="p-3 text-right whitespace-nowrap">Required Net Wt</th>
+                <th className="p-3 text-right whitespace-nowrap">Mill Net Wt</th>
+                <th className="p-3 text-right whitespace-nowrap">Surplus +/-</th>
+                <th className="p-3 whitespace-nowrap">Received</th>
               </tr>
             </thead>
             <tbody>
               {inwardList.map((p, i) => (
                 <tr key={i} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)] whitespace-nowrap">
-                  <td className="p-3 font-mono text-xs">{p.purchaseNo || p.id?.substring(0,8).toUpperCase()}</td>
+                  {!listFilters.supplierId && <td className="p-3 text-[var(--text-muted-alt)]">{i + 1}</td>}
                   <td className="p-3">{p.date || (p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '-')}</td>
-                  <td className="p-3">{p.weighbridge?.grossTime ? new Date(p.weighbridge.grossTime).toLocaleTimeString() : '-'}</td>
-                  <td className="p-3">{p.weighbridge?.tareTime ? new Date(p.weighbridge.tareTime).toLocaleTimeString() : '-'}</td>
-                  <td className="p-3 text-[var(--text-main)] font-bold">{p.supplier || p.supplierDetails?.name || '-'}</td>
-                  <td className="p-3">{p.partyName || '-'}</td>
-                  <td className="p-3">{p.mandi || '-'}</td>
-                  <td className="p-3 text-xs">{p.mandiEgNo || '-'}</td>
-                  <td className="p-3 text-xs">{p.gpNo || '-'}</td>
-                  <td className="p-3 text-xs">{p.mandiParchiNo || '-'}</td>
                   <td className="p-3 text-xs">{p.rstNo || '-'}</td>
+                  {!listFilters.supplierId && <td className="p-3">{p.weighbridge?.grossTime ? new Date(p.weighbridge.grossTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</td>}
+                  {!listFilters.supplierId && <td className="p-3">{p.weighbridge?.tareTime ? new Date(p.weighbridge.tareTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</td>}
+                  <td className="p-3 font-mono text-xs text-[var(--text-main)] font-bold">{p.gpNo || p.purchaseNo || '-'}</td>
+                  <td className="p-3 text-xs">{p.mandiEgNo || p.mandiParchiNo || '-'}</td>
                   <td className="p-3">{p.vehicleNo || p.weighbridge?.vehicleNo || '-'}</td>
-                  <td className="p-3">{p.paddyBoliRecord || '-'}</td>
-                  <td className="p-3">{p.driverName || '-'}</td>
-                  <td className="p-3">{p.mobileNumber || '-'}</td>
-                  <td className="p-3 text-right">{p.previousTruckReading || '-'}</td>
-                  <td className="p-3 text-right">{p.newTruckReading || '-'}</td>
-                  <td className="p-3 text-right">{p.kmsDriven || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.grossWt || p.weighbridge?.grossWeight || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.tareWt || p.weighbridge?.tareWeight || '-'}</td>
-                  <td className="p-3 text-right font-bold text-[#e67e00]">{p.netWt || p.weighbridge?.netWeight || '-'}</td>
+                  {!listFilters.supplierId && <td className="p-3">{p.mandi || '-'}</td>}
+                  {!listFilters.supplierId && <td className="p-3 text-[var(--text-main)] font-bold">{p.partyName || p.supplier || p.supplierDetails?.name || '-'}</td>}
+                  <td className="p-3 text-center text-[var(--text-muted-alt)]">{p.originalBardanaClass || '-'} / {p.agencyGpBardanaClass || '-'}</td>
+                  <td className="p-3 text-center text-[var(--text-muted-alt)]">{p.aClassReceived || p.origAClass || '0'} | {p.bClassReceived || p.origBClass || '0'}</td>
+                  <td className="p-3 text-right font-bold text-[#e67e00]">{(parseFloat(p.aClassReceived || p.origAClass || 0) + parseFloat(p.bClassReceived || p.origBClass || 0)) || p.bagsRecAtMill || p.bags || p.totalBags || '-'}</td>
+                  <td className="p-3 text-right">{p.moisture || p.quality?.moisture || '-'}</td>
                   <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.requiredNetWt || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.netWtAtMill || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.netWtAtParty || '-'}</td>
+                  <td className="p-3 text-right font-bold text-[var(--text-main)]">{p.netWtMill || p.netWt || p.weighbridge?.netWeight || '-'}</td>
                   <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.netWtDifference || '-'}</td>
-                  <td className="p-3 text-right">{p.bagsRecAtMill || p.bags || p.totalBags || '-'}</td>
-                  <td className="p-3 text-right">{p.bagsAtAgencyGp || '-'}</td>
-                  <td className="p-3 text-right">{p.totalBagsReceived || '-'}</td>
-                  <td className="p-3 text-right">{p.origBagsRec || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.aClassReceived || p.origAClass || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.bClassReceived || p.origBClass || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.origAClassAg || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.origBClassAg || '-'}</td>
-                  <td className="p-3 text-right">{p.agencyBagsRec || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.aClassGiven || p.agencyAClass || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.bClassGiven || p.agencyBClass || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.agencyAClassAg || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.agencyBClassAg || '-'}</td>
-                  <td className="p-3">{p.moisture || p.quality?.moisture || '-'}%</td>
-                  <td className="p-3">{p.safaiType || '-'}</td>
-                  <td className="p-3">{p.qualityCutType && p.qualityCutType !== 'NONE' ? p.qualityCutType : '-'}</td>
-                  <td className="p-3">{p.qualityCutValue || '-'}</td>
-                  <td className="p-3">{p.qualityCutReason || '-'}</td>
-                  <td className="p-3">{p.cutToBeAddedInShortage ? 'Yes' : 'No'}</td>
-                  <td className="p-3">{p.shortageType || '-'}</td>
-                  <td className="p-3 text-right">{p.shortageAClass || '0'}</td>
-                  <td className="p-3 text-right">{p.shortageBClass || '0'}</td>
-                  <td className="p-3">{p.isUpdatedInShortageRegister || p.updateShortageReg || '-'}</td>
-                  <td className="p-3">{p.bagsRecLessThanAgencyGp ? 'Yes' : 'No'}</td>
-                  <td className="p-3">{p.plusWtConsiderInShortageRecovery ? 'Yes' : 'No'}</td>
-                  <td className="p-3">{p.allocationType || '-'}</td>
-                  <td className="p-3">{p.allocateUnloader || '-'}</td>
-                  <td className="p-3">{p.stackNo || '-'}</td>
-                  <td className="p-3">{p.mainUnloaderTruckCount || '-'}</td>
-                  <td className="p-3">{p.bagsInMainStack || '-'}</td>
-                  <td className="p-3">{p.secondPartStackNo || '-'}</td>
-                  <td className="p-3">{p.bagsInSecondPartStack || '-'}</td>
-                  <td className="p-3">{p.pahunchPersonName || p.pahunchPerson || '-'}</td>
-                  <td className="p-3">{p.unloaderName || '-'}</td>
-                  <td className="p-3">{p.gaddiCount || p.unloaderTruckCount || '-'}</td>
-                  <td className="p-3 text-xs">{p.unloadingStartTime ? new Date(p.unloadingStartTime).toLocaleString() : '-'}</td>
-                  <td className="p-3 text-xs">{p.unloadingEndTime ? new Date(p.unloadingEndTime).toLocaleString() : '-'}</td>
-                  <td className="p-3">{p.labourType || '-'}</td>
-                  <td className="p-3">{p.intimationToMandi ? 'Yes' : 'No'}</td>
-                  <td className="p-3">{p.mandiQualityAlert ? 'Yes' : 'No'}</td>
-                  <td className="p-3">{p.remarks || '-'}</td>
-                  <td className="p-3">{p.isUploadedToHoodiRegister || p.hoodiUpload || '-'}</td>
-                  <td className="p-3">{p.bhariVideoUrl || p.bhariVideoUpload || '-'}</td>
-                  <td className="p-3">{p.khaliVideoUrl || p.khaliVideoUpload || '-'}</td>
-                  <td className="p-3">{p.driverSign || '-'}</td>
-                  <td className="p-3">{p.unloaderSign || '-'}</td>
-                  <td className="p-3">{p.unloaderSignAndStamp ? 'Yes' : 'No'}</td>
-                  <td className="p-3">{p.pahunchPersonSign || '-'}</td>
-                  <td className="p-3">{p.pahunchPersonSignAndStamp ? 'Yes' : 'No'}</td>
-                  <td className="p-3">{p.biometricData ? 'Captured' : '-'}</td>
+                  <td className="p-3 text-[var(--text-muted-alt)]">{p.remarks || '-'}</td>
                 </tr>
               ))}
               {inwardList.length === 0 && (
                 <tr>
-                  <td colSpan={16} className="p-6 text-center text-[var(--text-muted-alt)]">No inward records found.</td>
+                  <td colSpan={listFilters.supplierId ? 13 : 18} className="p-6 text-center text-[var(--text-muted-alt)]">No inward records found.</td>
                 </tr>
               )}
             </tbody>
@@ -2568,11 +2458,6 @@ export const ProcurementManagement = () => {
         <div className="col-span-2 border border-[var(--border-subtle)] rounded p-4 space-y-4">
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-sm font-bold text-[var(--text-main)]">Boli Details (Rate, Moisture, Bags)</h3>
-            <button type="button" onClick={() => {
-              setPaddyPurchaseModal({ ...paddyPurchaseModal, bolis: [...paddyPurchaseModal.bolis, { moisture: '', bags: '', rate: '' }] });
-            }} className="text-xs bg-[var(--bg-panel)] text-[#e67e00] px-3 py-1 rounded font-bold border border-[#e67e00]/30 hover:bg-[#e67e00]/10">
-              + Add Boli
-            </button>
           </div>
           {paddyPurchaseModal.bolis.map((boli: any, index: number) => (
             <div key={index} className="grid grid-cols-3 gap-2 items-end">
@@ -2625,6 +2510,13 @@ export const ProcurementManagement = () => {
               </div>
             </div>
           ))}
+          <div className="flex justify-end mt-2 pt-2 border-t border-[var(--border-subtle-alt)]">
+            <button type="button" onClick={() => {
+              setPaddyPurchaseModal({ ...paddyPurchaseModal, bolis: [...paddyPurchaseModal.bolis, { moisture: '', bags: '', rate: '' }] });
+            }} className="text-xs bg-[var(--bg-panel)] text-[#e67e00] px-3 py-1 rounded font-bold border border-[#e67e00]/30 hover:bg-[#e67e00]/10 transition-colors">
+              + Add Boli
+            </button>
+          </div>
         </div>
         
         {!isSupervisor && (

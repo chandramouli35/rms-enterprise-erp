@@ -61,7 +61,7 @@ export const ProductionManagement = () => {
     'Rejection': { produced: '', reused: '' },
     'Final Rice': { produced: '', reused: '' },
     'Mansoori': { produced: '', reused: '' },
-    'Wand': { produced: '', reused: '' },
+    'Wand': { produced: '', reused: '', wandProduced: '' },
     'Parmal': { produced: '', reused: '' },
     'FRK': { produced: '', reused: '' }
   },
@@ -151,7 +151,7 @@ export const ProductionManagement = () => {
  setFormData(prev => ({ ...prev, [name]: value }));
  };
 
-   const handleAdditionalOutputChange = (key: string, field: 'produced' | 'reused', value: string) => {
+   const handleAdditionalOutputChange = (key: string, field: string, value: string) => {
     setFormData(prev => {
       let finalValue = value;
       
@@ -208,7 +208,7 @@ export const ProductionManagement = () => {
     additionalOutputs: Object.fromEntries(
       Object.entries(formData.additionalOutputs).map(([k, v]) => [
         k,
-        { produced: Number(v.produced) || 0, reused: Number(v.reused) || 0 }
+        { produced: Number(v.produced) || 0, reused: Number(v.reused) || 0, wandProduced: Number((v as any).wandProduced) || 0 }
       ])
     ),
     remarks: formData.remarks
@@ -234,7 +234,7 @@ export const ProductionManagement = () => {
         'Rejection': { produced: '', reused: '' },
         'Final Rice': { produced: '', reused: '' },
         'Mansoori': { produced: '', reused: '' },
-        'Wand': { produced: '', reused: '' },
+        'Wand': { produced: '', reused: '', wandProduced: '' },
         'Parmal': { produced: '', reused: '' },
         'FRK': { produced: '', reused: '' }
       }
@@ -471,13 +471,14 @@ export const ProductionManagement = () => {
  <div className="col-span-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
   <h3 className="text-sm font-bold text-[var(--text-main)] mb-3">Additional Outputs (Bags)</h3>
   <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden bg-[var(--bg-panel-alt)] mb-4">
-    <table className="w-full text-left text-xs">
+    <table className="w-full table-fixed text-left text-xs">
       <thead className="bg-[var(--glass-bg)] border-b border-[var(--border-subtle)]">
         <tr>
-          <th className="px-4 py-2 font-medium text-[var(--text-muted-alt)]">Output Name</th>
-          <th className="px-4 py-2 font-medium text-[var(--text-muted-alt)]">Current Stock (Bags)</th>
-          <th className="px-4 py-2 font-medium text-[var(--text-muted-alt)]">Produced (Bags)</th>
-          <th className="px-4 py-2 font-medium text-[var(--text-muted-alt)]">Self Consumed (Bags)</th>
+          <th className="px-4 py-2 font-medium text-[var(--text-muted-alt)] w-[15%]">Output Name</th>
+          <th className="px-2 py-2 font-medium text-[var(--text-muted-alt)] w-[12%]">Current Stock</th>
+          <th className="px-1 py-2 font-medium text-[var(--text-muted-alt)] w-[25%]"></th>
+          <th className="px-2 py-2 font-medium text-[var(--text-muted-alt)] w-[24%]">Produced (Bags)</th>
+          <th className="px-2 py-2 font-medium text-[var(--text-muted-alt)] w-[24%]">Self Consumed (Bags)</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-[var(--border-subtle-alt)]">
@@ -486,6 +487,7 @@ export const ProductionManagement = () => {
           <td className="px-4 py-2.5 font-bold text-[#e67e00]">
             <span title="Available in Warehouse">{currentStock['R. Bran'] || 0}</span>
           </td>
+          <td className="px-4 py-2"></td>
           <td className="px-4 py-2">
             <input type="number" min="0" value={formData.additionalOutputs['R. Bran'].produced} onChange={(e) => handleAdditionalOutputChange('R. Bran', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
           </td>
@@ -498,6 +500,7 @@ export const ProductionManagement = () => {
           <td className="px-4 py-2.5 font-bold text-[#e67e00]">
             <span title="Available in Warehouse">{currentStock['K. Phuck'] || 0}</span>
           </td>
+          <td className="px-4 py-2"></td>
           <td className="px-4 py-2">
             <input type="number" min="0" value={formData.additionalOutputs['K. Phuck'].produced} onChange={(e) => handleAdditionalOutputChange('K. Phuck', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
           </td>
@@ -510,6 +513,7 @@ export const ProductionManagement = () => {
           <td className="px-4 py-2.5 font-bold text-[#e67e00]">
             <span title="Available in Warehouse">{currentStock['Broken Rice'] || 0}</span>
           </td>
+          <td className="px-4 py-2"></td>
           <td className="px-4 py-2">
             <input type="number" min="0" value={formData.additionalOutputs['Broken Rice'].produced} onChange={(e) => handleAdditionalOutputChange('Broken Rice', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
           </td>
@@ -522,6 +526,7 @@ export const ProductionManagement = () => {
           <td className="px-4 py-2.5 font-bold text-[#e67e00]">
             <span title="Available in Warehouse">{currentStock['Nakku 1'] || 0}</span>
           </td>
+          <td className="px-4 py-2"></td>
           <td className="px-4 py-2">
             <input type="number" min="0" value={formData.additionalOutputs['Nakku 1'].produced} onChange={(e) => handleAdditionalOutputChange('Nakku 1', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
           </td>
@@ -534,6 +539,7 @@ export const ProductionManagement = () => {
           <td className="px-4 py-2.5 font-bold text-[#e67e00]">
             <span title="Available in Warehouse">{currentStock['Nakku 2'] || 0}</span>
           </td>
+          <td className="px-4 py-2"></td>
           <td className="px-4 py-2">
             <input type="number" min="0" value={formData.additionalOutputs['Nakku 2'].produced} onChange={(e) => handleAdditionalOutputChange('Nakku 2', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
           </td>
@@ -546,6 +552,7 @@ export const ProductionManagement = () => {
           <td className="px-4 py-2.5 font-bold text-[#e67e00]">
             <span title="Available in Warehouse">{currentStock['Rejection'] || 0}</span>
           </td>
+          <td className="px-4 py-2"></td>
           <td className="px-4 py-2">
             <input type="number" min="0" value={formData.additionalOutputs['Rejection'].produced} onChange={(e) => handleAdditionalOutputChange('Rejection', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
           </td>
@@ -558,6 +565,7 @@ export const ProductionManagement = () => {
           <td className="px-4 py-2.5 font-bold text-[#e67e00]">
             <span title="Available in Warehouse">{currentStock['Final Rice'] || 0}</span>
           </td>
+          <td className="px-4 py-2"></td>
           <td className="px-4 py-2">
             <input type="number" min="0" value={formData.additionalOutputs['Final Rice'].produced} onChange={(e) => handleAdditionalOutputChange('Final Rice', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
           </td>
@@ -570,8 +578,9 @@ export const ProductionManagement = () => {
           <td className="px-4 py-2.5 font-bold text-[#e67e00]">
             <span title="Available in Warehouse">{currentStock['Mansoori'] || 0}</span>
           </td>
+          <td className="px-4 py-2"></td>
           <td className="px-4 py-2">
-            <input type="number" min="0" value={formData.additionalOutputs['Mansoori'].produced} onChange={(e) => handleAdditionalOutputChange('Mansoori', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+            <input type="number" min="0" value={formData.additionalOutputs['Mansoori'].produced} onChange={(e) => handleAdditionalOutputChange('Mansoori', 'produced', e.target.value)} placeholder="Enter consumed bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
           </td>
           <td className="px-4 py-2">
             <input type="number" min="0" value={formData.additionalOutputs['Mansoori'].reused} onChange={(e) => handleAdditionalOutputChange('Mansoori', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
@@ -582,8 +591,11 @@ export const ProductionManagement = () => {
           <td className="px-4 py-2.5 font-bold text-[#e67e00]">
             <span title="Available in Warehouse">{currentStock['Wand'] || 0}</span>
           </td>
+          <td className="px-1 py-2">
+            <input type="number" min="0" value={(formData.additionalOutputs['Wand'] as any).wandProduced || ''} onChange={(e) => handleAdditionalOutputChange('Wand', 'wandProduced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
           <td className="px-4 py-2">
-            <input type="number" min="0" value={formData.additionalOutputs['Wand'].produced} onChange={(e) => handleAdditionalOutputChange('Wand', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+            <input type="number" min="0" value={formData.additionalOutputs['Wand'].produced} onChange={(e) => handleAdditionalOutputChange('Wand', 'produced', e.target.value)} placeholder="Enter consumed bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
           </td>
           <td className="px-4 py-2">
             <input type="number" min="0" value={formData.additionalOutputs['Wand'].reused} onChange={(e) => handleAdditionalOutputChange('Wand', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
@@ -594,8 +606,9 @@ export const ProductionManagement = () => {
           <td className="px-4 py-2.5 font-bold text-[#e67e00]">
             <span title="Available in Warehouse">{currentStock['Parmal'] || 0}</span>
           </td>
+          <td className="px-4 py-2"></td>
           <td className="px-4 py-2">
-            <input type="number" min="0" value={formData.additionalOutputs['Parmal'].produced} onChange={(e) => handleAdditionalOutputChange('Parmal', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+            <input type="number" min="0" value={formData.additionalOutputs['Parmal'].produced} onChange={(e) => handleAdditionalOutputChange('Parmal', 'produced', e.target.value)} placeholder="Enter consumed bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
           </td>
           <td className="px-4 py-2">
             <input type="number" min="0" value={formData.additionalOutputs['Parmal'].reused} onChange={(e) => handleAdditionalOutputChange('Parmal', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
@@ -606,8 +619,9 @@ export const ProductionManagement = () => {
           <td className="px-4 py-2.5 font-bold text-[#e67e00]">
             <span title="Available in Warehouse">{currentStock['FRK'] || 0}</span>
           </td>
+          <td className="px-4 py-2"></td>
           <td className="px-4 py-2">
-            <input type="number" min="0" value={formData.additionalOutputs['FRK'].produced} onChange={(e) => handleAdditionalOutputChange('FRK', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+            <input type="number" min="0" value={formData.additionalOutputs['FRK'].produced} onChange={(e) => handleAdditionalOutputChange('FRK', 'produced', e.target.value)} placeholder="Enter consumed bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
           </td>
           <td className="px-4 py-2">
             <input type="number" min="0" value={formData.additionalOutputs['FRK'].reused} onChange={(e) => handleAdditionalOutputChange('FRK', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />

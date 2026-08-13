@@ -12,5 +12,6 @@ export declare class CreateBatchDto {
     additionalOutputs?: Record<string, {
         produced: number;
         reused: number;
+        wandProduced?: number;
     }>;
 }
