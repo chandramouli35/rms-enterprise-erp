@@ -127,7 +127,7 @@ export const ProcurementManagement = () => {
     pahunchPersonSign: '',
     // Biometric Data
     biometricData: '',
-    bhariVideoUpload: 'Yes', khaliVideoUpload: 'Yes',
+    bhariVideoUpload: '', khaliVideoUpload: '',
     
     // NEW FIELDS FROM FORM IMAGE
     previousTruckReading: '', newTruckReading: '', kmsDriven: '',
@@ -1995,22 +1995,48 @@ export const ProcurementManagement = () => {
           <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
             <thead>
               <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)]">
-                <th className="p-3">Purchase No.</th>
-                <th className="p-3">Date</th>
-                <th className="p-3">Supplier</th>
-                <th className="p-3">Mandi EG / GP</th>
-                <th className="p-3">Vehicle</th>
-                <th className="p-3 text-right">Gross Wt</th>
-                <th className="p-3 text-right">Tare Wt</th>
-                <th className="p-3 text-right">Net Wt</th>
-                <th className="p-3 text-right">Bags</th>
-                <th className="p-3">Quality</th>
-                <th className="p-3">Allocation & Stack</th>
-                <th className="p-3 text-right">Orig Bags</th>
-                <th className="p-3 text-right">Agency Bags</th>
-                <th className="p-3 text-right">Shortages</th>
-                <th className="p-3">Q. Cuts</th>
-                <th className="p-3">Checks</th>
+                <th className="p-3 whitespace-nowrap">Purchase No.</th>
+                <th className="p-3 whitespace-nowrap">Date</th>
+                <th className="p-3 whitespace-nowrap">Supplier</th>
+                <th className="p-3 whitespace-nowrap">Party Name</th>
+                <th className="p-3 whitespace-nowrap">Mandi EG No</th>
+                <th className="p-3 whitespace-nowrap">GP No</th>
+                <th className="p-3 whitespace-nowrap">Mandi Parchi No</th>
+                <th className="p-3 whitespace-nowrap">RST No</th>
+                <th className="p-3 whitespace-nowrap">Vehicle</th>
+                <th className="p-3 whitespace-nowrap">Paddy Boli Record</th>
+                <th className="p-3 whitespace-nowrap">Driver Name</th>
+                <th className="p-3 text-right whitespace-nowrap">Gross Wt</th>
+                <th className="p-3 text-right whitespace-nowrap">Tare Wt</th>
+                <th className="p-3 text-right whitespace-nowrap">Net Wt</th>
+                <th className="p-3 text-right whitespace-nowrap">Req Net Wt</th>
+                <th className="p-3 text-right whitespace-nowrap">Net Wt Mill</th>
+                <th className="p-3 text-right whitespace-nowrap">Net Wt Party</th>
+                <th className="p-3 text-right whitespace-nowrap">Net Wt Diff</th>
+                <th className="p-3 text-right whitespace-nowrap">Bags Rec @ Mill</th>
+                <th className="p-3 text-right whitespace-nowrap">Bags @ Agency GP</th>
+                <th className="p-3 text-right whitespace-nowrap">Orig A Class</th>
+                <th className="p-3 text-right whitespace-nowrap">Orig B Class</th>
+                <th className="p-3 text-right whitespace-nowrap">Agency A Class</th>
+                <th className="p-3 text-right whitespace-nowrap">Agency B Class</th>
+                <th className="p-3 whitespace-nowrap">Moisture</th>
+                <th className="p-3 whitespace-nowrap">Safai Type</th>
+                <th className="p-3 whitespace-nowrap">Q. Cut Type</th>
+                <th className="p-3 whitespace-nowrap">Q. Cut Value</th>
+                <th className="p-3 whitespace-nowrap">Q. Cut Reason</th>
+                <th className="p-3 whitespace-nowrap">Shortage Type</th>
+                <th className="p-3 text-right whitespace-nowrap">Shortage A Class</th>
+                <th className="p-3 text-right whitespace-nowrap">Shortage B Class</th>
+                <th className="p-3 whitespace-nowrap">Allocation Type</th>
+                <th className="p-3 whitespace-nowrap">Allocate Unloader</th>
+                <th className="p-3 whitespace-nowrap">Stack No</th>
+                <th className="p-3 whitespace-nowrap">Pahunch Person</th>
+                <th className="p-3 whitespace-nowrap">Unloader Name</th>
+                <th className="p-3 whitespace-nowrap">Unloading Start</th>
+                <th className="p-3 whitespace-nowrap">Unloading End</th>
+                <th className="p-3 whitespace-nowrap">Labour Type</th>
+                <th className="p-3 whitespace-nowrap">Intimation To Mandi</th>
+                <th className="p-3 whitespace-nowrap">Mandi Quality Alert</th>
               </tr>
             </thead>
             <tbody>
@@ -2018,52 +2044,46 @@ export const ProcurementManagement = () => {
                 <tr key={i} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)] whitespace-nowrap">
                   <td className="p-3 font-mono text-xs">{p.purchaseNo || p.id?.substring(0,8).toUpperCase()}</td>
                   <td className="p-3">{p.date || (p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '-')}</td>
-                  <td className="p-3 text-[var(--text-main)] font-bold">{p.supplier || p.supplier?.name || '-'}</td>
-                  <td className="p-3 text-xs">EG: {p.mandiEgNo || p.paddyInwardDetails?.mandiEgNo || '-'}<br/>GP: {p.gpNo || p.paddyInwardDetails?.gpNo || '-'}</td>
-                  <td className="p-3">{p.vehicleNo || p.weighbridge?.vehicleNo || p.paddyInwardDetails?.truckNo || '-'}</td>
+                  <td className="p-3 text-[var(--text-main)] font-bold">{p.supplier || p.supplierDetails?.name || '-'}</td>
+                  <td className="p-3">{p.partyName || '-'}</td>
+                  <td className="p-3 text-xs">{p.mandiEgNo || '-'}</td>
+                  <td className="p-3 text-xs">{p.gpNo || '-'}</td>
+                  <td className="p-3 text-xs">{p.mandiParchiNo || '-'}</td>
+                  <td className="p-3 text-xs">{p.rstNo || '-'}</td>
+                  <td className="p-3">{p.vehicleNo || p.weighbridge?.vehicleNo || '-'}</td>
+                  <td className="p-3">{p.paddyBoliRecord || '-'}</td>
+                  <td className="p-3">{p.driverName || '-'}</td>
                   <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.grossWt || p.weighbridge?.grossWeight || '-'}</td>
                   <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.tareWt || p.weighbridge?.tareWeight || '-'}</td>
                   <td className="p-3 text-right font-bold text-[#e67e00]">{p.netWt || p.weighbridge?.netWeight || '-'}</td>
-                  <td className="p-3 text-right">Total: {p.bags || p.paddyInwardDetails?.totalBags || '-'}<br/><span className="text-[10px] text-[var(--text-muted)]">Std: {p.paddyInwardDetails?.standardBags || '0'} | A: {p.paddyInwardDetails?.aClassBags || '0'}</span></td>
-                  <td className="p-3 text-[10px]">
-                    <div className="flex flex-col gap-0.5">
-                       <span>MC: {p.quality?.moisture || '-'}%</span>
-                       <span>BR: {p.quality?.broken || '-'}%</span>
-                    </div>
-                  </td>
-                  <td className="p-3 text-[10px]">
-                    <div className="flex flex-col gap-0.5">
-                       <span>{p.paddyInwardDetails?.allocationType || '-'}</span>
-                       <span>Stack: {p.paddyInwardDetails?.stackNo || '-'}</span>
-                    </div>
-                  </td>
-                  <td className="p-3 text-right text-[10px]">
-                     T: {p.paddyInwardDetails?.origBagsRec || '0'}<br/>A: {p.paddyInwardDetails?.origAClass || '0'} | B: {p.paddyInwardDetails?.origBClass || '0'}<br/>
-                     AgA: {p.paddyInwardDetails?.origAClassAg || '0'} | AgB: {p.paddyInwardDetails?.origBClassAg || '0'}
-                  </td>
-                  <td className="p-3 text-right text-[10px]">
-                     T: {p.paddyInwardDetails?.agencyBagsRec || '0'}<br/>A: {p.paddyInwardDetails?.agencyAClass || '0'} | B: {p.paddyInwardDetails?.agencyBClass || '0'}<br/>
-                     AgA: {p.paddyInwardDetails?.agencyAClassAg || '0'} | AgB: {p.paddyInwardDetails?.agencyBClassAg || '0'}
-                  </td>
-                  <td className="p-3 text-right text-[10px]">
-                     A: {p.paddyInwardDetails?.shortageAClass || '0'}<br/>B: {p.paddyInwardDetails?.shortageBClass || '0'}<br/>
-                     Type: {p.paddyInwardDetails?.shortageType || '-'}
-                  </td>
-                  <td className="p-3 text-[10px]">
-                     {p.paddyInwardDetails?.qualityCutType !== 'NONE' ? (
-                       <div className="flex flex-col gap-0.5">
-                         <span>{p.paddyInwardDetails?.qualityCutType}: {p.paddyInwardDetails?.qualityCutValue}</span>
-                         <span>{p.paddyInwardDetails?.qualityCutReason}</span>
-                       </div>
-                     ) : '-'}
-                  </td>
-                  <td className="p-3 text-[10px]">
-                    <div className="flex flex-col gap-0.5">
-                       <span>Safai: {p.paddyInwardDetails?.safaiType || '-'}</span>
-                       <span>Hoodi: {p.paddyInwardDetails?.hoodiUpload || '-'}</span>
-                       <span>Mandi Check: {p.paddyInwardDetails?.mandiIntimation || '-'}</span>
-                    </div>
-                  </td>
+                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.requiredNetWt || '-'}</td>
+                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.netWtAtMill || '-'}</td>
+                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.netWtAtParty || '-'}</td>
+                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.netWtDifference || '-'}</td>
+                  <td className="p-3 text-right">{p.bagsRecAtMill || p.bags || p.totalBags || '-'}</td>
+                  <td className="p-3 text-right">{p.bagsAtAgencyGp || '-'}</td>
+                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.aClassReceived || '-'}</td>
+                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.bClassReceived || '-'}</td>
+                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.aClassGiven || '-'}</td>
+                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.bClassGiven || '-'}</td>
+                  <td className="p-3">{p.moisture || p.quality?.moisture || '-'}%</td>
+                  <td className="p-3">{p.safaiType || '-'}</td>
+                  <td className="p-3">{p.qualityCutType && p.qualityCutType !== 'NONE' ? p.qualityCutType : '-'}</td>
+                  <td className="p-3">{p.qualityCutValue || '-'}</td>
+                  <td className="p-3">{p.qualityCutReason || '-'}</td>
+                  <td className="p-3">{p.shortageType || '-'}</td>
+                  <td className="p-3 text-right">{p.shortageAClass || '0'}</td>
+                  <td className="p-3 text-right">{p.shortageBClass || '0'}</td>
+                  <td className="p-3">{p.allocationType || '-'}</td>
+                  <td className="p-3">{p.allocateUnloader || '-'}</td>
+                  <td className="p-3">{p.stackNo || '-'}</td>
+                  <td className="p-3">{p.pahunchPersonName || '-'}</td>
+                  <td className="p-3">{p.unloaderName || '-'}</td>
+                  <td className="p-3 text-xs">{p.unloadingStartTime ? new Date(p.unloadingStartTime).toLocaleString() : '-'}</td>
+                  <td className="p-3 text-xs">{p.unloadingEndTime ? new Date(p.unloadingEndTime).toLocaleString() : '-'}</td>
+                  <td className="p-3">{p.labourType || '-'}</td>
+                  <td className="p-3">{p.intimationToMandi ? 'Yes' : 'No'}</td>
+                  <td className="p-3">{p.mandiQualityAlert ? 'Yes' : 'No'}</td>
                 </tr>
               ))}
               {inwardList.length === 0 && (

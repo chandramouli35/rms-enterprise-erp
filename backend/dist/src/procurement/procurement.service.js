@@ -251,7 +251,8 @@ let ProcurementService = class ProcurementService {
                 include: {
                     supplier: true,
                     paddyInwardDetails: true,
-                    weighbridge: true
+                    weighbridge: true,
+                    quality: true
                 },
                 orderBy: { createdAt: 'desc' },
                 skip,
@@ -270,6 +271,10 @@ let ProcurementService = class ProcurementService {
             grossWt: b.grossWeight || '-',
             tareWt: b.tareWeight || '-',
             netWt: b.netWeight || b.paddyInwardDetails?.netWtAtParty || b.paddyInwardDetails?.netWtAtMill || '-',
+            ...b.paddyInwardDetails,
+            weighbridge: b.weighbridge,
+            quality: b.quality,
+            supplierDetails: b.supplier,
         }));
         return { data: mappedData, total };
     }
