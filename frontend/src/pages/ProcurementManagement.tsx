@@ -108,17 +108,17 @@ export const ProcurementManagement = () => {
   const defaultInwardFormData = {
     gpNo: '', date: '', timeIn: '', timeOut: '', truckNo: '', mandiEgpNo: '', rstNo: '', mandiParchiNo: '', supplierId: '',
     mandi: '', pahunchPersonName: '',
-    moisture: '', safai: 'Good', mandiIntimation: 'N.A.', remarks: '',
+    moisture: '', safai: '', mandiIntimation: '', remarks: '',
     allocationType: '',
     origBagsRec: 0, origAClass: 0, origBClass: 0, origAClassAg: 0, origBClassAg: 0,
     shortageAClass: 0, shortageBClass: 0,
-    qualityCutType: 'NONE', qualityCutValue: 0, qualityCutReason: '',
+    qualityCutType: '', qualityCutValue: 0, qualityCutReason: '',
     agencyBagsRec: 0, agencyAClass: 0, agencyBClass: 0, agencyAClassAg: 0, agencyBClassAg: 0,
     netWtMill: 0, reqNetWt: 0, netWtParty: 0, netWtDiff: 0,
-    shortageType: 'Shortage Received', updateShortageReg: 'Yes', allocatedUnloader: '',
+    shortageType: '', updateShortageReg: '', allocatedUnloader: '',
     unloaderTruckCount: 0,
     stackNo: '',
-    hoodiUpload: 'N.A.',
+    hoodiUpload: '',
     allocateUnloader: '',
     driverName: '', mobileNumber: '',
     // Signatures
@@ -915,7 +915,7 @@ export const ProcurementManagement = () => {
             <Download size={16} /> Export All to Excel
           </button>
         </div>
-        {user?.role !== 'SUPER_ADMIN' && (
+        {activePlant && (
           <button 
             onClick={() => setPaddyPurchaseModal({
               isOpen: true, id: '', plantId: activePlant?.id || '', supplierId: '', riceCategory: 'ANY',
@@ -1476,7 +1476,7 @@ export const ProcurementManagement = () => {
               <label className="block text-[var(--text-muted-alt)] text-[10px] mb-1">Cut Type</label>
               <div className="flex flex-wrap items-center gap-3 py-1">
                 <label className="flex items-center gap-1 text-[var(--text-main)] text-sm cursor-pointer whitespace-nowrap">
-                  <input type="radio" name="qualityCutType" value="NONE" checked={inwardFormData.qualityCutType === 'NONE' || !inwardFormData.qualityCutType} onChange={handleInwardChange} className="accent-[#e67e00]" />
+                  <input type="radio" name="qualityCutType" value="NONE" checked={inwardFormData.qualityCutType === 'NONE'} onChange={handleInwardChange} className="accent-[#e67e00]" />
                   None
                 </label>
                 <label className="flex items-center gap-1 text-[var(--text-main)] text-sm cursor-pointer whitespace-nowrap">
@@ -1505,16 +1505,6 @@ export const ProcurementManagement = () => {
                <input type="checkbox" name="bagsRecLessThanAgencyGp" checked={inwardFormData.bagsRecLessThanAgencyGp || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, bagsRecLessThanAgencyGp: e.target.checked }))} className="accent-[#e67e00] w-4 h-4" />
                Bags Rec. less than Agency GP: N/A
              </label>
-             <label className="flex items-center gap-2 text-xs text-[var(--text-main)] cursor-pointer">
-               <input type="checkbox" name="plusWeight" checked={inwardFormData.plusWeight || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, plusWeight: e.target.checked }))} className="accent-[#e67e00] w-4 h-4" />
-               + Weight
-             </label>
-             {inwardFormData.plusWeight && (
-               <label className="flex items-center gap-2 text-xs text-[var(--text-main)] cursor-pointer bg-red-900/20 px-2 py-1 rounded">
-                 <input type="checkbox" name="baujiPermission" checked={inwardFormData.baujiPermission || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, baujiPermission: e.target.checked }))} className="accent-red-500 w-4 h-4" />
-                 Bauji Permission Required
-               </label>
-             )}
           </div>
           {inwardFormData.qualityCutType && inwardFormData.qualityCutType !== 'NONE' && inwardFormData.qualityCutValue > 0 && inwardFormData.netWtMill > 0 && (
             <div className="mt-2 text-xs text-orange-400">
@@ -1628,6 +1618,18 @@ export const ProcurementManagement = () => {
     <input type="number" min="0" name="netWtParty" value={inwardFormData.netWtParty} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"  />
     {inwardErrors.netWtParty && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.netWtParty}</span>}
   </div>
+  <div className="sm:col-span-2 flex flex-wrap gap-4 mt-2">
+    <label className="flex items-center gap-2 text-xs text-[var(--text-main)] cursor-pointer">
+      <input type="checkbox" name="plusWeight" checked={inwardFormData.plusWeight || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, plusWeight: e.target.checked }))} className="accent-[#e67e00] w-4 h-4" />
+      + Weight
+    </label>
+    {inwardFormData.plusWeight && (
+      <label className="flex items-center gap-2 text-xs text-[var(--text-main)] cursor-pointer bg-red-900/20 px-2 py-1 rounded">
+        <input type="checkbox" name="baujiPermission" checked={inwardFormData.baujiPermission || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, baujiPermission: e.target.checked }))} className="accent-red-500 w-4 h-4" />
+        Bauji Permission Required
+      </label>
+    )}
+  </div>
   </div>
  </div>
  </div>
@@ -1706,7 +1708,7 @@ export const ProcurementManagement = () => {
         <input type="radio" name="updateShortageReg" value="Yes" checked={inwardFormData.updateShortageReg === 'Yes'} onChange={handleInwardChange} className="accent-blue-500" /> Yes
       </label>
       <label className="flex items-center gap-1 text-[var(--text-main)]">
-        <input type="radio" name="updateShortageReg" value="N/A" checked={inwardFormData.updateShortageReg === 'N/A' || inwardFormData.updateShortageReg === 'No'} onChange={handleInwardChange} className="accent-blue-500" /> N/A
+        <input type="radio" name="updateShortageReg" value="N/A" checked={inwardFormData.updateShortageReg === 'N/A'} onChange={handleInwardChange} className="accent-blue-500" /> N/A
       </label>
     </div>
   </div>
@@ -1730,7 +1732,7 @@ export const ProcurementManagement = () => {
     <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Plus wt. consider in shortage recovery :</label>
     <div className="flex flex-wrap items-center gap-4 mt-2">
       <label className="flex items-center gap-1 cursor-pointer text-[var(--text-main)]">
-        <input type="radio" name="shortageRecoveryOpt" value="No" checked={inwardFormData.shortageRecoveryOpt === 'No' || !inwardFormData.shortageRecoveryOpt} onChange={() => setInwardFormData((p: any) => ({...p, shortageRecoveryOpt: 'No', baujiPermissionPlusWt: false}))} className="accent-blue-500" /> No
+        <input type="radio" name="shortageRecoveryOpt" value="No" checked={inwardFormData.shortageRecoveryOpt === 'No'} onChange={() => setInwardFormData((p: any) => ({...p, shortageRecoveryOpt: 'No', baujiPermissionPlusWt: false}))} className="accent-blue-500" /> No
       </label>
       <label className="flex items-center gap-1 cursor-pointer text-[var(--text-main)]">
         <input type="radio" name="shortageRecoveryOpt" value="Yes" checked={inwardFormData.shortageRecoveryOpt === 'Yes'} onChange={(e) => {
@@ -2003,7 +2005,12 @@ export const ProcurementManagement = () => {
                 <th className="p-3 text-right">Net Wt</th>
                 <th className="p-3 text-right">Bags</th>
                 <th className="p-3">Quality</th>
-                <th className="p-3 text-center">Action</th>
+                <th className="p-3">Allocation & Stack</th>
+                <th className="p-3 text-right">Orig Bags</th>
+                <th className="p-3 text-right">Agency Bags</th>
+                <th className="p-3 text-right">Shortages</th>
+                <th className="p-3">Q. Cuts</th>
+                <th className="p-3">Checks</th>
               </tr>
             </thead>
             <tbody>
@@ -2024,16 +2031,44 @@ export const ProcurementManagement = () => {
                        <span>BR: {p.quality?.broken || '-'}%</span>
                     </div>
                   </td>
-                  <td className="p-3 text-center">
-                    <button onClick={() => handleViewInward(p)} className="text-blue-500 hover:text-blue-400 p-1 rounded hover:bg-[var(--bg-base)]" title="View Full Details">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                    </button>
+                  <td className="p-3 text-[10px]">
+                    <div className="flex flex-col gap-0.5">
+                       <span>{p.paddyInwardDetails?.allocationType || '-'}</span>
+                       <span>Stack: {p.paddyInwardDetails?.stackNo || '-'}</span>
+                    </div>
+                  </td>
+                  <td className="p-3 text-right text-[10px]">
+                     T: {p.paddyInwardDetails?.origBagsRec || '0'}<br/>A: {p.paddyInwardDetails?.origAClass || '0'} | B: {p.paddyInwardDetails?.origBClass || '0'}<br/>
+                     AgA: {p.paddyInwardDetails?.origAClassAg || '0'} | AgB: {p.paddyInwardDetails?.origBClassAg || '0'}
+                  </td>
+                  <td className="p-3 text-right text-[10px]">
+                     T: {p.paddyInwardDetails?.agencyBagsRec || '0'}<br/>A: {p.paddyInwardDetails?.agencyAClass || '0'} | B: {p.paddyInwardDetails?.agencyBClass || '0'}<br/>
+                     AgA: {p.paddyInwardDetails?.agencyAClassAg || '0'} | AgB: {p.paddyInwardDetails?.agencyBClassAg || '0'}
+                  </td>
+                  <td className="p-3 text-right text-[10px]">
+                     A: {p.paddyInwardDetails?.shortageAClass || '0'}<br/>B: {p.paddyInwardDetails?.shortageBClass || '0'}<br/>
+                     Type: {p.paddyInwardDetails?.shortageType || '-'}
+                  </td>
+                  <td className="p-3 text-[10px]">
+                     {p.paddyInwardDetails?.qualityCutType !== 'NONE' ? (
+                       <div className="flex flex-col gap-0.5">
+                         <span>{p.paddyInwardDetails?.qualityCutType}: {p.paddyInwardDetails?.qualityCutValue}</span>
+                         <span>{p.paddyInwardDetails?.qualityCutReason}</span>
+                       </div>
+                     ) : '-'}
+                  </td>
+                  <td className="p-3 text-[10px]">
+                    <div className="flex flex-col gap-0.5">
+                       <span>Safai: {p.paddyInwardDetails?.safaiType || '-'}</span>
+                       <span>Hoodi: {p.paddyInwardDetails?.hoodiUpload || '-'}</span>
+                       <span>Mandi Check: {p.paddyInwardDetails?.mandiIntimation || '-'}</span>
+                    </div>
                   </td>
                 </tr>
               ))}
               {inwardList.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="p-6 text-center text-[var(--text-muted-alt)]">No inward records found.</td>
+                  <td colSpan={16} className="p-6 text-center text-[var(--text-muted-alt)]">No inward records found.</td>
                 </tr>
               )}
             </tbody>

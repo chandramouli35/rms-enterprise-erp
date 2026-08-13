@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, Box } from 'lucide-react';
 import api from '../api/axios';
 import Pagination from '../components/Pagination';
+import { usePlantStore } from '../store/plantStore';
 
 import { HasPermission } from '../components/HasPermission';
 
 export const ProductManagement = () => {
+  const activePlant = usePlantStore(state => state.activePlant);
   const [products, setProducts] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
@@ -26,7 +28,7 @@ export const ProductManagement = () => {
 
   useEffect(() => {
     fetchProducts();
-  }, [currentPage]);
+  }, [currentPage, activePlant?.id]);
 
   const handleSave = async () => {
     try {

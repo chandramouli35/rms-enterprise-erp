@@ -17,9 +17,17 @@ let ProductsService = class ProductsService {
         this.prisma = prisma;
     }
     async create(createProductDto) {
-        return this.prisma.product.create({
-            data: createProductDto
-        });
+        try {
+            return await this.prisma.product.create({
+                data: createProductDto
+            });
+        }
+        catch (error) {
+            if (error.code === 'P2002') {
+                throw new common_1.ConflictException('A product with this name already exists.');
+            }
+            throw error;
+        }
     }
     async findAll(page, limit) {
         if (page) {

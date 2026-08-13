@@ -138,7 +138,7 @@ export const ProductionManagement = () => {
 
   const fetchProducts = async () => {
     try {
-      const res = await api.get('/api/inventory/products');
+      const res = await api.get('/api/products');
       setProducts(res.data);
     } catch (error) {
       console.error('Error fetching products', error);

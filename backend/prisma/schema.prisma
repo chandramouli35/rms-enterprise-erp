@@ -703,7 +703,7 @@ model InterPlantTransfer {
 
 model Product {
   id        String   @id @default(uuid())
-  name      String
+  name      String   @unique
   type      String
   description String?
   createdAt DateTime @default(now())

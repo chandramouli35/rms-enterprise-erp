@@ -5,45 +5,45 @@ export declare class MasterDataService {
     private uploadImageToCloudinary;
     getTrucks(plantId: string, page?: string, limit?: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
-        createdAt: Date;
-        updatedAt: Date;
     }[] | {
         data: {
             id: string;
+            createdAt: Date;
+            updatedAt: Date;
             plantId: string;
             truckNumber: string;
             capacity: number | null;
             imageUrl: string | null;
             isApproved: boolean;
-            createdAt: Date;
-            updatedAt: Date;
         }[];
         total: number;
     }>;
     getAllTrucks(plantId: string, page?: string, limit?: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
-        createdAt: Date;
-        updatedAt: Date;
     }[] | {
         data: {
             id: string;
+            createdAt: Date;
+            updatedAt: Date;
             plantId: string;
             truckNumber: string;
             capacity: number | null;
             imageUrl: string | null;
             isApproved: boolean;
-            createdAt: Date;
-            updatedAt: Date;
         }[];
         total: number;
     }>;
@@ -53,50 +53,50 @@ export declare class MasterDataService {
         isApproved?: boolean;
     }, file?: Express.Multer.File): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     approveTruck(id: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     rejectTruck(id: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     deleteTruck(id: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
-        createdAt: Date;
-        updatedAt: Date;
     }>;
     getDrivers(plantId: string): Promise<{
         id: string;
-        plantId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
+        plantId: string;
         licenseNo: string | null;
         phone: string | null;
     }[]>;
@@ -106,30 +106,30 @@ export declare class MasterDataService {
         phone?: string;
     }): Promise<{
         id: string;
-        plantId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
+        plantId: string;
         licenseNo: string | null;
         phone: string | null;
     }>;
     deleteDriver(id: string): Promise<{
         id: string;
-        plantId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
+        plantId: string;
         licenseNo: string | null;
         phone: string | null;
     }>;
     getStaff(plantId: string): Promise<{
         id: string;
-        plantId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
-        phone: string | null;
+        plantId: string;
         role: string;
+        phone: string | null;
     }[]>;
     createStaff(plantId: string, data: {
         name: string;
@@ -137,43 +137,43 @@ export declare class MasterDataService {
         phone?: string;
     }): Promise<{
         id: string;
-        plantId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
-        phone: string | null;
+        plantId: string;
         role: string;
+        phone: string | null;
     }>;
     deleteStaff(id: string): Promise<{
         id: string;
-        plantId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
-        phone: string | null;
+        plantId: string;
         role: string;
+        phone: string | null;
     }>;
     getLabour(plantId: string, page?: string, limit?: string): Promise<{
         id: string;
-        plantId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
-        firmName: string | null;
+        plantId: string;
+        isActive: boolean;
         contact: string | null;
         type: string | null;
-        isActive: boolean;
+        firmName: string | null;
     }[] | {
         data: {
             id: string;
-            plantId: string;
+            name: string;
             createdAt: Date;
             updatedAt: Date;
-            name: string;
-            firmName: string | null;
+            plantId: string;
+            isActive: boolean;
             contact: string | null;
             type: string | null;
-            isActive: boolean;
+            firmName: string | null;
         }[];
         total: number;
     }>;
@@ -184,43 +184,43 @@ export declare class MasterDataService {
         firmName?: string;
     }): Promise<{
         id: string;
-        plantId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
-        firmName: string | null;
+        plantId: string;
+        isActive: boolean;
         contact: string | null;
         type: string | null;
-        isActive: boolean;
+        firmName: string | null;
     }>;
     deleteLabour(id: string): Promise<{
         id: string;
-        plantId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
-        firmName: string | null;
+        plantId: string;
+        isActive: boolean;
         contact: string | null;
         type: string | null;
-        isActive: boolean;
+        firmName: string | null;
     }>;
     getPahunch(plantId: string, page?: string, limit?: string): Promise<{
         id: string;
-        plantId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
-        contact: string | null;
+        plantId: string;
         isActive: boolean;
+        contact: string | null;
     }[] | {
         data: {
             id: string;
-            plantId: string;
+            name: string;
             createdAt: Date;
             updatedAt: Date;
-            name: string;
-            contact: string | null;
+            plantId: string;
             isActive: boolean;
+            contact: string | null;
         }[];
         total: number;
     }>;
@@ -229,20 +229,20 @@ export declare class MasterDataService {
         contact?: string;
     }): Promise<{
         id: string;
-        plantId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
-        contact: string | null;
+        plantId: string;
         isActive: boolean;
+        contact: string | null;
     }>;
     deletePahunch(id: string): Promise<{
         id: string;
-        plantId: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
-        name: string;
-        contact: string | null;
+        plantId: string;
         isActive: boolean;
+        contact: string | null;
     }>;
 }

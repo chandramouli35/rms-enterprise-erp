@@ -256,6 +256,9 @@ export declare class GatePassController {
             aClassBagWeight: number;
             bClassBagWeight: number;
             govtRate: number | null;
+            benchmarkMoisture: number | null;
+            safaiCut: number | null;
+            processingCut: number | null;
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
