@@ -622,8 +622,8 @@ export const UsersAndRoles: React.FC = () => {
  <input type="text" required value={newUserForm.fullName} onChange={e => setNewUserForm({...newUserForm, fullName: e.target.value})} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500" placeholder="e.g. John Doe" />
  </div>
  <div>
- <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Username / Email</label>
- <input type="text" required value={newUserForm.username} onChange={e => setNewUserForm({...newUserForm, username: e.target.value, email: e.target.value})} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500" placeholder="Username or Email" />
+ <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Username</label>
+ <input type="text" required value={newUserForm.username} onChange={e => setNewUserForm({...newUserForm, username: e.target.value, email: e.target.value})} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500" placeholder="Username" />
  </div>
  <div>
  <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Secure Password</label>
@@ -733,8 +733,8 @@ export const UsersAndRoles: React.FC = () => {
  </div>
  
  <div>
- <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Username / Email</label>
- <input required type="text" value={editUserForm.email} onChange={e => setEditUserForm({...editUserForm, email: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors" placeholder="e.g. john@example.com" />
+ <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Username</label>
+ <input required type="text" value={editUserForm.email} onChange={e => setEditUserForm({...editUserForm, email: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors" placeholder="e.g. john" />
  </div>
 
  <div>
