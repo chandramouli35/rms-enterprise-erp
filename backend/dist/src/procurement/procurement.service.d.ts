@@ -30,6 +30,7 @@ export declare class ProcurementService {
     }>;
     getInwards(plantId: string, dateFrom?: string, dateTo?: string, mandi?: string, supplierId?: string, page?: string, limit?: string): Promise<{
         data: {
+            id: string;
             weighbridge: {
                 id: string;
                 createdAt: Date;
@@ -54,9 +55,9 @@ export declare class ProcurementService {
                 id: string;
                 createdAt: Date;
                 updatedAt: Date;
+                moisture: number | null;
                 status: string;
                 procurementBatchId: string;
-                moisture: number | null;
                 broken: number | null;
                 discoloration: number | null;
                 foreignMatter: number | null;
@@ -75,11 +76,11 @@ export declare class ProcurementService {
                 contact: string | null;
                 address: string | null;
             } | null;
-            id: string;
             standardBagWeight?: number | null | undefined;
             govtRate?: number | null | undefined;
             createdAt?: Date | undefined;
             updatedAt?: Date | undefined;
+            moisture?: number | null | undefined;
             mandi?: string | null | undefined;
             qualityCutValue?: number | null | undefined;
             driverName?: string | null | undefined;
@@ -136,7 +137,6 @@ export declare class ProcurementService {
             newTruckReading?: number | null | undefined;
             kmsDriven?: number | null | undefined;
             meterNotWorking?: boolean | undefined;
-            moisture?: number | null | undefined;
             paddyBoliRecord?: string | null | undefined;
             mainUnloaderTruckCount?: number | null | undefined;
             bagsInMainStack?: number | null | undefined;
@@ -180,6 +180,7 @@ export declare class ProcurementService {
             govtRate: number | null;
             createdAt: Date;
             updatedAt: Date;
+            moisture: number | null;
             mandi: string | null;
             qualityCutValue: number | null;
             driverName: string | null;
@@ -236,7 +237,6 @@ export declare class ProcurementService {
             newTruckReading: number | null;
             kmsDriven: number | null;
             meterNotWorking: boolean;
-            moisture: number | null;
             paddyBoliRecord: string | null;
             mainUnloaderTruckCount: number | null;
             bagsInMainStack: number | null;
@@ -275,9 +275,9 @@ export declare class ProcurementService {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            moisture: number | null;
             status: string;
             procurementBatchId: string;
-            moisture: number | null;
             broken: number | null;
             discoloration: number | null;
             foreignMatter: number | null;
@@ -344,6 +344,7 @@ export declare class ProcurementService {
             govtRate: number | null;
             createdAt: Date;
             updatedAt: Date;
+            moisture: number | null;
             mandi: string | null;
             qualityCutValue: number | null;
             driverName: string | null;
@@ -400,7 +401,6 @@ export declare class ProcurementService {
             newTruckReading: number | null;
             kmsDriven: number | null;
             meterNotWorking: boolean;
-            moisture: number | null;
             paddyBoliRecord: string | null;
             mainUnloaderTruckCount: number | null;
             bagsInMainStack: number | null;
@@ -439,9 +439,9 @@ export declare class ProcurementService {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            moisture: number | null;
             status: string;
             procurementBatchId: string;
-            moisture: number | null;
             broken: number | null;
             discoloration: number | null;
             foreignMatter: number | null;
@@ -475,9 +475,9 @@ export declare class ProcurementService {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        moisture: number | null;
         status: string;
         procurementBatchId: string;
-        moisture: number | null;
         broken: number | null;
         discoloration: number | null;
         foreignMatter: number | null;
@@ -575,8 +575,8 @@ export declare class ProcurementService {
                 id: string;
                 createdAt: Date;
                 updatedAt: Date;
-                sodaPendingId: string;
                 moisture: number;
+                sodaPendingId: string;
                 bags: number;
                 rate: number;
                 bagsReceived: number;
@@ -596,9 +596,9 @@ export declare class ProcurementService {
         createdAt: Date;
         updatedAt: Date;
         date: Date;
+        moisture: number | null;
         plantId: string;
         supplierId: string;
-        moisture: number | null;
         bags: number | null;
         rate: number | null;
         diff: number | null;
@@ -614,9 +614,9 @@ export declare class ProcurementService {
         createdAt: Date;
         updatedAt: Date;
         date: Date;
+        moisture: number | null;
         plantId: string;
         supplierId: string;
-        moisture: number | null;
         bags: number | null;
         rate: number | null;
         diff: number | null;
@@ -638,9 +638,9 @@ export declare class ProcurementService {
         createdAt: Date;
         updatedAt: Date;
         date: Date;
+        moisture: number | null;
         plantId: string;
         supplierId: string;
-        moisture: number | null;
         bags: number | null;
         rate: number | null;
         diff: number | null;

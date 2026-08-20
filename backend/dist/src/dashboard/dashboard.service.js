@@ -215,6 +215,19 @@ let DashboardService = class DashboardService {
                 time: bm.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             });
         });
+        const recentHighMoistureBatches = await this.prisma.productionBatch.findMany({
+            where: { ...pFilter, moisture: { gt: 14.1 } },
+            orderBy: { createdAt: 'desc' },
+            take: 5
+        });
+        recentHighMoistureBatches.forEach(b => {
+            alerts.push({
+                type: 'HighMoisture',
+                title: 'High Moisture Alert',
+                details: `Supervisor created Batch ${b.batchNo} with high moisture (${b.moisture}%)`,
+                time: b.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+        });
         return alerts;
     }
     async getTodaySummary(plantId) {

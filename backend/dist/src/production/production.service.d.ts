@@ -27,6 +27,7 @@ export declare class ProductionService {
             paddySource: string | null;
             paddyUsedQty: number;
             riceProducedQty: number | null;
+            moisture: number | null;
             rBranBags: number;
             kPhuckBags: number;
             brokenRiceBags: number;
@@ -98,6 +99,25 @@ export declare class ProductionService {
             yieldTarget: number | null;
             targetAchieved: boolean;
         } | null;
+        batchAnalysis: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            productionBatchId: string;
+            paddyMoisture: number | null;
+            khanjanBroken: number | null;
+            polisher1: number | null;
+            polisher2: number | null;
+            polisher3: number | null;
+            polisher4: number | null;
+            difference1To4: number | null;
+            pamalaBroken: number | null;
+            finalBroken: number | null;
+            riceMoisture: number | null;
+            damagePercent: number | null;
+            discolourPercent: number | null;
+            frkPercent: number | null;
+        } | null;
     } & {
         id: string;
         createdAt: Date;
@@ -111,6 +131,7 @@ export declare class ProductionService {
         paddySource: string | null;
         paddyUsedQty: number;
         riceProducedQty: number | null;
+        moisture: number | null;
         rBranBags: number;
         kPhuckBags: number;
         brokenRiceBags: number;
@@ -154,6 +175,7 @@ export declare class ProductionService {
         paddySource: string | null;
         paddyUsedQty: number;
         riceProducedQty: number | null;
+        moisture: number | null;
         rBranBags: number;
         kPhuckBags: number;
         brokenRiceBags: number;
@@ -197,6 +219,7 @@ export declare class ProductionService {
         paddySource: string | null;
         paddyUsedQty: number;
         riceProducedQty: number | null;
+        moisture: number | null;
         rBranBags: number;
         kPhuckBags: number;
         brokenRiceBags: number;
@@ -226,5 +249,39 @@ export declare class ProductionService {
         startTime: Date | null;
         endTime: Date | null;
         plantId: string;
+    }>;
+    getDailyStockReport(plantId: string, dateStr: string): Promise<any[]>;
+    getShiftWiseStockReport(plantId: string, dateStr: string): Promise<{
+        reportData: any[];
+        summary: {
+            finalRiceDay: any;
+            totalRiceInputDay: any;
+            netRiceProductionDay: number;
+            finalRiceNight: any;
+            totalRiceInputNight: any;
+            netRiceProductionNight: number;
+            riceWagonDelivered: number;
+            todayDelivery: any;
+            totalRiceWagonsDelivered: any;
+        };
+    }>;
+    saveBatchAnalysis(batchId: string, data: any): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        productionBatchId: string;
+        paddyMoisture: number | null;
+        khanjanBroken: number | null;
+        polisher1: number | null;
+        polisher2: number | null;
+        polisher3: number | null;
+        polisher4: number | null;
+        difference1To4: number | null;
+        pamalaBroken: number | null;
+        finalBroken: number | null;
+        riceMoisture: number | null;
+        damagePercent: number | null;
+        discolourPercent: number | null;
+        frkPercent: number | null;
     }>;
 }

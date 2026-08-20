@@ -34,6 +34,7 @@ export declare class IntermillController {
                 createdAt: Date;
                 updatedAt: Date;
                 description: string | null;
+                category: string;
                 type: string;
             };
         } & {
@@ -53,6 +54,7 @@ export declare class IntermillController {
             createdAt: Date;
             updatedAt: Date;
             description: string | null;
+            category: string;
             type: string;
         };
     } & {

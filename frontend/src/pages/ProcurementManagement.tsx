@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Users, Package, ShieldCheck, FileText, Search, Plus, Calendar, ChevronDown, Download, Printer, Settings, Upload, Edit, Layers, ScanBarcode, X, AlertTriangle, Trash, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Users, Package, ShieldCheck, FileText, Search, Plus, Calendar, ChevronDown, Download, Printer, Settings, Upload, Edit, Layers, ScanBarcode, X, AlertTriangle, Trash, ArrowUpRight, ArrowDownRight, Eye } from 'lucide-react';
 import BoliCompletionTable from '../components/Procurement/BoliCompletionTable';
 import api from '../api/axios';
 import { CustomModal } from '../components/CustomModal';
@@ -2017,6 +2017,7 @@ export const ProcurementManagement = () => {
                 <th className="p-3 text-right whitespace-nowrap">Mill Net Wt</th>
                 <th className="p-3 text-right whitespace-nowrap">Surplus +/-</th>
                 <th className="p-3 whitespace-nowrap">Received</th>
+                <th className="p-3 whitespace-nowrap text-center">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -2040,11 +2041,16 @@ export const ProcurementManagement = () => {
                   <td className="p-3 text-right font-bold text-[var(--text-main)]">{p.netWtMill || p.netWt || p.weighbridge?.netWeight || '-'}</td>
                   <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.netWtDifference || '-'}</td>
                   <td className="p-3 text-[var(--text-muted-alt)]">{p.remarks || '-'}</td>
+                  <td className="p-3 text-center">
+                    <button onClick={() => handleViewInward(p)} className="text-blue-500 hover:text-blue-400 p-1" title="View Full Details">
+                      <Eye size={18} />
+                    </button>
+                  </td>
                 </tr>
               ))}
               {inwardList.length === 0 && (
                 <tr>
-                  <td colSpan={listFilters.supplierId ? 13 : 18} className="p-6 text-center text-[var(--text-muted-alt)]">No inward records found.</td>
+                  <td colSpan={listFilters.supplierId ? 14 : 19} className="p-6 text-center text-[var(--text-muted-alt)]">No inward records found.</td>
                 </tr>
               )}
             </tbody>
@@ -2079,6 +2085,20 @@ export const ProcurementManagement = () => {
               </div>
 
               <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
+                <h3 className="text-sm font-bold text-[#e67e00] mb-4 pb-2 border-b border-[var(--border-subtle)] uppercase tracking-wider">Transport & Validation</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Driver Name</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.driverName || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Driver Mobile</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.mobileNumber || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Prev Reading</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.previousTruckReading || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">New Reading</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.newTruckReading || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">KMS Driven</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.kmsDriven || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Bhari Video</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.bhariVideoUpload || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Khali Video</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.khaliVideoUpload || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Boli Record</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.paddyBoliRecord || '-'}</p></div>
+                </div>
+              </div>
+
+              <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
                 <h3 className="text-sm font-bold text-[#e67e00] mb-4 pb-2 border-b border-[var(--border-subtle)] uppercase tracking-wider">Weight & Bags Details</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
                   <div><p className="text-[var(--text-muted-alt)] text-xs">Gross Wt</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.weighbridge?.grossWeight || '-'}</p></div>
@@ -2100,7 +2120,12 @@ export const ProcurementManagement = () => {
                   <div><p className="text-[var(--text-muted-alt)] text-xs">Safai Type</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.safaiType || '-'}</p></div>
                   <div><p className="text-[var(--text-muted-alt)] text-xs">Labour Type</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.labourType || '-'}</p></div>
                   <div><p className="text-[var(--text-muted-alt)] text-xs">Allocated Unloader</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.allocateUnloader || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Unloader Name</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.unloaderName || '-'}</p></div>
                   <div><p className="text-[var(--text-muted-alt)] text-xs">Gaddi Count</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.gaddiCount || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Main Gaddi Count</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.mainUnloaderTruckCount || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Bags Main Stack</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.bagsInMainStack || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">2nd Stack No</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.secondPartStackNo || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Bags 2nd Stack</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.bagsInSecondPartStack || '-'}</p></div>
                   <div><p className="text-[var(--text-muted-alt)] text-xs">Start Time</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.unloadingStartTime ? new Date(viewInwardModal.paddyInwardDetails.unloadingStartTime).toLocaleTimeString() : '-'}</p></div>
                   <div><p className="text-[var(--text-muted-alt)] text-xs">End Time</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.unloadingEndTime ? new Date(viewInwardModal.paddyInwardDetails.unloadingEndTime).toLocaleTimeString() : '-'}</p></div>
                 </div>
@@ -2120,7 +2145,22 @@ export const ProcurementManagement = () => {
                   <div><p className="text-[var(--text-muted-alt)] text-xs">Shortage Type</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.shortageType || '-'}</p></div>
                   <div><p className="text-[var(--text-muted-alt)] text-xs">Shortage A-Class</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.shortageAClass || '-'}</p></div>
                   <div><p className="text-[var(--text-muted-alt)] text-xs">Shortage B-Class</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.shortageBClass || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Total Bags Rec</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.totalBagsReceived || '-'}</p></div>
                   <div><p className="text-[var(--text-muted-alt)] text-xs">Arhtia Shortage Bal</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.balanceShortageArhtia || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Add Cut in Shortage</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.cutToBeAddedInShortage ? 'Yes' : 'No'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Rec &lt; Agency Gp</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.bagsRecLessThanAgencyGp ? 'Yes' : 'No'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">+Wt Consider Shortage</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.plusWtConsiderInShortageRecovery ? 'Yes' : 'No'}</p></div>
+                </div>
+              </div>
+
+              <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
+                <h3 className="text-sm font-bold text-[#e67e00] mb-4 pb-2 border-b border-[var(--border-subtle)] uppercase tracking-wider">Signatures & Verification</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Driver Sign</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.driverSign || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Unloader Sign</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.unloaderSign || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Pahunch Person Sign</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.pahunchPersonSign || '-'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Unloader Stamp/Sign</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.unloaderSignAndStamp ? 'Yes' : 'No'}</p></div>
+                  <div><p className="text-[var(--text-muted-alt)] text-xs">Pahunch Stamp/Sign</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.pahunchPersonSignAndStamp ? 'Yes' : 'No'}</p></div>
                 </div>
               </div>
 

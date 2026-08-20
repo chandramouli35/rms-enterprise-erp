@@ -8,6 +8,7 @@ export declare class ProductsController {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
+        category: string;
         type: string;
     }>;
     findAll(page?: string, limit?: string): Promise<{
@@ -16,6 +17,7 @@ export declare class ProductsController {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
+        category: string;
         type: string;
     }[] | {
         data: {
@@ -24,6 +26,7 @@ export declare class ProductsController {
             createdAt: Date;
             updatedAt: Date;
             description: string | null;
+            category: string;
             type: string;
         }[];
         total: number;
@@ -34,6 +37,7 @@ export declare class ProductsController {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
+        category: string;
         type: string;
     }>;
     update(id: string, body: any): Promise<{
@@ -42,6 +46,7 @@ export declare class ProductsController {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
+        category: string;
         type: string;
     }>;
     remove(id: string): Promise<{
@@ -50,6 +55,7 @@ export declare class ProductsController {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
+        category: string;
         type: string;
     }>;
 }

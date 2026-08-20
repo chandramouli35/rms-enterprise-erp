@@ -12,7 +12,7 @@ export const ProductManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ id: '', name: '', type: 'PADDY', description: '' });
+  const [formData, setFormData] = useState({ id: '', name: '', type: 'PADDY', category: 'OPERATIONAL', description: '' });
   const [isEditing, setIsEditing] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -36,12 +36,14 @@ export const ProductManagement = () => {
         await api.patch(`/api/products/${formData.id}`, {
           name: formData.name,
           type: formData.type,
+          category: formData.category,
           description: formData.description
         });
       } else {
         await api.post('/api/products', {
           name: formData.name,
           type: formData.type,
+          category: formData.category,
           description: formData.description
         });
       }
@@ -65,7 +67,7 @@ export const ProductManagement = () => {
   };
 
   const openAddModal = () => {
-    setFormData({ id: '', name: '', type: 'PADDY', description: '' });
+    setFormData({ id: '', name: '', type: 'PADDY', category: 'OPERATIONAL', description: '' });
     setIsEditing(false);
     setIsModalOpen(true);
   };
@@ -103,7 +105,8 @@ export const ProductManagement = () => {
                 <tr>
                   <th className="px-6 py-3 font-semibold w-1/4">Name</th>
                   <th className="px-6 py-3 font-semibold w-1/4">Type</th>
-                  <th className="px-6 py-3 font-semibold w-2/4">Description</th>
+                  <th className="px-6 py-3 font-semibold w-1/4">Category</th>
+                  <th className="px-6 py-3 font-semibold w-1/4">Description</th>
                   <th className="px-6 py-3 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
@@ -118,6 +121,9 @@ export const ProductManagement = () => {
                     </td>
                     <td className="px-6 py-4 text-[var(--text-muted)]">
                       <span className="px-2 py-1 rounded bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-xs font-medium uppercase">{p.type}</span>
+                    </td>
+                    <td className="px-6 py-4 text-[var(--text-muted)]">
+                      <span className={`px-2 py-1 rounded border text-xs font-medium uppercase ${p.category === 'NON-OPERATIONAL' ? 'bg-red-500/10 border-red-500/30 text-red-500' : 'bg-green-500/10 border-green-500/30 text-green-500'}`}>{p.category}</span>
                     </td>
                     <td className="px-6 py-4 text-[var(--text-muted)]">{p.description || '-'}</td>
                     <td className="px-6 py-4 text-right">
@@ -169,6 +175,13 @@ export const ProductManagement = () => {
                   <option value="HUSK">Husk</option>
                   <option value="FINISHED_GOODS">Finished Goods</option>
                   <option value="CONSUMABLES">Consumables</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Operation Category</label>
+                <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 transition-colors appearance-none">
+                  <option value="OPERATIONAL">Operational</option>
+                  <option value="NON-OPERATIONAL">Non-Operational</option>
                 </select>
               </div>
               <div>

@@ -25,6 +25,7 @@ export declare class GatePassService {
                 govtRate: number | null;
                 createdAt: Date;
                 updatedAt: Date;
+                moisture: number | null;
                 mandi: string | null;
                 qualityCutValue: number | null;
                 driverName: string | null;
@@ -81,7 +82,6 @@ export declare class GatePassService {
                 newTruckReading: number | null;
                 kmsDriven: number | null;
                 meterNotWorking: boolean;
-                moisture: number | null;
                 paddyBoliRecord: string | null;
                 mainUnloaderTruckCount: number | null;
                 bagsInMainStack: number | null;
@@ -120,9 +120,9 @@ export declare class GatePassService {
                 id: string;
                 createdAt: Date;
                 updatedAt: Date;
+                moisture: number | null;
                 status: string;
                 procurementBatchId: string;
-                moisture: number | null;
                 broken: number | null;
                 discoloration: number | null;
                 foreignMatter: number | null;
@@ -280,6 +280,7 @@ export declare class GatePassService {
                 govtRate: number | null;
                 createdAt: Date;
                 updatedAt: Date;
+                moisture: number | null;
                 mandi: string | null;
                 qualityCutValue: number | null;
                 driverName: string | null;
@@ -336,7 +337,6 @@ export declare class GatePassService {
                 newTruckReading: number | null;
                 kmsDriven: number | null;
                 meterNotWorking: boolean;
-                moisture: number | null;
                 paddyBoliRecord: string | null;
                 mainUnloaderTruckCount: number | null;
                 bagsInMainStack: number | null;
@@ -375,9 +375,9 @@ export declare class GatePassService {
                 id: string;
                 createdAt: Date;
                 updatedAt: Date;
+                moisture: number | null;
                 status: string;
                 procurementBatchId: string;
-                moisture: number | null;
                 broken: number | null;
                 discoloration: number | null;
                 foreignMatter: number | null;

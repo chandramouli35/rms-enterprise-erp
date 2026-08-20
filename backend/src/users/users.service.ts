@@ -28,7 +28,9 @@ export class UsersService {
       username: user.username,
       email: user.email,
       role: user.role.name,
-      plants: user.plantAccess.map(pa => pa.plant.name)
+      roleId: user.roleId,
+      plants: user.plantAccess.map(pa => pa.plant.name),
+      plantAccess: user.plantAccess
     }));
   }
 

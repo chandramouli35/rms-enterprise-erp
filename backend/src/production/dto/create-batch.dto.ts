@@ -30,6 +30,10 @@ export class CreateBatchDto {
   paddyUsedQty: number;
 
   @IsOptional()
+  @IsNumber()
+  moisture?: number;
+
+  @IsOptional()
   @IsString()
   remarks?: string;
 

@@ -563,6 +563,7 @@ model ProductionBatch {
 
   paddyUsedQty    Float // in MT
   riceProducedQty Float? // in MT
+  moisture        Float? // %
 
   // Additional Outputs (Produced)
   rBranBags       Int @default(0)
@@ -598,7 +599,8 @@ model ProductionBatch {
 
   processLoss ProcessLoss?
   byProducts  ByProduct[]
-  yieldReport YieldReport?
+  yieldReport   YieldReport?
+  batchAnalysis BatchAnalysis?
 
   startTime DateTime? @default(now())
   endTime   DateTime?
@@ -706,6 +708,7 @@ model Product {
   id        String   @id @default(uuid())
   name      String   @unique
   type      String
+  category  String   @default("OPERATIONAL")
   description String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1016,4 +1019,27 @@ model IntermillOutput {
   updatedAt       DateTime       @updatedAt
 
   @@index([batchId])
+}
+
+model BatchAnalysis {
+  id                String          @id @default(uuid())
+  productionBatchId String          @unique
+  productionBatch   ProductionBatch @relation(fields: [productionBatchId], references: [id], onDelete: Cascade)
+
+  paddyMoisture    Float?
+  khanjanBroken    Float?
+  polisher1        Float?
+  polisher2        Float?
+  polisher3        Float?
+  polisher4        Float?
+  difference1To4   Float?
+  pamalaBroken     Float?
+  finalBroken      Float?
+  riceMoisture     Float?
+  damagePercent    Float?
+  discolourPercent Float?
+  frkPercent       Float?
+
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 }

@@ -132,6 +132,7 @@ export class ProductionService {
         processLoss: true,
         byProducts: true,
         yieldReport: true,
+        batchAnalysis: true,
       },
     });
     
@@ -152,6 +153,7 @@ export class ProductionService {
         variety: dto.variety,
         paddySource: dto.paddySource,
         paddyUsedQty: dto.paddyUsedQty,
+        moisture: dto.moisture,
         rBranBags: dto.additionalOutputs?.['R. Bran']?.produced || 0,
         kPhuckBags: dto.additionalOutputs?.['K. Phuck']?.produced || 0,
         brokenRiceBags: dto.additionalOutputs?.['Broken Rice']?.produced || 0,
@@ -307,5 +309,320 @@ export class ProductionService {
 
       return updatedBatch;
     });
+  }
+
+  async getDailyStockReport(plantId: string, dateStr: string) {
+    const targetDate = new Date(dateStr);
+    targetDate.setHours(0, 0, 0, 0);
+    const nextDate = new Date(targetDate);
+    nextDate.setDate(nextDate.getDate() + 1);
+
+    const whereClause = plantId === 'global' ? {} : { plantId };
+
+    // 1. Get all transactions up to targetDate for Opening Balances
+    const pastLedgers = await this.prisma.stockLedger.findMany({
+      where: {
+        ...whereClause,
+        createdAt: { lt: targetDate }
+      }
+    });
+
+    const opBal: Record<string, number> = {};
+    pastLedgers.forEach(l => {
+      const type = l.itemType.toUpperCase();
+      if (!opBal[type]) opBal[type] = 0;
+      if (l.transaction === 'IN') opBal[type] += l.quantity;
+      if (l.transaction === 'OUT') opBal[type] -= l.quantity;
+    });
+
+    // 2. Get today's transactions
+    const todayLedgers = await this.prisma.stockLedger.findMany({
+      where: {
+        ...whereClause,
+        createdAt: { gte: targetDate, lt: nextDate }
+      }
+    });
+
+    let totalPaddyDay = 0;
+    let totalPaddyNight = 0;
+
+    todayLedgers.forEach(l => {
+      if (l.itemType.toUpperCase() === 'PADDY' && l.transaction === 'OUT') {
+         let isDay = l.shift === 'Day';
+         if (!l.shift) {
+           const hour = l.createdAt.getHours();
+           isDay = hour >= 8 && hour < 20;
+         }
+         if (isDay) totalPaddyDay += l.quantity;
+         else totalPaddyNight += l.quantity;
+      }
+    });
+
+    const reportMap: Record<string, any> = {};
+
+    todayLedgers.forEach(l => {
+      const type = l.itemType.toUpperCase();
+      if (!reportMap[type]) {
+        reportMap[type] = {
+          item: type,
+          opBal: opBal[type] || 0,
+          inDay: 0,
+          inNight: 0,
+          outDay: 0,
+          outNight: 0,
+        };
+      }
+      
+      let isDay = l.shift === 'Day';
+      if (!l.shift) {
+        const hour = l.createdAt.getHours();
+        isDay = hour >= 8 && hour < 20;
+      }
+
+      if (l.transaction === 'IN') {
+         if (isDay) reportMap[type].inDay += l.quantity;
+         else reportMap[type].inNight += l.quantity;
+      } else if (l.transaction === 'OUT') {
+         if (isDay) reportMap[type].outDay += l.quantity;
+         else reportMap[type].outNight += l.quantity;
+      }
+    });
+
+    Object.keys(opBal).forEach(type => {
+      if (!reportMap[type] && opBal[type] !== 0) {
+        reportMap[type] = {
+          item: type,
+          opBal: opBal[type],
+          inDay: 0, inNight: 0, outDay: 0, outNight: 0
+        };
+      }
+    });
+
+    const reportData = Object.values(reportMap).map((row: any) => {
+      const inTotal = row.inDay + row.inNight;
+      const outTotal = row.outDay + row.outNight;
+      const closingBal = row.opBal + inTotal - outTotal;
+      
+      const dayPercent = totalPaddyDay > 0 ? (row.inDay / totalPaddyDay) * 100 : 0;
+      const nightPercent = totalPaddyNight > 0 ? (row.inNight / totalPaddyNight) * 100 : 0;
+
+      return {
+        ...row,
+        dayPercent: parseFloat(dayPercent.toFixed(2)),
+        nightPercent: parseFloat(nightPercent.toFixed(2)),
+        inTotal,
+        outTotal,
+        balance: closingBal
+      };
+    });
+
+    return reportData;
+  }
+
+  async getShiftWiseStockReport(plantId: string, dateStr: string) {
+    const targetDate = new Date(dateStr);
+    targetDate.setHours(0, 0, 0, 0);
+    const nextDate = new Date(targetDate);
+    nextDate.setDate(nextDate.getDate() + 1);
+
+    const whereClause = plantId === 'global' ? {} : { plantId };
+
+    // 1. Get Opening Balances
+    const pastLedgers = await this.prisma.stockLedger.findMany({
+      where: {
+        ...whereClause,
+        createdAt: { lt: targetDate }
+      }
+    });
+
+    const opBal: Record<string, number> = {};
+    pastLedgers.forEach(l => {
+      const type = l.itemType.toUpperCase();
+      if (!opBal[type]) opBal[type] = 0;
+      if (l.transaction === 'IN') opBal[type] += l.quantity;
+      if (l.transaction === 'OUT') opBal[type] -= l.quantity;
+    });
+
+    // 2. Get today's transactions
+    const todayLedgers = await this.prisma.stockLedger.findMany({
+      where: {
+        ...whereClause,
+        createdAt: { gte: targetDate, lt: nextDate }
+      }
+    });
+
+    const reportMap: Record<string, any> = {};
+
+    todayLedgers.forEach(l => {
+      const type = l.itemType.toUpperCase();
+      if (!reportMap[type]) {
+        reportMap[type] = {
+          item: type,
+          opBal: opBal[type] || 0,
+          prodInDay: 0, prodInNight: 0,
+          gpInDay: 0, gpInNight: 0,
+          usageOutDay: 0, usageOutNight: 0,
+          gpOutDay: 0, gpOutNight: 0,
+        };
+      }
+      
+      let isDay = l.shift === 'Day';
+      if (!l.shift) {
+        const hour = l.createdAt.getHours();
+        isDay = hour >= 8 && hour < 20;
+      }
+
+      const remarks = (l.remarks || '').toLowerCase();
+      const isProduction = remarks.includes('produced') || remarks.includes('by-product') || remarks.includes('issued to production');
+      
+      if (l.transaction === 'IN') {
+         if (isProduction) {
+           if (isDay) reportMap[type].prodInDay += l.quantity;
+           else reportMap[type].prodInNight += l.quantity;
+         } else {
+           if (isDay) reportMap[type].gpInDay += l.quantity;
+           else reportMap[type].gpInNight += l.quantity;
+         }
+      } else if (l.transaction === 'OUT') {
+         if (isProduction) {
+           if (isDay) reportMap[type].usageOutDay += l.quantity;
+           else reportMap[type].usageOutNight += l.quantity;
+         } else {
+           if (isDay) reportMap[type].gpOutDay += l.quantity;
+           else reportMap[type].gpOutNight += l.quantity;
+         }
+      }
+    });
+
+    Object.keys(opBal).forEach(type => {
+      if (!reportMap[type] && opBal[type] !== 0) {
+        reportMap[type] = {
+          item: type,
+          opBal: opBal[type],
+          prodInDay: 0, prodInNight: 0,
+          gpInDay: 0, gpInNight: 0,
+          usageOutDay: 0, usageOutNight: 0,
+          gpOutDay: 0, gpOutNight: 0,
+        };
+      }
+    });
+
+    const reportData = Object.values(reportMap).map((row: any) => {
+      const prodInTotal = row.prodInDay + row.prodInNight;
+      const gpInTotal = row.gpInDay + row.gpInNight;
+      const usageOutTotal = row.usageOutDay + row.usageOutNight;
+      const gpOutTotal = row.gpOutDay + row.gpOutNight;
+      const closingBal = row.opBal + prodInTotal + gpInTotal - usageOutTotal - gpOutTotal;
+      // Add mock bag conversion based on standard 50kg bags (adjust as needed)
+      const bags = Math.floor(closingBal / 50);
+
+      return {
+        ...row,
+        prodInTotal,
+        gpInTotal,
+        usageOutTotal,
+        gpOutTotal,
+        balance: closingBal,
+        bags,
+        netRiceProd: row.item.includes('RICE') ? (prodInTotal - usageOutTotal) : null
+      };
+    });
+
+    // Calculate Summary Metrics
+    const riceRow = reportData.find(r => r.item.includes('RICE')) || { 
+      prodInDay: 0, usageOutDay: 0, 
+      prodInNight: 0, usageOutNight: 0,
+      gpOutTotal: 0
+    };
+
+    const finalRiceDay = riceRow.prodInDay;
+    const totalRiceInputDay = riceRow.usageOutDay;
+    const netRiceProductionDay = finalRiceDay - totalRiceInputDay;
+
+    const finalRiceNight = riceRow.prodInNight;
+    const totalRiceInputNight = riceRow.usageOutNight;
+    const netRiceProductionNight = finalRiceNight - totalRiceInputNight;
+
+    // For Rice Wagons Delivered, we look at all past 'OUT' transactions for RICE via GP
+    let pastRiceWagons = 0;
+    pastLedgers.forEach(l => {
+      if (l.itemType.toUpperCase().includes('RICE') && l.transaction === 'OUT') {
+         const remarks = (l.remarks || '').toLowerCase();
+         if (!remarks.includes('issued to production')) {
+           pastRiceWagons += l.quantity; // Assuming quantity maps to delivery units/kgs
+         }
+      }
+    });
+
+    const riceWagonDelivered = pastRiceWagons;
+    const todayDelivery = riceRow.gpOutTotal;
+    const totalRiceWagonsDelivered = riceWagonDelivered + todayDelivery;
+
+    return {
+      reportData,
+      summary: {
+        finalRiceDay,
+        totalRiceInputDay,
+        netRiceProductionDay,
+        finalRiceNight,
+        totalRiceInputNight,
+        netRiceProductionNight,
+        riceWagonDelivered,
+        todayDelivery,
+        totalRiceWagonsDelivered
+      }
+    };
+  }
+
+  async saveBatchAnalysis(batchId: string, data: any) {
+    const {
+      paddyMoisture, khanjanBroken, polisher1, polisher2, polisher3, polisher4, 
+      difference1To4, pamalaBroken, finalBroken, riceMoisture, 
+      damagePercent, discolourPercent, frkPercent
+    } = data;
+
+    const existing = await this.prisma.batchAnalysis.findUnique({
+      where: { productionBatchId: batchId }
+    });
+
+    if (existing) {
+      return this.prisma.batchAnalysis.update({
+        where: { productionBatchId: batchId },
+        data: {
+          paddyMoisture: paddyMoisture ? Number(paddyMoisture) : null,
+          khanjanBroken: khanjanBroken ? Number(khanjanBroken) : null,
+          polisher1: polisher1 ? Number(polisher1) : null,
+          polisher2: polisher2 ? Number(polisher2) : null,
+          polisher3: polisher3 ? Number(polisher3) : null,
+          polisher4: polisher4 ? Number(polisher4) : null,
+          difference1To4: difference1To4 ? Number(difference1To4) : null,
+          pamalaBroken: pamalaBroken ? Number(pamalaBroken) : null,
+          finalBroken: finalBroken ? Number(finalBroken) : null,
+          riceMoisture: riceMoisture ? Number(riceMoisture) : null,
+          damagePercent: damagePercent ? Number(damagePercent) : null,
+          discolourPercent: discolourPercent ? Number(discolourPercent) : null,
+          frkPercent: frkPercent ? Number(frkPercent) : null,
+        }
+      });
+    } else {
+      return this.prisma.batchAnalysis.create({
+        data: {
+          productionBatchId: batchId,
+          paddyMoisture: paddyMoisture ? Number(paddyMoisture) : null,
+          khanjanBroken: khanjanBroken ? Number(khanjanBroken) : null,
+          polisher1: polisher1 ? Number(polisher1) : null,
+          polisher2: polisher2 ? Number(polisher2) : null,
+          polisher3: polisher3 ? Number(polisher3) : null,
+          polisher4: polisher4 ? Number(polisher4) : null,
+          difference1To4: difference1To4 ? Number(difference1To4) : null,
+          pamalaBroken: pamalaBroken ? Number(pamalaBroken) : null,
+          finalBroken: finalBroken ? Number(finalBroken) : null,
+          riceMoisture: riceMoisture ? Number(riceMoisture) : null,
+          damagePercent: damagePercent ? Number(damagePercent) : null,
+          discolourPercent: discolourPercent ? Number(discolourPercent) : null,
+          frkPercent: frkPercent ? Number(frkPercent) : null,
+        }
+      });
+    }
   }
 }

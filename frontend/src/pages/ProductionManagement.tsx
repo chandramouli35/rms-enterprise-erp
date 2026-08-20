@@ -13,6 +13,8 @@ import { exportToPDF, exportToExcel } from '../utils/exportUtils';
 import { useIntermillStore } from '../store/intermillStore';
 import { useAuthStore } from '../store/authStore';
 import { IntermillProcessing } from './IntermillProcessing';
+import { DailyStockReport } from '../components/Production/DailyStockReport';
+import { ShiftWiseReport } from '../components/Production/ShiftWiseReport';
 
 const INTERMILL_ITEMS = [
   'R. Bran', 'K. Phuck', 'Broken Rice', 'Nakku 1', 'Nakku 2', 
@@ -52,6 +54,7 @@ export const ProductionManagement = () => {
  variety: 'Sugandha',
  paddySource: '250.000',
  paddyUsedQty: '',
+ moisture: '',
   additionalOutputs: {
     'R. Bran': { produced: '', reused: '' },
     'K. Phuck': { produced: '', reused: '' },
@@ -66,6 +69,12 @@ export const ProductionManagement = () => {
     'FRK': { produced: '', reused: '' }
   },
   remarks: 'Steam paddy batch for production.'
+ });
+
+ const [analysisFormData, setAnalysisFormData] = useState<any>({
+   paddyMoisture: '', khanjanBroken: '', polisher1: '', polisher2: '', 
+   polisher3: '', polisher4: '', pamalaBroken: '', finalBroken: '', 
+   riceMoisture: '', damagePercent: '', discolourPercent: '', frkPercent: ''
  });
 
  
@@ -111,21 +120,69 @@ export const ProductionManagement = () => {
     }
   };
 
-  useEffect(() => {
-    if (selectedBatchId) {
-      const fetchBatchDetails = async () => {
-        try {
-          const res = await api.get(`/production/batches/${selectedBatchId}`);
-          setSelectedBatchDetails(res.data);
-        } catch (error) {
-          console.error("Failed to fetch batch details", error);
-        }
+  const handleSaveAnalysis = async () => {
+    if (!selectedBatchId) {
+      showNotification('Please select a batch first', 'error');
+      return;
+    }
+    setLoading(true);
+    try {
+      const difference1To4 = 
+        (analysisFormData.polisher1 && analysisFormData.polisher4) 
+        ? Math.abs(Number(analysisFormData.polisher1) - Number(analysisFormData.polisher4)).toFixed(2)
+        : null;
+
+      const dataToSave = {
+        ...analysisFormData,
+        difference1To4
       };
-      fetchBatchDetails();
+
+      await api.post(`/production/batches/${selectedBatchId}/analysis`, dataToSave);
+      showNotification('Batch analysis saved successfully');
+      fetchBatches();
+    } catch (error: any) {
+      console.error('Error saving batch analysis:', error);
+      showNotification(error.response?.data?.message || 'Failed to save analysis', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedBatchId && batches.length > 0) {
+      const b = batches.find(b => b.id === selectedBatchId) || null;
+      setSelectedBatchDetails(b);
+      if (b?.batchAnalysis) {
+        setAnalysisFormData({
+          paddyMoisture: b.batchAnalysis.paddyMoisture || '',
+          khanjanBroken: b.batchAnalysis.khanjanBroken || '',
+          polisher1: b.batchAnalysis.polisher1 || '',
+          polisher2: b.batchAnalysis.polisher2 || '',
+          polisher3: b.batchAnalysis.polisher3 || '',
+          polisher4: b.batchAnalysis.polisher4 || '',
+          pamalaBroken: b.batchAnalysis.pamalaBroken || '',
+          finalBroken: b.batchAnalysis.finalBroken || '',
+          riceMoisture: b.batchAnalysis.riceMoisture || '',
+          damagePercent: b.batchAnalysis.damagePercent || '',
+          discolourPercent: b.batchAnalysis.discolourPercent || '',
+          frkPercent: b.batchAnalysis.frkPercent || ''
+        });
+      } else {
+        setAnalysisFormData({
+          paddyMoisture: '', khanjanBroken: '', polisher1: '', polisher2: '', 
+          polisher3: '', polisher4: '', pamalaBroken: '', finalBroken: '', 
+          riceMoisture: '', damagePercent: '', discolourPercent: '', frkPercent: ''
+        });
+      }
     } else {
       setSelectedBatchDetails(null);
+      setAnalysisFormData({
+        paddyMoisture: '', khanjanBroken: '', polisher1: '', polisher2: '', 
+        polisher3: '', polisher4: '', pamalaBroken: '', finalBroken: '', 
+        riceMoisture: '', damagePercent: '', discolourPercent: '', frkPercent: ''
+      });
     }
-  }, [selectedBatchId]);
+  }, [selectedBatchId, batches]);
 
   useEffect(() => {
     if (activePlant?.id) {
@@ -205,6 +262,7 @@ export const ProductionManagement = () => {
  variety: formData.variety,
  paddySource: formData.paddySource,
  paddyUsedQty: Number(formData.paddyUsedQty) || 0,
+ moisture: formData.moisture ? Number(formData.moisture) : undefined,
     additionalOutputs: Object.fromEntries(
       Object.entries(formData.additionalOutputs).map(([k, v]) => [
         k,
@@ -225,6 +283,7 @@ export const ProductionManagement = () => {
       ...prev,
       batchNo: generateBatchNo(),
       paddyUsedQty: '',
+      moisture: '',
       additionalOutputs: {
         'R. Bran': { produced: '', reused: '' },
         'K. Phuck': { produced: '', reused: '' },
@@ -465,6 +524,18 @@ export const ProductionManagement = () => {
  <div>
  <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Paddy Source</label>
  <input type="text" name="paddySource" value={formData.paddySource} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
+ </div>
+ <div>
+  <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Moisture (%) *</label>
+  <input 
+    type="number"
+    step="0.1" 
+    value={formData.moisture} 
+    onChange={e => setFormData({...formData, moisture: e.target.value})}
+    required
+    className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-sm focus:border-amber-500 focus:outline-none text-[var(--text-main)]" 
+    placeholder="e.g. 14.5" 
+  />
  </div>
  
  </div>
@@ -764,7 +835,7 @@ export const ProductionManagement = () => {
     <textarea rows={2} name="remarks" value={formData.remarks} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none"></textarea>
   </div>
   <div className="flex gap-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
-    <button onClick={() => setFormData(prev => ({...prev, paddyUsedQty: '', batchNo: generateBatchNo(), additionalOutputs: { 'R. Bran': { produced: '', reused: '' }, 'K. Phuck': { produced: '', reused: '' }, 'Broken Rice': { produced: '', reused: '' }, 'Nakku 1': { produced: '', reused: '' }, 'Nakku 2': { produced: '', reused: '' }, 'Rejection': { produced: '', reused: '' }, 'Final Rice': { produced: '', reused: '' }, 'Mansoori': { produced: '', reused: '' }, 'Wand': { produced: '', reused: '', wandProduced: '' }, 'Parmal': { produced: '', reused: '' }, 'FRK': { produced: '', reused: '' } }}))} className="flex-1 py-2 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded font-bold text-sm transition-colors border border-[var(--border-subtle)]">Reset</button>
+    <button onClick={() => setFormData(prev => ({...prev, paddyUsedQty: '', moisture: '', batchNo: generateBatchNo(), additionalOutputs: { 'R. Bran': { produced: '', reused: '' }, 'K. Phuck': { produced: '', reused: '' }, 'Broken Rice': { produced: '', reused: '' }, 'Nakku 1': { produced: '', reused: '' }, 'Nakku 2': { produced: '', reused: '' }, 'Rejection': { produced: '', reused: '' }, 'Final Rice': { produced: '', reused: '' }, 'Mansoori': { produced: '', reused: '' }, 'Wand': { produced: '', reused: '', wandProduced: '' }, 'Parmal': { produced: '', reused: '' }, 'FRK': { produced: '', reused: '' } }}))} className="flex-1 py-2 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded font-bold text-sm transition-colors border border-[var(--border-subtle)]">Reset</button>
     <button onClick={productionType === 'Rice Milling' ? handleCreateBatch : handleCreateIntermillBatch} disabled={loading} className="flex-[2] py-2 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded font-bold text-sm transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50">
       {loading ? 'Creating...' : 'Create Batch'}
     </button>
@@ -772,7 +843,7 @@ export const ProductionManagement = () => {
 </div>
 
 {/* 2. Batch Summary Container */}
- <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-5 flex flex-col h-full">
+ {/* <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-5 flex flex-col h-full">
  <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border-subtle)]">
  <h2 className="text-lg font-bold text-[var(--text-main)]">2. Batch Summary</h2>
           {batches.length > 0 ? (
@@ -826,6 +897,88 @@ export const ProductionManagement = () => {
  ) : (
  <div className="flex-1 flex items-center justify-center text-center text-[var(--text-muted-alt)] py-10">Select or create a batch to view summary</div>
  )}
+ </div> */}
+
+ {/* 2. Batch Analysis Container (Replaces Batch Summary) */}
+ <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-5 flex flex-col h-full overflow-y-auto">
+   <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border-subtle)]">
+     <h2 className="text-lg font-bold text-[var(--text-main)]">2. Batch Analysis</h2>
+     {batches.length > 0 ? (
+       <select id="batchAnalysisSelect" name="batchAnalysisSelect" autoComplete="off" data-lpignore="true" value={selectedBatchId || ''} onChange={e => setSelectedBatchId(e.target.value)} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-xs px-2 py-1 rounded text-[var(--text-main)] outline-none focus:border-[#e67e00]">
+         <option value="">Select Batch...</option>
+         {batches.map(b => (
+           <option key={b.id} value={b.id}>{b.batchNo}</option>
+         ))}
+       </select>
+     ) : (
+       <span className="text-xs text-[var(--text-muted-alt)]">No batches</span>
+     )}
+   </div>
+   
+   <div className="space-y-4 text-sm flex-1">
+     <div className="grid grid-cols-2 gap-3">
+       <div>
+         <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Paddy Moisture</label>
+         <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 14.05%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.paddyMoisture} onChange={e => setAnalysisFormData({...analysisFormData, paddyMoisture: e.target.value})} />
+       </div>
+         <div>
+           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Khanjan Broken</label>
+           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 2.5" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.khanjanBroken} onChange={e => setAnalysisFormData({...analysisFormData, khanjanBroken: e.target.value})} />
+         </div>
+         <div>
+           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Polisher 1 (%)</label>
+           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 12.5%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.polisher1} onChange={e => setAnalysisFormData({...analysisFormData, polisher1: e.target.value})} />
+         </div>
+         <div>
+           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Polisher 2 (%)</label>
+           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 12.5%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.polisher2} onChange={e => setAnalysisFormData({...analysisFormData, polisher2: e.target.value})} />
+         </div>
+         <div>
+           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Polisher 3 (%)</label>
+           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 12.5%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.polisher3} onChange={e => setAnalysisFormData({...analysisFormData, polisher3: e.target.value})} />
+         </div>
+         <div>
+           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Polisher 4 (%)</label>
+           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 12.5%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.polisher4} onChange={e => setAnalysisFormData({...analysisFormData, polisher4: e.target.value})} />
+         </div>
+         <div className="col-span-2">
+           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Difference 1-4 (%)</label>
+           <div className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs font-bold ${!selectedBatchId ? 'opacity-50 text-[var(--text-muted)]' : 'text-amber-500'}`}>
+             {(analysisFormData.polisher1 && analysisFormData.polisher4) ? Math.abs(Number(analysisFormData.polisher1) - Number(analysisFormData.polisher4)).toFixed(2) : '-'}
+           </div>
+         </div>
+         <div>
+           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Pamala Broken</label>
+           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 2.5" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.pamalaBroken} onChange={e => setAnalysisFormData({...analysisFormData, pamalaBroken: e.target.value})} />
+         </div>
+         <div>
+           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Final Broken</label>
+           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 2.5" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.finalBroken} onChange={e => setAnalysisFormData({...analysisFormData, finalBroken: e.target.value})} />
+         </div>
+         <div>
+           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Rice Moisture</label>
+           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 12.0%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.riceMoisture} onChange={e => setAnalysisFormData({...analysisFormData, riceMoisture: e.target.value})} />
+         </div>
+         <div>
+           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Damage %</label>
+           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 1.5%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.damagePercent} onChange={e => setAnalysisFormData({...analysisFormData, damagePercent: e.target.value})} />
+         </div>
+         <div>
+           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Discolour %</label>
+           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 0.5%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.discolourPercent} onChange={e => setAnalysisFormData({...analysisFormData, discolourPercent: e.target.value})} />
+         </div>
+         <div>
+           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">FRK %</label>
+           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 1.0%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.frkPercent} onChange={e => setAnalysisFormData({...analysisFormData, frkPercent: e.target.value})} />
+         </div>
+       </div>
+       <button onClick={handleSaveAnalysis} disabled={loading || !selectedBatchId} className="w-full mt-4 py-2 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded font-bold text-sm transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50">
+         {loading ? 'Saving...' : 'Save Analysis'}
+       </button>
+       {!selectedBatchId && (
+         <p className="text-[10px] text-center text-[var(--text-muted-alt)] mt-2">Create and select a batch to fill analysis</p>
+       )}
+     </div>
  </div>
  </div>
 
@@ -1130,6 +1283,9 @@ export const ProductionManagement = () => {
     </div>
   </div>
  )}
+
+ {activeTab === 'daily_stock_report' && <DailyStockReport />}
+ {activeTab === 'shift_wise_report' && <ShiftWiseReport />}
 
  {activeTab === 'by-products' && (
  <div className="grid grid-cols-1 gap-6">

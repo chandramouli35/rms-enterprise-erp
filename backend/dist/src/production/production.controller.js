@@ -39,6 +39,15 @@ let ProductionController = class ProductionController {
     completeBatch(data, id) {
         return this.productionService.completeBatch(id, data);
     }
+    getDailyStockReport(plantId, dateStr) {
+        return this.productionService.getDailyStockReport(plantId, dateStr);
+    }
+    getShiftWiseStockReport(plantId, dateStr) {
+        return this.productionService.getShiftWiseStockReport(plantId, dateStr);
+    }
+    saveBatchAnalysis(id, data) {
+        return this.productionService.saveBatchAnalysis(id, data);
+    }
 };
 exports.ProductionController = ProductionController;
 __decorate([
@@ -88,6 +97,33 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ProductionController.prototype, "completeBatch", null);
+__decorate([
+    (0, common_1.Get)('daily-stock-report'),
+    (0, require_permission_decorator_1.RequirePermission)('Production', 'canView'),
+    __param(0, (0, common_1.Query)('plantId')),
+    __param(1, (0, common_1.Query)('date')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], ProductionController.prototype, "getDailyStockReport", null);
+__decorate([
+    (0, common_1.Get)('shift-wise-stock-report'),
+    (0, require_permission_decorator_1.RequirePermission)('Production', 'canView'),
+    __param(0, (0, common_1.Query)('plantId')),
+    __param(1, (0, common_1.Query)('date')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], ProductionController.prototype, "getShiftWiseStockReport", null);
+__decorate([
+    (0, common_1.Post)('batches/:id/analysis'),
+    (0, require_permission_decorator_1.RequirePermission)('Production', 'canEdit'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], ProductionController.prototype, "saveBatchAnalysis", null);
 exports.ProductionController = ProductionController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, plant_context_guard_1.PlantContextGuard, permissions_guard_1.PermissionsGuard),
     (0, common_1.Controller)('production'),

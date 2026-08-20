@@ -10,6 +10,7 @@ export declare class ProductsService {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
+        category: string;
         type: string;
     }>;
     findAll(page?: string, limit?: string): Promise<{
@@ -18,6 +19,7 @@ export declare class ProductsService {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
+        category: string;
         type: string;
     }[] | {
         data: {
@@ -26,6 +28,7 @@ export declare class ProductsService {
             createdAt: Date;
             updatedAt: Date;
             description: string | null;
+            category: string;
             type: string;
         }[];
         total: number;
@@ -36,6 +39,7 @@ export declare class ProductsService {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
+        category: string;
         type: string;
     }>;
     update(id: string, updateProductDto: UpdateProductDto): Promise<{
@@ -44,6 +48,7 @@ export declare class ProductsService {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
+        category: string;
         type: string;
     }>;
     remove(id: string): Promise<{
@@ -52,6 +57,7 @@ export declare class ProductsService {
         createdAt: Date;
         updatedAt: Date;
         description: string | null;
+        category: string;
         type: string;
     }>;
 }

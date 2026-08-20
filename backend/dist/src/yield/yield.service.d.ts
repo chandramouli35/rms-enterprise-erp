@@ -78,6 +78,7 @@ export declare class YieldService {
             paddySource: string | null;
             paddyUsedQty: number;
             riceProducedQty: number | null;
+            moisture: number | null;
             rBranBags: number;
             kPhuckBags: number;
             brokenRiceBags: number;

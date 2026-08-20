@@ -36,6 +36,7 @@ export declare class IntermillService {
                 createdAt: Date;
                 updatedAt: Date;
                 description: string | null;
+                category: string;
                 type: string;
             };
         } & {
@@ -55,6 +56,7 @@ export declare class IntermillService {
             createdAt: Date;
             updatedAt: Date;
             description: string | null;
+            category: string;
             type: string;
         };
     } & {

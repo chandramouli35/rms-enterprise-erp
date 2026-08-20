@@ -7,7 +7,29 @@ export declare class UsersController {
         username: string;
         email: string;
         role: string;
+        roleId: string;
         plants: string[];
+        plantAccess: ({
+            plant: {
+                id: string;
+                name: string;
+                location: string | null;
+                code: string;
+                standardBagWeight: number;
+                aClassBagWeight: number;
+                bClassBagWeight: number;
+                govtRate: number | null;
+                benchmarkMoisture: number | null;
+                safaiCut: number | null;
+                processingCut: number | null;
+                createdAt: Date;
+                updatedAt: Date;
+                deletedAt: Date | null;
+            };
+        } & {
+            plantId: string;
+            userId: string;
+        })[];
     }[]>;
     create(data: any, req: any): Promise<{
         id: string;

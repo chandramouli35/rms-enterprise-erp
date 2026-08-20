@@ -297,7 +297,6 @@ export class ProcurementService {
     ]);
 
     const mappedData = inwards.map(b => ({
-      id: b.id,
       purchaseNo: b.id.substring(0, 8).toUpperCase(),
       date: b.createdAt.toISOString().split('T')[0],
       gpNo: b.paddyInwardDetails?.gpNo || '-',
@@ -309,6 +308,7 @@ export class ProcurementService {
       tareWt: b.tareWeight || '-',
       netWt: b.netWeight || b.paddyInwardDetails?.netWtAtParty || b.paddyInwardDetails?.netWtAtMill || '-',
       ...b.paddyInwardDetails,
+      id: b.id, // Placed here to prevent overwrite by paddyInwardDetails.id
       weighbridge: b.weighbridge,
       quality: b.quality,
       supplierDetails: b.supplier,

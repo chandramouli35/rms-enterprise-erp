@@ -8,6 +8,7 @@ export declare class CreateBatchDto {
     variety: string;
     paddySource?: string;
     paddyUsedQty: number;
+    moisture?: number;
     remarks?: string;
     additionalOutputs?: Record<string, {
         produced: number;

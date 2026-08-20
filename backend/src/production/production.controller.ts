@@ -48,5 +48,29 @@ export class ProductionController {
   completeBatch(@Body() data: any, @Query('id') id: string) {
     return this.productionService.completeBatch(id, data);
   }
+
+  @Get('daily-stock-report')
+  @RequirePermission('Production', 'canView')
+  getDailyStockReport(
+    @Query('plantId') plantId: string,
+    @Query('date') dateStr: string
+  ) {
+    return this.productionService.getDailyStockReport(plantId, dateStr);
+  }
+
+  @Get('shift-wise-stock-report')
+  @RequirePermission('Production', 'canView')
+  getShiftWiseStockReport(
+    @Query('plantId') plantId: string,
+    @Query('date') dateStr: string
+  ) {
+    return this.productionService.getShiftWiseStockReport(plantId, dateStr);
+  }
+
+  @Post('batches/:id/analysis')
+  @RequirePermission('Production', 'canEdit')
+  saveBatchAnalysis(@Param('id') id: string, @Body() data: any) {
+    return this.productionService.saveBatchAnalysis(id, data);
+  }
 }
 
