@@ -122,7 +122,7 @@ export const ProductionManagement = () => {
 
   const handleSaveAnalysis = async () => {
     if (!selectedBatchId) {
-      showNotification('Please select a batch first', 'error');
+      setNotification({ message: 'Please select a batch first', type: 'error' });
       return;
     }
     setLoading(true);
@@ -138,11 +138,11 @@ export const ProductionManagement = () => {
       };
 
       await api.post(`/production/batches/${selectedBatchId}/analysis`, dataToSave);
-      showNotification('Batch analysis saved successfully');
+      setNotification({ message: 'Batch analysis saved successfully', type: 'success' });
       fetchBatches();
     } catch (error: any) {
       console.error('Error saving batch analysis:', error);
-      showNotification(error.response?.data?.message || 'Failed to save analysis', 'error');
+      setNotification({ message: error.response?.data?.message || 'Failed to save analysis', type: 'error' });
     } finally {
       setLoading(false);
     }
