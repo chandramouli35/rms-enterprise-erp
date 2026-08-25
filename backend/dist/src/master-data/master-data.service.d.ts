@@ -5,49 +5,49 @@ export declare class MasterDataService {
     private uploadImageToCloudinary;
     getTrucks(plantId: string, page?: string, limit?: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
         transportCategory: string;
+        createdAt: Date;
+        updatedAt: Date;
     }[] | {
         data: {
             id: string;
-            createdAt: Date;
-            updatedAt: Date;
             plantId: string;
             truckNumber: string;
             capacity: number | null;
             imageUrl: string | null;
             isApproved: boolean;
             transportCategory: string;
+            createdAt: Date;
+            updatedAt: Date;
         }[];
         total: number;
     }>;
     getAllTrucks(plantId: string, page?: string, limit?: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
         transportCategory: string;
+        createdAt: Date;
+        updatedAt: Date;
     }[] | {
         data: {
             id: string;
-            createdAt: Date;
-            updatedAt: Date;
             plantId: string;
             truckNumber: string;
             capacity: number | null;
             imageUrl: string | null;
             isApproved: boolean;
             transportCategory: string;
+            createdAt: Date;
+            updatedAt: Date;
         }[];
         total: number;
     }>;
@@ -58,54 +58,54 @@ export declare class MasterDataService {
         transportCategory?: string;
     }, file?: Express.Multer.File, userId?: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
         transportCategory: string;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     approveTruck(id: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
         transportCategory: string;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     rejectTruck(id: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
         transportCategory: string;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     deleteTruck(id: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
         transportCategory: string;
-    }>;
-    getDrivers(plantId: string): Promise<{
-        id: string;
-        name: string;
         createdAt: Date;
         updatedAt: Date;
+    }>;
+    getDrivers(): Promise<{
+        id: string;
         plantId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         licenseNo: string | null;
         phone: string | null;
         age: number | null;
@@ -116,42 +116,58 @@ export declare class MasterDataService {
         phone?: string;
     }, userId?: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
+        name: string;
         licenseNo: string | null;
         phone: string | null;
         age: number | null;
     }>;
     deleteDriver(id: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
+        name: string;
         licenseNo: string | null;
         phone: string | null;
         age: number | null;
     }>;
-    updateDriver(id: string, data: any): Promise<{
+    getFirstPlant(): Promise<{
         id: string;
-        name: string;
         createdAt: Date;
         updatedAt: Date;
+        name: string;
+        location: string | null;
+        code: string;
+        standardBagWeight: number;
+        aClassBagWeight: number;
+        bClassBagWeight: number;
+        govtRate: number | null;
+        benchmarkMoisture: number | null;
+        safaiCut: number | null;
+        processingCut: number | null;
+        deletedAt: Date | null;
+    } | null>;
+    updateDriver(id: string, data: any): Promise<{
+        id: string;
         plantId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         licenseNo: string | null;
         phone: string | null;
         age: number | null;
     }>;
     getStaff(plantId: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        role: string;
+        name: string;
         phone: string | null;
+        role: string;
     }[]>;
     createStaff(plantId: string, data: {
         name: string;
@@ -159,43 +175,43 @@ export declare class MasterDataService {
         phone?: string;
     }, userId?: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        role: string;
+        name: string;
         phone: string | null;
+        role: string;
     }>;
     deleteStaff(id: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        role: string;
+        name: string;
         phone: string | null;
+        role: string;
     }>;
     getLabour(plantId: string, page?: string, limit?: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        isActive: boolean;
+        name: string;
+        firmName: string | null;
         contact: string | null;
         type: string | null;
-        firmName: string | null;
+        isActive: boolean;
     }[] | {
         data: {
             id: string;
-            name: string;
+            plantId: string;
             createdAt: Date;
             updatedAt: Date;
-            plantId: string;
-            isActive: boolean;
+            name: string;
+            firmName: string | null;
             contact: string | null;
             type: string | null;
-            firmName: string | null;
+            isActive: boolean;
         }[];
         total: number;
     }>;
@@ -206,43 +222,43 @@ export declare class MasterDataService {
         firmName?: string;
     }, userId?: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        isActive: boolean;
+        name: string;
+        firmName: string | null;
         contact: string | null;
         type: string | null;
-        firmName: string | null;
+        isActive: boolean;
     }>;
     deleteLabour(id: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        isActive: boolean;
+        name: string;
+        firmName: string | null;
         contact: string | null;
         type: string | null;
-        firmName: string | null;
+        isActive: boolean;
     }>;
     getPahunch(plantId: string, page?: string, limit?: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        isActive: boolean;
+        name: string;
         contact: string | null;
+        isActive: boolean;
     }[] | {
         data: {
             id: string;
-            name: string;
+            plantId: string;
             createdAt: Date;
             updatedAt: Date;
-            plantId: string;
-            isActive: boolean;
+            name: string;
             contact: string | null;
+            isActive: boolean;
         }[];
         total: number;
     }>;
@@ -251,20 +267,20 @@ export declare class MasterDataService {
         contact?: string;
     }, userId?: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        isActive: boolean;
+        name: string;
         contact: string | null;
+        isActive: boolean;
     }>;
     deletePahunch(id: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        isActive: boolean;
+        name: string;
         contact: string | null;
+        isActive: boolean;
     }>;
 }

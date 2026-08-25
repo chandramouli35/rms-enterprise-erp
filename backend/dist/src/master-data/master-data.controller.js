@@ -50,12 +50,17 @@ let MasterDataController = class MasterDataController {
     async deleteTruck(id) {
         return this.masterDataService.deleteTruck(id);
     }
-    async getDrivers(headers) {
-        const plantId = this.extractPlantId(headers);
-        return this.masterDataService.getDrivers(plantId);
+    async getDrivers() {
+        return this.masterDataService.getDrivers();
     }
     async createDriver(headers, data, req) {
-        const plantId = this.extractPlantId(headers);
+        let plantId = headers['x-plant-id'];
+        if (!plantId || plantId === 'undefined' || plantId === 'null') {
+            const firstPlant = await this.masterDataService.getFirstPlant();
+            if (!firstPlant)
+                throw new common_2.BadRequestException('No plant exists to associate with the global driver');
+            plantId = firstPlant.id;
+        }
         return this.masterDataService.createDriver(plantId, data, req.user?.id);
     }
     async deleteDriver(id) {
@@ -151,9 +156,8 @@ __decorate([
 ], MasterDataController.prototype, "deleteTruck", null);
 __decorate([
     (0, common_2.Get)('drivers'),
-    __param(0, (0, common_2.Headers)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "getDrivers", null);
 __decorate([

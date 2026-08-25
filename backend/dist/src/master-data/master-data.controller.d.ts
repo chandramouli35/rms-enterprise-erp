@@ -5,49 +5,49 @@ export declare class MasterDataController {
     private extractPlantId;
     getTrucks(headers: any, page?: string, limit?: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
         transportCategory: string;
+        createdAt: Date;
+        updatedAt: Date;
     }[] | {
         data: {
             id: string;
-            createdAt: Date;
-            updatedAt: Date;
             plantId: string;
             truckNumber: string;
             capacity: number | null;
             imageUrl: string | null;
             isApproved: boolean;
             transportCategory: string;
+            createdAt: Date;
+            updatedAt: Date;
         }[];
         total: number;
     }>;
     getAllTrucks(headers: any, page?: string, limit?: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
         transportCategory: string;
+        createdAt: Date;
+        updatedAt: Date;
     }[] | {
         data: {
             id: string;
-            createdAt: Date;
-            updatedAt: Date;
             plantId: string;
             truckNumber: string;
             capacity: number | null;
             imageUrl: string | null;
             isApproved: boolean;
             transportCategory: string;
+            createdAt: Date;
+            updatedAt: Date;
         }[];
         total: number;
     }>;
@@ -58,54 +58,54 @@ export declare class MasterDataController {
         transportCategory?: string;
     }, req: any, file?: Express.Multer.File): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
         transportCategory: string;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     approveTruck(id: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
         transportCategory: string;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     rejectTruck(id: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
         transportCategory: string;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     deleteTruck(id: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         plantId: string;
         truckNumber: string;
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
         transportCategory: string;
-    }>;
-    getDrivers(headers: any): Promise<{
-        id: string;
-        name: string;
         createdAt: Date;
         updatedAt: Date;
+    }>;
+    getDrivers(): Promise<{
+        id: string;
         plantId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        name: string;
         licenseNo: string | null;
         phone: string | null;
         age: number | null;
@@ -116,42 +116,42 @@ export declare class MasterDataController {
         phone?: string;
     }, req: any): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
+        name: string;
         licenseNo: string | null;
         phone: string | null;
         age: number | null;
     }>;
     deleteDriver(id: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
+        name: string;
         licenseNo: string | null;
         phone: string | null;
         age: number | null;
     }>;
     updateDriver(id: string, data: any): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
+        name: string;
         licenseNo: string | null;
         phone: string | null;
         age: number | null;
     }>;
     getStaff(headers: any): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        role: string;
+        name: string;
         phone: string | null;
+        role: string;
     }[]>;
     createStaff(headers: any, data: {
         name: string;
@@ -159,43 +159,43 @@ export declare class MasterDataController {
         phone?: string;
     }): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        role: string;
+        name: string;
         phone: string | null;
+        role: string;
     }>;
     deleteStaff(id: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        role: string;
+        name: string;
         phone: string | null;
+        role: string;
     }>;
     getLabour(headers: any, page?: string, limit?: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        isActive: boolean;
+        name: string;
+        firmName: string | null;
         contact: string | null;
         type: string | null;
-        firmName: string | null;
+        isActive: boolean;
     }[] | {
         data: {
             id: string;
-            name: string;
+            plantId: string;
             createdAt: Date;
             updatedAt: Date;
-            plantId: string;
-            isActive: boolean;
+            name: string;
+            firmName: string | null;
             contact: string | null;
             type: string | null;
-            firmName: string | null;
+            isActive: boolean;
         }[];
         total: number;
     }>;
@@ -206,43 +206,43 @@ export declare class MasterDataController {
         firmName?: string;
     }, req: any): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        isActive: boolean;
+        name: string;
+        firmName: string | null;
         contact: string | null;
         type: string | null;
-        firmName: string | null;
+        isActive: boolean;
     }>;
     deleteLabour(id: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        isActive: boolean;
+        name: string;
+        firmName: string | null;
         contact: string | null;
         type: string | null;
-        firmName: string | null;
+        isActive: boolean;
     }>;
     getPahunch(headers: any, page?: string, limit?: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        isActive: boolean;
+        name: string;
         contact: string | null;
+        isActive: boolean;
     }[] | {
         data: {
             id: string;
-            name: string;
+            plantId: string;
             createdAt: Date;
             updatedAt: Date;
-            plantId: string;
-            isActive: boolean;
+            name: string;
             contact: string | null;
+            isActive: boolean;
         }[];
         total: number;
     }>;
@@ -251,20 +251,20 @@ export declare class MasterDataController {
         contact?: string;
     }, req: any): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        isActive: boolean;
+        name: string;
         contact: string | null;
+        isActive: boolean;
     }>;
     deletePahunch(id: string): Promise<{
         id: string;
-        name: string;
+        plantId: string;
         createdAt: Date;
         updatedAt: Date;
-        plantId: string;
-        isActive: boolean;
+        name: string;
         contact: string | null;
+        isActive: boolean;
     }>;
 }

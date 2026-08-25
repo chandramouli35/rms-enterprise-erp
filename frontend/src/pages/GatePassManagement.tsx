@@ -398,6 +398,13 @@ export const GatePassManagement = () => {
       console.error('Failed to fetch trucks:', error);
     }
 
+    try {
+      const resDrivers = await api.get('/api/master-data/drivers');
+      setDrivers(resDrivers.data);
+    } catch (error) {
+      console.error('Failed to fetch drivers:', error);
+    }
+
     // Fetch other data independently using allSettled so one failure doesn't block the rest
     try {
       const [analyticsRes, recentRes, logsRes] = await Promise.allSettled([

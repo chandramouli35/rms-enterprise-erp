@@ -122,8 +122,8 @@ export class MasterDataService {
   }
 
   // ===================== DRIVER MASTER =====================
-  async getDrivers(plantId: string) {
-    return this.prisma.driverMaster.findMany({ where: { plantId }, orderBy: { name: 'asc' } });
+  async getDrivers() {
+    return this.prisma.driverMaster.findMany({ orderBy: { name: 'asc' } });
   }
 
   async createDriver(plantId: string, data: { name: string, licenseNo?: string, phone?: string }, userId?: string) {
@@ -145,6 +145,10 @@ export class MasterDataService {
 
   async deleteDriver(id: string) {
     return this.prisma.driverMaster.delete({ where: { id } });
+  }
+
+  async getFirstPlant() {
+    return this.prisma.plant.findFirst();
   }
 
   async updateDriver(id: string, data: any) {

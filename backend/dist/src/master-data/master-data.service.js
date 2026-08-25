@@ -116,8 +116,8 @@ let MasterDataService = class MasterDataService {
     async deleteTruck(id) {
         return this.prisma.truckMaster.delete({ where: { id } });
     }
-    async getDrivers(plantId) {
-        return this.prisma.driverMaster.findMany({ where: { plantId }, orderBy: { name: 'asc' } });
+    async getDrivers() {
+        return this.prisma.driverMaster.findMany({ orderBy: { name: 'asc' } });
     }
     async createDriver(plantId, data, userId) {
         const driver = await this.prisma.driverMaster.create({
@@ -137,6 +137,9 @@ let MasterDataService = class MasterDataService {
     }
     async deleteDriver(id) {
         return this.prisma.driverMaster.delete({ where: { id } });
+    }
+    async getFirstPlant() {
+        return this.prisma.plant.findFirst();
     }
     async updateDriver(id, data) {
         return this.prisma.driverMaster.update({

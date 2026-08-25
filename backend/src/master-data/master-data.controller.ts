@@ -59,14 +59,19 @@ export class MasterDataController {
 
   // ===================== DRIVERS =====================
   @Get('drivers')
-  async getDrivers(@Headers() headers) {
-    const plantId = this.extractPlantId(headers);
-    return this.masterDataService.getDrivers(plantId);
+  async getDrivers() {
+    return this.masterDataService.getDrivers();
   }
 
   @Post('drivers')
   async createDriver(@Headers() headers, @Body() data: { name: string, licenseNo?: string, phone?: string }, @Req() req) {
-    const plantId = this.extractPlantId(headers);
+    let plantId = headers['x-plant-id'];
+    if (!plantId || plantId === 'undefined' || plantId === 'null') {
+      // If no plant is provided (global driver), assign it to the first available plant
+      const firstPlant = await this.masterDataService.getFirstPlant();
+      if (!firstPlant) throw new BadRequestException('No plant exists to associate with the global driver');
+      plantId = firstPlant.id;
+    }
     return this.masterDataService.createDriver(plantId, data, req.user?.id);
   }
 
