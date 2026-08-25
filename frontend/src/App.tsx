@@ -19,9 +19,8 @@ import { ProductManagement } from './pages/ProductManagement';
 import { DispatchFinanceManagement } from './pages/DispatchFinanceManagement';
 import { FinanceManagement } from './pages/FinanceManagement';
 import { PowerManagement } from './pages/PowerManagement';
-import TruckManagement from './pages/TruckManagement';
-import LabourManagement from './pages/LabourManagement';
-import PahunchManagement from './pages/PahunchManagement';
+import { StaffManagement } from './pages/StaffManagement';
+import DryerWork from './pages/DryerWork';
 import { BackupRestore } from './pages/BackupRestore';
 
 function App() {
@@ -49,9 +48,8 @@ function App() {
             <Route path="dispatch" element={<DispatchFinanceManagement />} />
             <Route path="finance" element={<FinanceManagement />} />
             <Route path="power" element={<PowerManagement />} />
-            <Route path="trucks" element={<TruckManagement />} />
-            <Route path="labours" element={<LabourManagement />} />
-            <Route path="pahunch" element={<PahunchManagement />} />
+            <Route path="staff" element={<StaffManagement />} />
+            <Route path="dryer" element={<DryerWork />} />
             <Route path="backup" element={<BackupRestore />} />
           </Route>
         </Route>

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { CustomModal } from '../components/CustomModal';
+import { useUiStore } from '../store/uiStore';
+import Combobox from '../components/Combobox';
 import { usePlantStore } from '../store/plantStore';
 import Pagination from '../components/Pagination';
 import { 
@@ -331,14 +333,15 @@ export const UsersAndRoles: React.FC = () => {
  className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg pl-9 pr-4 py-1.5 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 w-48" 
  />
  </div>
- <select 
+ <Combobox
+ name="roleFilter"
  value={roleFilter}
- onChange={(e) => setRoleFilter(e.target.value)}
+ onChange={(e: any) => setRoleFilter(e.target.value)}
+ options={roles}
+ valueKey="name"
+ placeholder="All Roles"
  className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm text-[var(--text-muted)] flex items-center gap-2 hover:text-[var(--text-main)] focus:outline-none cursor-pointer"
- >
- <option value="All">All Roles</option>
- {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
- </select>
+ />
  <button onClick={() => setModalConfig({isOpen: true, title: 'Advanced Filters', content: 'Advanced filters coming soon!'})} className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg p-1.5 text-[var(--text-muted-alt)] hover:text-[var(--text-main)]"><Filter size={16} /></button>
  </div>
  </div>
@@ -457,16 +460,18 @@ export const UsersAndRoles: React.FC = () => {
  <div className="flex items-center gap-4">
  <div className="flex items-center gap-3">
  <span className="text-sm font-medium text-[var(--text-muted)]">Target Role:</span>
- <select 
- className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 shadow-sm"
+ <Combobox
+ name="selectedRole"
  value={selectedRole?.id || ''}
- onChange={(e) => {
+ onChange={(e: any) => {
  const role = roles.find(r => r.id === e.target.value);
  if(role) handleRoleSelect(role);
  }}
- >
- {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
- </select>
+ options={roles}
+ valueKey="id"
+ placeholder="Select Role"
+ className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 shadow-sm"
+ />
  </div>
  <button onClick={savePermissions} className="bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2">
  <Check size={16} /> Save Changes
@@ -661,10 +666,16 @@ export const UsersAndRoles: React.FC = () => {
  <div className="flex gap-3">
  <div className="w-1/2">
  <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Assign Role</label>
- <select required value={newUserForm.roleId} onChange={e => setNewUserForm({...newUserForm, roleId: e.target.value})} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 appearance-none">
- <option value="" disabled>Select Role...</option>
- {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
- </select>
+ <Combobox
+ name="roleId"
+ value={newUserForm.roleId}
+ onChange={(e: any) => setNewUserForm({...newUserForm, roleId: e.target.value})}
+ options={roles}
+ valueKey="id"
+ placeholder="Select Role..."
+ required
+ className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500"
+ />
  </div>
  <div className="w-1/2">
    <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Primary Plant</label>
@@ -786,12 +797,16 @@ export const UsersAndRoles: React.FC = () => {
  <div className="grid grid-cols-2 gap-4">
  <div>
  <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Assign Role</label>
- <select required value={editUserForm.roleId} onChange={e => setEditUserForm({...editUserForm, roleId: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer appearance-none">
- <option value="">Select Role</option>
- {roles.map((r: any) => (
- <option key={r.id} value={r.id}>{r.name}</option>
- ))}
- </select>
+ <Combobox
+ name="roleId"
+ value={editUserForm.roleId}
+ onChange={(e: any) => setEditUserForm({...editUserForm, roleId: e.target.value})}
+ options={roles}
+ valueKey="id"
+ placeholder="Select Role"
+ required
+ className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors"
+ />
  </div>
  <div>
    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Primary Plant</label>

@@ -15,6 +15,18 @@ export class GatePassController {
     return this.gatePassService.generateGatePass(data);
   }
 
+  @Get('next-seq/:plantId/:passType')
+  @RequirePermission('Gate Pass', 'canView')
+  getNextSeq(@Param('plantId') plantId: string, @Param('passType') passType: string) {
+    return this.gatePassService.getNextSeq(plantId, passType);
+  }
+
+  @Get('last-reading/:vehicleNo')
+  @RequirePermission('Gate Pass', 'canView')
+  getLastTruckReading(@Param('vehicleNo') vehicleNo: string) {
+    return this.gatePassService.getLastTruckReading(vehicleNo);
+  }
+
   @Get('campus-status/:plantId')
   @RequirePermission('Gate Pass', 'canView')
   getCampusStatus(@Param('plantId') plantId: string) {

@@ -31,12 +31,13 @@ const master_data_module_1 = require("./master-data/master-data.module");
 const settings_module_1 = require("./settings/settings.module");
 const mandis_module_1 = require("./mandis/mandis.module");
 const intermill_module_1 = require("./intermill/intermill.module");
+const dryer_work_module_1 = require("./dryer-work/dryer-work.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule, auth_module_1.AuthModule, plants_module_1.PlantsModule, dashboard_module_1.DashboardModule, users_module_1.UsersModule, users_roles_module_1.UsersRolesModule, procurement_module_1.ProcurementModule, weighbridge_module_1.WeighbridgeModule, gate_pass_module_1.GatePassModule, production_module_1.ProductionModule, yield_module_1.YieldModule, inventory_module_1.InventoryModule, transfer_module_1.TransferModule, products_module_1.ProductsModule, dispatch_finance_module_1.DispatchFinanceModule, finance_module_1.FinanceModule, power_management_module_1.PowerManagementModule, master_data_module_1.MasterDataModule, settings_module_1.SettingsModule, mandis_module_1.MandisModule, intermill_module_1.IntermillModule],
+        imports: [prisma_module_1.PrismaModule, auth_module_1.AuthModule, plants_module_1.PlantsModule, dashboard_module_1.DashboardModule, users_module_1.UsersModule, users_roles_module_1.UsersRolesModule, procurement_module_1.ProcurementModule, weighbridge_module_1.WeighbridgeModule, gate_pass_module_1.GatePassModule, production_module_1.ProductionModule, yield_module_1.YieldModule, inventory_module_1.InventoryModule, transfer_module_1.TransferModule, products_module_1.ProductsModule, dispatch_finance_module_1.DispatchFinanceModule, finance_module_1.FinanceModule, power_management_module_1.PowerManagementModule, master_data_module_1.MasterDataModule, settings_module_1.SettingsModule, mandis_module_1.MandisModule, intermill_module_1.IntermillModule, dryer_work_module_1.DryerWorkModule],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],
     })

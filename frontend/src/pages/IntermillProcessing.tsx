@@ -146,8 +146,9 @@ export const IntermillProcessing = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Shift</label>
-                <select value={formData.shift} onChange={e => setFormData({...formData, shift: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]">
-                  <option>Day</option><option>Night</option>
+                <select name="shift" value={formData.shift} onChange={e => setFormData({...formData, shift: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]">
+                  <option value="Day">Day</option>
+                  <option value="Night">Night</option>
                 </select>
               </div>
               <div>

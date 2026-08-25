@@ -14,6 +14,8 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MasterDataController = void 0;
 const common_1 = require("@nestjs/common");
+const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
+const common_2 = require("@nestjs/common");
 const platform_express_1 = require("@nestjs/platform-express");
 const master_data_service_1 = require("./master-data.service");
 let MasterDataController = class MasterDataController {
@@ -23,7 +25,7 @@ let MasterDataController = class MasterDataController {
     extractPlantId(headers) {
         const plantId = headers['x-plant-id'];
         if (!plantId) {
-            throw new common_1.BadRequestException('Plant ID is required');
+            throw new common_2.BadRequestException('Plant ID is required');
         }
         return plantId;
     }
@@ -35,12 +37,9 @@ let MasterDataController = class MasterDataController {
         const plantId = this.extractPlantId(headers);
         return this.masterDataService.getAllTrucks(plantId, page, limit);
     }
-    async createTruck(headers, data, file) {
-        if (!file) {
-            throw new common_1.BadRequestException('Image upload is required for trucks');
-        }
+    async createTruck(headers, data, req, file) {
         const plantId = this.extractPlantId(headers);
-        return this.masterDataService.createTruck(plantId, data, file);
+        return this.masterDataService.createTruck(plantId, data, file, req.user?.id);
     }
     async approveTruck(id) {
         return this.masterDataService.approveTruck(id);
@@ -55,12 +54,15 @@ let MasterDataController = class MasterDataController {
         const plantId = this.extractPlantId(headers);
         return this.masterDataService.getDrivers(plantId);
     }
-    async createDriver(headers, data) {
+    async createDriver(headers, data, req) {
         const plantId = this.extractPlantId(headers);
-        return this.masterDataService.createDriver(plantId, data);
+        return this.masterDataService.createDriver(plantId, data, req.user?.id);
     }
     async deleteDriver(id) {
         return this.masterDataService.deleteDriver(id);
+    }
+    async updateDriver(id, data) {
+        return this.masterDataService.updateDriver(id, data);
     }
     async getStaff(headers) {
         const plantId = this.extractPlantId(headers);
@@ -77,9 +79,9 @@ let MasterDataController = class MasterDataController {
         const plantId = this.extractPlantId(headers);
         return this.masterDataService.getLabour(plantId, page, limit);
     }
-    async createLabour(headers, data) {
+    async createLabour(headers, data, req) {
         const plantId = this.extractPlantId(headers);
-        return this.masterDataService.createLabour(plantId, data);
+        return this.masterDataService.createLabour(plantId, data, req.user?.id);
     }
     async deleteLabour(id) {
         return this.masterDataService.deleteLabour(id);
@@ -88,9 +90,9 @@ let MasterDataController = class MasterDataController {
         const plantId = this.extractPlantId(headers);
         return this.masterDataService.getPahunch(plantId, page, limit);
     }
-    async createPahunch(headers, data) {
+    async createPahunch(headers, data, req) {
         const plantId = this.extractPlantId(headers);
-        return this.masterDataService.createPahunch(plantId, data);
+        return this.masterDataService.createPahunch(plantId, data, req.user?.id);
     }
     async deletePahunch(id) {
         return this.masterDataService.deletePahunch(id);
@@ -98,148 +100,161 @@ let MasterDataController = class MasterDataController {
 };
 exports.MasterDataController = MasterDataController;
 __decorate([
-    (0, common_1.Get)('trucks'),
-    __param(0, (0, common_1.Headers)()),
-    __param(1, (0, common_1.Query)('page')),
-    __param(2, (0, common_1.Query)('limit')),
+    (0, common_2.Get)('trucks'),
+    __param(0, (0, common_2.Headers)()),
+    __param(1, (0, common_2.Query)('page')),
+    __param(2, (0, common_2.Query)('limit')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "getTrucks", null);
 __decorate([
-    (0, common_1.Get)('trucks/all'),
-    __param(0, (0, common_1.Headers)()),
-    __param(1, (0, common_1.Query)('page')),
-    __param(2, (0, common_1.Query)('limit')),
+    (0, common_2.Get)('trucks/all'),
+    __param(0, (0, common_2.Headers)()),
+    __param(1, (0, common_2.Query)('page')),
+    __param(2, (0, common_2.Query)('limit')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "getAllTrucks", null);
 __decorate([
-    (0, common_1.Post)('trucks'),
-    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('image')),
-    __param(0, (0, common_1.Headers)()),
-    __param(1, (0, common_1.Body)()),
-    __param(2, (0, common_1.UploadedFile)()),
+    (0, common_2.Post)('trucks'),
+    (0, common_2.UseInterceptors)((0, platform_express_1.FileInterceptor)('image')),
+    __param(0, (0, common_2.Headers)()),
+    __param(1, (0, common_2.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __param(3, (0, common_2.UploadedFile)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object, Object]),
+    __metadata("design:paramtypes", [Object, Object, Object, Object]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "createTruck", null);
 __decorate([
-    (0, common_1.Put)('trucks/:id/approve'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_2.Put)('trucks/:id/approve'),
+    __param(0, (0, common_2.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "approveTruck", null);
 __decorate([
-    (0, common_1.Put)('trucks/:id/reject'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_2.Put)('trucks/:id/reject'),
+    __param(0, (0, common_2.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "rejectTruck", null);
 __decorate([
-    (0, common_1.Delete)('trucks/:id'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_2.Delete)('trucks/:id'),
+    __param(0, (0, common_2.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "deleteTruck", null);
 __decorate([
-    (0, common_1.Get)('drivers'),
-    __param(0, (0, common_1.Headers)()),
+    (0, common_2.Get)('drivers'),
+    __param(0, (0, common_2.Headers)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "getDrivers", null);
 __decorate([
-    (0, common_1.Post)('drivers'),
-    __param(0, (0, common_1.Headers)()),
-    __param(1, (0, common_1.Body)()),
+    (0, common_2.Post)('drivers'),
+    __param(0, (0, common_2.Headers)()),
+    __param(1, (0, common_2.Body)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [Object, Object, Object]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "createDriver", null);
 __decorate([
-    (0, common_1.Delete)('drivers/:id'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_2.Delete)('drivers/:id'),
+    __param(0, (0, common_2.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "deleteDriver", null);
 __decorate([
-    (0, common_1.Get)('staff'),
-    __param(0, (0, common_1.Headers)()),
+    (0, common_2.Put)('drivers/:id'),
+    __param(0, (0, common_2.Param)('id')),
+    __param(1, (0, common_2.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], MasterDataController.prototype, "updateDriver", null);
+__decorate([
+    (0, common_2.Get)('staff'),
+    __param(0, (0, common_2.Headers)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "getStaff", null);
 __decorate([
-    (0, common_1.Post)('staff'),
-    __param(0, (0, common_1.Headers)()),
-    __param(1, (0, common_1.Body)()),
+    (0, common_2.Post)('staff'),
+    __param(0, (0, common_2.Headers)()),
+    __param(1, (0, common_2.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "createStaff", null);
 __decorate([
-    (0, common_1.Delete)('staff/:id'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_2.Delete)('staff/:id'),
+    __param(0, (0, common_2.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "deleteStaff", null);
 __decorate([
-    (0, common_1.Get)('labour'),
-    __param(0, (0, common_1.Headers)()),
-    __param(1, (0, common_1.Query)('page')),
-    __param(2, (0, common_1.Query)('limit')),
+    (0, common_2.Get)('labour'),
+    __param(0, (0, common_2.Headers)()),
+    __param(1, (0, common_2.Query)('page')),
+    __param(2, (0, common_2.Query)('limit')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "getLabour", null);
 __decorate([
-    (0, common_1.Post)('labour'),
-    __param(0, (0, common_1.Headers)()),
-    __param(1, (0, common_1.Body)()),
+    (0, common_2.Post)('labour'),
+    __param(0, (0, common_2.Headers)()),
+    __param(1, (0, common_2.Body)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [Object, Object, Object]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "createLabour", null);
 __decorate([
-    (0, common_1.Delete)('labour/:id'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_2.Delete)('labour/:id'),
+    __param(0, (0, common_2.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "deleteLabour", null);
 __decorate([
-    (0, common_1.Get)('pahunch'),
-    __param(0, (0, common_1.Headers)()),
-    __param(1, (0, common_1.Query)('page')),
-    __param(2, (0, common_1.Query)('limit')),
+    (0, common_2.Get)('pahunch'),
+    __param(0, (0, common_2.Headers)()),
+    __param(1, (0, common_2.Query)('page')),
+    __param(2, (0, common_2.Query)('limit')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "getPahunch", null);
 __decorate([
-    (0, common_1.Post)('pahunch'),
-    __param(0, (0, common_1.Headers)()),
-    __param(1, (0, common_1.Body)()),
+    (0, common_2.Post)('pahunch'),
+    __param(0, (0, common_2.Headers)()),
+    __param(1, (0, common_2.Body)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [Object, Object, Object]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "createPahunch", null);
 __decorate([
-    (0, common_1.Delete)('pahunch/:id'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_2.Delete)('pahunch/:id'),
+    __param(0, (0, common_2.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], MasterDataController.prototype, "deletePahunch", null);
 exports.MasterDataController = MasterDataController = __decorate([
-    (0, common_1.Controller)('api/master-data'),
+    (0, common_2.Controller)('api/master-data'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     __metadata("design:paramtypes", [master_data_service_1.MasterDataService])
 ], MasterDataController);
 //# sourceMappingURL=master-data.controller.js.map

@@ -25,6 +25,12 @@ let GatePassController = class GatePassController {
     generateGatePass(data) {
         return this.gatePassService.generateGatePass(data);
     }
+    getNextSeq(plantId, passType) {
+        return this.gatePassService.getNextSeq(plantId, passType);
+    }
+    getLastTruckReading(vehicleNo) {
+        return this.gatePassService.getLastTruckReading(vehicleNo);
+    }
     getCampusStatus(plantId) {
         return this.gatePassService.getCampusStatus(plantId);
     }
@@ -53,6 +59,23 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], GatePassController.prototype, "generateGatePass", null);
+__decorate([
+    (0, common_1.Get)('next-seq/:plantId/:passType'),
+    (0, require_permission_decorator_1.RequirePermission)('Gate Pass', 'canView'),
+    __param(0, (0, common_1.Param)('plantId')),
+    __param(1, (0, common_1.Param)('passType')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], GatePassController.prototype, "getNextSeq", null);
+__decorate([
+    (0, common_1.Get)('last-reading/:vehicleNo'),
+    (0, require_permission_decorator_1.RequirePermission)('Gate Pass', 'canView'),
+    __param(0, (0, common_1.Param)('vehicleNo')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], GatePassController.prototype, "getLastTruckReading", null);
 __decorate([
     (0, common_1.Get)('campus-status/:plantId'),
     (0, require_permission_decorator_1.RequirePermission)('Gate Pass', 'canView'),

@@ -55,6 +55,13 @@
     background-color: var(--bg-panel);
     color: var(--text-main);
   }
+
+  /* Force datalist inputs to show a dropdown arrow (Webkit/Blink browsers) */
+  input[list]::-webkit-calendar-picker-indicator {
+    opacity: 1 !important;
+    display: block !important;
+    cursor: pointer !important;
+  }
 }
 
 /* Custom Scrollbar for Webkit */

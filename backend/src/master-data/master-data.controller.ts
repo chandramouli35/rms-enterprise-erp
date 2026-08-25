@@ -1,8 +1,11 @@
+import { UseGuards, Req } from '@nestjs/common';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { Controller, Get, Post, Put, Delete, Body, Param, Headers, BadRequestException, Query, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MasterDataService } from './master-data.service';
 
 @Controller('api/master-data')
+@UseGuards(JwtAuthGuard)
 export class MasterDataController {
   constructor(private readonly masterDataService: MasterDataService) {}
 
@@ -31,14 +34,12 @@ export class MasterDataController {
   @UseInterceptors(FileInterceptor('image'))
   async createTruck(
     @Headers() headers, 
-    @Body() data: { truckNumber: string, capacity?: number, isApproved?: boolean },
+    @Body() data: { truckNumber: string, capacity?: number, isApproved?: boolean, transportCategory?: string },
+    @Req() req,
     @UploadedFile() file?: Express.Multer.File
   ) {
-    if (!file) {
-      throw new BadRequestException('Image upload is required for trucks');
-    }
     const plantId = this.extractPlantId(headers);
-    return this.masterDataService.createTruck(plantId, data, file);
+    return this.masterDataService.createTruck(plantId, data, file, req.user?.id);
   }
 
   @Put('trucks/:id/approve')
@@ -64,14 +65,19 @@ export class MasterDataController {
   }
 
   @Post('drivers')
-  async createDriver(@Headers() headers, @Body() data: { name: string, licenseNo?: string, phone?: string }) {
+  async createDriver(@Headers() headers, @Body() data: { name: string, licenseNo?: string, phone?: string }, @Req() req) {
     const plantId = this.extractPlantId(headers);
-    return this.masterDataService.createDriver(plantId, data);
+    return this.masterDataService.createDriver(plantId, data, req.user?.id);
   }
 
   @Delete('drivers/:id')
   async deleteDriver(@Param('id') id: string) {
     return this.masterDataService.deleteDriver(id);
+  }
+
+  @Put('drivers/:id')
+  async updateDriver(@Param('id') id: string, @Body() data: any) {
+    return this.masterDataService.updateDriver(id, data);
   }
 
   // ===================== STAFF =====================
@@ -100,9 +106,9 @@ export class MasterDataController {
   }
 
   @Post('labour')
-  async createLabour(@Headers() headers, @Body() data: { name: string, type?: string, contact?: string, firmName?: string }) {
+  async createLabour(@Headers() headers, @Body() data: { name: string, type?: string, contact?: string, firmName?: string }, @Req() req) {
     const plantId = this.extractPlantId(headers);
-    return this.masterDataService.createLabour(plantId, data);
+    return this.masterDataService.createLabour(plantId, data, req.user?.id);
   }
 
   @Delete('labour/:id')
@@ -118,9 +124,9 @@ export class MasterDataController {
   }
 
   @Post('pahunch')
-  async createPahunch(@Headers() headers, @Body() data: { name: string, contact?: string }) {
+  async createPahunch(@Headers() headers, @Body() data: { name: string, contact?: string }, @Req() req) {
     const plantId = this.extractPlantId(headers);
-    return this.masterDataService.createPahunch(plantId, data);
+    return this.masterDataService.createPahunch(plantId, data, req.user?.id);
   }
 
   @Delete('pahunch/:id')

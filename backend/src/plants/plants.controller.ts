@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Query } from '@nestjs/common';
 import { PlantsService } from './plants.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
@@ -21,5 +21,10 @@ export class PlantsController {
   @Put(':id')
   async update(@Param('id') id: string, @Body() data: any) {
     return this.plantsService.update(id, data);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+    return this.plantsService.remove(id);
   }
 }

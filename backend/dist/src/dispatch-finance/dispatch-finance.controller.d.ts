@@ -21,9 +21,11 @@ export declare class DispatchFinanceController {
             noOfBags: number | null;
             grossWeight: number | null;
             tareWeight: number | null;
+            previousTruckReading: number | null;
+            newTruckReading: number | null;
+            kmsDriven: number | null;
             qualityCutValue: number | null;
             ntWtParty: number | null;
-            boliRate: number | null;
             vehicleNo: string;
             vehicleType: string | null;
             purpose: string | null;
@@ -33,6 +35,7 @@ export declare class DispatchFinanceController {
             contactNo: string | null;
             challanNo: string | null;
             qrCode: string | null;
+            meterNotWorking: boolean;
             qualityCutType: string | null;
             qualityCutReason: string | null;
             sodaPendingId: string | null;
@@ -41,9 +44,7 @@ export declare class DispatchFinanceController {
             partyName: string | null;
             sodaNo: string | null;
             biometricData: string | null;
-            mandiType: string | null;
-            boliChecklist: boolean | null;
-            bardanaClass: string | null;
+            gstNo: string | null;
         } | null;
     } & {
         id: string;
@@ -85,9 +86,11 @@ export declare class DispatchFinanceController {
         noOfBags: number | null;
         grossWeight: number | null;
         tareWeight: number | null;
+        previousTruckReading: number | null;
+        newTruckReading: number | null;
+        kmsDriven: number | null;
         qualityCutValue: number | null;
         ntWtParty: number | null;
-        boliRate: number | null;
         vehicleNo: string;
         vehicleType: string | null;
         purpose: string | null;
@@ -97,6 +100,7 @@ export declare class DispatchFinanceController {
         contactNo: string | null;
         challanNo: string | null;
         qrCode: string | null;
+        meterNotWorking: boolean;
         qualityCutType: string | null;
         qualityCutReason: string | null;
         sodaPendingId: string | null;
@@ -105,9 +109,7 @@ export declare class DispatchFinanceController {
         partyName: string | null;
         sodaNo: string | null;
         biometricData: string | null;
-        mandiType: string | null;
-        boliChecklist: boolean | null;
-        bardanaClass: string | null;
+        gstNo: string | null;
     }>;
     getVehicleAllocationStats(plantId: string): Promise<{
         allocatedVehicles: number;
@@ -171,9 +173,11 @@ export declare class DispatchFinanceController {
             noOfBags: number | null;
             grossWeight: number | null;
             tareWeight: number | null;
+            previousTruckReading: number | null;
+            newTruckReading: number | null;
+            kmsDriven: number | null;
             qualityCutValue: number | null;
             ntWtParty: number | null;
-            boliRate: number | null;
             vehicleNo: string;
             vehicleType: string | null;
             purpose: string | null;
@@ -183,6 +187,7 @@ export declare class DispatchFinanceController {
             contactNo: string | null;
             challanNo: string | null;
             qrCode: string | null;
+            meterNotWorking: boolean;
             qualityCutType: string | null;
             qualityCutReason: string | null;
             sodaPendingId: string | null;
@@ -191,9 +196,7 @@ export declare class DispatchFinanceController {
             partyName: string | null;
             sodaNo: string | null;
             biometricData: string | null;
-            mandiType: string | null;
-            boliChecklist: boolean | null;
-            bardanaClass: string | null;
+            gstNo: string | null;
         }) | null;
     } & {
         id: string;
@@ -208,8 +211,8 @@ export declare class DispatchFinanceController {
         vehicleNo: string;
         driverName: string | null;
         challanNo: string | null;
-        gatePassId: string | null;
         transactionType: string;
+        gatePassId: string | null;
         materialType: string | null;
         supplierName: string | null;
         grossTime: Date | null;
@@ -244,8 +247,8 @@ export declare class DispatchFinanceController {
         vehicleNo: string;
         driverName: string | null;
         challanNo: string | null;
-        gatePassId: string | null;
         transactionType: string;
+        gatePassId: string | null;
         materialType: string | null;
         supplierName: string | null;
         grossTime: Date | null;

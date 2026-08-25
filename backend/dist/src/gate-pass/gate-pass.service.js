@@ -19,7 +19,7 @@ let GatePassService = class GatePassService {
         this.inventoryService = inventoryService;
     }
     async generateGatePass(data) {
-        const { plantId, passType, vehicleNo, vehicleType, purpose, supplierId, material, driverName, contactNo, challanNo, noOfBags, grossWeight, tareWeight, netWeight, emptyVideoTime, loadedVideoTime, partyName, ntWtParty, sodaNo, remarks } = data;
+        const { plantId, passType, vehicleNo, vehicleType, purpose, supplierId, material, driverName, contactNo, challanNo, noOfBags, grossWeight, tareWeight, netWeight, emptyVideoTime, loadedVideoTime, partyName, ntWtParty, sodaNo, remarks, previousTruckReading, newTruckReading, kmsDriven, meterNotWorking, gstNo } = data;
         if (passType === 'INWARD') {
             const existingActivePass = await this.prisma.gatePass.findFirst({
                 where: {
@@ -43,18 +43,33 @@ let GatePassService = class GatePassService {
         }
         const prefix = passType === 'INWARD' ? 'GIN' : 'GOUT';
         const year = new Date().getFullYear();
-        const lastPass = await this.prisma.gatePass.findFirst({
+        const allPasses = await this.prisma.gatePass.findMany({
             where: {
                 passType,
                 qrCode: { startsWith: `${prefix}-${year}-` }
             },
-            orderBy: { qrCode: 'desc' }
+            select: { qrCode: true }
         });
-        let nextSeq = 1;
-        if (lastPass && lastPass.qrCode) {
-            const parts = lastPass.qrCode.split('-');
+        let lastSeq = 0;
+        for (const p of allPasses) {
+            if (!p.qrCode)
+                continue;
+            const parts = p.qrCode.split('-');
             if (parts.length === 3) {
-                nextSeq = parseInt(parts[2], 10) + 1;
+                const seqNum = parseInt(parts[2], 10);
+                if (!isNaN(seqNum) && seqNum > lastSeq) {
+                    lastSeq = seqNum;
+                }
+            }
+        }
+        let nextSeq = lastSeq + 1;
+        if (data.passNo) {
+            const manualSeq = parseInt(data.passNo, 10);
+            if (!isNaN(manualSeq)) {
+                if (manualSeq <= lastSeq) {
+                    throw new common_1.BadRequestException(`GP Number must be greater than the last entry sequence for this mill (${lastSeq})`);
+                }
+                nextSeq = manualSeq;
             }
         }
         const seq = String(nextSeq).padStart(5, '0');
@@ -81,13 +96,14 @@ let GatePassService = class GatePassService {
                 ntWtParty: ntWtParty ? parseFloat(ntWtParty) : null,
                 sodaNo,
                 remarks,
+                gstNo,
                 biometricData: data.biometricData || null,
-                mandiType: data.mandiType || null,
-                boliRate: data.boliRate ? parseFloat(data.boliRate) : null,
-                boliChecklist: data.boliChecklist || false,
-                bardanaClass: data.bardanaClass || null,
                 status: 'ACTIVE',
-                qrCode
+                qrCode,
+                previousTruckReading: previousTruckReading ? parseFloat(previousTruckReading) : null,
+                newTruckReading: newTruckReading ? parseFloat(newTruckReading) : null,
+                kmsDriven: kmsDriven ? parseFloat(kmsDriven) : null,
+                meterNotWorking: meterNotWorking === true || meterNotWorking === 'true'
             },
             include: {
                 supplier: true,
@@ -249,6 +265,37 @@ let GatePassService = class GatePassService {
             });
         }
         return updatedPass;
+    }
+    async getLastTruckReading(vehicleNo) {
+        const lastPass = await this.prisma.gatePass.findFirst({
+            where: {
+                vehicleNo,
+                newTruckReading: { not: null }
+            },
+            orderBy: { createdAt: 'desc' },
+            select: { newTruckReading: true }
+        });
+        return { lastReading: lastPass?.newTruckReading || null };
+    }
+    async getNextSeq(plantId, passType) {
+        const prefix = passType === 'INWARD' ? 'GIN' : 'GOUT';
+        const year = new Date().getFullYear();
+        const lastPass = await this.prisma.gatePass.findFirst({
+            where: {
+                plantId,
+                passType,
+                qrCode: { startsWith: `${prefix}-${year}-` }
+            },
+            orderBy: { qrCode: 'desc' }
+        });
+        let nextSeq = 1;
+        if (lastPass && lastPass.qrCode) {
+            const parts = lastPass.qrCode.split('-');
+            if (parts.length === 3) {
+                nextSeq = parseInt(parts[2], 10) + 1;
+            }
+        }
+        return { nextSeq };
     }
 };
 exports.GatePassService = GatePassService;

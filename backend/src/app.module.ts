@@ -22,9 +22,10 @@ import { MasterDataModule } from './master-data/master-data.module';
 import { SettingsModule } from './settings/settings.module';
 import { MandisModule } from './mandis/mandis.module';
 import { IntermillModule } from './intermill/intermill.module';
+import { DryerWorkModule } from './dryer-work/dryer-work.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, PlantsModule, DashboardModule, UsersModule, UsersRolesModule, ProcurementModule, WeighbridgeModule, GatePassModule, ProductionModule, YieldModule, InventoryModule, TransferModule, ProductsModule, DispatchFinanceModule, FinanceModule, PowerManagementModule, MasterDataModule, SettingsModule, MandisModule, IntermillModule],
+  imports: [PrismaModule, AuthModule, PlantsModule, DashboardModule, UsersModule, UsersRolesModule, ProcurementModule, WeighbridgeModule, GatePassModule, ProductionModule, YieldModule, InventoryModule, TransferModule, ProductsModule, DispatchFinanceModule, FinanceModule, PowerManagementModule, MasterDataModule, SettingsModule, MandisModule, IntermillModule, DryerWorkModule],
   controllers: [AppController],
   providers: [AppService],
 })

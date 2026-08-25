@@ -12,6 +12,7 @@ export declare class MasterDataService {
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
+        transportCategory: string;
     }[] | {
         data: {
             id: string;
@@ -22,6 +23,7 @@ export declare class MasterDataService {
             capacity: number | null;
             imageUrl: string | null;
             isApproved: boolean;
+            transportCategory: string;
         }[];
         total: number;
     }>;
@@ -34,6 +36,7 @@ export declare class MasterDataService {
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
+        transportCategory: string;
     }[] | {
         data: {
             id: string;
@@ -44,6 +47,7 @@ export declare class MasterDataService {
             capacity: number | null;
             imageUrl: string | null;
             isApproved: boolean;
+            transportCategory: string;
         }[];
         total: number;
     }>;
@@ -51,7 +55,8 @@ export declare class MasterDataService {
         truckNumber: string;
         capacity?: number;
         isApproved?: boolean;
-    }, file?: Express.Multer.File): Promise<{
+        transportCategory?: string;
+    }, file?: Express.Multer.File, userId?: string): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
@@ -60,6 +65,7 @@ export declare class MasterDataService {
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
+        transportCategory: string;
     }>;
     approveTruck(id: string): Promise<{
         id: string;
@@ -70,6 +76,7 @@ export declare class MasterDataService {
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
+        transportCategory: string;
     }>;
     rejectTruck(id: string): Promise<{
         id: string;
@@ -80,6 +87,7 @@ export declare class MasterDataService {
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
+        transportCategory: string;
     }>;
     deleteTruck(id: string): Promise<{
         id: string;
@@ -90,6 +98,7 @@ export declare class MasterDataService {
         capacity: number | null;
         imageUrl: string | null;
         isApproved: boolean;
+        transportCategory: string;
     }>;
     getDrivers(plantId: string): Promise<{
         id: string;
@@ -99,12 +108,13 @@ export declare class MasterDataService {
         plantId: string;
         licenseNo: string | null;
         phone: string | null;
+        age: number | null;
     }[]>;
     createDriver(plantId: string, data: {
         name: string;
         licenseNo?: string;
         phone?: string;
-    }): Promise<{
+    }, userId?: string): Promise<{
         id: string;
         name: string;
         createdAt: Date;
@@ -112,6 +122,7 @@ export declare class MasterDataService {
         plantId: string;
         licenseNo: string | null;
         phone: string | null;
+        age: number | null;
     }>;
     deleteDriver(id: string): Promise<{
         id: string;
@@ -121,6 +132,17 @@ export declare class MasterDataService {
         plantId: string;
         licenseNo: string | null;
         phone: string | null;
+        age: number | null;
+    }>;
+    updateDriver(id: string, data: any): Promise<{
+        id: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        plantId: string;
+        licenseNo: string | null;
+        phone: string | null;
+        age: number | null;
     }>;
     getStaff(plantId: string): Promise<{
         id: string;
@@ -135,7 +157,7 @@ export declare class MasterDataService {
         name: string;
         role: string;
         phone?: string;
-    }): Promise<{
+    }, userId?: string): Promise<{
         id: string;
         name: string;
         createdAt: Date;
@@ -182,7 +204,7 @@ export declare class MasterDataService {
         type?: string;
         contact?: string;
         firmName?: string;
-    }): Promise<{
+    }, userId?: string): Promise<{
         id: string;
         name: string;
         createdAt: Date;
@@ -227,7 +249,7 @@ export declare class MasterDataService {
     createPahunch(plantId: string, data: {
         name: string;
         contact?: string;
-    }): Promise<{
+    }, userId?: string): Promise<{
         id: string;
         name: string;
         createdAt: Date;

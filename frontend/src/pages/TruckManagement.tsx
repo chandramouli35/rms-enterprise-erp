@@ -19,7 +19,7 @@ export default function TruckManagement() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   
   // Modal state
-  const [addModal, setAddModal] = useState<{isOpen: boolean, truckNumber: string, capacity: string, image: File | null}>({ isOpen: false, truckNumber: '', capacity: '', image: null });
+  const [addModal, setAddModal] = useState<{isOpen: boolean, truckNumber: string, capacity: string, image: File | null, transportCategory: string}>({ isOpen: false, truckNumber: '', capacity: '', image: null, transportCategory: 'PARTY' });
 
   const fetchTrucks = async () => {
     // We allow super admin to fetch all trucks even if no plant is selected if the backend supports it, 
@@ -51,6 +51,7 @@ export default function TruckManagement() {
     try {
       const formData = new FormData();
       formData.append('truckNumber', addModal.truckNumber);
+      formData.append('transportCategory', addModal.transportCategory);
       if (addModal.capacity) formData.append('capacity', addModal.capacity);
       if (addModal.image) formData.append('image', addModal.image);
 
@@ -60,7 +61,7 @@ export default function TruckManagement() {
           'Content-Type': 'multipart/form-data'
         }
       });
-      setAddModal({ isOpen: false, truckNumber: '', capacity: '', image: null });
+      setAddModal({ isOpen: false, truckNumber: '', capacity: '', image: null, transportCategory: 'PARTY' });
       setToastMessage('Truck created successfully!');
       setTimeout(() => setToastMessage(''), 3000);
       fetchTrucks();
@@ -127,7 +128,7 @@ export default function TruckManagement() {
           <p className="text-[var(--text-muted-alt)] text-sm mt-1">Manage and approve trucks</p>
         </div>
         <button 
-          onClick={() => setAddModal({ isOpen: true, truckNumber: '', capacity: '', image: null })}
+          onClick={() => setAddModal({ isOpen: true, truckNumber: '', capacity: '', image: null, transportCategory: 'PARTY' })}
           className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold shadow hover:bg-[#cc7000] transition-colors flex items-center gap-2"
         >
           <Plus size={18} /> Add Truck
@@ -139,6 +140,7 @@ export default function TruckManagement() {
           <thead>
             <tr className="bg-[var(--bg-panel-hover)] border-b border-[var(--border-subtle)]">
               <th className="p-4 font-semibold">Truck Number</th>
+              <th className="p-4 font-semibold">Category</th>
               <th className="p-4 font-semibold">Capacity (MT)</th>
               <th className="p-4 font-semibold">Status</th>
               <th className="p-4 font-semibold">View</th>
@@ -158,6 +160,11 @@ export default function TruckManagement() {
               trucks.map(truck => (
                 <tr key={truck.id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-panel-hover)]">
                   <td className="p-4 font-mono font-bold">{truck.truckNumber}</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 rounded text-xs font-bold ${truck.transportCategory === 'COMPANY' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'}`}>
+                      {truck.transportCategory === 'COMPANY' ? 'Company' : 'Party'}
+                    </span>
+                  </td>
                   <td className="p-4">{truck.capacity || '-'}</td>
                   <td className="p-4">
                     {truck.isApproved ? (
@@ -223,6 +230,17 @@ export default function TruckManagement() {
                   placeholder="e.g. MH 12 AB 1234"
                   required 
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Transport Category <span className="text-red-500">*</span></label>
+                <select 
+                  value={addModal.transportCategory} 
+                  onChange={e => setAddModal({...addModal, transportCategory: e.target.value})}
+                  className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
+                >
+                  <option value="PARTY">Party Transport</option>
+                  <option value="COMPANY">Company Transport</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Capacity (MT) <span className="text-[var(--text-muted-alt)] text-xs">(Optional)</span></label>

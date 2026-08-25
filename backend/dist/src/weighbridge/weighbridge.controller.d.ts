@@ -21,8 +21,8 @@ export declare class WeighbridgeController {
         vehicleNo: string;
         driverName: string | null;
         challanNo: string | null;
-        gatePassId: string | null;
         transactionType: string;
+        gatePassId: string | null;
         materialType: string | null;
         supplierName: string | null;
         grossTime: Date | null;
@@ -41,8 +41,8 @@ export declare class WeighbridgeController {
         vehicleNo: string;
         driverName: string | null;
         challanNo: string | null;
-        gatePassId: string | null;
         transactionType: string;
+        gatePassId: string | null;
         materialType: string | null;
         supplierName: string | null;
         grossTime: Date | null;

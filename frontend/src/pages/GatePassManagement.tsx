@@ -8,6 +8,7 @@ import { usePlantStore } from '../store/plantStore';
 import { CustomModal } from '../components/CustomModal';
 import { useUiStore } from '../store/uiStore';
 import Pagination from '../components/Pagination';
+import Combobox from '../components/Combobox';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -32,7 +33,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
     qrText += `Vehicle Type: ${basePass.vehicleType || 'N/A'}\n`;
     qrText += `Driver: ${basePass.driverName || 'N/A'} (${basePass.contactNo || basePass.driverMobile || 'N/A'})\n`;
     qrText += `Purpose: ${basePass.purpose || 'N/A'}\n`;
-    qrText += `Supplier/Party: ${basePass.supplier?.name || basePass.partyName || 'N/A'}\n`;
+    qrText += `Supplier/Party: ${basePass.supplier?.name || 'N/A'} (GST: ${basePass.gstNo || 'N/A'})\n`;
     qrText += `Material: ${basePass.material || 'N/A'}\n`;
     qrText += `Challan No: ${basePass.challanNo || 'N/A'}\n`;
     qrText += `Sauda No: ${basePass.sodaNo || 'N/A'}\n`;
@@ -74,7 +75,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
     qrText += `Pass: ${pass.qrCode}\n`;
     qrText += `Date: ${new Date(pass.createdAt).toLocaleString()}\n`;
     qrText += `Purpose: ${pass.purpose || 'N/A'}\n`;
-    qrText += `Party: ${pass.partyName || pass.supplier?.name || 'N/A'}\n`;
+    qrText += `Party: ${pass.supplier?.name || 'N/A'} (GST: ${pass.gstNo || 'N/A'})\n`;
     qrText += `Challan: ${pass.challanNo || 'N/A'}\n`;
     qrText += `Remarks: ${pass.remarks || 'None'}\n`;
   }
@@ -86,6 +87,10 @@ export const GatePassManagement = () => {
  const [searchParams] = useSearchParams();
  const activeTab = searchParams.get('tab') || 'gate_in';
  const activePlant = usePlantStore(state => state.activePlant);
+  const [passCategory, setPassCategory] = useState<'INWARD' | 'OUTWARD' | null>(null);
+  const [tableFilter, setTableFilter] = useState<'INWARD' | 'OUTWARD'>('INWARD');
+ const [trucks, setTrucks] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
  const [suppliers, setSuppliers] = useState<any[]>([]);
  const [plants, setPlants] = useState<any[]>([]);
  const [recentEntries, setRecentEntries] = useState<any[]>([]);
@@ -102,14 +107,17 @@ export const GatePassManagement = () => {
  
  // Form State
  const defaultFormData = {
- plantId: activePlant?.id || '',
- entryDateTime: new Date().toISOString().substring(0, 16),
- gate: 'Main Gate',
+  plantId: activePlant?.id || '',
+  entryDateTime: new Date().toISOString().substring(0, 16),
+  passNo: '',
+  previousTruckReading: '',
+  newTruckReading: '',
+  gate: 'Main Gate',
  vehicleNo: '',
  vehicleType: 'Truck',
  driverName: '',
  driverMobile: '',
- purpose: 'Paddy Purchase',
+ purpose: 'Not Applicable',
  supplierId: '',
  material: 'PADDY',
  challanNo: '',
@@ -120,7 +128,7 @@ export const GatePassManagement = () => {
  netWeight: 0,
  emptyVideoTime: '',
  loadedVideoTime: '',
- partyName: '',
+ gstNo: '',
  ntWtParty: '',
  sodaNo: '',
  remarks: '',
@@ -147,6 +155,13 @@ export const GatePassManagement = () => {
   }, [suppliers]);
   
   const [generatedPass, setGeneratedPass] = useState<any>(null);
+
+  const handleCategorySelect = (cat: 'INWARD' | 'OUTWARD') => {
+    if (window.confirm(`You have selected Gate Pass ${cat === 'INWARD' ? 'In' : 'Out'} (Confirm) / Not`)) {
+      setPassCategory(cat);
+    }
+  };
+
 
  const [viewPassModalOpen, setViewPassModalOpen] = useState(false);
  const [selectedPass, setSelectedPass] = useState<any>(null);
@@ -232,7 +247,7 @@ export const GatePassManagement = () => {
  <div class="pass-container">
  <div class="header">
  <h2>RICE MILL</h2>
- <p>GATE ${activeTab === 'gate_in' ? 'IN' : 'OUT'} PASS</p>
+ <p>GATE ${passCategory === 'INWARD' ? 'IN' : 'OUT'} PASS</p>
  </div>
  <div class="details">
  <div><div class="label">Pass No.</div><div class="value">${selectedPass.qrCode}</div></div>
@@ -259,7 +274,7 @@ export const GatePassManagement = () => {
  </div>
  <div class="qr-code">
  ${qrDataUrl ? `<img src="${qrDataUrl}" alt="QR Code" />` : ''}
- <div class="qr-label">Scan at Gate ${activeTab === 'gate_in' ? 'Out' : 'In'}</div>
+ <div class="qr-label">Scan at Gate ${passCategory === 'INWARD' ? 'Out' : 'In'}</div>
  </div>
  <div class="footer">
  <div class="sign">Authorized Sign</div>
@@ -297,7 +312,7 @@ export const GatePassManagement = () => {
       entry.loadedVideoTime || '',
       entry.qrCode,
       entry.vehicleNo,
-      entry.partyName || entry.supplier?.name || '',
+      entry.supplier?.name || '',
       entry.material || entry.purpose || '',
       entry.noOfBags || '',
       entry.netWeight || '',
@@ -376,11 +391,18 @@ export const GatePassManagement = () => {
       console.error('Failed to fetch suppliers:', error);
     }
 
+    try {
+      const resTrucks = await api.get(`/api/master-data/trucks/all`, { headers: { 'x-plant-id': pid } });
+      setTrucks(Array.isArray(resTrucks.data) ? resTrucks.data : (resTrucks.data?.data || []));
+    } catch (error) {
+      console.error('Failed to fetch trucks:', error);
+    }
+
     // Fetch other data independently using allSettled so one failure doesn't block the rest
     try {
       const [analyticsRes, recentRes, logsRes] = await Promise.allSettled([
         api.get(`/api/gate-pass/analytics/${pid}`),
-        api.get(`/api/gate-pass/recent/${pid}?type=${activeTab === 'report_summary' ? 'ALL' : activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD'}&page=${currentPage}&limit=10`),
+        api.get(`/api/gate-pass/recent/${pid}?type=${activeTab === 'report_summary' ? 'ALL' : tableFilter}&page=${currentPage}&limit=10`),
         api.get(`/api/gate-pass/duplicate-logs/${pid}`)
       ]);
       
@@ -392,6 +414,24 @@ export const GatePassManagement = () => {
       if (logsRes.status === 'fulfilled') setDuplicateLogs(logsRes.value.data.slice(0, 3));
     } catch (error) {
       console.error('Failed to fetch gate pass data:', error);
+    }
+    };
+
+  const handleMasterDataBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    if (!value) return;
+    try {
+      if (name === 'vehicleNo' && !trucks.find(t => t.truckNumber === value)) {
+        await api.post('/api/master-data/trucks', { truckNumber: value });
+        const res = await api.get('/api/master-data/trucks');
+        setTrucks(res.data);
+      } else if (name === 'driverName' && !drivers.find(d => d.name === value)) {
+        await api.post('/api/master-data/drivers', { name: value, phone: formData.driverMobile || '' });
+        const res = await api.get('/api/master-data/drivers');
+        setDrivers(res.data);
+      }
+    } catch (err) {
+      console.error('Auto-save failed:', err);
     }
   };
 
@@ -423,6 +463,9 @@ export const GatePassManagement = () => {
  setGeneratedPass(null);
  };
 
+  const isBlock1Valid = formData.vehicleNo && formData.vehicleType && formData.driverName;
+  const isBlock2Valid = isBlock1Valid && formData.purpose && formData.material && formData.supplierId;
+
   const handleGeneratePass = async (e: React.FormEvent) => {
   e.preventDefault();
   if (formData.plantId === 'global' || !formData.plantId) {
@@ -430,7 +473,7 @@ export const GatePassManagement = () => {
     return;
   }
   try {
- const type = activeTab === 'gate_in' ? 'INWARD' : 'OUTWARD';
+ const type = passCategory;
  const response = await api.post(`/api/gate-pass/generate`, {
  ...formData,
  passType: type,
@@ -569,13 +612,19 @@ export const GatePassManagement = () => {
  {/* DYNAMIC WORKSPACE */}
  <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col space-y-6 pb-6">
  
- {(activeTab === 'gate_in' || activeTab === 'gate_out') && (
+ {(activeTab === 'create_pass' || activeTab === 'gate_in' || activeTab === 'gate_out') && (
  <div className="grid grid-cols-12 gap-6">
  
  {/* COLUMN 1: FORM (42%) -> 5 cols out of 12 */}
  <div className="col-span-12 lg:col-span-5 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle-alt)] p-5">
- <h2 className="text-lg font-semibold mb-4 text-[var(--text-main)]">Create Gate {activeTab === 'gate_in' ? 'In' : 'Out'} Pass</h2>
- <form onSubmit={handleGeneratePass} className="space-y-4">
+ <div className="flex items-center justify-between mb-4">
+    <h2 className="text-lg font-semibold text-[var(--text-main)]">Create Gate Pass</h2>
+    <div className="flex bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg p-0.5">
+      <button type="button" onClick={() => handleCategorySelect('INWARD')} className={`px-3 py-1 text-xs font-medium rounded-md transition ${passCategory === 'INWARD' ? 'bg-[#e67e00] text-black' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>Gate In</button>
+      <button type="button" onClick={() => handleCategorySelect('OUTWARD')} className={`px-3 py-1 text-xs font-medium rounded-md transition ${passCategory === 'OUTWARD' ? 'bg-[#e67e00] text-black' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>Gate Out</button>
+    </div>
+  </div>
+ <form onSubmit={handleGeneratePass} className={`space-y-4 transition-opacity duration-300 ${!passCategory ? 'opacity-40 pointer-events-none' : ''}`}>
   <div className="grid grid-cols-2 gap-4">
   {(!activePlant || activePlant.id === 'global') && (
     <div className="col-span-2">
@@ -593,6 +642,10 @@ export const GatePassManagement = () => {
  <input type="datetime-local" name="entryDateTime" value={formData.entryDateTime} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none css-color-scheme-dark" required />
  </div>
  <div>
+ <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">GP No. (Optional Override)</label>
+ <input type="text" name="passNo" placeholder="Auto Generated" value={formData.passNo} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
+ </div>
+ <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Gate <span className="text-red-500">*</span></label>
  <select name="gate" value={formData.gate} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none">
  <option value="Main Gate">Main Gate</option>
@@ -604,8 +657,29 @@ export const GatePassManagement = () => {
  <div className="grid grid-cols-2 gap-4">
  <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Vehicle No. <span className="text-red-500">*</span></label>
- <input type="text" name="vehicleNo" placeholder="e.g. UP32 AB 1234" value={formData.vehicleNo} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none uppercase" required />
+  <Combobox
+    name="vehicleNo"
+    value={formData.vehicleNo}
+    onChange={handleInputChange}
+    onBlur={handleMasterDataBlur}
+    options={trucks}
+    className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"
+    placeholder="Select or enter vehicle no"
+    required
+  />
  </div>
+ {trucks.find(t => t.truckNumber === formData.vehicleNo)?.transportCategory === 'COMPANY' && (
+   <>
+     <div>
+       <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Previous Truck Reading</label>
+       <input type="number" name="previousTruckReading" value={formData.previousTruckReading} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
+     </div>
+     <div>
+       <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">New Truck Reading</label>
+       <input type="number" name="newTruckReading" value={formData.newTruckReading} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
+     </div>
+   </>
+ )}
  <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Vehicle Type <span className="text-red-500">*</span></label>
  <select name="vehicleType" value={formData.vehicleType} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none">
@@ -619,7 +693,22 @@ export const GatePassManagement = () => {
  <div className="grid grid-cols-2 gap-4">
  <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Driver Name <span className="text-red-500">*</span></label>
- <input type="text" name="driverName" value={formData.driverName} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" required />
+ <Combobox
+    name="driverName"
+    value={formData.driverName}
+    onChange={(e: any) => {
+      handleInputChange(e);
+      const match = drivers.find(d => d.name === e.target.value);
+      if (match && match.phone) {
+        setFormData(prev => ({...prev, driverMobile: match.phone}));
+      }
+    }}
+    onBlur={handleMasterDataBlur}
+    options={drivers}
+    placeholder="Select or type Driver"
+    className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"
+    required
+  />
  </div>
  <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Driver Mobile</label>
@@ -627,7 +716,8 @@ export const GatePassManagement = () => {
  </div>
  </div>
 
-  <div className="grid grid-cols-3 gap-4 items-end">
+  <div className={`space-y-4 transition-opacity duration-300 ${!isBlock1Valid ? 'opacity-40 pointer-events-none' : ''}`}>
+   <div className="grid grid-cols-3 gap-4 items-end">
   <div>
   <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Purpose <span className="text-red-500">*</span></label>
   <select name="purpose" value={formData.purpose} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none">
@@ -647,14 +737,18 @@ export const GatePassManagement = () => {
   <option value="OTHER">OTHER</option>
   </select>
   </div>
-  <div>
-  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">{activeTab === 'gate_in' ? 'From (Supplier / Party)' : 'To (Party)'} <span className="text-red-500">*</span></label>
-  <select name="supplierId" value={formData.supplierId} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none" required>
- <option value="">Select Account</option>
- {suppliers.map(s => (
- <option key={s.id} value={s.id}>{s.name}</option>
- ))}
- </select>
+  <div className="col-span-2">
+  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">{passCategory === 'INWARD' ? 'From (Supplier / Party)' : 'To (Party)'} <span className="text-red-500">*</span></label>
+  <Combobox
+    name="supplierId"
+    value={formData.supplierId}
+    onChange={handleInputChange}
+    options={suppliers}
+    valueKey="id"
+    placeholder="Select Account"
+    className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"
+    required
+  />
  </div>
  </div>
 
@@ -697,8 +791,8 @@ export const GatePassManagement = () => {
 
  <div className="grid grid-cols-2 gap-4">
  <div>
- <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Party Name (if not in list)</label>
- <input type="text" name="partyName" value={formData.partyName} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
+ <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">GST No.</label>
+ <input type="text" name="gstNo" value={formData.gstNo} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" placeholder="Enter GST Number" />
  </div>
  <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Sauda / Contract No.</label>
@@ -730,6 +824,10 @@ export const GatePassManagement = () => {
   </div>
   </div>
   
+  </div>
+  </div>
+
+  <div className={`space-y-4 transition-opacity duration-300 ${!isBlock2Valid ? 'opacity-40 pointer-events-none' : ''}`}>
   <div className="grid grid-cols-2 gap-3">
   {formData.weightInputType === 'GROSS' ? (
   <div>
@@ -771,7 +869,7 @@ export const GatePassManagement = () => {
  Reset
  </button>
  <button type="submit" className="flex-1 bg-[#e67e00] hover:bg-[#d67500] text-black font-bold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2">
- <CheckCircle2 size={18} /> Generate Gate {activeTab === 'gate_in' ? 'In' : 'Out'} Pass
+ <CheckCircle2 size={18} /> Generate Gate {passCategory === 'INWARD' ? 'In' : 'Out'} Pass
  </button>
  </div>
  </form>
@@ -780,7 +878,7 @@ export const GatePassManagement = () => {
  {/* COLUMN 2: RECENT ENTRIES GRID (100% -> 12 cols out of 12) */}
  <div className="col-span-12 lg:col-span-7 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle-alt)] p-5 flex flex-col">
  <div className="flex items-center justify-between mb-4">
- <h2 className="text-lg font-semibold text-[var(--text-main)]">Recent Gate {activeTab === 'gate_in' ? 'In' : 'Out'} Entries</h2>
+ <h2 className="text-lg font-semibold text-[var(--text-main)]">Recent Gate {passCategory === 'INWARD' ? 'In' : 'Out'} Entries</h2>
  <button className="text-blue-500 text-sm font-medium hover:text-blue-400">View All</button>
  </div>
  
@@ -791,7 +889,7 @@ export const GatePassManagement = () => {
  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)]">Pass No.</th>
  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)]">Entry Time</th>
  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)]">Vehicle No.</th>
- <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)]">{activeTab === 'gate_in' ? 'From / Supplier' : 'To / Party'}</th>
+ <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)]">{tableFilter === 'OUTWARD' ? 'To / Party' : 'From / Supplier'}</th>
  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)]">Material</th>
  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] text-right">Net Wt (MT)</th>
  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] text-center">Status</th>
@@ -836,7 +934,7 @@ export const GatePassManagement = () => {
  )}
 
  {/* BOTTOM DASHBOARD PANEL ROW */}
- {(activeTab === 'gate_in' || activeTab === 'gate_out') && (
+ {(activeTab === 'create_pass' || activeTab === 'gate_in' || activeTab === 'gate_out') && (
  <div className="grid grid-cols-2 gap-6 mt-2">
  {/* LEFT: IN CAMPUS STATUS DONUT */}
  <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle-alt)] p-5 flex flex-col">
@@ -969,7 +1067,7 @@ export const GatePassManagement = () => {
   <td className="py-3 text-sm">{entry.loadedVideoTime || '-'}</td>
   <td className="py-3 text-sm font-medium">{entry.qrCode}</td>
   <td className="py-3 text-sm font-medium">{entry.vehicleNo}</td>
-  <td className="py-3 text-sm">{entry.partyName || entry.supplier?.name || '-'}</td>
+  <td className="py-3 text-sm">{entry.supplier?.name || '-'} {entry.gstNo ? `(GST: ${entry.gstNo})` : ''}</td>
   <td className="py-3 text-sm">{entry.material || entry.purpose || '-'}</td>
   <td className="py-3 text-sm">{entry.noOfBags || '-'}</td>
   <td className="py-3 text-sm font-bold">{entry.netWeight || '-'}</td>
@@ -1075,7 +1173,7 @@ export const GatePassManagement = () => {
  <span className="font-medium text-[var(--text-muted)]">Note:</span> All gate movements are monitored. Duplicate entries are automatically blocked to ensure data accuracy and security.
  </div>
 
- <CustomModal isOpen={viewPassModalOpen} onClose={() => setViewPassModalOpen(false)} title={`Gate ${activeTab === 'gate_in' ? 'In' : 'Out'} Pass Details`}>
+ <CustomModal isOpen={viewPassModalOpen} onClose={() => setViewPassModalOpen(false)} title={`Gate ${passCategory === 'INWARD' ? 'In' : 'Out'} Pass Details`}>
  {selectedPass && (
  <div className="space-y-4">
  <div className="flex flex-col md:flex-row gap-6 items-start">
@@ -1105,7 +1203,7 @@ export const GatePassManagement = () => {
  <p className="font-semibold text-[var(--text-main)]">{selectedPass.contactNo || 'N/A'}</p>
  </div>
  <div>
- <p className="text-xs text-[var(--text-muted-alt)] font-medium">{activeTab === 'gate_in' ? 'Supplier' : 'Party'}</p>
+ <p className="text-xs text-[var(--text-muted-alt)] font-medium">{passCategory === 'INWARD' ? 'Supplier' : 'Party'}</p>
  <p className="font-semibold text-[var(--text-main)]">{selectedPass.supplier?.name || 'N/A'}</p>
  </div>
  <div>

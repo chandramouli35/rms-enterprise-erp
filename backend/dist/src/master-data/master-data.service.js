@@ -66,7 +66,7 @@ let MasterDataService = class MasterDataService {
         }
         return this.prisma.truckMaster.findMany({ where, orderBy: { createdAt: 'desc' } });
     }
-    async createTruck(plantId, data, file) {
+    async createTruck(plantId, data, file, userId) {
         const existing = await this.prisma.truckMaster.findFirst({
             where: { truckNumber: data.truckNumber }
         });
@@ -80,15 +80,27 @@ let MasterDataService = class MasterDataService {
         }
         const capacityNum = data.capacity ? Number(data.capacity) : undefined;
         const isApprovedBool = typeof data.isApproved === 'string' ? data.isApproved === 'true' : data.isApproved;
-        return this.prisma.truckMaster.create({
+        const truck = await this.prisma.truckMaster.create({
             data: {
                 plantId,
                 truckNumber: data.truckNumber,
+                transportCategory: data.transportCategory || 'PARTY',
                 capacity: capacityNum,
                 isApproved: isApprovedBool,
                 imageUrl
             }
         });
+        if (userId) {
+            await this.prisma.systemAuditLog.create({
+                data: {
+                    userId,
+                    action: 'AUTO_ADD_MASTER_DATA',
+                    module: 'Master Data',
+                    details: `Auto-added Truck: ${data.truckNumber}`
+                }
+            });
+        }
+        return truck;
     }
     async approveTruck(id) {
         return this.prisma.truckMaster.update({
@@ -107,21 +119,53 @@ let MasterDataService = class MasterDataService {
     async getDrivers(plantId) {
         return this.prisma.driverMaster.findMany({ where: { plantId }, orderBy: { name: 'asc' } });
     }
-    async createDriver(plantId, data) {
-        return this.prisma.driverMaster.create({
+    async createDriver(plantId, data, userId) {
+        const driver = await this.prisma.driverMaster.create({
             data: { plantId, ...data }
         });
+        if (userId) {
+            await this.prisma.systemAuditLog.create({
+                data: {
+                    userId,
+                    action: 'AUTO_ADD_MASTER_DATA',
+                    module: 'Master Data',
+                    details: `Auto-added Driver: ${data.name}`
+                }
+            });
+        }
+        return driver;
     }
     async deleteDriver(id) {
         return this.prisma.driverMaster.delete({ where: { id } });
     }
+    async updateDriver(id, data) {
+        return this.prisma.driverMaster.update({
+            where: { id },
+            data: {
+                ...(data.name && { name: data.name }),
+                ...(data.phone && { phone: data.phone }),
+                ...(data.age && { age: parseInt(data.age) }),
+            }
+        });
+    }
     async getStaff(plantId) {
         return this.prisma.staffMaster.findMany({ where: { plantId }, orderBy: { name: 'asc' } });
     }
-    async createStaff(plantId, data) {
-        return this.prisma.staffMaster.create({
+    async createStaff(plantId, data, userId) {
+        const staff = await this.prisma.staffMaster.create({
             data: { plantId, ...data }
         });
+        if (userId) {
+            await this.prisma.systemAuditLog.create({
+                data: {
+                    userId,
+                    action: 'AUTO_ADD_MASTER_DATA',
+                    module: 'Master Data',
+                    details: `Auto-added Staff: ${data.name}`
+                }
+            });
+        }
+        return staff;
     }
     async deleteStaff(id) {
         return this.prisma.staffMaster.delete({ where: { id } });
@@ -140,10 +184,21 @@ let MasterDataService = class MasterDataService {
         }
         return this.prisma.labourMaster.findMany({ where, orderBy: { name: 'asc' } });
     }
-    async createLabour(plantId, data) {
-        return this.prisma.labourMaster.create({
+    async createLabour(plantId, data, userId) {
+        const labour = await this.prisma.labourMaster.create({
             data: { plantId, ...data }
         });
+        if (userId) {
+            await this.prisma.systemAuditLog.create({
+                data: {
+                    userId,
+                    action: 'AUTO_ADD_MASTER_DATA',
+                    module: 'Master Data',
+                    details: `Auto-added Labour: ${data.name}`
+                }
+            });
+        }
+        return labour;
     }
     async deleteLabour(id) {
         return this.prisma.labourMaster.update({
@@ -165,10 +220,21 @@ let MasterDataService = class MasterDataService {
         }
         return this.prisma.pahunchMaster.findMany({ where, orderBy: { name: 'asc' } });
     }
-    async createPahunch(plantId, data) {
-        return this.prisma.pahunchMaster.create({
+    async createPahunch(plantId, data, userId) {
+        const pahunch = await this.prisma.pahunchMaster.create({
             data: { plantId, ...data }
         });
+        if (userId) {
+            await this.prisma.systemAuditLog.create({
+                data: {
+                    userId,
+                    action: 'AUTO_ADD_MASTER_DATA',
+                    module: 'Master Data',
+                    details: `Auto-added Pahunch Person: ${data.name}`
+                }
+            });
+        }
+        return pahunch;
     }
     async deletePahunch(id) {
         return this.prisma.pahunchMaster.update({

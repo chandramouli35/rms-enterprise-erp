@@ -60,6 +60,11 @@ let PlantsService = class PlantsService {
             },
         });
     }
+    async remove(id) {
+        return this.prisma.plant.delete({
+            where: { id }
+        });
+    }
 };
 exports.PlantsService = PlantsService;
 exports.PlantsService = PlantsService = __decorate([

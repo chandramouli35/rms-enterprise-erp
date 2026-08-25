@@ -12,6 +12,7 @@ import { biometricService } from '../services/biometricService';
 import StackSelectionModal from '../components/StackSelectionModal';
 import Pagination from '../components/Pagination';
 import { exportToExcel } from '../utils/exportUtils';
+import Combobox from '../components/Combobox';
 
 export const ProcurementManagement = () => {
  const [searchParams] = useSearchParams();
@@ -108,6 +109,7 @@ export const ProcurementManagement = () => {
   const defaultInwardFormData = {
     gpNo: '', date: '', timeIn: '', timeOut: '', truckNo: '', mandiEgpNo: '', rstNo: '', mandiParchiNo: '', supplierId: '',
     mandi: '', pahunchPersonName: '',
+    mandiType: 'Control', boliRate: '', boliChecklist: false,
     moisture: '', safai: '', mandiIntimation: '', remarks: '',
     allocationType: '',
     origBagsRec: 0, origAClass: 0, origBClass: 0, origAClassAg: 0, origBClassAg: 0,
@@ -312,6 +314,7 @@ export const ProcurementManagement = () => {
   });
   const [viewBolisModal, setViewBolisModal] = useState<any>({ isOpen: false, bolis: [], partyMandi: '', date: '' });
   
+  const isPaddyBlock1Valid = paddyPurchaseModal.plantId && paddyPurchaseModal.supplierId && paddyPurchaseModal.date;
   const handlePaddyPurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const selectedPlantId = paddyPurchaseModal.plantId || activePlant?.id ;
@@ -366,7 +369,8 @@ export const ProcurementManagement = () => {
       fetchSodaPending();
       fetchMandis();
       
-      const fetchMasterData = async () => {
+
+  const fetchMasterData = async () => {
         try { const res = await api.get('/api/master-data/trucks'); setTrucks(res.data); } catch (e) { console.error('Failed to fetch trucks', e); }
         try { const res = await api.get('/api/master-data/drivers'); setDrivers(res.data); } catch (e) { console.error('Failed to fetch drivers', e); }
         try { const res = await api.get('/api/master-data/staff'); setStaff(res.data); } catch (e) { console.error('Failed to fetch staff', e); }
@@ -380,6 +384,30 @@ export const ProcurementManagement = () => {
       fetchData();
     }
   }, [activePlant?.id, activeTab, listFilters.dateFrom, listFilters.dateTo]);
+
+  const handleMasterDataBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    if (!value) return;
+    
+    try {
+      if (name === 'truckNo' && !trucks.find(t => t.truckNumber === value)) {
+        await api.post('/api/master-data/trucks', { truckNumber: value });
+        const res = await api.get('/api/master-data/trucks');
+        setTrucks(res.data);
+      } else if (name === 'driverName' && !drivers.find(d => d.name === value)) {
+        await api.post('/api/master-data/drivers', { name: value, phone: inwardFormData.driverMobile || inwardFormData.driverNumber || '' });
+        const res = await api.get('/api/master-data/drivers');
+        setDrivers(res.data);
+      } else if ((name === 'pahunchPersonName' || name === 'pahunchPerson') && !pahunchs.find(p => p.name === value)) {
+        await api.post('/api/master-data/pahunch', { name: value });
+        const res = await api.get('/api/master-data/pahunch');
+        setPahunchs(res.data);
+      }
+      // Add similar for labour, etc if needed.
+    } catch (err) {
+      console.error('Auto-save failed:', err);
+    }
+  };
 
   // Dedicated useEffect for lists to respect pagination
   useEffect(() => {
@@ -951,10 +979,15 @@ export const ProcurementManagement = () => {
             </div>
             <div>
               <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Artia (Supplier)</label>
-              <select value={listFilters.supplierId} onChange={e => setListFilters(f => ({...f, supplierId: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm">
-                <option value="">All Artias</option>
-                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              <Combobox
+                 name="supplierIdFilter"
+                 value={listFilters.supplierId}
+                 onChange={(e: any) => setListFilters(f => ({...f, supplierId: e.target.value}))}
+                 options={suppliers}
+                 valueKey="id"
+                 placeholder="All Artias"
+                 className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm"
+               />
             </div>
             <div className="flex items-end">
               <button onClick={() => setListFilters({dateFrom: '', dateTo: '', mandi: '', supplierId: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
@@ -1158,11 +1191,16 @@ export const ProcurementManagement = () => {
   </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Truck No. <span className="text-red-500">*</span></label>
- <select name="truckNo" value={inwardFormData.truckNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
-   <option value="">Select Truck</option>
-   {trucks.map(t => <option key={t.id} value={t.truckNumber}>{t.truckNumber}</option>)}
- </select>
- {inwardErrors.truckNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.truckNo}</span>}
+  <Combobox
+    name="truckNo"
+    value={inwardFormData.truckNo}
+    onChange={handleInwardChange}
+    onBlur={handleMasterDataBlur}
+    options={trucks}
+    className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+    placeholder="Select or enter truck no"
+  />
+  {inwardErrors.truckNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.truckNo}</span>}
  </div>
   <div>
   <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Previous Truck Reading <span className="text-red-500">*</span></label>
@@ -1193,21 +1231,15 @@ export const ProcurementManagement = () => {
   </div>
   <div>
   <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Party / Supplier Name <span className="text-red-500">*</span></label>
-  <input 
-    list="supplier-options"
+  <Combobox
     name="supplierId"
-    value={suppliers.find(s => s.id === inwardFormData.supplierId)?.name || inwardFormData.supplierId || ''}
-    onChange={(e) => {
-      const val = e.target.value;
-      const matched = suppliers.find(s => s.name === val);
-      handleInwardChange({ target: { name: 'supplierId', value: matched ? matched.id : val } });
-    }}
-    className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
-    placeholder="Type to search supplier..."
-  />
-  <datalist id="supplier-options">
-    {suppliers.map(s => <option key={s.id} value={s.name}>{s.mandi || 'No Mandi'}</option>)}
-  </datalist>
+    value={inwardFormData.supplierId}
+    onChange={handleInwardChange}
+    options={suppliers}
+    valueKey="id"
+    placeholder="Select Supplier"
+    className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+   />
   {inwardErrors.supplierId && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.supplierId}</span>}
   </div>
  <div>
@@ -1221,16 +1253,40 @@ export const ProcurementManagement = () => {
  {inwardErrors.mandiEgpNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.mandiEgpNo}</span>}
  </div>
  <div>
+<label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi Type <span className="text-red-500">*</span></label>
+<select name="mandiType" value={inwardFormData.mandiType} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
+  <option value="Control">Control</option>
+  <option value="Boli">Boli</option>
+</select>
+</div>
+{inwardFormData.mandiType === 'Boli' && (
+  <div>
+    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Boli Rate (₹) <span className="text-red-500">*</span></label>
+    <input type="number" step="0.01" name="boliRate" value={inwardFormData.boliRate} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" required />
+  </div>
+)}
+{inwardFormData.mandiType === 'Boli' && (
+  <div className="flex items-start gap-2 pt-5">
+    <input type="checkbox" id="boliChecklist" name="boliChecklist" checked={inwardFormData.boliChecklist} onChange={handleInwardChange} className="mt-1" required />
+    <label htmlFor="boliChecklist" className="text-xs text-[var(--text-main)] leading-tight">Has the Artia entered the required Boli records into the system before issuing this Gate Pass? <span className="text-red-500">*</span></label>
+  </div>
+)}
+ <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">RST No. <span className="text-red-500">*</span></label>
  <input type="text" name="rstNo" value={inwardFormData.rstNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="RST-7485963" />
  {inwardErrors.rstNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.rstNo}</span>}
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center gap-2">Pahunch Person / Staff <span className="text-red-500">*</span></label>
- <select name="pahunchPersonName" value={inwardFormData.pahunchPersonName} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none">
-   <option value="">Select Staff</option>
-   {pahunchs.map(s => <option key={s.id} value={s.name}>{s.name} {s.contact ? `(${s.contact})` : ''}</option>)}
- </select>
+ <Combobox
+    name="pahunchPersonName"
+    value={inwardFormData.pahunchPersonName}
+    onChange={handleInwardChange}
+    onBlur={handleMasterDataBlur}
+    options={pahunchs}
+    className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+    placeholder="Select or enter person name"
+  />
  {inwardErrors.pahunchPersonName && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.pahunchPersonName}</span>}
  </div>
  </div>
@@ -1333,35 +1389,47 @@ export const ProcurementManagement = () => {
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Allocate Unloader <span className="text-red-500">*</span></label>
- <select name="allocateUnloader" value={inwardFormData.allocateUnloader} onChange={e => {
-   handleInwardChange(e);
-   if (e.target.value) {
-     setInwardFormData((prev: any) => ({...prev, unloaderTruckCount: Math.floor(Math.random() * 5) + 1}));
-   }
- }} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
-   <option value="">Select Unloader</option>
-   {labours.map(l => <option key={l.id} value={l.name}>{l.name}</option>)}
- </select>
+ <Combobox
+    name="allocateUnloader"
+    value={inwardFormData.allocateUnloader}
+    onChange={(e: any) => {
+      handleInwardChange(e);
+      if (e.target.value) {
+        setInwardFormData((prev: any) => ({...prev, unloaderTruckCount: Math.floor(Math.random() * 5) + 1}));
+      }
+    }}
+    onBlur={handleMasterDataBlur}
+    options={labours}
+    className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+    placeholder="Select or enter unloader"
+  />
  {inwardErrors.allocateUnloader && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.allocateUnloader}</span>}
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Pahunch Person Name <span className="text-red-500">*</span></label>
-<select name="pahunchPerson" value={inwardFormData.pahunchPerson || ''} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
-  <option value="">Select Pahunch Person</option>
-  {pahunchs.map(l => <option key={l.id} value={l.name}>{l.name}</option>)}
-</select>
+ <Combobox
+    name="pahunchPerson"
+    value={inwardFormData.pahunchPerson || ''}
+    onChange={handleInwardChange}
+    onBlur={handleMasterDataBlur}
+    options={pahunchs}
+    placeholder="Select or type Pahunch Person"
+    className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+  />
  {inwardErrors.pahunchPerson && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.pahunchPerson}</span>}
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between"><span>Stack No. <span className="text-red-500">*</span></span> <ScanBarcode size={14} className="text-[#e67e00]" /></label>
  <div className="flex gap-2">
  <div className="relative flex-1">
- <input type="text" name="stackNo" value={inwardFormData.stackNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 pl-8 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Scan stack barcode..." />
- <ScanBarcode size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+ <input type="text" name="stackNo" value={inwardFormData.stackNo} onChange={handleInwardChange} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 ${activePlant?.name?.toLowerCase().includes('beas') ? 'pl-8' : ''} text-[var(--text-main)] outline-none focus:border-[#e67e00]`} placeholder={activePlant?.name?.toLowerCase().includes('beas') ? "Scan stack barcode..." : "Enter Stack No."} />
+ {activePlant?.name?.toLowerCase().includes('beas') && <ScanBarcode size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />}
  </div>
- <button type="button" onClick={openStackModal} className="px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded text-[var(--text-main)] hover:bg-[var(--glass-bg)]" title="Select Manually">
- <Layers size={16} />
- </button>
+ {activePlant?.name?.toLowerCase().includes('beas') && (
+   <button type="button" onClick={openStackModal} className="px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded text-[var(--text-main)] hover:bg-[var(--glass-bg)]" title="Select Manually">
+   <Layers size={16} />
+   </button>
+ )}
  </div>
  {inwardErrors.stackNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.stackNo}</span>}
  </div>
@@ -1396,10 +1464,15 @@ export const ProcurementManagement = () => {
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Labour Name <span className="text-red-500">*</span></label>
- <select name="labour" value={inwardFormData.labour} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
- <option value="">Select Labour Contractor</option>
- {labours.map(l => <option key={l.id} value={l.name}>{l.name}</option>)}
- </select>
+ <Combobox
+    name="labour"
+    value={inwardFormData.labour}
+    onChange={handleInwardChange}
+    onBlur={handleMasterDataBlur}
+    options={labours}
+    className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+    placeholder="Select or enter labour name"
+  />
  {inwardErrors.labour && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.labour}</span>}
  </div>
  <div>
@@ -1768,11 +1841,22 @@ export const ProcurementManagement = () => {
  <div className="p-4 grid grid-cols-2 gap-4 text-sm">
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center gap-2">Driver Name <span className="text-red-500">*</span></label>
- <select name="driverName" value={inwardFormData.driverName} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none">
-   <option value="">Select Driver</option>
-   {drivers.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
- </select>
- {inwardErrors.driverName && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.driverName}</span>}
+ <Combobox
+    name="driverName"
+    value={inwardFormData.driverName}
+    onChange={(e: any) => {
+      handleInwardChange(e);
+      const match = drivers.find((d: any) => d.name === e.target.value);
+      if (match && match.phone) {
+        setInwardFormData((prev: any) => ({ ...prev, mobileNumber: match.phone }));
+      }
+    }}
+    onBlur={handleMasterDataBlur}
+    options={drivers}
+    className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"
+    placeholder="Select or enter driver name"
+  />
+  {inwardErrors.driverName && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.driverName}</span>}
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mobile Number <span className="text-red-500">*</span></label>
@@ -1985,10 +2069,15 @@ export const ProcurementManagement = () => {
           </div>
           <div>
             <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Artia (Supplier)</label>
-            <select value={listFilters.supplierId} onChange={e => setListFilters(f => ({...f, supplierId: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm">
-              <option value="">All Artias</option>
-              {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <Combobox
+               name="supplierIdFilter"
+               value={listFilters.supplierId}
+               onChange={(e: any) => setListFilters(f => ({...f, supplierId: e.target.value}))}
+               options={suppliers}
+               valueKey="id"
+               placeholder="All Artias"
+               className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm"
+             />
           </div>
           <div className="flex items-end">
             <button onClick={() => setListFilters({dateFrom: '', dateTo: '', mandi: '', supplierId: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
@@ -2486,16 +2575,22 @@ export const ProcurementManagement = () => {
 
         <div>
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Party - Supplier</label>
-          <select value={paddyPurchaseModal.supplierId} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, supplierId: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required>
-            <option value="">Select Supplier</option>
-            {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          <Combobox
+            name="supplierId"
+            value={paddyPurchaseModal.supplierId}
+            onChange={(e: any) => setPaddyPurchaseModal({...paddyPurchaseModal, supplierId: e.target.value})}
+            options={suppliers}
+            valueKey="id"
+            placeholder="Select Supplier"
+            className="bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"
+            required
+          />
         </div>
         <div>
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Date</label>
           <input type="date" value={paddyPurchaseModal.date} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, date: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
         </div>
-        <div className="col-span-2 border border-[var(--border-subtle)] rounded p-4 space-y-4">
+        <div className={`col-span-2 border border-[var(--border-subtle)] rounded p-4 space-y-4 transition-opacity duration-300 ${!isPaddyBlock1Valid ? 'opacity-40 pointer-events-none' : ''}`}>
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-sm font-bold text-[var(--text-main)]">Boli Details (Rate, Moisture, Bags)</h3>
           </div>

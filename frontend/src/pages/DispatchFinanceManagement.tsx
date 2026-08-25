@@ -622,10 +622,12 @@ export function DispatchFinanceManagement() {
                 <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Item / Product *</label>
                 <select 
                   required
+                  name="item"
                   value={dispatchForm.item}
                   onChange={e => setDispatchForm({...dispatchForm, item: e.target.value})}
                   className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-[var(--text-main)] focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
                 >
+                  <option value="">Select Item</option>
                   <option value="PADDY">PADDY</option>
                   <option value="RICE">RICE</option>
                   <option value="BRAN">BRAN</option>

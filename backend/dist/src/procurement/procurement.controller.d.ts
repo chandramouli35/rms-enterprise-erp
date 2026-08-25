@@ -53,6 +53,9 @@ export declare class ProcurementController {
             qualityCutType: string | null;
             qualityCutReason: string | null;
             partyName: string | null;
+            mandiType: string | null;
+            boliRate: number | null;
+            boliChecklist: boolean | null;
             procurementBatchId: string;
             truckNo: string | null;
             gpNo: string | null;
@@ -63,6 +66,7 @@ export declare class ProcurementController {
             safaiType: string | null;
             intimationToMandi: boolean | null;
             mandiQualityAlert: boolean | null;
+            bardanaClass: string | null;
             allocationType: string | null;
             isUploadedToHoodiRegister: boolean | null;
             allocateUnloader: string | null;
@@ -99,10 +103,6 @@ export declare class ProcurementController {
             bClassReceived: number | null;
             bClassPending: number | null;
             autoConvertedToBClass: number | null;
-            previousTruckReading: number | null;
-            newTruckReading: number | null;
-            kmsDriven: number | null;
-            meterNotWorking: boolean;
             paddyBoliRecord: string | null;
             mainUnloaderTruckCount: number | null;
             bagsInMainStack: number | null;
@@ -130,8 +130,8 @@ export declare class ProcurementController {
             vehicleNo: string;
             driverName: string | null;
             challanNo: string | null;
-            gatePassId: string | null;
             transactionType: string;
+            gatePassId: string | null;
             materialType: string | null;
             supplierName: string | null;
             grossTime: Date | null;
@@ -143,11 +143,11 @@ export declare class ProcurementController {
             updatedAt: Date;
             moisture: number | null;
             status: string;
-            procurementBatchId: string;
             broken: number | null;
             discoloration: number | null;
             foreignMatter: number | null;
             inspectedBy: string | null;
+            procurementBatchId: string;
         } | null;
     } & {
         id: string;
@@ -189,8 +189,8 @@ export declare class ProcurementController {
                 vehicleNo: string;
                 driverName: string | null;
                 challanNo: string | null;
-                gatePassId: string | null;
                 transactionType: string;
+                gatePassId: string | null;
                 materialType: string | null;
                 supplierName: string | null;
                 grossTime: Date | null;
@@ -202,11 +202,11 @@ export declare class ProcurementController {
                 updatedAt: Date;
                 moisture: number | null;
                 status: string;
-                procurementBatchId: string;
                 broken: number | null;
                 discoloration: number | null;
                 foreignMatter: number | null;
                 inspectedBy: string | null;
+                procurementBatchId: string;
             } | null;
             supplierDetails: {
                 id: string;
@@ -232,6 +232,9 @@ export declare class ProcurementController {
             qualityCutType?: string | null | undefined;
             qualityCutReason?: string | null | undefined;
             partyName?: string | null | undefined;
+            mandiType?: string | null | undefined;
+            boliRate?: number | null | undefined;
+            boliChecklist?: boolean | null | undefined;
             procurementBatchId?: string | undefined;
             truckNo?: string | null | undefined;
             gpNo: string | null;
@@ -242,6 +245,7 @@ export declare class ProcurementController {
             safaiType?: string | null | undefined;
             intimationToMandi?: boolean | null | undefined;
             mandiQualityAlert?: boolean | null | undefined;
+            bardanaClass?: string | null | undefined;
             allocationType?: string | null | undefined;
             isUploadedToHoodiRegister?: boolean | null | undefined;
             allocateUnloader?: string | null | undefined;
@@ -278,10 +282,6 @@ export declare class ProcurementController {
             bClassReceived?: number | null | undefined;
             bClassPending?: number | null | undefined;
             autoConvertedToBClass?: number | null | undefined;
-            previousTruckReading?: number | null | undefined;
-            newTruckReading?: number | null | undefined;
-            kmsDriven?: number | null | undefined;
-            meterNotWorking?: boolean | undefined;
             paddyBoliRecord?: string | null | undefined;
             mainUnloaderTruckCount?: number | null | undefined;
             bagsInMainStack?: number | null | undefined;
@@ -350,6 +350,9 @@ export declare class ProcurementController {
             qualityCutType: string | null;
             qualityCutReason: string | null;
             partyName: string | null;
+            mandiType: string | null;
+            boliRate: number | null;
+            boliChecklist: boolean | null;
             procurementBatchId: string;
             truckNo: string | null;
             gpNo: string | null;
@@ -360,6 +363,7 @@ export declare class ProcurementController {
             safaiType: string | null;
             intimationToMandi: boolean | null;
             mandiQualityAlert: boolean | null;
+            bardanaClass: string | null;
             allocationType: string | null;
             isUploadedToHoodiRegister: boolean | null;
             allocateUnloader: string | null;
@@ -396,10 +400,6 @@ export declare class ProcurementController {
             bClassReceived: number | null;
             bClassPending: number | null;
             autoConvertedToBClass: number | null;
-            previousTruckReading: number | null;
-            newTruckReading: number | null;
-            kmsDriven: number | null;
-            meterNotWorking: boolean;
             paddyBoliRecord: string | null;
             mainUnloaderTruckCount: number | null;
             bagsInMainStack: number | null;
@@ -427,8 +427,8 @@ export declare class ProcurementController {
             vehicleNo: string;
             driverName: string | null;
             challanNo: string | null;
-            gatePassId: string | null;
             transactionType: string;
+            gatePassId: string | null;
             materialType: string | null;
             supplierName: string | null;
             grossTime: Date | null;
@@ -440,11 +440,11 @@ export declare class ProcurementController {
             updatedAt: Date;
             moisture: number | null;
             status: string;
-            procurementBatchId: string;
             broken: number | null;
             discoloration: number | null;
             foreignMatter: number | null;
             inspectedBy: string | null;
+            procurementBatchId: string;
         } | null;
     } & {
         id: string;
@@ -476,11 +476,11 @@ export declare class ProcurementController {
         updatedAt: Date;
         moisture: number | null;
         status: string;
-        procurementBatchId: string;
         broken: number | null;
         discoloration: number | null;
         foreignMatter: number | null;
         inspectedBy: string | null;
+        procurementBatchId: string;
     }>;
     getSuppliers(): Promise<{
         id: string;

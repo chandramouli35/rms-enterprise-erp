@@ -11,7 +11,8 @@ export class ProcurementService {
       plantId, supplierId, gatePassId, weighbridgeId, 
       netWeight, ratePerQuintal, transportCharges, otherCharges,
       moisture, broken, discoloration, foreignMatter, inspectedBy,
-      category, purchaseType, bugs, godown, biometricData
+      category, purchaseType, bugs, godown, biometricData,
+      mandiType, boliRate, boliChecklist
     } = data;
 
     const parsedNetWeight = parseFloat(netWeight) || 0;
@@ -109,6 +110,13 @@ export class ProcurementService {
           netAmount: totalAmount,
           biometricData: biometricData || null,
           status: 'PENDING',
+          paddyInwardDetails: {
+            create: {
+              mandiType: mandiType || null,
+              boliRate: boliRate ? parseFloat(boliRate) : null,
+              boliChecklist: boliChecklist === true || boliChecklist === 'true'
+            }
+          }
         }
       });
 

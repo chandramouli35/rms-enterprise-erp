@@ -99,29 +99,41 @@ export default function StackSelectionModal({ isOpen, onClose, onSelect, occupie
     }
   };
 
+  const generateMainStacks = () => {
+    const stacks = [];
+    for (let col = 1; col <= 7; col++) {
+      for (let row = 8; row >= 1; row--) {
+        const stackNum = (col - 1) * 8 + row;
+        stacks.push(stackNum.toString());
+      }
+    }
+    return stacks;
+  };
+
   const renderStack = (stack: string) => {
     const data = occupiedStacks[stack];
     const isOccupied = !!data;
     
     const colorClass = isOccupied 
       ? getMoistureColor(data?.moisture)
-      : 'bg-blue-900/20 border-blue-500/30 text-blue-300'; // Available
+      : 'bg-[var(--bg-base)] border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-panel-alt)]'; // Available
 
     return (
       <div 
         key={stack} 
-        className="relative"
+        className="relative flex flex-col items-center"
         onMouseEnter={() => setHoveredStack(stack)}
         onMouseLeave={() => setHoveredStack(null)}
       >
+        <span className="text-[10px] font-bold text-[var(--text-muted-alt)] mb-1">{stack}</span>
         <button
           type="button"
           onClick={() => handleStackClick(stack)}
-          className={`relative h-12 w-12 sm:h-14 sm:w-14 rounded flex flex-col items-center justify-center text-[11px] font-bold transition-all border ${colorClass} hover:scale-105 shadow-sm`}
+          className={`relative h-10 w-12 rounded flex flex-col items-center justify-center text-[10px] font-bold transition-all border-2 ${colorClass} hover:scale-105 shadow-sm`}
         >
-          <span>{stack}</span>
+          <span>{data ? data.capacity || 2467 : 2467}</span>
           {data && (
-            <span className="text-[8px] bg-black/50 px-1 rounded mt-1">{data.type}</span>
+            <span className="absolute bottom-0 text-[7.5px] bg-black/70 px-1 rounded truncate w-full">{data.type}</span>
           )}
         </button>
 
@@ -160,26 +172,75 @@ export default function StackSelectionModal({ isOpen, onClose, onSelect, occupie
         </div>
 
         <div className="p-6 overflow-x-auto bg-[var(--bg-base)]">
-          <div className="border-2 border-[var(--border-subtle)] p-8 rounded-lg relative min-w-[900px] w-full max-w-5xl mx-auto bg-[var(--bg-panel-alt)] flex flex-col gap-8 shadow-inner">
+          <div className="border-2 border-[var(--border-subtle)] rounded-lg relative min-w-[1150px] h-[950px] mx-auto bg-[var(--bg-panel-alt)] shadow-inner overflow-hidden">
             
-            {sections.map(section => (
-              <div key={section.name} className="bg-black/20 p-4 rounded-xl border border-white/5 shadow-inner">
-                <div className="text-sm text-[var(--text-muted-alt)] mb-4 uppercase tracking-widest font-bold flex justify-between items-center border-b border-white/10 pb-2">
-                  <span>{section.name}</span>
-                  <button 
-                    type="button" 
-                    onClick={() => handleAddStack(section.name)} 
-                    className="flex items-center gap-1 text-blue-400 hover:text-blue-300 text-xs px-2 py-1 bg-blue-900/30 rounded border border-blue-500/30 hover:border-blue-400 transition-colors"
-                  >
-                    <Plus size={14} /> Add Stack
-                  </button>
+            {/* A Label and Main Grid 7 cols x 8 rows */}
+            <div className="absolute left-[240px] top-6 font-bold text-xl text-[var(--text-muted)] tracking-widest">A</div>
+            <div className="absolute left-10 top-14 grid grid-flow-col grid-rows-8 gap-x-6 gap-y-3">
+              {generateMainStacks().map(s => renderStack(s))}
+            </div>
+
+            {/* Attached Structure: Mistry Room, Empty Space, Labour Room */}
+            <div className="absolute left-[112px] top-[640px] flex">
+              <div className="flex flex-col">
+                <div className="w-[336px] h-[50px] border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] tracking-widest uppercase bg-[var(--bg-base)]">
+                  Mistry Room
                 </div>
-                <div className="grid grid-cols-10 gap-3">
-                  {Array.from({ length: section.count }, (_, i) => `${section.prefix}${i + 1}`).map(renderStack)}
+                <div className="w-[336px] h-[150px] border-x-2 border-b-2 border-[var(--border-subtle-alt)] bg-transparent">
                 </div>
               </div>
-            ))}
+              <div className="w-[60px] h-[200px] border-y-2 border-r-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] tracking-widest uppercase bg-[var(--bg-base)]">
+                <span className="-rotate-90 whitespace-nowrap">Labour Room</span>
+              </div>
+            </div>
 
+            {/* Office - Middle right */}
+            <div className="absolute left-[560px] top-[680px] w-[100px] h-[100px] border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] tracking-widest uppercase bg-[var(--bg-base)]">
+              Office
+            </div>
+
+            {/* Kanda - Vertical to the right of Office */}
+            <div className="absolute left-[680px] top-[680px] w-[60px] h-[150px] border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] tracking-widest uppercase bg-[var(--bg-base)]">
+              <span className="-rotate-90 whitespace-nowrap">Kanda</span>
+            </div>
+
+            {/* Droll, Shaller, Rice Room - Vertical column far right */}
+            <div className="absolute left-[950px] top-[300px] flex flex-col border-2 border-[var(--border-subtle-alt)] bg-[var(--bg-base)]">
+              <div className="w-[80px] h-[80px] border-b-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-[10px] font-bold text-[var(--text-muted)] uppercase"><span className="-rotate-90 whitespace-nowrap">Droll</span></div>
+              <div className="w-[80px] h-[100px] border-b-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-[10px] font-bold text-[var(--text-muted)] uppercase"><span className="-rotate-90 whitespace-nowrap">Shaller</span></div>
+              <div className="w-[80px] h-[120px] flex items-center justify-center text-[10px] font-bold text-[var(--text-muted)] uppercase"><span className="-rotate-90 whitespace-nowrap">Rice Room</span></div>
+            </div>
+
+            {/* B Label and Top Right Stacks (3x3 grid) */}
+            <div className="absolute left-[900px] top-6 font-bold text-xl text-[var(--text-muted)] tracking-widest">B</div>
+            <div className="absolute left-[850px] top-14 grid grid-cols-3 gap-x-6 gap-y-3">
+              {[
+                { no: '8', cap: '1262' }, { no: '5', cap: '2467' }, { no: '2', cap: '2467' },
+                { no: '9', cap: '2467' }, { no: '6', cap: '2467' }, { no: '3', cap: '2467' },
+                null,                     { no: '7', cap: '2467' }, { no: '4', cap: '2467' }
+              ].map((stack, i) => (
+                stack ? (
+                  <div key={i} className="flex flex-col items-center opacity-70">
+                    <span className="text-[10px] font-bold text-[var(--text-muted-alt)] mb-1">{stack.no}</span>
+                    <div className="border-2 border-[var(--border-subtle)] rounded text-[10px] font-bold w-12 h-10 flex items-center justify-center bg-[var(--bg-base)] text-[var(--text-muted)]">{stack.cap}</div>
+                  </div>
+                ) : (
+                  <div key={i} className="w-12 h-10"></div>
+                )
+              ))}
+            </div>
+
+            {/* Stack 10 (2198) - right of main grid */}
+            <div className="absolute left-[544px] top-[56px] flex flex-col items-center">
+              <span className="text-[10px] font-bold text-[var(--text-muted-alt)] mb-1">10</span>
+              <div className="border-2 border-[var(--border-subtle)] rounded text-[10px] font-bold bg-[var(--bg-base)] text-[var(--text-main)] w-12 h-10 flex items-center justify-center">2198</div>
+            </div>
+
+            {/* Stack 1 (1280) - to the right of Droll Room */}
+            <div className="absolute left-[1050px] top-[310px] opacity-70 flex flex-col items-center">
+              <span className="text-[10px] font-bold text-[var(--text-muted-alt)] mb-1">1</span>
+              <div className="border-2 border-[var(--border-subtle)] rounded text-[9px] font-bold w-12 h-10 flex items-center justify-center bg-[var(--bg-base)] text-[var(--text-muted)]">1280</div>
+            </div>
           </div>
         </div>
       </div>

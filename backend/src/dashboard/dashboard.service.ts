@@ -225,9 +225,8 @@ export class DashboardService {
     }
 
     // Check meter not working
-    const brokenMeters = await this.prisma.paddyInwardDetails.findMany({
-      where: { meterNotWorking: true, procurementBatch: pFilter },
-      include: { procurementBatch: true },
+    const brokenMeters = await this.prisma.gatePass.findMany({
+      where: { meterNotWorking: true, ...pFilter },
       orderBy: { createdAt: 'desc' },
       take: 5
     });
@@ -236,7 +235,7 @@ export class DashboardService {
       alerts.push({
         type: 'MeterBroken',
         title: 'Meter Not Working',
-        details: `Driver meter reported not working for truck ${bm.truckNo || 'Unknown'}`,
+        details: `Driver meter reported not working for truck ${bm.vehicleNo || 'Unknown'}`,
         time: bm.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       });
     });

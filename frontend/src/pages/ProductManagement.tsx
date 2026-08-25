@@ -169,12 +169,21 @@ export const ProductManagement = () => {
               <div>
                 <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Type</label>
                 <select value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 transition-colors appearance-none">
-                  <option value="PADDY">Paddy</option>
-                  <option value="RICE">Rice</option>
-                  <option value="BRAN">Bran</option>
-                  <option value="HUSK">Husk</option>
-                  <option value="FINISHED_GOODS">Finished Goods</option>
-                  <option value="CONSUMABLES">Consumables</option>
+                  <optgroup label="Raw Material">
+                    <option value="PADDY">Paddy</option>
+                  </optgroup>
+                  <optgroup label="Finished Goods">
+                    <option value="RICE">Rice</option>
+                    <option value="WAND_RICE">Wand Rice</option>
+                  </optgroup>
+                  <optgroup label="By Products">
+                    <option value="BRAN">Bran</option>
+                    <option value="K_PHUK">K. Phuk</option>
+                    <option value="NAPKE_1">Napke 1</option>
+                    <option value="NAPKE_2">Napke 2</option>
+                    <option value="BROKEN_RICE">Broken Rice</option>
+                    <option value="REJECTIONS">Rejections</option>
+                  </optgroup>
                 </select>
               </div>
               <div>

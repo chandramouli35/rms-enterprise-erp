@@ -490,17 +490,17 @@ export const ProductionManagement = () => {
  <div className="grid grid-cols-2 gap-4">
  <div>
  <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Shift <span className="text-red-500">*</span></label>
- <select name="shift" value={formData.shift} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none">
- <option>Day Shift</option>
- <option>Night Shift</option>
- </select>
+  <select name="shift" value={formData.shift} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none">
+    <option value="Day Shift">Day Shift</option>
+    <option value="Night Shift">Night Shift</option>
+  </select>
  </div>
  <div>
  <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Production Line <span className="text-red-500">*</span></label>
- <select name="productionLine" value={formData.productionLine} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none">
- <option>Line 1</option>
- <option>Line 2</option>
- </select>
+  <select name="productionLine" value={formData.productionLine} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none">
+    <option value="Line 1">Line 1</option>
+    <option value="Line 2">Line 2</option>
+  </select>
  </div>
  </div>
  </div>
@@ -510,10 +510,10 @@ export const ProductionManagement = () => {
  <div className="grid grid-cols-2 gap-4">
  <div>
  <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Paddy Type <span className="text-red-500">*</span></label>
- <select name="paddyType" value={formData.paddyType} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none">
- <option>PR-11 (Steam)</option>
- <option>Raw</option>
- </select>
+  <select name="paddyType" value={formData.paddyType} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none">
+    <option value="PR-11 (Steam)">PR-11 (Steam)</option>
+    <option value="Raw">Raw</option>
+  </select>
  </div>
  <div>
  <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Variety</label>

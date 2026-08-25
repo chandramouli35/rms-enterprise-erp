@@ -8,6 +8,7 @@ import {
 import { usePlantStore } from '../store/plantStore';
 import api from '../api/axios';
 import { CustomModal } from '../components/CustomModal';
+import Combobox from '../components/Combobox';
 
 export const WeighbridgeManagement = () => {
  const [searchParams] = useSearchParams();
@@ -449,9 +450,9 @@ export const WeighbridgeManagement = () => {
  <div className="space-y-4 flex-1">
  <div>
  <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Transaction Type <span className="text-red-500">*</span></label>
- <select value={transType} onChange={e => setTransType(e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 appearance-none">
- <option>Inward</option>
- <option>Outward</option>
+ <select name="transType" value={transType} onChange={e => setTransType(e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500">
+  <option value="Inward">Inward</option>
+  <option value="Outward">Outward</option>
  </select>
  </div>
 
@@ -493,33 +494,38 @@ export const WeighbridgeManagement = () => {
 
  <div>
  <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Material Type</label>
- <select value={materialType} onChange={e => setMaterialType(e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 appearance-none">
- <option>Paddy</option>
- <option>Rice</option>
- <option>Bran</option>
- <option>Husk</option>
+ <select name="materialType" value={materialType} onChange={e => setMaterialType(e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500">
+  <option value="">Select Material</option>
+  <option value="Paddy">Paddy</option>
+  <option value="Rice">Rice</option>
+  <option value="Bran">Bran</option>
+  <option value="Husk">Husk</option>
  </select>
  </div>
 
  <div>
             <div>
               <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Party / Supplier</label>
-              <select value={supplier} onChange={e => {
-                setSupplier(e.target.value);
-                setSelectedSodaId('');
-                setBagsReceived('');
-              }} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 appearance-none">
-                <option value="">Select Supplier</option>
-                {transType === 'Inward' ? (
-                  Array.from(new Set(pendingSodas.map(s => s.partyMandi).filter(Boolean))).map(s => <option key={s as string} value={s as string}>{s as string}</option>)
-                ) : (
-                  <>
-                    <option>Ganga Traders</option>
-                    <option>Sharma Rice Traders</option>
-                    <option>Kisan Supply Co.</option>
-                  </>
-                )}
-              </select>
+                <Combobox
+                  name="supplier"
+                  value={supplier} 
+                  onChange={(e: any) => {
+                    setSupplier(e.target.value);
+                    setSelectedSodaId('');
+                    setBagsReceived('');
+                  }} 
+                  options={transType === 'Inward' ? 
+                    Array.from(new Set(pendingSodas.map(s => s.partyMandi).filter(Boolean))).map(s => ({ id: s as string, name: s as string })) :
+                    [
+                      { id: 'Ganga Traders', name: 'Ganga Traders' },
+                      { id: 'Sharma Rice Traders', name: 'Sharma Rice Traders' },
+                      { id: 'Kisan Supply Co.', name: 'Kisan Supply Co.' }
+                    ]
+                  }
+                  valueKey="id"
+                  placeholder="Select Party / Supplier"
+                  className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500"
+                />
             </div>
 
             {transType === 'Inward' && supplier && (
@@ -808,9 +814,15 @@ export const WeighbridgeManagement = () => {
  {uniqueMaterials.map(mat => <option key={mat as string} value={mat as string}>{mat as string}</option>)}
  </select>
 
- <select value={historySupplierFilter} onChange={e => setHistorySupplierFilter(e.target.value)} className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500">
- {uniqueSuppliers.map(sup => <option key={sup as string} value={sup as string}>{sup as string}</option>)}
- </select>
+  <Combobox
+    name="historySupplierFilter"
+    value={historySupplierFilter}
+    onChange={(e: any) => setHistorySupplierFilter(e.target.value)}
+    options={uniqueSuppliers.map(sup => ({ id: sup as string, name: sup as string }))}
+    valueKey="id"
+    placeholder="All Suppliers"
+    className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500"
+  />
 
  <div className="relative flex-1 min-w-[250px]">
  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted-alt)]" />

@@ -53,4 +53,10 @@ export class PlantsService {
       },
     });
   }
+
+  async remove(id: string) {
+    return this.prisma.plant.delete({
+      where: { id }
+    });
+  }
 }

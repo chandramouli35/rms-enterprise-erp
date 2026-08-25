@@ -19,7 +19,7 @@ let ProcurementService = class ProcurementService {
         this.inventoryService = inventoryService;
     }
     async savePurchase(data) {
-        const { plantId, supplierId, gatePassId, weighbridgeId, netWeight, ratePerQuintal, transportCharges, otherCharges, moisture, broken, discoloration, foreignMatter, inspectedBy, category, purchaseType, bugs, godown, biometricData } = data;
+        const { plantId, supplierId, gatePassId, weighbridgeId, netWeight, ratePerQuintal, transportCharges, otherCharges, moisture, broken, discoloration, foreignMatter, inspectedBy, category, purchaseType, bugs, godown, biometricData, mandiType, boliRate, boliChecklist } = data;
         const parsedNetWeight = parseFloat(netWeight) || 0;
         const parsedRate = parseFloat(ratePerQuintal) || 0;
         const parsedTransport = parseFloat(transportCharges) || 0;
@@ -96,6 +96,13 @@ let ProcurementService = class ProcurementService {
                     netAmount: totalAmount,
                     biometricData: biometricData || null,
                     status: 'PENDING',
+                    paddyInwardDetails: {
+                        create: {
+                            mandiType: mandiType || null,
+                            boliRate: boliRate ? parseFloat(boliRate) : null,
+                            boliChecklist: boliChecklist === true || boliChecklist === 'true'
+                        }
+                    }
                 }
             });
             await tx.qualityInspection.create({
