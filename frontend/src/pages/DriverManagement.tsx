@@ -18,7 +18,7 @@ export default function DriverManagement() {
   const fetchDrivers = async () => {
     setIsLoading(true);
     try {
-      const res = await api.get('/master-data/drivers', {
+      const res = await api.get('/api/master-data/drivers', {
         headers: { 'x-plant-id': activePlantId }
       });
       setDrivers(res.data || []);
@@ -58,7 +58,7 @@ export default function DriverManagement() {
     e.preventDefault();
     if (!validateForm(addModal.name, addModal.phone, addModal.age)) return;
     try {
-      await api.post('/master-data/drivers', {
+      await api.post('/api/master-data/drivers', {
         name: addModal.name,
         phone: addModal.phone,
         age: addModal.age ? parseInt(addModal.age) : undefined
@@ -77,7 +77,7 @@ export default function DriverManagement() {
     e.preventDefault();
     if (!validateForm(editModal.name, editModal.phone, editModal.age)) return;
     try {
-      await api.put(`/master-data/drivers/${editModal.id}`, {
+      await api.put(`/api/master-data/drivers/${editModal.id}`, {
         name: editModal.name,
         phone: editModal.phone,
         age: editModal.age ? parseInt(editModal.age) : undefined
@@ -95,7 +95,7 @@ export default function DriverManagement() {
   const handleDelete = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this driver?')) return;
     try {
-      await api.delete(`/master-data/drivers/${id}`, {
+      await api.delete(`/api/master-data/drivers/${id}`, {
         headers: { 'x-plant-id': activePlantId }
       });
       fetchDrivers();
