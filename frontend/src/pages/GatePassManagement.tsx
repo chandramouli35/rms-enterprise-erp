@@ -721,9 +721,8 @@ export const GatePassManagement = () => {
   <div>
   <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Purpose <span className="text-red-500">*</span></label>
   <select name="purpose" value={formData.purpose} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none">
-  <option value="Paddy Purchase">Paddy Purchase</option>
-  <option value="Dispatch">Dispatch</option>
-  <option value="Inter-Plant">Inter-Plant</option>
+   <option value="Intermill">Intermill</option>
+   <option value="Not Applicable">Not Applicable</option>
   </select>
   </div>
   <div>
