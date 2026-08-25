@@ -7,7 +7,8 @@ import { Users, Trash2 } from 'lucide-react';
 type FilterType = 'ALL' | 'PAHUNCH' | 'LABOUR' | 'DRIVER';
 
 export const StaffList: React.FC = () => {
-  const { activePlantId } = usePlantStore();
+  const { activePlant } = usePlantStore();
+  const activePlantId = activePlant?.id;
   const { user } = useAuthStore();
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [staffList, setStaffList] = useState<any[]>([]);

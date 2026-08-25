@@ -8,7 +8,8 @@ import { useNavigate } from 'react-router-dom';
 type StaffCategory = 'DRIVER' | 'LABOUR' | 'PAHUNCH';
 
 export const AddStaff: React.FC = () => {
-  const { activePlantId } = usePlantStore();
+  const { activePlant } = usePlantStore();
+  const activePlantId = activePlant?.id;
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const [category, setCategory] = useState<StaffCategory>('DRIVER');
