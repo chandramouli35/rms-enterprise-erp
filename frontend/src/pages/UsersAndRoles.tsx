@@ -194,7 +194,6 @@ export const UsersAndRoles: React.FC = () => {
       id: user.id,
       fullName: user.fullname || user.username || '',
       email: user.email || '',
-      currentPassword: '',
       newPassword: '',
       confirmPassword: '',
       roleId: user.roleId || '',
@@ -206,11 +205,7 @@ export const UsersAndRoles: React.FC = () => {
   const handleEditUserSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   
-  if (editUserForm.newPassword || editUserForm.currentPassword || editUserForm.confirmPassword) {
-    if (!editUserForm.currentPassword) {
-      setModalConfig({ isOpen: true, title: 'Error', content: 'Current password is required to set a new password.' });
-      return;
-    }
+  if (editUserForm.newPassword || editUserForm.confirmPassword) {
     if (editUserForm.newPassword !== editUserForm.confirmPassword) {
       setModalConfig({ isOpen: true, title: 'Error', content: 'New password and confirm password do not match.' });
       return;
@@ -746,19 +741,6 @@ export const UsersAndRoles: React.FC = () => {
  <div>
  <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Username</label>
  <input required type="text" value={editUserForm.email} onChange={e => setEditUserForm({...editUserForm, email: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors" placeholder="e.g. john" />
- </div>
-
- <div>
- <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Current Password (Required for changing password)</label>
- <div className="relative">
- <input 
- type={showPassword ? "text" : "password"} 
- value={editUserForm.currentPassword} 
- onChange={e => setEditUserForm({...editUserForm, currentPassword: e.target.value})} 
- className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 pr-10 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors" 
- placeholder="Enter current password" 
- />
- </div>
  </div>
 
  <div>
