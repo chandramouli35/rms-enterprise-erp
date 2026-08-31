@@ -46,7 +46,7 @@ export const UsersAndRoles: React.FC = () => {
 
  // Edit User Modal State
  const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
- const [editUserForm, setEditUserForm] = useState<{ id: string, fullName: string, email: string, currentPassword: string, newPassword: string, confirmPassword: string, roleId: string, plantIds: string[] }>({ id: '', fullName: '', email: '', currentPassword: '', newPassword: '', confirmPassword: '', roleId: '', plantIds: [] });
+ const [editUserForm, setEditUserForm] = useState<{ id: string, fullName: string, email: string, newPassword: string, confirmPassword: string, roleId: string, plantIds: string[] }>({ id: '', fullName: '', email: '', newPassword: '', confirmPassword: '', roleId: '', plantIds: [] });
   
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [isEditPlantDropdownOpen, setIsEditPlantDropdownOpen] = useState(false);
