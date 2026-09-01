@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { useUiStore } from '../store/uiStore';
 import { usePlantStore } from '../store/plantStore';
 import api from '../api/axios';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, AlertTriangle } from 'lucide-react';
 
 export const DashboardShell: React.FC = () => {
  const { user, logout } = useAuthStore();
@@ -14,6 +14,8 @@ export const DashboardShell: React.FC = () => {
  const location = useLocation();
  const [plants, setPlants] = useState<any[]>([]);
  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+ const [showNotifications, setShowNotifications] = useState(false);
+ const [unrecoveredShortagesCount, setUnrecoveredShortagesCount] = useState(0);
  
  // Theme state
  const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -61,6 +63,22 @@ export const DashboardShell: React.FC = () => {
       refreshPermissions();
     }
   }, [user?.role]);
+
+  // Fetch unrecovered shortages for Supervisor Notification Flag
+  useEffect(() => {
+    if (user?.role && user.role.includes('SUPERVISOR') && activePlant) {
+      const fetchShortages = async () => {
+        try {
+          const res = await api.get(`/api/procurement/reports/shortage-summary?plantId=${activePlant.id}`);
+          const unrecovered = res.data.filter((r: any) => r.netShortageQtl > 0);
+          setUnrecoveredShortagesCount(unrecovered.length);
+        } catch (error) {
+          console.error("Failed to fetch shortage summary", error);
+        }
+      };
+      fetchShortages();
+    }
+  }, [user?.role, activePlant]);
 
  const handleLogout = () => {
  logout();
@@ -455,10 +473,35 @@ export const DashboardShell: React.FC = () => {
  >
  {isDarkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-blue-500" />}
  </button>
- <button className="relative p-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)]">
- <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
- <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
- </button>
+ <div className="relative">
+   <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)]">
+   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+   {unrecoveredShortagesCount > 0 && (
+     <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[var(--bg-base)]"></span>
+   )}
+   </button>
+   {showNotifications && (
+     <div className="absolute right-0 mt-2 w-80 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl shadow-2xl overflow-hidden z-50">
+       <div className="p-3 border-b border-[var(--border-subtle)] font-bold text-[var(--text-main)]">Notifications</div>
+       <div className="max-h-64 overflow-y-auto">
+         {unrecoveredShortagesCount > 0 ? (
+           <div className="p-4 border-b border-[var(--border-subtle)] bg-red-500/5 hover:bg-red-500/10 cursor-pointer" onClick={() => { setShowNotifications(false); navigate('/procurement?tab=reports'); }}>
+             <div className="flex items-start gap-3">
+               <div className="mt-0.5 text-red-500"><AlertTriangle size={18} /></div>
+               <div>
+                 <h4 className="text-sm font-bold text-red-500">Unrecovered Shortages Detected</h4>
+                 <p className="text-xs text-[var(--text-muted)] mt-1">You have {unrecoveredShortagesCount} auto-fetched shortage(s) waiting for recovery punch.</p>
+                 <span className="text-[10px] text-red-400 font-semibold mt-2 inline-block uppercase tracking-wider">Click to Resolve</span>
+               </div>
+             </div>
+           </div>
+         ) : (
+           <div className="p-6 text-center text-sm text-[var(--text-muted-alt)]">No new notifications.</div>
+         )}
+       </div>
+     </div>
+   )}
+ </div>
  </div>
  </header>
  

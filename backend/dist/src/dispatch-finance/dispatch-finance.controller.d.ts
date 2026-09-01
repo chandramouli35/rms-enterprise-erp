@@ -211,8 +211,8 @@ export declare class DispatchFinanceController {
         vehicleNo: string;
         driverName: string | null;
         challanNo: string | null;
-        transactionType: string;
         gatePassId: string | null;
+        transactionType: string;
         materialType: string | null;
         supplierName: string | null;
         grossTime: Date | null;
@@ -247,8 +247,8 @@ export declare class DispatchFinanceController {
         vehicleNo: string;
         driverName: string | null;
         challanNo: string | null;
-        transactionType: string;
         gatePassId: string | null;
+        transactionType: string;
         materialType: string | null;
         supplierName: string | null;
         grossTime: Date | null;

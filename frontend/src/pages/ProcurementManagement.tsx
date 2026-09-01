@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Users, Package, ShieldCheck, FileText, Search, Plus, Calendar, ChevronDown, Download, Printer, Settings, Upload, Edit, Layers, ScanBarcode, X, AlertTriangle, Trash, ArrowUpRight, ArrowDownRight, Eye } from 'lucide-react';
 import BoliCompletionTable from '../components/Procurement/BoliCompletionTable';
 import api from '../api/axios';
+import ShortageRecoveryReport from '../components/ShortageRecoveryReport';
 import { CustomModal } from '../components/CustomModal';
 import { usePlantStore } from '../store/plantStore';
 import { useUiStore } from '../store/uiStore';
@@ -107,6 +108,23 @@ export const ProcurementManagement = () => {
   const [occupiedStacks, setOccupiedStacks] = useState<Record<string, any>>({});
 
  // Inward Form States
+  const [unrecoveredShortagesCount, setUnrecoveredShortagesCount] = useState(0);
+
+  useEffect(() => {
+    if (isSupervisor && activePlant) {
+      const fetchShortages = async () => {
+        try {
+          const res = await api.get(`/procurement/reports/shortage-summary?plantId=${activePlant.id}`);
+          const unrecovered = res.data.filter((r: any) => r.netShortageQtl > 0);
+          setUnrecoveredShortagesCount(unrecovered.length);
+        } catch (error) {
+          console.error("Failed to fetch shortage summary", error);
+        }
+      };
+      fetchShortages();
+    }
+  }, [isSupervisor, activePlant]);
+
   const defaultInwardFormData = {
     gpNo: '', date: '', timeIn: '', timeOut: '', truckNo: '', mandiEgpNo: '', rstNo: '', mandiParchiNo: '', supplierId: '',
     mandi: '', pahunchPersonName: '',
@@ -257,12 +275,8 @@ export const ProcurementManagement = () => {
     
     const shortageQtl = (parseFloat(req) - actualWt + qualityCutQtl).toFixed(2);
     
-    // Shortage Bags = Agency Bags - Bags Rec
-    const agencyA = parseFloat(inwardFormData.origAClassAg) || 0;
-    const agencyB = parseFloat(inwardFormData.origBClassAg) || 0;
-    const totalAgencyBags = agencyA + agencyB;
-    const totalRecBags = totalA + totalB;
-    const shortageBags = totalAgencyBags > 0 ? (totalAgencyBags - totalRecBags).toString() : '0';
+    // Shortage Bags based on Qtl / 0.382
+    const shortageBags = (parseFloat(shortageQtl) / 0.382).toFixed(2);
 
     setInwardFormData((prev: any) => ({ 
       ...prev, 
@@ -682,6 +696,7 @@ export const ProcurementManagement = () => {
       const payload = {
         ...formData,
         ...inwardFormData,
+        shortageQtl: inwardFormData.actualShortageQtl,
         bagsRecAtMill: computedBagsRecAtMill,
         bagsAtAgencyGp: computedBagsAtAgencyGp,
         boliInputs,
@@ -1809,42 +1824,43 @@ export const ProcurementManagement = () => {
     </div>
   </div>
   
-  <div>
-    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Total shortage of Artia (Qtl)</label>
-    <input type="text" value={inwardFormData.shortageQtl || '0.00'} disabled className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed font-bold text-red-400" />
-  </div>
-  <div>
-    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Total shortage of Artia (Bags)</label>
-    <input type="text" value={inwardFormData.shortageBags || '0'} disabled className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed font-bold text-red-400" />
+  <div className="grid grid-cols-2 gap-4">
+    <div>
+      <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Total shortage of Artia (Qtl)</label>
+      <input type="text" value={inwardFormData.shortageQtl || '0.00'} disabled className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed font-bold text-red-400" />
+    </div>
+    <div>
+      <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Total shortage of Artia (Bags)</label>
+      <input type="text" value={inwardFormData.shortageBags || '0.00'} disabled className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed font-bold text-red-400" />
+    </div>
   </div>
 
   {inwardFormData.actualShortageQtl < 0 && (
-    <div className="col-span-2">
-      <span className="text-yellow-500 font-bold text-sm block mb-2">Excess Weight Received: {Math.abs(inwardFormData.actualShortageQtl)} Qtl</span>
+    <div className="col-span-2 mt-4 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+      <div className="flex items-center gap-2 text-emerald-500 font-bold mb-3">
+        <CheckCircle2 size={18} />
+        <span>Auto-Update: Plus Weight (Excess) Detected</span>
+      </div>
+      <p className="text-xs text-[var(--text-muted)] mb-3">
+        The excess weight received has been automatically applied as a Shortage Recovery against the Artia.
+      </p>
+      
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-[var(--bg-panel)] p-3 rounded border border-[var(--border-subtle)]">
+          <label className="block text-[10px] text-[var(--text-muted-alt)] uppercase tracking-wider mb-1">Artia Net Recovery (Qtl)</label>
+          <div className="text-emerald-400 font-mono font-bold text-lg">
+            {Math.abs(inwardFormData.actualShortageQtl).toFixed(2)} Qtl
+          </div>
+        </div>
+        <div className="bg-[var(--bg-panel)] p-3 rounded border border-[var(--border-subtle)]">
+          <label className="block text-[10px] text-[var(--text-muted-alt)] uppercase tracking-wider mb-1">Artia Net Recovery (Bags)</label>
+          <div className="text-emerald-400 font-mono font-bold text-lg">
+            {(Math.abs(inwardFormData.actualShortageQtl) / 0.382).toFixed(2)} Bags
+          </div>
+        </div>
+      </div>
     </div>
   )}
-
-  <div className="col-span-2">
-    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Plus wt. consider in shortage recovery :</label>
-    <div className="flex flex-wrap items-center gap-4 mt-2">
-      <label className="flex items-center gap-1 cursor-pointer text-[var(--text-main)]">
-        <input type="radio" name="shortageRecoveryOpt" value="No" checked={inwardFormData.shortageRecoveryOpt === 'No'} onChange={() => setInwardFormData((p: any) => ({...p, shortageRecoveryOpt: 'No', baujiPermissionPlusWt: false}))} className="accent-blue-500" /> No
-      </label>
-      <label className="flex items-center gap-1 cursor-pointer text-[var(--text-main)]">
-        <input type="radio" name="shortageRecoveryOpt" value="Yes" checked={inwardFormData.shortageRecoveryOpt === 'Yes'} onChange={(e) => {
-          if (e.target.checked) setInwardFormData((p: any) => ({...p, shortageRecoveryOpt: 'Yes'}));
-        }} className="accent-blue-500" /> Yes
-        <span className="text-[10px] text-[var(--text-muted-alt)] ml-1">( if Yes inform Bauji on each entry )</span>
-      </label>
-      
-      {inwardFormData.shortageRecoveryOpt === 'Yes' && (
-        <label className="flex items-center gap-2 text-sm text-[var(--text-main)] font-medium cursor-pointer ml-4 animate-in fade-in slide-in-from-left-2 duration-200">
-          <input type="checkbox" checked={inwardFormData.baujiPermissionPlusWt} onChange={(e) => setInwardFormData((p: any) => ({...p, baujiPermissionPlusWt: e.target.checked}))} className="accent-blue-500 w-4 h-4" />
-          Bauji Permission Obtained
-        </label>
-      )}
-    </div>
-  </div>
 
   <div className="col-span-2">
     <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Any Discrepancy / Point Raise <span className="text-red-500">*</span></label>
@@ -2572,16 +2588,30 @@ export const ProcurementManagement = () => {
  </div>
  </div>
  )}
-
  {activeTab === 'reports' && (
  <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden shadow-2xl">
    <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
-     <div>
-       <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
-         <FileText className="text-[#e67e00]" /> Reports
-       </h2>
-       <p className="text-xs text-[var(--text-muted-alt)] mt-1">View various procurement reports</p>
-     </div>
+     <div className="mb-6">
+        <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
+          <FileText className="text-[#e67e00]" /> Reports
+        </h2>
+        <p className="text-xs text-[var(--text-muted-alt)] mt-1">View various procurement reports</p>
+        
+        {isSupervisor && unrecoveredShortagesCount > 0 && (
+          <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-600 dark:text-red-400 text-sm flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={16} />
+              <span>You have <strong>{unrecoveredShortagesCount} unrecovered shortage(s)</strong>. Please check the <strong>Shortage Recovery</strong> tab.</span>
+            </div>
+            <button 
+              onClick={() => setListFilters(prev => ({ ...prev, activeReportTab: 'shortage_recovery' }))}
+              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold transition-colors"
+            >
+              View Now
+            </button>
+          </div>
+        )}
+      </div>
    </div>
    <div className="flex-1 flex flex-col p-6 bg-[var(--bg-base)]">
      {/* 
@@ -2622,7 +2652,9 @@ export const ProcurementManagement = () => {
                  Please click on one of the report tabs above to view its data.
               </p>
            </div>
-        ) : listFilters.activeReportTab === 'paddy_stack' ? (
+        ) : listFilters.activeReportTab === 'shortage_recovery' ? (
+            <ShortageRecoveryReport activePlant={activePlant} />
+         ) : listFilters.activeReportTab === 'paddy_stack' ? (
            <div className="w-full flex flex-col h-full">
               <div className="flex justify-between items-center mb-4">
                  <h3 className="text-lg font-bold text-[var(--text-main)]">Paddy Stock Documentation</h3>

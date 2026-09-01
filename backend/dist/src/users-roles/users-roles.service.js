@@ -202,16 +202,9 @@ let UsersRolesService = class UsersRolesService {
             roleId
         };
         if (newPassword) {
-            if (!currentPassword) {
-                throw new common_1.BadRequestException('Current password is required to set a new password');
-            }
             const targetUser = await this.prisma.user.findUnique({ where: { id } });
             if (!targetUser)
                 throw new Error('User not found');
-            const isValid = await bcrypt.compare(currentPassword, targetUser.passwordHash);
-            if (!isValid) {
-                throw new common_1.UnauthorizedException('Invalid current password');
-            }
             updateData.passwordHash = await bcrypt.hash(newPassword, 10);
         }
         const user = await this.prisma.user.update({

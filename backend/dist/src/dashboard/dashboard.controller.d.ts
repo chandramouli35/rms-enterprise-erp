@@ -64,5 +64,6 @@ export declare class DashboardController {
         dispatch: number;
         powerConsumption: number;
         activeGatePasses: number;
+        netShortageQtl: number;
     }>;
 }

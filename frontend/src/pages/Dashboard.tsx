@@ -49,13 +49,14 @@ export const Dashboard: React.FC = () => {
  const [activities, setActivities] = useState<any[]>([]);
  const [alerts, setAlerts] = useState<any[]>([]);
  const [today, setToday] = useState<any>(null);
+ const [shortageSummary, setShortageSummary] = useState<any[]>([]);
  
  const [loading, setLoading] = useState(true);
  const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', content: '' });
 
  const [globalFilter, setGlobalFilter] = useState('This Month');
- const [procurementFilter, setProcurementFilter] = useState('This Month');
- const [yieldFilter, setYieldFilter] = useState('This Month');
+ const [procurementFilter, setProcurementFilter] = useState('This Week');
+ const [yieldFilter, setYieldFilter] = useState('This Week');
  const [stockFilter, setStockFilter] = useState('All Items');
 
  const handleGlobalFilterChange = (filter: string) => {
@@ -88,6 +89,30 @@ export const Dashboard: React.FC = () => {
  setActivities(actRes.data);
  setAlerts(alertsRes.data);
  setToday(todayRes.data);
+
+ // Fetch Mill-wise shortage summary if SUPER_ADMIN
+ if (user?.role === 'SUPER_ADMIN') {
+   try {
+     const todayStr = new Date().toISOString().split('T')[0];
+     const shortageRes = await api.get(`/api/procurement/reports/shortage-summary?dateFrom=${todayStr}&dateTo=${todayStr}`);
+     // Group by mill name
+     const grouped: Record<string, { qtl: number, bags: number }> = {};
+     shortageRes.data.forEach((r: any) => {
+       const millName = r.millName || 'Unknown Mill';
+       if (!grouped[millName]) grouped[millName] = { qtl: 0, bags: 0 };
+       grouped[millName].qtl += r.netShortageQtl;
+       grouped[millName].bags += r.netShortageBags;
+     });
+     const summaryArray = Object.keys(grouped).map(name => ({
+       millName: name,
+       netShortageQtl: grouped[name].qtl,
+       netShortageBags: grouped[name].bags,
+     })).filter(r => r.netShortageQtl > 0);
+     setShortageSummary(summaryArray);
+   } catch (err) {
+     console.error("Failed to fetch shortage summary", err);
+   }
+ }
  } catch (err) {
  console.error('Failed to fetch dashboard data', err);
  } finally {
@@ -97,10 +122,6 @@ export const Dashboard: React.FC = () => {
 
  fetchDashboardData();
  }, [activePlant, globalFilter, procurementFilter, yieldFilter, stockFilter]);
-
- // if (!activePlant) {
- // return <div className="p-8 text-center text-[var(--text-muted-alt)]">Please select a plant to view the dashboard.</div>;
- // }
 
  return (
  <div className="space-y-6 max-w-7xl mx-auto text-[var(--text-muted)] bg-[var(--bg-base)] min-h-screen">
@@ -304,6 +325,37 @@ export const Dashboard: React.FC = () => {
  </div>
  </div>
  </div>
+
+ {/* Mill-wise Shortage Summary Widget for Admin */}
+ {user?.role === 'SUPER_ADMIN' && shortageSummary.length > 0 && (
+  <div className="p-5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] lg:col-span-10 mt-6">
+    <div className="flex justify-between items-center mb-6">
+      <h3 className="text-[var(--text-main)] font-semibold flex items-center gap-2 text-red-500">
+        <AlertTriangle size={18} /> Mill-wise Shortage Summary
+      </h3>
+    </div>
+    <div className="overflow-x-auto">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)]">
+            <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Mill Name</th>
+            <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Net Shortage (Qtl)</th>
+            <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Net Shortage (Bags)</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--border-subtle)]">
+          {shortageSummary.map((row, idx) => (
+            <tr key={idx} className="hover:bg-[var(--bg-muted)] transition-colors">
+              <td className="px-4 py-3 text-sm text-[var(--text-main)] font-medium">{row.millName}</td>
+              <td className="px-4 py-3 text-sm font-mono text-red-400 font-bold">{row.netShortageQtl.toFixed(2)}</td>
+              <td className="px-4 py-3 text-sm font-mono text-red-400 font-bold">{row.netShortageBags.toFixed(2)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+ )}
  </div>
 
  {/* Tier 3: Real-Time Plant Operations Panels */}
@@ -402,6 +454,13 @@ export const Dashboard: React.FC = () => {
  <span className="text-sm text-[var(--text-muted)]">Active Gate Pass</span>
  </div>
  <span className="text-sm font-semibold text-[var(--text-main)]">{today?.activeGatePasses || 0}</span>
+ </div>
+ <div className="flex justify-between items-center py-2">
+ <div className="flex items-center gap-3">
+ <div className="text-red-400"><AlertTriangle size={18} /></div>
+ <span className="text-sm text-[var(--text-muted)]">Unrecovered Shortage</span>
+ </div>
+ <span className="text-sm font-semibold text-red-500">{today?.netShortageQtl || 0} Qtl</span>
  </div>
  </div>
  </div>

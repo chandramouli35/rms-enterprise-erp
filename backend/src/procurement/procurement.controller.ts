@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, HttpException, HttpStatus, Put, UseGuards, Query } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, HttpException, HttpStatus, Put, Patch, UseGuards, Query } from '@nestjs/common';
 import { ProcurementService } from './procurement.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -151,5 +151,26 @@ export class ProcurementController {
   @RequirePermission('Procurement', 'canView')
   async getPaddyStockReport(@Query('plantId') plantId: string) {
     return this.procurementService.getPaddyStockReport(plantId);
+  }
+
+  @Get('reports/shortage-summary')
+  @RequirePermission('Procurement', 'canView')
+  async getShortageSummaryReport(
+    @Query('plantId') plantId: string,
+    @Query('mandiId') mandiId?: string,
+    @Query('supplierId') supplierId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.procurementService.getShortageSummaryReport(plantId, mandiId, supplierId, dateFrom, dateTo);
+  }
+
+  @Patch('inward-details/:id/shortage-recovery')
+  @RequirePermission('Procurement', 'canEdit')
+  async updateShortageRecovery(
+    @Param('id') id: string,
+    @Body('shortageRecoveryQtl') shortageRecoveryQtl: number,
+  ) {
+    return this.procurementService.updateShortageRecovery(id, shortageRecoveryQtl);
   }
 }

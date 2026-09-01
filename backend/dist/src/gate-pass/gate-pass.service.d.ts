@@ -32,9 +32,6 @@ export declare class GatePassService {
                 qualityCutType: string | null;
                 qualityCutReason: string | null;
                 partyName: string | null;
-                mandiType: string | null;
-                boliRate: number | null;
-                boliChecklist: boolean | null;
                 procurementBatchId: string;
                 truckNo: string | null;
                 gpNo: string | null;
@@ -45,6 +42,9 @@ export declare class GatePassService {
                 safaiType: string | null;
                 intimationToMandi: boolean | null;
                 mandiQualityAlert: boolean | null;
+                mandiType: string | null;
+                boliRate: number | null;
+                boliChecklist: boolean | null;
                 bardanaClass: string | null;
                 allocationType: string | null;
                 isUploadedToHoodiRegister: boolean | null;
@@ -74,6 +74,8 @@ export declare class GatePassService {
                 standardWeightCalculated: number | null;
                 actualWeightReceived: number | null;
                 shortageQtl: number | null;
+                shortageRecoveryQtl: number | null;
+                mandiSupervisorNotified: boolean | null;
                 shortageBags: number | null;
                 aClassGiven: number | null;
                 aClassReceived: number | null;
@@ -109,8 +111,8 @@ export declare class GatePassService {
                 vehicleNo: string;
                 driverName: string | null;
                 challanNo: string | null;
-                transactionType: string;
                 gatePassId: string | null;
+                transactionType: string;
                 materialType: string | null;
                 supplierName: string | null;
                 grossTime: Date | null;
@@ -122,11 +124,11 @@ export declare class GatePassService {
                 updatedAt: Date;
                 moisture: number | null;
                 status: string;
+                procurementBatchId: string;
                 broken: number | null;
                 discoloration: number | null;
                 foreignMatter: number | null;
                 inspectedBy: string | null;
-                procurementBatchId: string;
             } | null;
         } & {
             id: string;
@@ -289,9 +291,6 @@ export declare class GatePassService {
                 qualityCutType: string | null;
                 qualityCutReason: string | null;
                 partyName: string | null;
-                mandiType: string | null;
-                boliRate: number | null;
-                boliChecklist: boolean | null;
                 procurementBatchId: string;
                 truckNo: string | null;
                 gpNo: string | null;
@@ -302,6 +301,9 @@ export declare class GatePassService {
                 safaiType: string | null;
                 intimationToMandi: boolean | null;
                 mandiQualityAlert: boolean | null;
+                mandiType: string | null;
+                boliRate: number | null;
+                boliChecklist: boolean | null;
                 bardanaClass: string | null;
                 allocationType: string | null;
                 isUploadedToHoodiRegister: boolean | null;
@@ -331,6 +333,8 @@ export declare class GatePassService {
                 standardWeightCalculated: number | null;
                 actualWeightReceived: number | null;
                 shortageQtl: number | null;
+                shortageRecoveryQtl: number | null;
+                mandiSupervisorNotified: boolean | null;
                 shortageBags: number | null;
                 aClassGiven: number | null;
                 aClassReceived: number | null;
@@ -366,8 +370,8 @@ export declare class GatePassService {
                 vehicleNo: string;
                 driverName: string | null;
                 challanNo: string | null;
-                transactionType: string;
                 gatePassId: string | null;
+                transactionType: string;
                 materialType: string | null;
                 supplierName: string | null;
                 grossTime: Date | null;
@@ -379,11 +383,11 @@ export declare class GatePassService {
                 updatedAt: Date;
                 moisture: number | null;
                 status: string;
+                procurementBatchId: string;
                 broken: number | null;
                 discoloration: number | null;
                 foreignMatter: number | null;
                 inspectedBy: string | null;
-                procurementBatchId: string;
             } | null;
         } & {
             id: string;

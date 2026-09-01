@@ -328,7 +328,9 @@ model PaddyInwardDetails {
   totalBagsCalculated      Float?
   standardWeightCalculated Float?
   actualWeightReceived     Float?
-  shortageQtl              Float?
+  shortageQtl              Float?
+  shortageRecoveryQtl      Float? @default(0)
+  mandiSupervisorNotified  Boolean? @default(false)
   shortageBags             Float?
 
   // Bardana Hisab Fields

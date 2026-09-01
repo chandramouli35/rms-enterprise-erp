@@ -265,7 +265,7 @@ export class DashboardService {
 
     const pFilter = plantId !== 'global' ? { plantId } : {};
 
-    const [procurement, production, milling, dispatch, activeGatePassesCount] = await Promise.all([
+    const [procurement, production, milling, dispatch, activeGatePassesCount, procurementBatches] = await Promise.all([
       this.prisma.stockLedger.aggregate({
         where: { ...pFilter, transaction: 'IN', createdAt: { gte: today } },
         _sum: { quantity: true }
@@ -284,10 +284,31 @@ export class DashboardService {
       }),
       this.prisma.gatePass.count({
         where: { ...pFilter, status: 'ACTIVE' }
+      }),
+      this.prisma.procurementBatch.findMany({
+        where: { ...pFilter, createdAt: { gte: today }, paddyInwardDetails: { isNot: null } },
+        include: { paddyInwardDetails: true }
       })
     ]);
 
-    const avgYield = milling._sum.paddyUsedQty 
+    let netShortageToday = 0;
+    const inwardsForShortage = procurementBatches as any[];
+    inwardsForShortage.forEach(r => {
+      const details = r.paddyInwardDetails;
+      if (!details || !details.shortageQtl) return;
+      
+      let shortage = details.shortageQtl;
+      let recovery = details.shortageRecoveryQtl || 0;
+      
+      if (shortage < 0) {
+        recovery += Math.abs(shortage);
+        shortage = 0;
+      }
+      
+      netShortageToday += (shortage - recovery);
+    });
+
+    const avgYield = milling._sum.paddyUsedQty  
       ? ((milling._sum.riceProducedQty || 0) / milling._sum.paddyUsedQty) * 100 
       : 0;
     const prodQty = production._sum.riceProducedQty || 0;
@@ -298,7 +319,8 @@ export class DashboardService {
       averageYield: Number(avgYield.toFixed(2)),
       dispatch: dispatch._sum.quantity || 0,
       powerConsumption: Math.round(prodQty * 32.5),
-      activeGatePasses: activeGatePassesCount
+      activeGatePasses: activeGatePassesCount,
+      netShortageQtl: Number(netShortageToday.toFixed(2))
     };
   }
 }

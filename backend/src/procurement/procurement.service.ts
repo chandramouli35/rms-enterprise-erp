@@ -181,9 +181,10 @@ export class ProcurementService {
           standardBagWeight: data.standardBagWeight ? parseFloat(data.standardBagWeight) : null,
           totalBagsCalculated: data.totalBagsCalculated ? parseFloat(data.totalBagsCalculated) : null,
           standardWeightCalculated: data.standardWeightCalculated ? parseFloat(data.standardWeightCalculated) : null,
-          actualWeightReceived: data.actualWeightReceived ? parseFloat(data.actualWeightReceived) : null,
-          shortageQtl: data.shortageQtl ? parseFloat(data.shortageQtl) : null,
-          shortageBags: data.shortageBags ? parseFloat(data.shortageBags) : null,
+          actualWeightReceived: data.actualWeightReceived !== undefined && data.actualWeightReceived !== null ? parseFloat(data.actualWeightReceived) : null,
+          shortageQtl: data.shortageQtl !== undefined && data.shortageQtl !== null ? (parseFloat(data.shortageQtl) > 0 ? parseFloat(data.shortageQtl) : 0) : null,
+          shortageRecoveryQtl: data.shortageQtl !== undefined && data.shortageQtl !== null && parseFloat(data.shortageQtl) < 0 ? Math.abs(parseFloat(data.shortageQtl)) : 0,
+          shortageBags: data.shortageBags !== undefined && data.shortageBags !== null ? parseFloat(data.shortageBags) : null,
 
           // Bardana Hisab Fields
           aClassGiven: data.aClassGiven ? parseFloat(data.aClassGiven) : null,
@@ -874,5 +875,86 @@ export class ProcurementService {
     });
 
     return reportData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }
+
+  async getShortageSummaryReport(
+    plantId: string,
+    mandiId?: string,
+    supplierId?: string,
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
+    const where: any = {
+      plantId,
+      transactionType: 'INWARD',
+      paddyInwardDetails: {
+        isNot: null,
+      },
+    };
+
+    if (mandiId || supplierId) {
+      where.supplier = {};
+      if (mandiId) where.supplier.mandi = mandiId;
+      if (supplierId) where.supplier.id = supplierId;
+    }
+    
+    if (dateFrom && dateTo) {
+      where.createdAt = {
+        gte: new Date(dateFrom),
+        lte: new Date(dateTo),
+      };
+    } else if (dateFrom) {
+      where.createdAt = { gte: new Date(dateFrom) };
+    } else if (dateTo) {
+      where.createdAt = { lte: new Date(dateTo) };
+    }
+
+    const records = await this.prisma.procurementBatch.findMany({
+      where,
+      include: {
+        paddyInwardDetails: true,
+        supplier: true,
+        gatePass: true,
+        plant: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const reportData: any[] = [];
+    
+    records.forEach(r => {
+      const details = r.paddyInwardDetails;
+      if (!details || details.shortageQtl === null || details.shortageQtl === undefined) return;
+      
+      let shortage = r.paddyInwardDetails?.shortageQtl || 0;
+      let recovery = r.paddyInwardDetails?.shortageRecoveryQtl || 0;
+      
+      const netShortageQtl = shortage - recovery;
+      const netShortageBags = netShortageQtl / 0.382;
+
+      reportData.push({
+        id: details.id,
+        date: r.createdAt,
+        millGp: r.gatePass?.id || 'N/A',
+        agencyGp: r.gatePass?.challanNo || 'N/A',
+        truckNo: r.gatePass?.vehicleNo || r.paddyInwardDetails?.truckNo || 'N/A',
+        shortageQtl: parseFloat(shortage.toFixed(2)),
+        shortageRecoveryQtl: parseFloat(recovery.toFixed(2)),
+        netShortageQtl: parseFloat(netShortageQtl.toFixed(2)),
+        netShortageBags: parseFloat(netShortageBags.toFixed(2)),
+        supplierName: r.supplier?.name || 'N/A',
+        mandiName: r.supplier?.mandi || 'N/A',
+        millName: r.plant?.name || 'Unknown',
+      });
+    });
+
+    return reportData;
+  }
+
+  async updateShortageRecovery(inwardDetailsId: string, shortageRecoveryQtl: number) {
+    return this.prisma.paddyInwardDetails.update({
+      where: { id: inwardDetailsId },
+      data: { shortageRecoveryQtl },
+    });
   }
 }

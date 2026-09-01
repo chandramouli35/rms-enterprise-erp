@@ -99,6 +99,12 @@ let ProcurementController = class ProcurementController {
     async getPaddyStockReport(plantId) {
         return this.procurementService.getPaddyStockReport(plantId);
     }
+    async getShortageSummaryReport(plantId, mandiId, supplierId, dateFrom, dateTo) {
+        return this.procurementService.getShortageSummaryReport(plantId, mandiId, supplierId, dateFrom, dateTo);
+    }
+    async updateShortageRecovery(id, shortageRecoveryQtl) {
+        return this.procurementService.updateShortageRecovery(id, shortageRecoveryQtl);
+    }
 };
 exports.ProcurementController = ProcurementController;
 __decorate([
@@ -254,6 +260,27 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], ProcurementController.prototype, "getPaddyStockReport", null);
+__decorate([
+    (0, common_1.Get)('reports/shortage-summary'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
+    __param(0, (0, common_1.Query)('plantId')),
+    __param(1, (0, common_1.Query)('mandiId')),
+    __param(2, (0, common_1.Query)('supplierId')),
+    __param(3, (0, common_1.Query)('dateFrom')),
+    __param(4, (0, common_1.Query)('dateTo')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, String, String]),
+    __metadata("design:returntype", Promise)
+], ProcurementController.prototype, "getShortageSummaryReport", null);
+__decorate([
+    (0, common_1.Patch)('inward-details/:id/shortage-recovery'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canEdit'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)('shortageRecoveryQtl')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number]),
+    __metadata("design:returntype", Promise)
+], ProcurementController.prototype, "updateShortageRecovery", null);
 exports.ProcurementController = ProcurementController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
     (0, common_1.Controller)('api/procurement'),
