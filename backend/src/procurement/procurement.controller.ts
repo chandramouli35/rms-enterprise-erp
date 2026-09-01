@@ -146,4 +146,10 @@ export class ProcurementController {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
+
+  @Get('reports/paddy-stock')
+  @RequirePermission('Procurement', 'canView')
+  async getPaddyStockReport(@Query('plantId') plantId: string) {
+    return this.procurementService.getPaddyStockReport(plantId);
+  }
 }

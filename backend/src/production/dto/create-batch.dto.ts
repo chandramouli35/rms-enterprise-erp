@@ -38,5 +38,16 @@ export class CreateBatchDto {
   remarks?: string;
 
   @IsOptional()
-  additionalOutputs?: Record<string, { produced: number; reused: number; wandProduced?: number }>;
+  @IsString()
+  productionType?: string;
+
+  @IsOptional()
+  @IsString()
+  paddyDryingTargetStack?: string;
+
+  @IsOptional()
+  stackInputs?: Array<{ stackNo: string; bags: string | number; isDirectUnload: boolean }>;
+
+  @IsOptional()
+  additionalOutputs?: Record<string, { produced: number; reused: number; wandProduced?: number; moisture?: number; targetStack?: string }>;
 }

@@ -10,9 +10,18 @@ export declare class CreateBatchDto {
     paddyUsedQty: number;
     moisture?: number;
     remarks?: string;
+    productionType?: string;
+    paddyDryingTargetStack?: string;
+    stackInputs?: Array<{
+        stackNo: string;
+        bags: string | number;
+        isDirectUnload: boolean;
+    }>;
     additionalOutputs?: Record<string, {
         produced: number;
         reused: number;
         wandProduced?: number;
+        moisture?: number;
+        targetStack?: string;
     }>;
 }

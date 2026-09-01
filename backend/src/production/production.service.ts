@@ -180,8 +180,33 @@ export class ProductionService {
         remarks: dto.remarks,
         status: 'In Progress',
         progress: 0,
+        paddyDryingTargetStack: dto.paddyDryingTargetStack,
+        stackInputs: {
+          create: dto.stackInputs?.map(s => ({
+            stackNo: s.stackNo,
+            bags: s.isDirectUnload ? null : Number(s.bags),
+            isDirectUnload: s.isDirectUnload
+          })) || []
+        }
       },
     });
+
+    // Special handling for "Dry Paddy" since it goes to ByProducts explicitly with targetStack and moisture
+    if (dto.additionalOutputs?.['Dry Paddy']) {
+      const dryPaddy = dto.additionalOutputs['Dry Paddy'];
+      if (dryPaddy.produced > 0 || dryPaddy.reused > 0) {
+         await this.prisma.byProduct.create({
+           data: {
+             productionBatchId: batch.id,
+             name: 'Dry Paddy',
+             quantity: dryPaddy.produced, // assuming bags/MT conversion is handled elsewhere or quantity is bags
+             moisture: dryPaddy.moisture,
+             targetStack: dryPaddy.targetStack,
+             remarks: 'Reused: ' + dryPaddy.reused
+           }
+         });
+      }
+    }
 
     // 2. Deduct Paddy from Inventory
     await this.inventoryService.adjustStock({

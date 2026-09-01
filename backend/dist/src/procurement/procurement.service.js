@@ -699,6 +699,74 @@ let ProcurementService = class ProcurementService {
             return updated;
         });
     }
+    async getPaddyStockReport(plantId) {
+        const inwards = await this.prisma.procurementBatch.findMany({
+            where: {
+                plantId: plantId === 'global' ? undefined : plantId,
+                paddyInwardDetails: {
+                    isNot: null
+                },
+            },
+            include: {
+                supplier: true,
+                gatePass: true,
+                quality: true,
+                paddyInwardDetails: true
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        const dryPaddyOutputs = await this.prisma.byProduct.findMany({
+            where: {
+                name: 'Dry Paddy',
+                targetStack: { not: null },
+                batch: {
+                    plantId: plantId === 'global' ? undefined : plantId
+                }
+            },
+            include: {
+                batch: true
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        const reportData = [];
+        inwards.forEach(inward => {
+            const details = inward.paddyInwardDetails;
+            const gp = inward.gatePass;
+            if (!details || !details.stackNo)
+                return;
+            reportData.push({
+                id: inward.id,
+                date: inward.createdAt,
+                marka: gp?.variety || details?.marka || 'N/A',
+                partyName: details?.partyName || gp?.partyName || inward.supplier?.name || 'N/A',
+                brokerName: 'N/A',
+                totalBags: gp?.noOfBags || details?.totalBagsReceived || 0,
+                wtPerBag: details?.weightPerBag || gp?.wtPerBag || 0,
+                totalWtQtls: inward.netWeight ? inward.netWeight * 10 : 0,
+                moisture: details?.moisture || inward.quality?.moisture || gp?.moisture || 0,
+                totalWtMt: inward.netWeight || 0,
+                stackNo: details.stackNo,
+                type: 'INWARD'
+            });
+        });
+        dryPaddyOutputs.forEach(dp => {
+            reportData.push({
+                id: dp.id,
+                date: dp.createdAt,
+                marka: 'Dry Paddy',
+                partyName: 'In-house Milling',
+                brokerName: '-',
+                totalBags: 0,
+                wtPerBag: 0,
+                totalWtQtls: dp.quantity ? dp.quantity * 10 : 0,
+                moisture: dp.moisture || 0,
+                totalWtMt: dp.quantity || 0,
+                stackNo: dp.targetStack,
+                type: 'DRY_PADDY'
+            });
+        });
+        return reportData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
 };
 exports.ProcurementService = ProcurementService;
 exports.ProcurementService = ProcurementService = __decorate([

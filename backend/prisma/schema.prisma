@@ -601,6 +601,9 @@ model ProductionBatch {
 
   processLoss ProcessLoss?
   byProducts  ByProduct[]
+  paddyDryingTargetStack String?
+
+  stackInputs ProductionBatchStackInput[]
   yieldReport   YieldReport?
   batchAnalysis BatchAnalysis?
 
@@ -641,6 +644,8 @@ model ByProduct {
   unit        String  @default("MT")
   utilization String? // Destination/Usage
   remarks     String?
+  moisture    Float?
+  targetStack String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1250,3 +1255,20 @@ model RajoaAgroDryerLog {
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 }
+
+model ProductionBatchStackInput {
+  id                String          @id @default(uuid())
+  productionBatchId String
+  batch             ProductionBatch @relation(fields: [productionBatchId], references: [id], onDelete: Cascade)
+
+  stackNo        String
+  bags           Float?
+  isDirectUnload Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productionBatchId])
+}
+
+

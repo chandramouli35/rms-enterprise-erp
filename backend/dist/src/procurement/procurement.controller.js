@@ -96,6 +96,9 @@ let ProcurementController = class ProcurementController {
             throw new common_1.HttpException(error.message, common_1.HttpStatus.BAD_REQUEST);
         }
     }
+    async getPaddyStockReport(plantId) {
+        return this.procurementService.getPaddyStockReport(plantId);
+    }
 };
 exports.ProcurementController = ProcurementController;
 __decorate([
@@ -243,6 +246,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], ProcurementController.prototype, "settleHisab", null);
+__decorate([
+    (0, common_1.Get)('reports/paddy-stock'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
+    __param(0, (0, common_1.Query)('plantId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], ProcurementController.prototype, "getPaddyStockReport", null);
 exports.ProcurementController = ProcurementController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
     (0, common_1.Controller)('api/procurement'),

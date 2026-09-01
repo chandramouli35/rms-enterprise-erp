@@ -63,6 +63,20 @@ __decorate([
 ], CreateBatchDto.prototype, "remarks", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateBatchDto.prototype, "productionType", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateBatchDto.prototype, "paddyDryingTargetStack", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Array)
+], CreateBatchDto.prototype, "stackInputs", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     __metadata("design:type", Object)
 ], CreateBatchDto.prototype, "additionalOutputs", void 0);
 //# sourceMappingURL=create-batch.dto.js.map

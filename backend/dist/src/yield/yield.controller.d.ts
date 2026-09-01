@@ -105,6 +105,7 @@ export declare class YieldController {
             status: string;
             progress: number;
             remarks: string | null;
+            paddyDryingTargetStack: string | null;
             startTime: Date | null;
             endTime: Date | null;
             plantId: string;

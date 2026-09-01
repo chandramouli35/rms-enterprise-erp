@@ -66,9 +66,14 @@ export const ProductionManagement = () => {
     'Mansoori': { produced: '', reused: '' },
     'Wand': { produced: '', reused: '', wandProduced: '' },
     'Parmal': { produced: '', reused: '' },
-    'FRK': { produced: '', reused: '' }
+    'FRK': { produced: '', reused: '' },
+    'Dry Paddy': { produced: '', reused: '' }
   },
-  remarks: 'Steam paddy batch for production.'
+  remarks: 'Steam paddy batch for production.',
+  stackInputs: [] as { stackNo: string, bags: string, isDirectUnload: boolean }[],
+  paddyDryingTargetStack: '',
+  isDryPaddyOutput: false,
+  rawMaterial: 'Paddy',
  });
 
  const [analysisFormData, setAnalysisFormData] = useState<any>({
@@ -266,10 +271,19 @@ export const ProductionManagement = () => {
     additionalOutputs: Object.fromEntries(
       Object.entries(formData.additionalOutputs).map(([k, v]) => [
         k,
-        { produced: Number(v.produced) || 0, reused: Number(v.reused) || 0, wandProduced: Number((v as any).wandProduced) || 0 }
+        { 
+          produced: Number(v.produced) || 0, 
+          reused: Number(v.reused) || 0, 
+          wandProduced: Number((v as any).wandProduced) || 0, 
+          moisture: (v as any).moisture ? Number((v as any).moisture) : undefined, 
+          targetStack: (v as any).targetStack || undefined 
+        }
       ])
     ),
-    remarks: formData.remarks
+    remarks: formData.remarks,
+    productionType,
+    stackInputs: formData.stackInputs,
+    paddyDryingTargetStack: formData.paddyDryingTargetStack
  };
  
  await api.post('/production/batches', payload);
@@ -279,7 +293,7 @@ export const ProductionManagement = () => {
    fetchMetrics();
    fetchCurrentStock();
  
- setFormData(prev => ({
+      setFormData(prev => ({
       ...prev,
       batchNo: generateBatchNo(),
       paddyUsedQty: '',
@@ -295,8 +309,12 @@ export const ProductionManagement = () => {
         'Mansoori': { produced: '', reused: '' },
         'Wand': { produced: '', reused: '', wandProduced: '' },
         'Parmal': { produced: '', reused: '' },
-        'FRK': { produced: '', reused: '' }
-      }
+        'FRK': { produced: '', reused: '' },
+        'Dry Paddy': { produced: '', reused: '' }
+      },
+      stackInputs: [],
+      paddyDryingTargetStack: '',
+      isDryPaddyOutput: false,
     }));
  } catch (error) {
  console.error('Error creating batch', error);
@@ -463,8 +481,14 @@ export const ProductionManagement = () => {
  <h2 className="text-lg font-bold text-[var(--text-main)]">1. Batch Creation</h2>
  <div className="flex bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded overflow-hidden">
   <button 
+    onClick={() => setProductionType('Paddy Drying')}
+    className={`px-4 py-1.5 text-sm font-bold transition-colors border-r border-[var(--border-subtle)] ${productionType === 'Paddy Drying' ? 'bg-[#e67e00] text-black' : 'text-[var(--text-muted-alt)] hover:text-[var(--text-main)]'}`}
+  >
+    Paddy Drying
+  </button>
+  <button 
     onClick={() => setProductionType('Rice Milling')}
-    className={`px-4 py-1.5 text-sm font-bold transition-colors ${productionType === 'Rice Milling' ? 'bg-[#e67e00] text-black' : 'text-[var(--text-muted-alt)] hover:text-[var(--text-main)]'}`}
+    className={`px-4 py-1.5 text-sm font-bold transition-colors border-r border-[var(--border-subtle)] ${productionType === 'Rice Milling' ? 'bg-[#e67e00] text-black' : 'text-[var(--text-muted-alt)] hover:text-[var(--text-main)]'}`}
   >
     Rice Milling
   </button>
@@ -505,40 +529,105 @@ export const ProductionManagement = () => {
  </div>
  </div>
 
- {productionType === 'Rice Milling' ? (
+ {(productionType === 'Rice Milling' || productionType === 'Paddy Drying') && (
+   <div className="col-span-2 bg-[var(--bg-panel-alt)] p-4 rounded-lg border border-[var(--border-subtle)] mb-4 mt-4">
+      <h4 className="font-bold text-[var(--text-main)] mb-4">Input Material (Paddy Stack Selection)</h4>
+      {formData.stackInputs.map((stack, idx) => (
+         <div key={idx} className="flex gap-4 mb-3 items-center">
+            <div className="flex-1">
+               <input type="text" placeholder="Stack No." value={stack.stackNo} onChange={(e) => {
+                  const newInputs = [...formData.stackInputs];
+                  newInputs[idx].stackNo = e.target.value;
+                  setFormData(prev => ({...prev, stackInputs: newInputs}));
+               }} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
+            </div>
+            
+            <label className="flex items-center gap-2 text-sm text-[var(--text-main)]">
+               <input type="checkbox" checked={stack.isDirectUnload} onChange={(e) => {
+                 const newInputs = [...formData.stackInputs];
+                 newInputs[idx].isDirectUnload = e.target.checked;
+                 if(e.target.checked) newInputs[idx].bags = '';
+                 setFormData(prev => ({...prev, stackInputs: newInputs}));
+               }} className="accent-[#e67e00] w-4 h-4 bg-[var(--bg-panel)] border-[var(--border-subtle)]" /> Direct Unload
+            </label>
+
+            {!stack.isDirectUnload && (
+               <div className="flex-1">
+                 <input type="number" placeholder="Bags Consumed" value={stack.bags} onChange={(e) => {
+                    const newInputs = [...formData.stackInputs];
+                    newInputs[idx].bags = e.target.value;
+                    setFormData(prev => ({...prev, stackInputs: newInputs}));
+                 }} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
+               </div>
+            )}
+            
+            <button onClick={() => {
+               const newInputs = formData.stackInputs.filter((_, i) => i !== idx);
+               setFormData(prev => ({...prev, stackInputs: newInputs}));
+            }} className="text-red-500 font-bold hover:text-red-400 px-2 text-lg" title="Remove">&times;</button>
+         </div>
+      ))}
+      {formData.stackInputs.length === 0 && (
+         <p className="text-xs text-[var(--text-muted-alt)] mb-2 italic">No stacks added. Please add at least one stack.</p>
+      )}
+      <button onClick={() => setFormData(prev => ({...prev, stackInputs: [...prev.stackInputs, {stackNo: '', bags: '', isDirectUnload: false}]}))} className="text-sm font-bold text-[#e67e00] hover:underline mt-1">+ Add Stack No.</button>
+   </div>
+ )}
+
+ {productionType === 'Paddy Drying' && (
+  <div className="grid grid-cols-1 gap-4">
+    <div>
+      <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Expected Outcome <span className="text-red-500">*</span></label>
+      <input type="text" value="Dry Paddy" disabled className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm cursor-not-allowed opacity-70" />
+    </div>
+    <div>
+      <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Target Stack No. (Routing to) <span className="text-red-500">*</span></label>
+      <input type="text" name="paddyDryingTargetStack" value={formData.paddyDryingTargetStack || ''} onChange={handleInputChange} placeholder="e.g. 101" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
+    </div>
+    <div className="flex gap-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
+      <button onClick={() => setFormData(prev => ({...prev, paddyDryingTargetStack: '', batchNo: generateBatchNo()}))} className="flex-1 py-2 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded font-bold text-sm transition-colors border border-[var(--border-subtle)]">Reset</button>
+      <button onClick={handleCreateBatch} disabled={loading} className="flex-[2] py-2 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded font-bold text-sm transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50">
+        {loading ? 'Creating...' : 'Create Batch'}
+      </button>
+    </div>
+  </div>
+ )}
+
+ {productionType === 'Rice Milling' && (
   <>
- <div className="grid grid-cols-2 gap-4">
- <div>
- <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Paddy Type <span className="text-red-500">*</span></label>
-  <select name="paddyType" value={formData.paddyType} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none">
-    <option value="PR-11 (Steam)">PR-11 (Steam)</option>
-    <option value="Raw">Raw</option>
-  </select>
- </div>
- <div>
- <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Variety</label>
- <input type="text" name="variety" value={formData.variety} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
- </div>
- </div>
- <div className="grid grid-cols-2 gap-4">
- <div>
- <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Paddy Source</label>
- <input type="text" name="paddySource" value={formData.paddySource} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
- </div>
- <div>
-  <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Moisture (%) *</label>
-  <input 
-    type="number"
-    step="0.1" 
-    value={formData.moisture} 
-    onChange={e => setFormData({...formData, moisture: e.target.value})}
-    required
-    className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-sm focus:border-amber-500 focus:outline-none text-[var(--text-main)]" 
-    placeholder="e.g. 14.5" 
-  />
- </div>
+   <div className="grid grid-cols-2 gap-4">
+   <div>
+   <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Paddy Type <span className="text-red-500">*</span></label>
+    <select name="paddyType" value={formData.paddyType} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none">
+      <option value="PR-11 (Steam)">PR-11 (Steam)</option>
+      <option value="Raw">Raw</option>
+    </select>
+   </div>
+   <div>
+   <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Variety</label>
+   <input type="text" name="variety" value={formData.variety} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
+   </div>
+   </div>
+   <div className="grid grid-cols-2 gap-4">
+   <div>
+   <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Paddy Source</label>
+   <input type="text" name="paddySource" value={formData.paddySource} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
+   </div>
+   <div>
+    <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Moisture (%) *</label>
+    <input 
+      type="number"
+      step="0.1" 
+      value={formData.moisture} 
+      onChange={e => setFormData({...formData, moisture: e.target.value})}
+      required
+      className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-sm focus:border-amber-500 focus:outline-none text-[var(--text-main)]" 
+      placeholder="e.g. 14.5" 
+    />
+   </div>
+   
+   </div>
  
- </div>
  <div className="col-span-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
   <h3 className="text-sm font-bold text-[var(--text-main)] mb-3">Additional Outputs (Bags)</h3>
   <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden bg-[var(--bg-panel-alt)] mb-4">
@@ -698,12 +787,31 @@ export const ProductionManagement = () => {
             <input type="number" min="0" value={formData.additionalOutputs['FRK'].reused} onChange={(e) => handleAdditionalOutputChange('FRK', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
           </td>
         </tr>
+        <tr className="hover:bg-[var(--glass-bg)]">
+          <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">Dry Paddy</td>
+          <td className="px-4 py-2.5 font-bold text-[#e67e00]">
+            <span title="Available in Warehouse">{currentStock['Dry Paddy'] || 0}</span>
+          </td>
+          <td className="px-4 py-2">
+            <div className="flex gap-2">
+               <input type="number" step="0.1" value={(formData.additionalOutputs['Dry Paddy'] as any).moisture || ''} onChange={(e) => handleAdditionalOutputChange('Dry Paddy', 'moisture', e.target.value)} placeholder="Moisture %" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+               <input type="text" value={(formData.additionalOutputs['Dry Paddy'] as any).targetStack || ''} onChange={(e) => handleAdditionalOutputChange('Dry Paddy', 'targetStack', e.target.value)} placeholder="Stack No." className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+            </div>
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Dry Paddy'].produced} onChange={(e) => handleAdditionalOutputChange('Dry Paddy', 'produced', e.target.value)} placeholder="Enter produced bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" value={formData.additionalOutputs['Dry Paddy'].reused} onChange={(e) => handleAdditionalOutputChange('Dry Paddy', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+        </tr>
       </tbody>
     </table>
   </div>
 </div>
   </>
- ) : (
+ )}
+ {productionType === 'Intermill Processing' && (
   <div className="mt-4 pt-4 border-t border-[var(--border-subtle)]">
     <div className="bg-[var(--bg-base)] p-4 rounded-lg border border-[var(--border-subtle)] mb-6">
       <h4 className="font-bold text-[var(--text-main)] mb-4">Input Material</h4>
@@ -721,6 +829,51 @@ export const ProductionManagement = () => {
         </div>
       </div>
     </div>
+
+    {products.find(p => p.id === intermillData.rawMaterialId)?.name?.toLowerCase().includes('paddy') && (
+         <div className="bg-[var(--bg-base)] p-4 rounded-lg border border-[var(--border-subtle)] mb-6">
+            <h4 className="font-bold text-[var(--text-main)] mb-4">Input Material (Paddy Stack Selection)</h4>
+            {formData.stackInputs.map((stack, idx) => (
+               <div key={idx} className="flex gap-4 mb-3 items-center">
+                  <div className="flex-1">
+                     <input type="text" placeholder="Stack No." value={stack.stackNo} onChange={(e) => {
+                        const newInputs = [...formData.stackInputs];
+                        newInputs[idx].stackNo = e.target.value;
+                        setFormData(prev => ({...prev, stackInputs: newInputs}));
+                     }} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
+                  </div>
+                  
+                  <label className="flex items-center gap-2 text-sm text-[var(--text-main)]">
+                     <input type="checkbox" checked={stack.isDirectUnload} onChange={(e) => {
+                       const newInputs = [...formData.stackInputs];
+                       newInputs[idx].isDirectUnload = e.target.checked;
+                       if(e.target.checked) newInputs[idx].bags = '';
+                       setFormData(prev => ({...prev, stackInputs: newInputs}));
+                     }} className="accent-[#e67e00] w-4 h-4 bg-[var(--bg-panel)] border-[var(--border-subtle)]" /> Direct Unload
+                  </label>
+      
+                  {!stack.isDirectUnload && (
+                     <div className="flex-1">
+                       <input type="number" placeholder="Bags Consumed" value={stack.bags} onChange={(e) => {
+                          const newInputs = [...formData.stackInputs];
+                          newInputs[idx].bags = e.target.value;
+                          setFormData(prev => ({...prev, stackInputs: newInputs}));
+                       }} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
+                     </div>
+                  )}
+                  
+                  <button onClick={() => {
+                     const newInputs = formData.stackInputs.filter((_, i) => i !== idx);
+                     setFormData(prev => ({...prev, stackInputs: newInputs}));
+                  }} className="text-red-500 font-bold hover:text-red-400 px-2 text-lg" title="Remove">&times;</button>
+               </div>
+            ))}
+            {formData.stackInputs.length === 0 && (
+               <p className="text-xs text-[var(--text-muted-alt)] mb-2 italic">No stacks added. Please add at least one stack.</p>
+            )}
+            <button onClick={() => setFormData(prev => ({...prev, stackInputs: [...prev.stackInputs, {stackNo: '', bags: '', isDirectUnload: false}]}))} className="text-sm font-bold text-[#e67e00] hover:underline mt-1">+ Add Stack No.</button>
+         </div>
+      )}
 
     <div className="bg-[var(--bg-base)] p-4 rounded-lg border border-[var(--border-subtle)] mb-6">
       <h4 className="font-bold text-[var(--text-main)] mb-4">Select Expected Output Products</h4>

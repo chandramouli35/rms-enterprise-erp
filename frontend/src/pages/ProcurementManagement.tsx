@@ -90,12 +90,13 @@ export const ProcurementManagement = () => {
   const [inwardCurrentPage, setInwardCurrentPage] = useState(1);
 
   const [viewInwardModal, setViewInwardModal] = useState<any>(null);
-  const [listFilters, setListFilters] = useState({ dateFrom: '', dateTo: '', mandi: '', supplierId: '' });
+  const [listFilters, setListFilters] = useState({ dateFrom: '', dateTo: '', mandi: '', supplierId: '', activeReportTab: '' });
   
   const [recentPurchasesTotalItems, setRecentPurchasesTotalItems] = useState(0);
   const [recentPurchasesCurrentPage, setRecentPurchasesCurrentPage] = useState(1);
   
   const [sodaPendingTotalItems, setSodaPendingTotalItems] = useState(0);
+  const [paddyStockReportData, setPaddyStockReportData] = useState<any[]>([]);
   const [sodaPendingCurrentPage, setSodaPendingCurrentPage] = useState(1);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -491,6 +492,24 @@ export const ProcurementManagement = () => {
  console.error('Error fetching suppliers', error);
  }
  };
+
+  
+  const fetchPaddyStockReport = async () => {
+    try {
+      const pid = activePlant?.id || 'global';
+      const res = await api.get(`/api/procurement/reports/paddy-stock?plantId=${pid}`);
+      setPaddyStockReportData(res.data);
+    } catch (error) {
+      console.error('Failed to fetch paddy stock report', error);
+      useUiStore.getState().addToast('Failed to load paddy stock report', 'error');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'reports' && listFilters.activeReportTab === 'paddy_stack') {
+      fetchPaddyStockReport();
+    }
+  }, [activePlant?.id, activeTab, listFilters.activeReportTab]);
 
   const fetchSodaPending = async () => {
  try {
@@ -990,7 +1009,7 @@ export const ProcurementManagement = () => {
                />
             </div>
             <div className="flex items-end">
-              <button onClick={() => setListFilters({dateFrom: '', dateTo: '', mandi: '', supplierId: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
+              <button onClick={() => setListFilters({dateFrom: '', dateTo: '', mandi: '', supplierId: '', activeReportTab: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
             </div>
           </div>
           
@@ -2080,7 +2099,7 @@ export const ProcurementManagement = () => {
              />
           </div>
           <div className="flex items-end">
-            <button onClick={() => setListFilters({dateFrom: '', dateTo: '', mandi: '', supplierId: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
+            <button onClick={() => setListFilters({dateFrom: '', dateTo: '', mandi: '', supplierId: '', activeReportTab: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
           </div>
         </div>
 
@@ -2551,6 +2570,132 @@ export const ProcurementManagement = () => {
    />
  </div>
  </div>
+ </div>
+ )}
+
+ {activeTab === 'reports' && (
+ <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden shadow-2xl">
+   <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
+     <div>
+       <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
+         <FileText className="text-[#e67e00]" /> Reports
+       </h2>
+       <p className="text-xs text-[var(--text-muted-alt)] mt-1">View various procurement reports</p>
+     </div>
+   </div>
+   <div className="flex-1 flex flex-col p-6 bg-[var(--bg-base)]">
+     {/* 
+        IMPORTANT: DO NOT REMOVE THIS LOGIC.
+        By default, no report tab is selected/opened when the Reports section is loaded.
+        Data should only be shown when a specific report tab is explicitly clicked by the user.
+        Please keep this empty default state for future modifications!
+     */}
+     
+     {/* Reports Inner Navigation */}
+     <div className="flex border-b border-[var(--border-subtle)] mb-6">
+       {['shortage_recovery', 'stack_record', 'hoodi_report', 'paddy_stack'].map((reportTab) => (
+          <button 
+            key={reportTab}
+            onClick={() => setListFilters(prev => ({ ...prev, activeReportTab: reportTab }))}
+            className={`px-4 py-2 font-semibold text-sm transition-colors border-b-2 ${
+              listFilters.activeReportTab === reportTab 
+                ? 'border-[#e67e00] text-[#e67e00]' 
+                : 'border-transparent text-[var(--text-muted-alt)] hover:text-[var(--text-main)]'
+            }`}
+          >
+            {reportTab.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+          </button>
+       ))}
+     </div>
+     
+     {/* Reports Content */}
+     <div className={`flex-1 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] p-6 flex flex-col ${!listFilters.activeReportTab ? 'items-center justify-center' : ''}`}>
+        {!listFilters.activeReportTab ? (
+           <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-[#e67e00]/10 text-[#e67e00] rounded-full flex items-center justify-center">
+                 <FileText size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-[var(--text-main)]">
+                 Select a Report
+              </h3>
+              <p className="text-[var(--text-muted-alt)] mt-2 max-w-md mx-auto">
+                 Please click on one of the report tabs above to view its data.
+              </p>
+           </div>
+        ) : listFilters.activeReportTab === 'paddy_stack' ? (
+           <div className="w-full flex flex-col h-full">
+              <div className="flex justify-between items-center mb-4">
+                 <h3 className="text-lg font-bold text-[var(--text-main)]">Paddy Stock Documentation</h3>
+                 <div className="flex gap-2">
+                    <button className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded border border-[var(--border-subtle)] text-sm transition-colors">
+                       <Printer size={16} /> Print
+                    </button>
+                    <button className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded border border-[var(--border-subtle)] text-sm transition-colors">
+                       <Download size={16} /> Export
+                    </button>
+                 </div>
+              </div>
+              <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+                 <table className="w-full text-left border-collapse">
+                    <thead>
+                       <tr className="bg-[var(--bg-panel-hover)] border-b border-[var(--border-subtle)]">
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]"></th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">A</th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">B</th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">C</th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">D</th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">E</th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">F</th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">G</th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)]">H</th>
+                       </tr>
+                       <tr className="bg-[var(--bg-panel-hover)] border-b border-[var(--border-subtle)]">
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">Date</th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">Op bal</th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">At Stack</th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">Dryer Bharai</th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">Total<br/><span className="text-xs text-[var(--text-muted-alt)] font-normal">=A+B+C</span></th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">Hoodi Katai</th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">Out</th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">Cl stock<br/><span className="text-xs text-[var(--text-muted-alt)] font-normal">=D-(E+F)</span></th>
+                          <th className="p-3 text-sm font-semibold text-[var(--text-main)]">Stack no. in use</th>
+                       </tr>
+                    </thead>
+                    <tbody>
+                       {/* Mock Data Row */}
+                       <tr className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-panel-hover)] transition-colors">
+                          <td className="p-3 text-sm text-[var(--text-main)] border-r border-[var(--border-subtle)]">2026-09-01</td>
+                          <td className="p-3 text-sm text-[var(--text-main)] border-r border-[var(--border-subtle)]">1500</td>
+                          <td className="p-3 text-sm text-[var(--text-main)] border-r border-[var(--border-subtle)]">500</td>
+                          <td className="p-3 text-sm text-[var(--text-main)] border-r border-[var(--border-subtle)]">200</td>
+                          <td className="p-3 text-sm font-bold text-[var(--text-main)] border-r border-[var(--border-subtle)]">2200</td>
+                          <td className="p-3 text-sm text-[var(--text-main)] border-r border-[var(--border-subtle)]">300</td>
+                          <td className="p-3 text-sm text-[var(--text-main)] border-r border-[var(--border-subtle)]">100</td>
+                          <td className="p-3 text-sm font-bold text-[#e67e00] border-r border-[var(--border-subtle)]">1800</td>
+                          <td className="p-3 text-sm text-[var(--text-main)]">101, 102</td>
+                       </tr>
+                       {/* Empty rows to fill space */}
+                       <tr className="border-b border-[var(--border-subtle)]"><td className="p-3 border-r border-[var(--border-subtle)]">&nbsp;</td><td className="p-3 border-r border-[var(--border-subtle)]"></td><td className="p-3 border-r border-[var(--border-subtle)]"></td><td className="p-3 border-r border-[var(--border-subtle)]"></td><td className="p-3 border-r border-[var(--border-subtle)]"></td><td className="p-3 border-r border-[var(--border-subtle)]"></td><td className="p-3 border-r border-[var(--border-subtle)]"></td><td className="p-3 border-r border-[var(--border-subtle)]"></td><td className="p-3"></td></tr>
+                       <tr className="border-b border-[var(--border-subtle)]"><td className="p-3 border-r border-[var(--border-subtle)]">&nbsp;</td><td className="p-3 border-r border-[var(--border-subtle)]"></td><td className="p-3 border-r border-[var(--border-subtle)]"></td><td className="p-3 border-r border-[var(--border-subtle)]"></td><td className="p-3 border-r border-[var(--border-subtle)]"></td><td className="p-3 border-r border-[var(--border-subtle)]"></td><td className="p-3 border-r border-[var(--border-subtle)]"></td><td className="p-3 border-r border-[var(--border-subtle)]"></td><td className="p-3"></td></tr>
+                    </tbody>
+                 </table>
+              </div>
+           </div>
+        ) : (
+           <div className="text-center w-full h-full flex flex-col justify-center items-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-[#e67e00]/10 text-[#e67e00] rounded-full flex items-center justify-center">
+                 <FileText size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-[var(--text-main)]">
+                 {listFilters.activeReportTab.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} Report
+              </h3>
+              <p className="text-[var(--text-muted-alt)] mt-2 max-w-md mx-auto">
+                 This report is currently being developed. Data visualization and export options will appear here once ready.
+              </p>
+           </div>
+        )}
+     </div>
+   </div>
  </div>
  )}
  </div>
