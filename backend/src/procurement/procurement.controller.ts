@@ -173,4 +173,45 @@ export class ProcurementController {
   ) {
     return this.procurementService.updateShortageRecovery(id, shortageRecoveryQtl);
   }
+  @Post('hoodi-transfer')
+  @RequirePermission('Procurement', 'canAdd')
+  async transferStackToHoodi(@Body() data: any) {
+    try {
+      return await this.procurementService.transferStackToHoodi(data.plantId, data);
+    } catch (error: any) {
+      throw new HttpException(`Failed to transfer: ${error.message || error}`, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Get('reports/hoodi-summary')
+  @RequirePermission('Procurement', 'canView')
+  async getHoodiReport(
+    @Query('plantId') plantId: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string
+  ) {
+    try {
+      return await this.procurementService.getHoodiReport(plantId, dateFrom, dateTo);
+    } catch (error: any) {
+      throw new HttpException(`Failed to get report: ${error.message || error}`, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Get('stack/layout')
+  async getStackLayout(@Query('plantId') plantId: string) {
+    if (!plantId) throw new BadRequestException('plantId is required');
+    return await this.procurementService.getStackLayout(plantId);
+  }
+
+  @Get('stack/history')
+  async getStackHistory(@Query('plantId') plantId: string, @Query('stackNo') stackNo: string) {
+    if (!plantId || !stackNo) throw new BadRequestException('plantId and stackNo required');
+    return await this.procurementService.getStackHistory(plantId, stackNo);
+  }
+
+  @Patch('stack/:stackNo/complete')
+  async markStackComplete(@Param('stackNo') stackNo: string, @Body('plantId') plantId: string) {
+    if (!plantId) throw new BadRequestException('plantId is required');
+    return await this.procurementService.markStackComplete(plantId, stackNo);
+  }
 }

@@ -93,6 +93,7 @@ export const DashboardShell: React.FC = () => {
       { label: 'Paddy Purchase & Quality', tab: 'paddy_purchase' },
       { label: 'Paddy Inward', tab: 'paddy_inward' },
       { label: 'Inward List', tab: 'inward_register' },
+      { label: 'Stack to Hoodi', tab: 'stack_to_hoodi' },
       { label: 'Global Settings (Govt Rate)', tab: 'global_settings' },
       { label: 'Reports', tab: 'reports' }
     ]},

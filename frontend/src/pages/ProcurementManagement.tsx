@@ -4,6 +4,9 @@ import { Users, Package, ShieldCheck, FileText, Search, Plus, Calendar, ChevronD
 import BoliCompletionTable from '../components/Procurement/BoliCompletionTable';
 import api from '../api/axios';
 import ShortageRecoveryReport from '../components/ShortageRecoveryReport';
+import StackToHoodiTransfer from '../components/StackToHoodiTransfer';
+import DailyHoodiReport from '../components/DailyHoodiReport';
+import StackLayoutView from '../components/StackLayoutView';
 import { CustomModal } from '../components/CustomModal';
 import { usePlantStore } from '../store/plantStore';
 import { useUiStore } from '../store/uiStore';
@@ -2038,6 +2041,13 @@ export const ProcurementManagement = () => {
  )}
 
 
+   {/* TAB: STACK TO HOODI */}
+   {activeTab === 'stack_to_hoodi' && (
+      <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] overflow-hidden shadow-sm">
+        <StackToHoodiTransfer />
+      </div>
+    )}
+
    {/* TAB: INWARD REGISTER */}
    {activeTab === 'inward_register' && (
       <div className="flex-1 overflow-auto bg-[var(--bg-panel)] p-6 rounded-xl border border-[var(--border-subtle)] flex flex-col h-full shadow-2xl">
@@ -2623,7 +2633,7 @@ export const ProcurementManagement = () => {
      
      {/* Reports Inner Navigation */}
      <div className="flex border-b border-[var(--border-subtle)] mb-6">
-       {['shortage_recovery', 'stack_record', 'hoodi_report', 'paddy_stack'].map((reportTab) => (
+       {['shortage_recovery', 'hoodi_report', 'paddy_stack', 'stack_layout'].map((reportTab) => (
           <button 
             key={reportTab}
             onClick={() => setListFilters(prev => ({ ...prev, activeReportTab: reportTab }))}
@@ -2654,6 +2664,10 @@ export const ProcurementManagement = () => {
            </div>
         ) : listFilters.activeReportTab === 'shortage_recovery' ? (
             <ShortageRecoveryReport activePlant={activePlant} />
+         ) : listFilters.activeReportTab === 'hoodi_report' ? (
+            <DailyHoodiReport />
+         ) : listFilters.activeReportTab === 'stack_layout' ? (
+            <StackLayoutView plantId={activePlant?.id || ''} />
          ) : listFilters.activeReportTab === 'paddy_stack' ? (
            <div className="w-full flex flex-col h-full">
               <div className="flex justify-between items-center mb-4">

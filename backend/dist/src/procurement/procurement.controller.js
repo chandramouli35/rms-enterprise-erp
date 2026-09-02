@@ -105,6 +105,37 @@ let ProcurementController = class ProcurementController {
     async updateShortageRecovery(id, shortageRecoveryQtl) {
         return this.procurementService.updateShortageRecovery(id, shortageRecoveryQtl);
     }
+    async transferStackToHoodi(data) {
+        try {
+            return await this.procurementService.transferStackToHoodi(data.plantId, data);
+        }
+        catch (error) {
+            throw new common_1.HttpException(`Failed to transfer: ${error.message || error}`, common_1.HttpStatus.BAD_REQUEST);
+        }
+    }
+    async getHoodiReport(plantId, dateFrom, dateTo) {
+        try {
+            return await this.procurementService.getHoodiReport(plantId, dateFrom, dateTo);
+        }
+        catch (error) {
+            throw new common_1.HttpException(`Failed to get report: ${error.message || error}`, common_1.HttpStatus.BAD_REQUEST);
+        }
+    }
+    async getStackLayout(plantId) {
+        if (!plantId)
+            throw new BadRequestException('plantId is required');
+        return await this.procurementService.getStackLayout(plantId);
+    }
+    async getStackHistory(plantId, stackNo) {
+        if (!plantId || !stackNo)
+            throw new BadRequestException('plantId and stackNo required');
+        return await this.procurementService.getStackHistory(plantId, stackNo);
+    }
+    async markStackComplete(stackNo, plantId) {
+        if (!plantId)
+            throw new BadRequestException('plantId is required');
+        return await this.procurementService.markStackComplete(plantId, stackNo);
+    }
 };
 exports.ProcurementController = ProcurementController;
 __decorate([
@@ -281,6 +312,47 @@ __decorate([
     __metadata("design:paramtypes", [String, Number]),
     __metadata("design:returntype", Promise)
 ], ProcurementController.prototype, "updateShortageRecovery", null);
+__decorate([
+    (0, common_1.Post)('hoodi-transfer'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canAdd'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], ProcurementController.prototype, "transferStackToHoodi", null);
+__decorate([
+    (0, common_1.Get)('reports/hoodi-summary'),
+    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
+    __param(0, (0, common_1.Query)('plantId')),
+    __param(1, (0, common_1.Query)('dateFrom')),
+    __param(2, (0, common_1.Query)('dateTo')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", Promise)
+], ProcurementController.prototype, "getHoodiReport", null);
+__decorate([
+    (0, common_1.Get)('stack/layout'),
+    __param(0, (0, common_1.Query)('plantId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], ProcurementController.prototype, "getStackLayout", null);
+__decorate([
+    (0, common_1.Get)('stack/history'),
+    __param(0, (0, common_1.Query)('plantId')),
+    __param(1, (0, common_1.Query)('stackNo')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], ProcurementController.prototype, "getStackHistory", null);
+__decorate([
+    (0, common_1.Patch)('stack/:stackNo/complete'),
+    __param(0, (0, common_1.Param)('stackNo')),
+    __param(1, (0, common_1.Body)('plantId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], ProcurementController.prototype, "markStackComplete", null);
 exports.ProcurementController = ProcurementController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
     (0, common_1.Controller)('api/procurement'),

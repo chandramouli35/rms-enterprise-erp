@@ -1274,3 +1274,50 @@ model ProductionBatchStackInput {
 }
 
 
+
+model HoodiRecord {
+  id            String   @id @default(uuid())
+  plantId       String
+  date          DateTime @default(now())
+  
+  sourceType    String   // 'DIRECT_INWARD' | 'STACK_TRANSFER'
+  
+  gpNo          String?
+  mandiGpNo     String?
+  truckNo       String?
+  supplierName  String?
+  mandiName     String?
+  stackNo       String?
+  moisture      Float?
+  bags          Float?
+  unloadedBy    String?
+  
+  inwardId      String?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model PaddyStack {
+  id              String   @id @default(uuid())
+  plantId         String
+  stackNo         String
+  status          String   @default("ACTIVE") // ACTIVE, EMPTY, COMPLETED
+  
+  totalBags       Float    @default(0)
+  totalWeight     Float    @default(0)
+  averageMoisture Float    @default(0)
+  
+  // Track bags by class
+  bagsAClass      Float    @default(0)
+  bagsBClass      Float    @default(0)
+  
+  // Whether this stack contains primarily NEW A_Class bags
+  isNewAClass     Boolean  @default(false)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([plantId, stackNo])
+  @@index([plantId])
+}

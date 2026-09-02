@@ -116,6 +116,48 @@ let ProcurementService = class ProcurementService {
                     inspectedBy: inspectedBy || null
                 }
             });
+            if (data.allocationType === 'Stacking' && data.stackNo) {
+                const bagsRec = parseFloat(data.bagsRecAtMill) || 0;
+                const netWt = parseFloat(data.netWtAtMill) || 0;
+                const moistureVal = parseFloat(moisture) || 0;
+                const isAClass = data.bagType === 'NEW' && data.originalBardanaClass === 'A_Class';
+                const existingStack = await tx.paddyStack.findUnique({
+                    where: { plantId_stackNo: { plantId, stackNo: data.stackNo } }
+                });
+                if (existingStack) {
+                    const newTotalBags = existingStack.totalBags + bagsRec;
+                    const newTotalWt = existingStack.totalWeight + netWt;
+                    const newAvgMoisture = newTotalWt > 0
+                        ? ((existingStack.averageMoisture * existingStack.totalWeight) + (moistureVal * netWt)) / newTotalWt
+                        : moistureVal;
+                    await tx.paddyStack.update({
+                        where: { id: existingStack.id },
+                        data: {
+                            totalBags: newTotalBags,
+                            totalWeight: newTotalWt,
+                            averageMoisture: newAvgMoisture,
+                            bagsAClass: isAClass ? existingStack.bagsAClass + bagsRec : existingStack.bagsAClass,
+                            bagsBClass: !isAClass ? existingStack.bagsBClass + bagsRec : existingStack.bagsBClass,
+                            status: 'ACTIVE'
+                        }
+                    });
+                }
+                else {
+                    await tx.paddyStack.create({
+                        data: {
+                            plantId,
+                            stackNo: data.stackNo,
+                            totalBags: bagsRec,
+                            totalWeight: netWt,
+                            averageMoisture: moistureVal,
+                            bagsAClass: isAClass ? bagsRec : 0,
+                            bagsBClass: !isAClass ? bagsRec : 0,
+                            isNewAClass: isAClass,
+                            status: 'ACTIVE'
+                        }
+                    });
+                }
+            }
             await this.inventoryService.adjustStock({
                 plantId,
                 itemType: 'PADDY',
@@ -224,6 +266,26 @@ let ProcurementService = class ProcurementService {
                         details: `Paddy Inward (GP No: ${data.gpNo || '-'}): Received a total of ${data.bagsRecAtMill} bags at the mill.`,
                         userId: 'SYSTEM',
                         plantId: plantId
+                    }
+                });
+            }
+            if (data.allocationType === 'Hoodi') {
+                const supplier = supplierId ? await tx.supplier.findUnique({ where: { id: supplierId } }) : null;
+                await tx.hoodiRecord.create({
+                    data: {
+                        plantId,
+                        sourceType: 'DIRECT_INWARD',
+                        date: new Date(),
+                        gpNo: data.gpNo,
+                        mandiGpNo: data.mandiEgpNo || data.mandiEgNo,
+                        truckNo: data.truckNo,
+                        supplierName: supplier?.name || null,
+                        mandiName: data.mandi,
+                        stackNo: 'Direct-Inward',
+                        bags: parseFloat(data.bagsRecAtMill) || 0,
+                        moisture: parsedMoisture,
+                        unloadedBy: data.allocateUnloader || data.unloaderName || 'System',
+                        inwardId: batch.id
                     }
                 });
             }
@@ -835,6 +897,83 @@ let ProcurementService = class ProcurementService {
         return this.prisma.paddyInwardDetails.update({
             where: { id: inwardDetailsId },
             data: { shortageRecoveryQtl },
+        });
+    }
+    async transferStackToHoodi(plantId, data) {
+        const transferBags = parseFloat(data.bags) || 0;
+        await this.prisma.$transaction(async (tx) => {
+            const stack = await tx.paddyStack.findUnique({
+                where: { plantId_stackNo: { plantId, stackNo: data.stackNo } }
+            });
+            if (stack) {
+                const newTotal = stack.totalBags - transferBags;
+                const status = newTotal <= 0 ? 'EMPTY' : stack.status;
+                await tx.paddyStack.update({
+                    where: { id: stack.id },
+                    data: { totalBags: newTotal, status }
+                });
+            }
+            await tx.hoodiRecord.create({
+                data: {
+                    plantId,
+                    sourceType: 'STACK_TRANSFER',
+                    date: new Date(),
+                    stackNo: data.stackNo,
+                    bags: transferBags,
+                    moisture: parseFloat(data.moisture) || null,
+                    unloadedBy: data.unloadedBy || 'System'
+                }
+            });
+        });
+        return { success: true };
+    }
+    async getHoodiReport(plantId, dateFrom, dateTo) {
+        const whereClause = plantId === 'global' ? {} : { plantId };
+        if (dateFrom || dateTo) {
+            whereClause.date = {};
+            if (dateFrom)
+                whereClause.date.gte = new Date(dateFrom);
+            if (dateTo) {
+                const to = new Date(dateTo);
+                to.setHours(23, 59, 59, 999);
+                whereClause.date.lte = to;
+            }
+        }
+        const records = await this.prisma.hoodiRecord.findMany({
+            where: whereClause,
+            orderBy: { date: 'desc' }
+        });
+        return records;
+    }
+    async getStackLayout(plantId) {
+        return this.prisma.paddyStack.findMany({
+            where: { plantId },
+            orderBy: { stackNo: 'asc' }
+        });
+    }
+    async getStackHistory(plantId, stackNo) {
+        const inwards = await this.prisma.procurementBatch.findMany({
+            where: {
+                plantId,
+                paddyInwardDetails: { stackNo }
+            },
+            include: {
+                paddyInwardDetails: true,
+                quality: true,
+                supplier: true
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        const transfers = await this.prisma.hoodiRecord.findMany({
+            where: { plantId, stackNo, sourceType: 'STACK_TRANSFER' },
+            orderBy: { date: 'desc' }
+        });
+        return { inwards, transfers };
+    }
+    async markStackComplete(plantId, stackNo) {
+        return this.prisma.paddyStack.update({
+            where: { plantId_stackNo: { plantId, stackNo } },
+            data: { status: 'COMPLETED' }
         });
     }
 };
