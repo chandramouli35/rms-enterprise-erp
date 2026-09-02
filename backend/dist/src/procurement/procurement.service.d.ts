@@ -6,11 +6,18 @@ export declare class ProcurementService {
     constructor(prisma: PrismaService, inventoryService: InventoryService);
     savePurchase(data: any): Promise<{
         id: string;
-        biometricData: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        status: string;
+        plantId: string;
+        netWeight: number | null;
         grossWeight: number | null;
         tareWeight: number | null;
-        netWeight: number | null;
         category: import(".prisma/client").$Enums.InventoryCategory | null;
+        supplierId: string | null;
+        biometricData: string | null;
+        gatePassId: string | null;
+        weighbridgeId: string | null;
         purchaseType: import(".prisma/client").$Enums.PurchaseType | null;
         baseRate: number | null;
         finalRate: number | null;
@@ -20,43 +27,36 @@ export declare class ProcurementService {
         amount: number | null;
         deductions: number | null;
         netAmount: number | null;
-        status: string;
-        createdAt: Date;
-        updatedAt: Date;
-        plantId: string;
-        supplierId: string | null;
-        gatePassId: string | null;
-        weighbridgeId: string | null;
     }>;
     getInwards(plantId: string, dateFrom?: string, dateTo?: string, mandi?: string, supplierId?: string, page?: string, limit?: string): Promise<{
         data: {
             id: string;
             weighbridge: {
                 id: string;
-                grossWeight: number | null;
-                tareWeight: number | null;
-                netWeight: number | null;
-                status: string;
                 createdAt: Date;
                 updatedAt: Date;
+                status: string;
+                remarks: string | null;
                 plantId: string;
-                gatePassId: string | null;
-                driverName: string | null;
+                netWeight: number | null;
+                grossWeight: number | null;
+                tareWeight: number | null;
                 vehicleNo: string;
+                driverName: string | null;
+                challanNo: string | null;
+                gatePassId: string | null;
                 transactionType: string;
                 materialType: string | null;
                 supplierName: string | null;
-                challanNo: string | null;
-                remarks: string | null;
                 grossTime: Date | null;
                 tareTime: Date | null;
             } | null;
             quality: {
                 id: string;
-                status: string;
                 createdAt: Date;
                 updatedAt: Date;
                 moisture: number | null;
+                status: string;
                 procurementBatchId: string;
                 broken: number | null;
                 discoloration: number | null;
@@ -64,21 +64,30 @@ export declare class ProcurementService {
                 inspectedBy: string | null;
             } | null;
             supplierDetails: {
-                mandi: string | null;
                 id: string;
-                status: string;
+                name: string;
                 createdAt: Date;
                 updatedAt: Date;
+                status: string;
                 plantId: string | null;
-                name: string;
+                mandi: string | null;
+                email: string | null;
                 firmNames: string[];
                 contact: string | null;
-                email: string | null;
                 address: string | null;
             } | null;
-            mandi?: string | null | undefined;
+            standardBagWeight?: number | null | undefined;
+            govtRate?: number | null | undefined;
             createdAt?: Date | undefined;
             updatedAt?: Date | undefined;
+            moisture?: number | null | undefined;
+            mandi?: string | null | undefined;
+            qualityCutValue?: number | null | undefined;
+            driverName?: string | null | undefined;
+            qualityCutType?: string | null | undefined;
+            qualityCutReason?: string | null | undefined;
+            partyName?: string | null | undefined;
+            procurementBatchId?: string | undefined;
             truckNo?: string | null | undefined;
             gpNo: string | null;
             mandiEgNo: string | null;
@@ -116,10 +125,6 @@ export declare class ProcurementService {
             khaliVideoUrl?: string | null | undefined;
             shortageAClass?: number | null | undefined;
             shortageBClass?: number | null | undefined;
-            qualityCutType?: string | null | undefined;
-            qualityCutValue?: number | null | undefined;
-            qualityCutReason?: string | null | undefined;
-            standardBagWeight?: number | null | undefined;
             totalBagsCalculated?: number | null | undefined;
             standardWeightCalculated?: number | null | undefined;
             actualWeightReceived?: number | null | undefined;
@@ -134,8 +139,6 @@ export declare class ProcurementService {
             bClassReceived?: number | null | undefined;
             bClassPending?: number | null | undefined;
             autoConvertedToBClass?: number | null | undefined;
-            partyName?: string | null | undefined;
-            moisture?: number | null | undefined;
             paddyBoliRecord?: string | null | undefined;
             mainUnloaderTruckCount?: number | null | undefined;
             bagsInMainStack?: number | null | undefined;
@@ -146,12 +149,9 @@ export declare class ProcurementService {
             totalBagsReceived?: number | null | undefined;
             bagsRecLessThanAgencyGp?: boolean | null | undefined;
             plusWtConsiderInShortageRecovery?: boolean | null | undefined;
-            driverName?: string | null | undefined;
             driverMobileNumber?: string | null | undefined;
             unloaderSignAndStamp?: boolean | null | undefined;
             pahunchPersonSignAndStamp?: boolean | null | undefined;
-            govtRate?: number | null | undefined;
-            procurementBatchId?: string | undefined;
             purchaseNo: string;
             date: string;
             supplier: string;
@@ -164,23 +164,32 @@ export declare class ProcurementService {
     }>;
     getInwardDetails(batchId: string): Promise<{
         supplier: {
-            mandi: string | null;
             id: string;
-            status: string;
+            name: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             plantId: string | null;
-            name: string;
+            mandi: string | null;
+            email: string | null;
             firmNames: string[];
             contact: string | null;
-            email: string | null;
             address: string | null;
         } | null;
         paddyInwardDetails: {
-            mandi: string | null;
             id: string;
+            standardBagWeight: number | null;
+            govtRate: number | null;
             createdAt: Date;
             updatedAt: Date;
+            moisture: number | null;
+            mandi: string | null;
+            qualityCutValue: number | null;
+            driverName: string | null;
+            qualityCutType: string | null;
+            qualityCutReason: string | null;
+            partyName: string | null;
+            procurementBatchId: string;
             truckNo: string | null;
             gpNo: string | null;
             mandiEgNo: string | null;
@@ -218,10 +227,6 @@ export declare class ProcurementService {
             khaliVideoUrl: string | null;
             shortageAClass: number | null;
             shortageBClass: number | null;
-            qualityCutType: string | null;
-            qualityCutValue: number | null;
-            qualityCutReason: string | null;
-            standardBagWeight: number | null;
             totalBagsCalculated: number | null;
             standardWeightCalculated: number | null;
             actualWeightReceived: number | null;
@@ -236,8 +241,6 @@ export declare class ProcurementService {
             bClassReceived: number | null;
             bClassPending: number | null;
             autoConvertedToBClass: number | null;
-            partyName: string | null;
-            moisture: number | null;
             paddyBoliRecord: string | null;
             mainUnloaderTruckCount: number | null;
             bagsInMainStack: number | null;
@@ -248,39 +251,36 @@ export declare class ProcurementService {
             totalBagsReceived: number | null;
             bagsRecLessThanAgencyGp: boolean | null;
             plusWtConsiderInShortageRecovery: boolean | null;
-            driverName: string | null;
             driverMobileNumber: string | null;
             unloaderSignAndStamp: boolean | null;
             pahunchPersonSignAndStamp: boolean | null;
-            govtRate: number | null;
-            procurementBatchId: string;
         } | null;
         weighbridge: {
             id: string;
-            grossWeight: number | null;
-            tareWeight: number | null;
-            netWeight: number | null;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
+            remarks: string | null;
             plantId: string;
-            gatePassId: string | null;
-            driverName: string | null;
+            netWeight: number | null;
+            grossWeight: number | null;
+            tareWeight: number | null;
             vehicleNo: string;
+            driverName: string | null;
+            challanNo: string | null;
+            gatePassId: string | null;
             transactionType: string;
             materialType: string | null;
             supplierName: string | null;
-            challanNo: string | null;
-            remarks: string | null;
             grossTime: Date | null;
             tareTime: Date | null;
         } | null;
         quality: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             moisture: number | null;
+            status: string;
             procurementBatchId: string;
             broken: number | null;
             discoloration: number | null;
@@ -289,11 +289,18 @@ export declare class ProcurementService {
         } | null;
     } & {
         id: string;
-        biometricData: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        status: string;
+        plantId: string;
+        netWeight: number | null;
         grossWeight: number | null;
         tareWeight: number | null;
-        netWeight: number | null;
         category: import(".prisma/client").$Enums.InventoryCategory | null;
+        supplierId: string | null;
+        biometricData: string | null;
+        gatePassId: string | null;
+        weighbridgeId: string | null;
         purchaseType: import(".prisma/client").$Enums.PurchaseType | null;
         baseRate: number | null;
         finalRate: number | null;
@@ -303,13 +310,6 @@ export declare class ProcurementService {
         amount: number | null;
         deductions: number | null;
         netAmount: number | null;
-        status: string;
-        createdAt: Date;
-        updatedAt: Date;
-        plantId: string;
-        supplierId: string | null;
-        gatePassId: string | null;
-        weighbridgeId: string | null;
     }>;
     getRecentPurchases(plantId: string, dateFrom?: string, dateTo?: string, page?: string, limit?: string): Promise<{
         data: {
@@ -330,23 +330,32 @@ export declare class ProcurementService {
     }>;
     getBatch(batchId: string): Promise<({
         supplier: {
-            mandi: string | null;
             id: string;
-            status: string;
+            name: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             plantId: string | null;
-            name: string;
+            mandi: string | null;
+            email: string | null;
             firmNames: string[];
             contact: string | null;
-            email: string | null;
             address: string | null;
         } | null;
         paddyInwardDetails: {
-            mandi: string | null;
             id: string;
+            standardBagWeight: number | null;
+            govtRate: number | null;
             createdAt: Date;
             updatedAt: Date;
+            moisture: number | null;
+            mandi: string | null;
+            qualityCutValue: number | null;
+            driverName: string | null;
+            qualityCutType: string | null;
+            qualityCutReason: string | null;
+            partyName: string | null;
+            procurementBatchId: string;
             truckNo: string | null;
             gpNo: string | null;
             mandiEgNo: string | null;
@@ -384,10 +393,6 @@ export declare class ProcurementService {
             khaliVideoUrl: string | null;
             shortageAClass: number | null;
             shortageBClass: number | null;
-            qualityCutType: string | null;
-            qualityCutValue: number | null;
-            qualityCutReason: string | null;
-            standardBagWeight: number | null;
             totalBagsCalculated: number | null;
             standardWeightCalculated: number | null;
             actualWeightReceived: number | null;
@@ -402,8 +407,6 @@ export declare class ProcurementService {
             bClassReceived: number | null;
             bClassPending: number | null;
             autoConvertedToBClass: number | null;
-            partyName: string | null;
-            moisture: number | null;
             paddyBoliRecord: string | null;
             mainUnloaderTruckCount: number | null;
             bagsInMainStack: number | null;
@@ -414,39 +417,36 @@ export declare class ProcurementService {
             totalBagsReceived: number | null;
             bagsRecLessThanAgencyGp: boolean | null;
             plusWtConsiderInShortageRecovery: boolean | null;
-            driverName: string | null;
             driverMobileNumber: string | null;
             unloaderSignAndStamp: boolean | null;
             pahunchPersonSignAndStamp: boolean | null;
-            govtRate: number | null;
-            procurementBatchId: string;
         } | null;
         weighbridge: {
             id: string;
-            grossWeight: number | null;
-            tareWeight: number | null;
-            netWeight: number | null;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
+            remarks: string | null;
             plantId: string;
-            gatePassId: string | null;
-            driverName: string | null;
+            netWeight: number | null;
+            grossWeight: number | null;
+            tareWeight: number | null;
             vehicleNo: string;
+            driverName: string | null;
+            challanNo: string | null;
+            gatePassId: string | null;
             transactionType: string;
             materialType: string | null;
             supplierName: string | null;
-            challanNo: string | null;
-            remarks: string | null;
             grossTime: Date | null;
             tareTime: Date | null;
         } | null;
         quality: {
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
             moisture: number | null;
+            status: string;
             procurementBatchId: string;
             broken: number | null;
             discoloration: number | null;
@@ -455,11 +455,18 @@ export declare class ProcurementService {
         } | null;
     } & {
         id: string;
-        biometricData: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        status: string;
+        plantId: string;
+        netWeight: number | null;
         grossWeight: number | null;
         tareWeight: number | null;
-        netWeight: number | null;
         category: import(".prisma/client").$Enums.InventoryCategory | null;
+        supplierId: string | null;
+        biometricData: string | null;
+        gatePassId: string | null;
+        weighbridgeId: string | null;
         purchaseType: import(".prisma/client").$Enums.PurchaseType | null;
         baseRate: number | null;
         finalRate: number | null;
@@ -469,20 +476,13 @@ export declare class ProcurementService {
         amount: number | null;
         deductions: number | null;
         netAmount: number | null;
-        status: string;
-        createdAt: Date;
-        updatedAt: Date;
-        plantId: string;
-        supplierId: string | null;
-        gatePassId: string | null;
-        weighbridgeId: string | null;
     }) | null>;
     updateQuality(batchId: string, data: any): Promise<{
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
         moisture: number | null;
+        status: string;
         procurementBatchId: string;
         broken: number | null;
         discoloration: number | null;
@@ -490,16 +490,16 @@ export declare class ProcurementService {
         inspectedBy: string | null;
     }>;
     getSuppliers(): Promise<{
-        mandi: string | null;
         id: string;
-        status: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         plantId: string | null;
-        name: string;
+        mandi: string | null;
+        email: string | null;
         firmNames: string[];
         contact: string | null;
-        email: string | null;
         address: string | null;
     }[]>;
     createSupplier(data: {
@@ -511,16 +511,16 @@ export declare class ProcurementService {
         mandi?: string;
         plantId?: string;
     }): Promise<{
-        mandi: string | null;
         id: string;
-        status: string;
+        name: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         plantId: string | null;
-        name: string;
+        mandi: string | null;
+        email: string | null;
         firmNames: string[];
         contact: string | null;
-        email: string | null;
         address: string | null;
     }>;
     getOccupiedStacks(plantId: string): Promise<Record<string, any>>;
@@ -546,11 +546,18 @@ export declare class ProcurementService {
     }>;
     updateBoliRate(batchId: string, newRate: number, arhtiaCorrection: number): Promise<{
         id: string;
-        biometricData: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        status: string;
+        plantId: string;
+        netWeight: number | null;
         grossWeight: number | null;
         tareWeight: number | null;
-        netWeight: number | null;
         category: import(".prisma/client").$Enums.InventoryCategory | null;
+        supplierId: string | null;
+        biometricData: string | null;
+        gatePassId: string | null;
+        weighbridgeId: string | null;
         purchaseType: import(".prisma/client").$Enums.PurchaseType | null;
         baseRate: number | null;
         finalRate: number | null;
@@ -560,13 +567,6 @@ export declare class ProcurementService {
         amount: number | null;
         deductions: number | null;
         netAmount: number | null;
-        status: string;
-        createdAt: Date;
-        updatedAt: Date;
-        plantId: string;
-        supplierId: string | null;
-        gatePassId: string | null;
-        weighbridgeId: string | null;
     }>;
     getSodaPending(plantId: string, dateFrom?: string, dateTo?: string, page?: string, limit?: string): Promise<{
         data: {
@@ -582,9 +582,9 @@ export declare class ProcurementService {
                 createdAt: Date;
                 updatedAt: Date;
                 moisture: number;
+                sodaPendingId: string;
                 bags: number;
                 rate: number;
-                sodaPendingId: string;
                 bagsReceived: number;
                 isCompleted: boolean;
             }[];
@@ -598,13 +598,13 @@ export declare class ProcurementService {
     }>;
     createSodaPending(data: any): Promise<{
         id: string;
+        govtRate: number | null;
         createdAt: Date;
         updatedAt: Date;
+        date: Date;
+        moisture: number | null;
         plantId: string;
         supplierId: string;
-        moisture: number | null;
-        govtRate: number | null;
-        date: Date;
         bags: number | null;
         rate: number | null;
         diff: number | null;
@@ -616,13 +616,13 @@ export declare class ProcurementService {
     }>;
     updateSodaPending(id: string, data: any): Promise<{
         id: string;
+        govtRate: number | null;
         createdAt: Date;
         updatedAt: Date;
+        date: Date;
+        moisture: number | null;
         plantId: string;
         supplierId: string;
-        moisture: number | null;
-        govtRate: number | null;
-        date: Date;
         bags: number | null;
         rate: number | null;
         diff: number | null;
@@ -640,13 +640,13 @@ export declare class ProcurementService {
         userId?: string;
     }): Promise<{
         id: string;
+        govtRate: number | null;
         createdAt: Date;
         updatedAt: Date;
+        date: Date;
+        moisture: number | null;
         plantId: string;
         supplierId: string;
-        moisture: number | null;
-        govtRate: number | null;
-        date: Date;
         bags: number | null;
         rate: number | null;
         diff: number | null;
@@ -659,10 +659,19 @@ export declare class ProcurementService {
     getPaddyStockReport(plantId: string): Promise<any[]>;
     getShortageSummaryReport(plantId: string, mandiId?: string, supplierId?: string, dateFrom?: string, dateTo?: string): Promise<any[]>;
     updateShortageRecovery(inwardDetailsId: string, shortageRecoveryQtl: number): Promise<{
-        mandi: string | null;
         id: string;
+        standardBagWeight: number | null;
+        govtRate: number | null;
         createdAt: Date;
         updatedAt: Date;
+        moisture: number | null;
+        mandi: string | null;
+        qualityCutValue: number | null;
+        driverName: string | null;
+        qualityCutType: string | null;
+        qualityCutReason: string | null;
+        partyName: string | null;
+        procurementBatchId: string;
         truckNo: string | null;
         gpNo: string | null;
         mandiEgNo: string | null;
@@ -700,10 +709,6 @@ export declare class ProcurementService {
         khaliVideoUrl: string | null;
         shortageAClass: number | null;
         shortageBClass: number | null;
-        qualityCutType: string | null;
-        qualityCutValue: number | null;
-        qualityCutReason: string | null;
-        standardBagWeight: number | null;
         totalBagsCalculated: number | null;
         standardWeightCalculated: number | null;
         actualWeightReceived: number | null;
@@ -718,8 +723,6 @@ export declare class ProcurementService {
         bClassReceived: number | null;
         bClassPending: number | null;
         autoConvertedToBClass: number | null;
-        partyName: string | null;
-        moisture: number | null;
         paddyBoliRecord: string | null;
         mainUnloaderTruckCount: number | null;
         bagsInMainStack: number | null;
@@ -730,12 +733,9 @@ export declare class ProcurementService {
         totalBagsReceived: number | null;
         bagsRecLessThanAgencyGp: boolean | null;
         plusWtConsiderInShortageRecovery: boolean | null;
-        driverName: string | null;
         driverMobileNumber: string | null;
         unloaderSignAndStamp: boolean | null;
         pahunchPersonSignAndStamp: boolean | null;
-        govtRate: number | null;
-        procurementBatchId: string;
     }>;
     transferStackToHoodi(plantId: string, data: any): Promise<{
         success: boolean;
@@ -744,13 +744,13 @@ export declare class ProcurementService {
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        date: Date;
+        moisture: number | null;
         plantId: string;
         truckNo: string | null;
         gpNo: string | null;
         stackNo: string | null;
-        moisture: number | null;
         supplierName: string | null;
-        date: Date;
         bags: number | null;
         sourceType: string;
         mandiGpNo: string | null;
@@ -760,9 +760,9 @@ export declare class ProcurementService {
     }[]>;
     getStackLayout(plantId: string): Promise<{
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         plantId: string;
         stackNo: string;
         totalBags: number;
@@ -775,23 +775,32 @@ export declare class ProcurementService {
     getStackHistory(plantId: string, stackNo: string): Promise<{
         inwards: ({
             supplier: {
-                mandi: string | null;
                 id: string;
-                status: string;
+                name: string;
                 createdAt: Date;
                 updatedAt: Date;
+                status: string;
                 plantId: string | null;
-                name: string;
+                mandi: string | null;
+                email: string | null;
                 firmNames: string[];
                 contact: string | null;
-                email: string | null;
                 address: string | null;
             } | null;
             paddyInwardDetails: {
-                mandi: string | null;
                 id: string;
+                standardBagWeight: number | null;
+                govtRate: number | null;
                 createdAt: Date;
                 updatedAt: Date;
+                moisture: number | null;
+                mandi: string | null;
+                qualityCutValue: number | null;
+                driverName: string | null;
+                qualityCutType: string | null;
+                qualityCutReason: string | null;
+                partyName: string | null;
+                procurementBatchId: string;
                 truckNo: string | null;
                 gpNo: string | null;
                 mandiEgNo: string | null;
@@ -829,10 +838,6 @@ export declare class ProcurementService {
                 khaliVideoUrl: string | null;
                 shortageAClass: number | null;
                 shortageBClass: number | null;
-                qualityCutType: string | null;
-                qualityCutValue: number | null;
-                qualityCutReason: string | null;
-                standardBagWeight: number | null;
                 totalBagsCalculated: number | null;
                 standardWeightCalculated: number | null;
                 actualWeightReceived: number | null;
@@ -847,8 +852,6 @@ export declare class ProcurementService {
                 bClassReceived: number | null;
                 bClassPending: number | null;
                 autoConvertedToBClass: number | null;
-                partyName: string | null;
-                moisture: number | null;
                 paddyBoliRecord: string | null;
                 mainUnloaderTruckCount: number | null;
                 bagsInMainStack: number | null;
@@ -859,19 +862,16 @@ export declare class ProcurementService {
                 totalBagsReceived: number | null;
                 bagsRecLessThanAgencyGp: boolean | null;
                 plusWtConsiderInShortageRecovery: boolean | null;
-                driverName: string | null;
                 driverMobileNumber: string | null;
                 unloaderSignAndStamp: boolean | null;
                 pahunchPersonSignAndStamp: boolean | null;
-                govtRate: number | null;
-                procurementBatchId: string;
             } | null;
             quality: {
                 id: string;
-                status: string;
                 createdAt: Date;
                 updatedAt: Date;
                 moisture: number | null;
+                status: string;
                 procurementBatchId: string;
                 broken: number | null;
                 discoloration: number | null;
@@ -880,11 +880,18 @@ export declare class ProcurementService {
             } | null;
         } & {
             id: string;
-            biometricData: string | null;
+            createdAt: Date;
+            updatedAt: Date;
+            status: string;
+            plantId: string;
+            netWeight: number | null;
             grossWeight: number | null;
             tareWeight: number | null;
-            netWeight: number | null;
             category: import(".prisma/client").$Enums.InventoryCategory | null;
+            supplierId: string | null;
+            biometricData: string | null;
+            gatePassId: string | null;
+            weighbridgeId: string | null;
             purchaseType: import(".prisma/client").$Enums.PurchaseType | null;
             baseRate: number | null;
             finalRate: number | null;
@@ -894,25 +901,18 @@ export declare class ProcurementService {
             amount: number | null;
             deductions: number | null;
             netAmount: number | null;
-            status: string;
-            createdAt: Date;
-            updatedAt: Date;
-            plantId: string;
-            supplierId: string | null;
-            gatePassId: string | null;
-            weighbridgeId: string | null;
         })[];
         transfers: {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            date: Date;
+            moisture: number | null;
             plantId: string;
             truckNo: string | null;
             gpNo: string | null;
             stackNo: string | null;
-            moisture: number | null;
             supplierName: string | null;
-            date: Date;
             bags: number | null;
             sourceType: string;
             mandiGpNo: string | null;
@@ -923,9 +923,9 @@ export declare class ProcurementService {
     }>;
     markStackComplete(plantId: string, stackNo: string): Promise<{
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         plantId: string;
         stackNo: string;
         totalBags: number;

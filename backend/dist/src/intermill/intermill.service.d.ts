@@ -9,9 +9,9 @@ export declare class IntermillService {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            batchId: string;
             outputBags: number;
             productId: string;
+            batchId: string;
         }[];
     } & {
         id: string;
@@ -24,11 +24,23 @@ export declare class IntermillService {
         startTime: string;
         endTime: string;
         plantId: string;
-        rawMaterialId: string;
         inputBags: number;
         supervisorId: string;
+        rawMaterialId: string;
     }>;
     findAll(user: any): Promise<({
+        supervisor: {
+            username: string;
+        };
+        rawMaterial: {
+            id: string;
+            name: string;
+            createdAt: Date;
+            updatedAt: Date;
+            description: string | null;
+            category: string;
+            type: string;
+        };
         outputs: ({
             product: {
                 id: string;
@@ -43,22 +55,10 @@ export declare class IntermillService {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            batchId: string;
             outputBags: number;
             productId: string;
+            batchId: string;
         })[];
-        supervisor: {
-            username: string;
-        };
-        rawMaterial: {
-            id: string;
-            name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            description: string | null;
-            category: string;
-            type: string;
-        };
     } & {
         id: string;
         createdAt: Date;
@@ -70,9 +70,9 @@ export declare class IntermillService {
         startTime: string;
         endTime: string;
         plantId: string;
-        rawMaterialId: string;
         inputBags: number;
         supervisorId: string;
+        rawMaterialId: string;
     })[]>;
     approve(id: string, user: any): Promise<{
         id: string;
@@ -85,9 +85,9 @@ export declare class IntermillService {
         startTime: string;
         endTime: string;
         plantId: string;
-        rawMaterialId: string;
         inputBags: number;
         supervisorId: string;
+        rawMaterialId: string;
     }>;
     private processInventoryUpdate;
     private updateStock;

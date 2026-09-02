@@ -1,361 +1,140 @@
-"use strict";
-var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
-    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
-    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-    return c > 3 && r && Object.defineProperty(target, key, r), r;
-};
-var __metadata = (this && this.__metadata) || function (k, v) {
-    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
-};
-var __param = (this && this.__param) || function (paramIndex, decorator) {
-    return function (target, key) { decorator(target, key, paramIndex); }
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ProcurementController = void 0;
-const common_1 = require("@nestjs/common");
-const procurement_service_1 = require("./procurement.service");
-const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
-const permissions_guard_1 = require("../common/guards/permissions.guard");
-const require_permission_decorator_1 = require("../common/decorators/require-permission.decorator");
-let ProcurementController = class ProcurementController {
-    constructor(procurementService) {
-        this.procurementService = procurementService;
+async;
+savePurchase(, data, any);
+{
+    try {
+        return await this.procurementService.savePurchase(data);
     }
-    async savePurchase(data) {
-        try {
-            return await this.procurementService.savePurchase(data);
-        }
-        catch (error) {
-            console.error(error);
-            throw new common_1.HttpException(`Failed to save: ${error.message || error}`, common_1.HttpStatus.BAD_REQUEST);
-        }
+    catch (error) {
+        console.error(error);
+        throw new HttpException(`Failed to save: ${error.message || error}`, HttpStatus.BAD_REQUEST);
     }
-    async getInwardDetails(id) {
-        return this.procurementService.getInwardDetails(id);
+}
+getInwardDetails(, id, string);
+{
+    return this.procurementService.getInwardDetails(id);
+}
+getInwards(, plantId, string, , dateFrom ?  : string, , dateTo ?  : string, , mandi ?  : string, , supplierId ?  : string, , page ?  : string, , limit ?  : string);
+{
+    return this.procurementService.getInwards(plantId, dateFrom, dateTo, mandi, supplierId, page, limit);
+}
+getRecentPurchases(, plantId, string, , dateFrom ?  : string, , dateTo ?  : string, , page ?  : string, , limit ?  : string);
+{
+    return this.procurementService.getRecentPurchases(plantId, dateFrom, dateTo, page, limit);
+}
+getOccupiedStacks(, plantId, string);
+{
+    return this.procurementService.getOccupiedStacks(plantId);
+}
+getBatch(, batchId, string);
+{
+    return this.procurementService.getBatch(batchId);
+}
+updateQuality(, batchId, string, , data, any);
+{
+    return this.procurementService.updateQuality(batchId, data);
+}
+getSuppliers();
+{
+    return this.procurementService.getSuppliers();
+}
+createSupplier(, data, any);
+{
+    return this.procurementService.createSupplier(data);
+}
+getAnalytics(, plantId, string);
+{
+    return this.procurementService.getAnalytics(plantId);
+}
+getPurchaseRegister(, plantId, string, , filters, any);
+{
+    return this.procurementService.getPurchaseRegister(plantId, filters);
+}
+updateBoliRate(, batchId, string, , data, { newRate: number, arhtiaCorrection: number });
+{
+    try {
+        return await this.procurementService.updateBoliRate(batchId, data.newRate, data.arhtiaCorrection);
     }
-    getInwards(plantId, dateFrom, dateTo, mandi, supplierId, page, limit) {
-        return this.procurementService.getInwards(plantId, dateFrom, dateTo, mandi, supplierId, page, limit);
+    catch (error) {
+        throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
-    getRecentPurchases(plantId, dateFrom, dateTo, page, limit) {
-        return this.procurementService.getRecentPurchases(plantId, dateFrom, dateTo, page, limit);
+}
+getSodaPending(, plantId, string, , dateFrom ?  : string, , dateTo ?  : string, , page ?  : string, , limit ?  : string);
+{
+    return this.procurementService.getSodaPending(plantId, dateFrom, dateTo, page, limit);
+}
+createSodaPending(, data, any);
+{
+    try {
+        return await this.procurementService.createSodaPending(data);
     }
-    getOccupiedStacks(plantId) {
-        return this.procurementService.getOccupiedStacks(plantId);
+    catch (error) {
+        throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
-    getBatch(batchId) {
-        return this.procurementService.getBatch(batchId);
+}
+updateSodaPending(, id, string, , data, any);
+{
+    try {
+        return await this.procurementService.updateSodaPending(id, data);
     }
-    updateQuality(batchId, data) {
-        return this.procurementService.updateQuality(batchId, data);
+    catch (error) {
+        throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
-    getSuppliers() {
-        return this.procurementService.getSuppliers();
+}
+settleHisab(, data, any);
+{
+    try {
+        return await this.procurementService.settleHisab(data);
     }
-    createSupplier(data) {
-        return this.procurementService.createSupplier(data);
+    catch (error) {
+        throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
-    getAnalytics(plantId) {
-        return this.procurementService.getAnalytics(plantId);
+}
+getPaddyStockReport(, plantId, string);
+{
+    return this.procurementService.getPaddyStockReport(plantId);
+}
+getShortageSummaryReport(, plantId, string, , mandiId ?  : string, , supplierId ?  : string, , dateFrom ?  : string, , dateTo ?  : string);
+{
+    return this.procurementService.getShortageSummaryReport(plantId, mandiId, supplierId, dateFrom, dateTo);
+}
+updateShortageRecovery(, id, string, , shortageRecoveryQtl, number);
+{
+    return this.procurementService.updateShortageRecovery(id, shortageRecoveryQtl);
+}
+transferStackToHoodi(, data, any);
+{
+    try {
+        return await this.procurementService.transferStackToHoodi(data.plantId, data);
     }
-    getPurchaseRegister(plantId, filters) {
-        return this.procurementService.getPurchaseRegister(plantId, filters);
+    catch (error) {
+        throw new HttpException(`Failed to transfer: ${error.message || error}`, HttpStatus.BAD_REQUEST);
     }
-    async updateBoliRate(batchId, data) {
-        try {
-            return await this.procurementService.updateBoliRate(batchId, data.newRate, data.arhtiaCorrection);
-        }
-        catch (error) {
-            throw new common_1.HttpException(error.message, common_1.HttpStatus.BAD_REQUEST);
-        }
+}
+getHoodiReport(, plantId, string, , dateFrom ?  : string, , dateTo ?  : string);
+{
+    try {
+        return await this.procurementService.getHoodiReport(plantId, dateFrom, dateTo);
     }
-    getSodaPending(plantId, dateFrom, dateTo, page, limit) {
-        return this.procurementService.getSodaPending(plantId, dateFrom, dateTo, page, limit);
+    catch (error) {
+        throw new HttpException(`Failed to get report: ${error.message || error}`, HttpStatus.BAD_REQUEST);
     }
-    async createSodaPending(data) {
-        try {
-            return await this.procurementService.createSodaPending(data);
-        }
-        catch (error) {
-            throw new common_1.HttpException(error.message, common_1.HttpStatus.BAD_REQUEST);
-        }
-    }
-    async updateSodaPending(id, data) {
-        try {
-            return await this.procurementService.updateSodaPending(id, data);
-        }
-        catch (error) {
-            throw new common_1.HttpException(error.message, common_1.HttpStatus.BAD_REQUEST);
-        }
-    }
-    async settleHisab(data) {
-        try {
-            return await this.procurementService.settleHisab(data);
-        }
-        catch (error) {
-            throw new common_1.HttpException(error.message, common_1.HttpStatus.BAD_REQUEST);
-        }
-    }
-    async getPaddyStockReport(plantId) {
-        return this.procurementService.getPaddyStockReport(plantId);
-    }
-    async getShortageSummaryReport(plantId, mandiId, supplierId, dateFrom, dateTo) {
-        return this.procurementService.getShortageSummaryReport(plantId, mandiId, supplierId, dateFrom, dateTo);
-    }
-    async updateShortageRecovery(id, shortageRecoveryQtl) {
-        return this.procurementService.updateShortageRecovery(id, shortageRecoveryQtl);
-    }
-    async transferStackToHoodi(data) {
-        try {
-            return await this.procurementService.transferStackToHoodi(data.plantId, data);
-        }
-        catch (error) {
-            throw new common_1.HttpException(`Failed to transfer: ${error.message || error}`, common_1.HttpStatus.BAD_REQUEST);
-        }
-    }
-    async getHoodiReport(plantId, dateFrom, dateTo) {
-        try {
-            return await this.procurementService.getHoodiReport(plantId, dateFrom, dateTo);
-        }
-        catch (error) {
-            throw new common_1.HttpException(`Failed to get report: ${error.message || error}`, common_1.HttpStatus.BAD_REQUEST);
-        }
-    }
-    async getStackLayout(plantId) {
-        if (!plantId)
-            throw new BadRequestException('plantId is required');
-        return await this.procurementService.getStackLayout(plantId);
-    }
-    async getStackHistory(plantId, stackNo) {
-        if (!plantId || !stackNo)
-            throw new BadRequestException('plantId and stackNo required');
-        return await this.procurementService.getStackHistory(plantId, stackNo);
-    }
-    async markStackComplete(stackNo, plantId) {
-        if (!plantId)
-            throw new BadRequestException('plantId is required');
-        return await this.procurementService.markStackComplete(plantId, stackNo);
-    }
-};
-exports.ProcurementController = ProcurementController;
-__decorate([
-    (0, common_1.Post)('save-purchase'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canAdd'),
-    __param(0, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", Promise)
-], ProcurementController.prototype, "savePurchase", null);
-__decorate([
-    (0, common_1.Get)('inward-details/:id'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
-    __param(0, (0, common_1.Param)('id')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", Promise)
-], ProcurementController.prototype, "getInwardDetails", null);
-__decorate([
-    (0, common_1.Get)('inwards/:plantId'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
-    __param(0, (0, common_1.Param)('plantId')),
-    __param(1, (0, common_1.Query)('dateFrom')),
-    __param(2, (0, common_1.Query)('dateTo')),
-    __param(3, (0, common_1.Query)('mandi')),
-    __param(4, (0, common_1.Query)('supplierId')),
-    __param(5, (0, common_1.Query)('page')),
-    __param(6, (0, common_1.Query)('limit')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String, String, String]),
-    __metadata("design:returntype", void 0)
-], ProcurementController.prototype, "getInwards", null);
-__decorate([
-    (0, common_1.Get)('recent/:plantId'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
-    __param(0, (0, common_1.Param)('plantId')),
-    __param(1, (0, common_1.Query)('dateFrom')),
-    __param(2, (0, common_1.Query)('dateTo')),
-    __param(3, (0, common_1.Query)('page')),
-    __param(4, (0, common_1.Query)('limit')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String]),
-    __metadata("design:returntype", void 0)
-], ProcurementController.prototype, "getRecentPurchases", null);
-__decorate([
-    (0, common_1.Get)('occupied-stacks/:plantId'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
-    __param(0, (0, common_1.Param)('plantId')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", void 0)
-], ProcurementController.prototype, "getOccupiedStacks", null);
-__decorate([
-    (0, common_1.Get)('batch/:batchId'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
-    __param(0, (0, common_1.Param)('batchId')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", void 0)
-], ProcurementController.prototype, "getBatch", null);
-__decorate([
-    (0, common_1.Post)('quality/:batchId'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canEdit'),
-    __param(0, (0, common_1.Param)('batchId')),
-    __param(1, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", void 0)
-], ProcurementController.prototype, "updateQuality", null);
-__decorate([
-    (0, common_1.Get)('suppliers'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], ProcurementController.prototype, "getSuppliers", null);
-__decorate([
-    (0, common_1.Post)('suppliers'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canAdd'),
-    __param(0, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", void 0)
-], ProcurementController.prototype, "createSupplier", null);
-__decorate([
-    (0, common_1.Get)('analytics/:plantId'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
-    __param(0, (0, common_1.Param)('plantId')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", void 0)
-], ProcurementController.prototype, "getAnalytics", null);
-__decorate([
-    (0, common_1.Post)('register/:plantId'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
-    __param(0, (0, common_1.Param)('plantId')),
-    __param(1, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", void 0)
-], ProcurementController.prototype, "getPurchaseRegister", null);
-__decorate([
-    (0, common_1.Post)('boli-rate/:batchId'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canEdit'),
-    __param(0, (0, common_1.Param)('batchId')),
-    __param(1, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", Promise)
-], ProcurementController.prototype, "updateBoliRate", null);
-__decorate([
-    (0, common_1.Get)('soda-pending/:plantId'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
-    __param(0, (0, common_1.Param)('plantId')),
-    __param(1, (0, common_1.Query)('dateFrom')),
-    __param(2, (0, common_1.Query)('dateTo')),
-    __param(3, (0, common_1.Query)('page')),
-    __param(4, (0, common_1.Query)('limit')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String]),
-    __metadata("design:returntype", void 0)
-], ProcurementController.prototype, "getSodaPending", null);
-__decorate([
-    (0, common_1.Post)('soda-pending'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canAdd'),
-    __param(0, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", Promise)
-], ProcurementController.prototype, "createSodaPending", null);
-__decorate([
-    (0, common_1.Put)('soda-pending/:id'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canEdit'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", Promise)
-], ProcurementController.prototype, "updateSodaPending", null);
-__decorate([
-    (0, common_1.Post)('settle-hisab'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canEdit'),
-    __param(0, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", Promise)
-], ProcurementController.prototype, "settleHisab", null);
-__decorate([
-    (0, common_1.Get)('reports/paddy-stock'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
-    __param(0, (0, common_1.Query)('plantId')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", Promise)
-], ProcurementController.prototype, "getPaddyStockReport", null);
-__decorate([
-    (0, common_1.Get)('reports/shortage-summary'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
-    __param(0, (0, common_1.Query)('plantId')),
-    __param(1, (0, common_1.Query)('mandiId')),
-    __param(2, (0, common_1.Query)('supplierId')),
-    __param(3, (0, common_1.Query)('dateFrom')),
-    __param(4, (0, common_1.Query)('dateTo')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, String]),
-    __metadata("design:returntype", Promise)
-], ProcurementController.prototype, "getShortageSummaryReport", null);
-__decorate([
-    (0, common_1.Patch)('inward-details/:id/shortage-recovery'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canEdit'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)('shortageRecoveryQtl')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Number]),
-    __metadata("design:returntype", Promise)
-], ProcurementController.prototype, "updateShortageRecovery", null);
-__decorate([
-    (0, common_1.Post)('hoodi-transfer'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canAdd'),
-    __param(0, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", Promise)
-], ProcurementController.prototype, "transferStackToHoodi", null);
-__decorate([
-    (0, common_1.Get)('reports/hoodi-summary'),
-    (0, require_permission_decorator_1.RequirePermission)('Procurement', 'canView'),
-    __param(0, (0, common_1.Query)('plantId')),
-    __param(1, (0, common_1.Query)('dateFrom')),
-    __param(2, (0, common_1.Query)('dateTo')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String]),
-    __metadata("design:returntype", Promise)
-], ProcurementController.prototype, "getHoodiReport", null);
-__decorate([
-    (0, common_1.Get)('stack/layout'),
-    __param(0, (0, common_1.Query)('plantId')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", Promise)
-], ProcurementController.prototype, "getStackLayout", null);
-__decorate([
-    (0, common_1.Get)('stack/history'),
-    __param(0, (0, common_1.Query)('plantId')),
-    __param(1, (0, common_1.Query)('stackNo')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
-    __metadata("design:returntype", Promise)
-], ProcurementController.prototype, "getStackHistory", null);
-__decorate([
-    (0, common_1.Patch)('stack/:stackNo/complete'),
-    __param(0, (0, common_1.Param)('stackNo')),
-    __param(1, (0, common_1.Body)('plantId')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
-    __metadata("design:returntype", Promise)
-], ProcurementController.prototype, "markStackComplete", null);
-exports.ProcurementController = ProcurementController = __decorate([
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
-    (0, common_1.Controller)('api/procurement'),
-    __metadata("design:paramtypes", [procurement_service_1.ProcurementService])
-], ProcurementController);
+}
+getStackLayout(, plantId, string);
+{
+    if (!plantId)
+        throw new BadRequestException('plantId is required');
+    return await this.procurementService.getStackLayout(plantId);
+}
+getStackHistory(, plantId, string, , stackNo, string);
+{
+    if (!plantId || !stackNo)
+        throw new BadRequestException('plantId and stackNo required');
+    return await this.procurementService.getStackHistory(plantId, stackNo);
+}
+markStackComplete(, stackNo, string, , plantId, string);
+{
+    if (!plantId)
+        throw new BadRequestException('plantId is required');
+    return await this.procurementService.markStackComplete(plantId, stackNo);
+}
 //# sourceMappingURL=procurement.controller.js.map
