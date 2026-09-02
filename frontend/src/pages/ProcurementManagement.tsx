@@ -2599,7 +2599,7 @@ export const ProcurementManagement = () => {
  </div>
  )}
  {activeTab === 'reports' && (
- <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden shadow-2xl">
+ <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col min-h-0 shadow-2xl">
    <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
      <div className="mb-6">
         <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
@@ -2649,7 +2649,7 @@ export const ProcurementManagement = () => {
      </div>
      
      {/* Reports Content */}
-     <div className={`flex-1 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] p-6 flex flex-col ${!listFilters.activeReportTab ? 'items-center justify-center' : ''}`}>
+     <div className={`flex-1 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] p-6 flex flex-col overflow-auto min-h-0 min-w-0 ${!listFilters.activeReportTab ? 'items-center justify-center' : ''}`}>
         {!listFilters.activeReportTab ? (
            <div className="text-center">
               <div className="w-16 h-16 mx-auto mb-4 bg-[#e67e00]/10 text-[#e67e00] rounded-full flex items-center justify-center">

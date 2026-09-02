@@ -955,7 +955,6 @@ export class ProcurementService {
   ) {
     const where: any = {
       plantId,
-      transactionType: 'INWARD',
       paddyInwardDetails: {
         isNot: null,
       },
