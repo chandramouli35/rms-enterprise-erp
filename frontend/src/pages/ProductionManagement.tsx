@@ -128,7 +128,22 @@ export const ProductionManagement = () => {
     }
   };
 
-  const handleSaveAnalysis = async () => {
+  const handleSaveAnalysisWithBiometric = async () => {
+    if (!selectedBatchId) {
+      setNotification({ message: 'Please select a batch first', type: 'error' });
+      return;
+    }
+    
+    setNotification({ message: 'Please place thumb on scanner to verify analysis...', type: 'success' });
+    try {
+ const bioData = await biometricService.captureFingerprint();
+      await handleSaveAnalysis(bioData);
+    } catch (err: any) {
+      setNotification({ message: err.message || 'Biometric capture failed', type: 'error' });
+    }
+  };
+
+  const handleSaveAnalysis = async (bioData?: string) => {
     if (!selectedBatchId) {
       setNotification({ message: 'Please select a batch first', type: 'error' });
       return;
@@ -142,7 +157,8 @@ export const ProductionManagement = () => {
 
       const dataToSave = {
         ...analysisFormData,
-        difference1To4
+        difference1To4,
+        biometricData: bioData
       };
 
       await api.post(`/production/batches/${selectedBatchId}/analysis`, dataToSave);
@@ -259,6 +275,9 @@ export const ProductionManagement = () => {
  const handleCreateBatch = async () => {
  if (!activePlant?.id) return;
  try {
+ setNotification({ message: 'Please place thumb on scanner for final output verification...', type: 'success' });
+ const bioData = await biometricService.captureThumbprint();
+ 
  setLoading(true);
  const payload = {
  plantId: activePlant.id,
