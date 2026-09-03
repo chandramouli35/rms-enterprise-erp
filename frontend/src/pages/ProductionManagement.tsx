@@ -1104,8 +1104,9 @@ export const ProductionManagement = () => {
      )}
    </div>
    
-   <div className="flex-1 overflow-x-auto">
-     <table className="w-full text-xs text-left text-[var(--text-main)]">
+    <div className="flex-1">
+      <div className="overflow-x-auto" style={{ transform: 'rotateX(180deg)' }}>
+        <table className="w-full text-xs text-left text-[var(--text-main)]" style={{ transform: 'rotateX(180deg)' }}>
        <thead className="bg-[var(--bg-base)] text-[var(--text-muted-alt)] uppercase border-b border-[var(--border-subtle)]">
          <tr>
            <th className="px-2 py-2">#</th>
@@ -1172,6 +1173,7 @@ export const ProductionManagement = () => {
          )}
        </tbody>
      </table>
+   </div>
    </div>
    {!selectedBatchId && (
      <p className="text-[10px] text-center text-[var(--text-muted-alt)] mt-2">Create and select a batch to fill analysis</p>
