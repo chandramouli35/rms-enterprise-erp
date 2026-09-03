@@ -46,15 +46,17 @@ export const ProductionManagement = () => {
  const generateBatchNo = () => `BATCH-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
 
  const [formData, setFormData] = useState({
- batchNo: generateBatchNo(),
- date: new Date().toISOString().split('T')[0],
- shift: 'Day Shift',
- productionLine: 'Line 1',
- paddyType: 'PR-11 (Steam)',
- variety: 'Sugandha',
- paddySource: '250.000',
- paddyUsedQty: '',
- moisture: '',
+   batchNo: generateBatchNo(),
+   date: new Date().toISOString().split('T')[0],
+   shift: 'Day Shift',
+   productionLine: 'Line 1',
+   paddyType: 'PR-11 (Steam)',
+   variety: 'Sugandha',
+   supervisorName: '',
+   analysisSheetNo: '',
+   paddySource: '250.000',
+   paddyUsedQty: '',
+   moisture: '',
   additionalOutputs: {
     'R. Bran': { produced: '', reused: '' },
     'K. Phuck': { produced: '', reused: '' },
