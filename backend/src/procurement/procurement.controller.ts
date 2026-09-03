@@ -203,6 +203,12 @@ export class ProcurementController {
     return await this.procurementService.getStackLayout(plantId);
   }
 
+  @Get('stack/active-trucks')
+  async getActiveUnloadingTrucks(@Query('plantId') plantId: string) {
+    if (!plantId) throw new BadRequestException('plantId is required');
+    return await this.procurementService.getActiveUnloadingTrucks(plantId);
+  }
+
   @Get('stack/history')
   async getStackHistory(@Query('plantId') plantId: string, @Query('stackNo') stackNo: string) {
     if (!plantId || !stackNo) throw new BadRequestException('plantId and stackNo required');
@@ -213,5 +219,11 @@ export class ProcurementController {
   async markStackComplete(@Param('stackNo') stackNo: string, @Body('plantId') plantId: string) {
     if (!plantId) throw new BadRequestException('plantId is required');
     return await this.procurementService.markStackComplete(plantId, stackNo);
+  }
+
+  @Post('stack/:stackNo/send-to-hoodi')
+  async sendStackToHoodi(@Param('stackNo') stackNo: string, @Body('plantId') plantId: string) {
+    if (!plantId) throw new BadRequestException('plantId is required');
+    return await this.procurementService.sendStackToHoodi(plantId, stackNo, 'system');
   }
 }

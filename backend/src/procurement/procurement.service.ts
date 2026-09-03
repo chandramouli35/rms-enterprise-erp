@@ -1083,6 +1083,38 @@ export class ProcurementService {
     });
   }
 
+  async getActiveUnloadingTrucks(plantId: string) {
+    // 1. First, find all stacks that are currently ACTIVE (not COMPLETED or EMPTY)
+    const activeStacks = await this.prisma.paddyStack.findMany({
+      where: {
+        plantId,
+        status: { notIn: ['COMPLETED', 'EMPTY'] }
+      },
+      select: { stackNo: true }
+    });
+
+    const activeStackNumbers = activeStacks.map(s => s.stackNo);
+
+    if (activeStackNumbers.length === 0) return [];
+
+    // 2. Fetch all procurement batches (trucks) assigned to those active stacks
+    return this.prisma.procurementBatch.findMany({
+      where: {
+        plantId,
+        paddyInwardDetails: { 
+          stackNo: { in: activeStackNumbers } 
+        }
+      },
+      include: {
+        paddyInwardDetails: true,
+        quality: true,
+        supplier: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50 // Limit to recent 50 active trucks to prevent UI overload
+    });
+  }
+
   async getStackHistory(plantId: string, stackNo: string) {
     // Return all inward details for this stack
     const inwards = await this.prisma.procurementBatch.findMany({
@@ -1111,6 +1143,49 @@ export class ProcurementService {
     return this.prisma.paddyStack.update({
       where: { plantId_stackNo: { plantId, stackNo } },
       data: { status: 'COMPLETED' }
+    });
+  }
+
+  async sendStackToHoodi(plantId: string, stackNo: string, userId: string) {
+    // 1. Calculate current balance
+    const { inwards, transfers } = await this.getStackHistory(plantId, stackNo);
+    let totalBags = 0;
+    let totalWt = 0;
+    
+    inwards.forEach(record => {
+      totalBags += Number(record.paddyInwardDetails?.bagsRecAtMill || 0);
+      totalWt += Number(record.paddyInwardDetails?.netWtAtMill || 0);
+    });
+    
+    transfers.forEach(record => {
+      totalBags -= Number(record.bags || 0);
+    });
+
+    if (totalBags <= 0) {
+      throw new Error("Stack is already empty");
+    }
+
+    // 2. Create negative Hoodi Record to zero out balance
+    await this.prisma.hoodiRecord.create({
+      data: {
+        plantId,
+        date: new Date(),
+        bags: totalBags, // Pass as number directly
+        moisture: Number(inwards[0]?.quality?.moisture || 0) || null,
+        sourceType: 'STACK_TRANSFER',
+        stackNo: stackNo,
+        unloadedBy: 'System (Send to Hoodi)'
+      }
+    });
+
+    // 3. Mark stack as empty
+    return this.prisma.paddyStack.update({
+      where: { plantId_stackNo: { plantId, stackNo } },
+      data: { 
+        status: 'EMPTY',
+        totalBags: 0,
+        totalWeight: 0 
+      }
     });
   }
 }

@@ -95,6 +95,8 @@ export default function StackHistoryModal({ isOpen, onClose, stackNo, plantId, o
                     <th className="p-3 border-r border-[var(--border-subtle)] font-medium text-[var(--text-muted)]">Bags</th>
                     <th className="p-3 border-r border-[var(--border-subtle)] font-medium text-[var(--text-muted)]">Bags type A class / B class</th>
                     <th className="p-3 border-r border-[var(--border-subtle)] font-medium text-[var(--text-muted)]">Unloaded By</th>
+                    <th className="p-3 border-r border-[var(--border-subtle)] font-medium text-[var(--text-muted)]">Part stack no.</th>
+                    <th className="p-3 border-r border-[var(--border-subtle)] font-medium text-[var(--text-muted)]">Part stack no. bags</th>
                     <th className="p-3 font-medium text-[var(--text-muted)]">Type</th>
                   </tr>
                 </thead>
@@ -119,6 +121,8 @@ export default function StackHistoryModal({ isOpen, onClose, stackNo, plantId, o
                           <td className="p-3 border-r border-[var(--border-subtle)] text-right font-mono">{bags}</td>
                           <td className="p-3 border-r border-[var(--border-subtle)]">{record.paddyInwardDetails?.originalBardanaClass?.replace('_', ' ') || '-'}</td>
                           <td className="p-3 border-r border-[var(--border-subtle)]">{record.paddyInwardDetails?.unloadedBy || '-'}</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">{record.paddyInwardDetails?.secondPartStackNo || '-'}</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">{record.paddyInwardDetails?.bagsInSecondPartStack || '-'}</td>
                           <td className="p-3 text-green-500 font-medium">INWARD</td>
                         </tr>
                       );
@@ -139,6 +143,8 @@ export default function StackHistoryModal({ isOpen, onClose, stackNo, plantId, o
                           <td className="p-3 border-r border-[var(--border-subtle)] border-red-500/20 text-right font-mono">-{transferBags}</td>
                           <td className="p-3 border-r border-[var(--border-subtle)] border-red-500/20">-</td>
                           <td className="p-3 border-r border-[var(--border-subtle)] border-red-500/20">{record.unloadedBy || '-'}</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)] border-red-500/20">-</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)] border-red-500/20">-</td>
                           <td className="p-3 font-medium">HOODI TRANSFER</td>
                         </tr>
                       );
@@ -146,7 +152,7 @@ export default function StackHistoryModal({ isOpen, onClose, stackNo, plantId, o
                   })}
                   {history.length === 0 && (
                     <tr>
-                      <td colSpan={13} className="p-6 text-center text-[var(--text-muted)]">No records found for this stack.</td>
+                      <td colSpan={15} className="p-6 text-center text-[var(--text-muted)]">No records found for this stack.</td>
                     </tr>
                   )}
                 </tbody>
@@ -155,7 +161,7 @@ export default function StackHistoryModal({ isOpen, onClose, stackNo, plantId, o
                     <td colSpan={8} className="p-3 border-r border-[var(--border-subtle)] text-right">Total Balance</td>
                     <td className="p-3 border-r border-[var(--border-subtle)] text-right font-mono">{totalWt.toFixed(2)}</td>
                     <td className="p-3 border-r border-[var(--border-subtle)] text-right font-mono">{totalBags}</td>
-                    <td colSpan={3} className="p-3"></td>
+                    <td colSpan={5} className="p-3"></td>
                   </tr>
                 </tfoot>
               </table>
@@ -167,6 +173,19 @@ export default function StackHistoryModal({ isOpen, onClose, stackNo, plantId, o
           <button onClick={onClose} className="px-5 py-2 border border-[var(--border-subtle)] text-[var(--text-main)] font-medium rounded-lg hover:bg-[var(--bg-app)] transition-colors">
             Close
           </button>
+          
+          <button onClick={async () => {
+            try {
+              await api.post(`/api/procurement/stack/${stackNo}/send-to-hoodi`, { plantId });
+              onStackCompleted();
+              onClose();
+            } catch (error: any) {
+              alert(error.response?.data?.message || 'Failed to send to hoodi');
+            }
+          }} className="px-5 py-2 bg-red-600/90 hover:bg-red-600 text-white font-medium rounded-lg transition-colors flex items-center gap-2">
+            Send for drying to hoodi
+          </button>
+
           <button onClick={handleMarkComplete} className="px-5 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
             <CheckCircle size={18} /> Mark Stack Complete
           </button>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import StackHistoryModal from './StackHistoryModal';
 import { Layers } from 'lucide-react';
+import { usePlantStore } from '../store/plantStore';
 
 interface PaddyStack {
   id: string;
@@ -18,20 +19,38 @@ interface StackLayoutViewProps {
 }
 
 export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
+  const activePlant = usePlantStore(state => state.activePlant);
+  const isBeasAgro = activePlant?.name?.toLowerCase().includes('beas agro');
   const [stacks, setStacks] = useState<PaddyStack[]>([]);
+  const [activeTrucks, setActiveTrucks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStack, setSelectedStack] = useState<string | null>(null);
 
   const fetchStacks = () => {
     setLoading(true);
-    api.get(`/api/procurement/stack/layout?plantId=${plantId}`)
-      .then(res => setStacks(res.data))
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get(`/api/procurement/stack/layout?plantId=${plantId}`),
+      api.get(`/api/procurement/stack/active-trucks?plantId=${plantId}`)
+    ]).then(([stacksRes, trucksRes]) => {
+      setStacks(stacksRes.data);
+      setActiveTrucks(trucksRes.data);
+    }).finally(() => setLoading(false));
   };
 
   useEffect(() => {
     fetchStacks();
   }, [plantId]);
+
+  const generateMainStacks = () => {
+    const arr = [];
+    for (let col = 1; col <= 7; col++) {
+      for (let row = 8; row >= 1; row--) {
+        const stackNum = (col - 1) * 8 + row;
+        arr.push(stackNum.toString());
+      }
+    }
+    return arr;
+  };
 
   const getMoistureColor = (moisture: number, status: string, bags: number) => {
     if (status === 'COMPLETED' || status === 'EMPTY' || bags <= 0) return 'bg-gray-800 border-gray-600 text-gray-500 opacity-60';
@@ -42,6 +61,33 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
     if (moisture >= 14 && moisture <= 16) return 'bg-blue-500/20 border-blue-500 text-blue-100'; // Blue
     
     return 'bg-[var(--bg-panel-hover)] border-[var(--border-subtle)] text-[var(--text-main)]'; // Default
+  };
+
+  const renderBeasStack = (stackNo: string) => {
+    const data = stacks.find(s => s.stackNo === stackNo);
+    const isOccupied = !!data && data.status !== 'EMPTY' && data.totalBags > 0;
+    
+    const colorClass = isOccupied 
+      ? getMoistureColor(data.averageMoisture, data.status, data.totalBags)
+      : 'bg-[var(--bg-base)] border-[var(--border-subtle)] text-[var(--text-main)] hover:bg-[var(--bg-panel-alt)]';
+
+    return (
+      <div 
+        key={stackNo} 
+        className="relative flex flex-col items-center cursor-pointer"
+        onClick={() => isOccupied && setSelectedStack(stackNo)}
+      >
+        <span className="text-[10px] font-bold text-[var(--text-muted-alt)] mb-1">{stackNo}</span>
+        <div
+          className={`relative h-10 w-12 rounded flex flex-col items-center justify-center text-[10px] font-bold transition-all border-2 ${colorClass} ${isOccupied ? 'hover:scale-105 shadow-sm' : 'opacity-40'}`}
+        >
+          {data?.isNewAClass && isOccupied && (
+            <div className="absolute top-0 left-0 text-[8px] font-bold text-[#e67e00]">N*</div>
+          )}
+          <span>{data ? data.totalBags : 2467}</span>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -66,8 +112,72 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#e67e00] mr-3"></div>
             Loading plant layout...
           </div>
+        ) : isBeasAgro ? (
+          <div className="overflow-x-auto bg-[var(--bg-base)] rounded-xl border border-[var(--border-subtle)]">
+            <div className="relative min-w-[1150px] h-[950px] mx-auto bg-[var(--bg-panel-alt)] shadow-inner overflow-hidden scale-90 origin-top-left xl:scale-100 xl:origin-center">
+              {/* A Label and Main Grid 7 cols x 8 rows */}
+              <div className="absolute left-[240px] top-6 font-bold text-xl text-[var(--text-muted)] tracking-widest">A</div>
+              <div className="absolute left-10 top-14 grid grid-flow-col grid-rows-8 gap-x-6 gap-y-3">
+                {generateMainStacks().map(s => renderBeasStack(s))}
+              </div>
+
+              {/* Attached Structure: Mistry Room, Empty Space, Labour Room */}
+              <div className="absolute left-[112px] top-[640px] flex">
+                <div className="flex flex-col">
+                  <div className="w-[336px] h-[50px] border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] tracking-widest uppercase bg-[var(--bg-base)]">
+                    Mistry Room
+                  </div>
+                  <div className="w-[336px] h-[150px] border-x-2 border-b-2 border-[var(--border-subtle-alt)] bg-transparent">
+                  </div>
+                </div>
+                <div className="w-[60px] h-[200px] border-y-2 border-r-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] tracking-widest uppercase bg-[var(--bg-base)]">
+                  <span className="-rotate-90 whitespace-nowrap">Labour Room</span>
+                </div>
+              </div>
+
+              {/* Office - Middle right */}
+              <div className="absolute left-[560px] top-[680px] w-[100px] h-[100px] border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] tracking-widest uppercase bg-[var(--bg-base)]">
+                Office
+              </div>
+
+              {/* Kanda - Vertical to the right of Office */}
+              <div className="absolute left-[680px] top-[680px] w-[60px] h-[150px] border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] tracking-widest uppercase bg-[var(--bg-base)]">
+                <span className="-rotate-90 whitespace-nowrap">Kanda</span>
+              </div>
+
+              {/* Droll, Shaller, Rice Room - Vertical column far right */}
+              <div className="absolute left-[950px] top-[300px] flex flex-col border-2 border-[var(--border-subtle-alt)] bg-[var(--bg-base)]">
+                <div className="w-[80px] h-[80px] border-b-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-[10px] font-bold text-[var(--text-muted)] uppercase"><span className="-rotate-90 whitespace-nowrap">Droll</span></div>
+                <div className="w-[80px] h-[100px] border-b-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-[10px] font-bold text-[var(--text-muted)] uppercase"><span className="-rotate-90 whitespace-nowrap">Shaller</span></div>
+                <div className="w-[80px] h-[120px] flex items-center justify-center text-[10px] font-bold text-[var(--text-muted)] uppercase"><span className="-rotate-90 whitespace-nowrap">Rice Room</span></div>
+              </div>
+
+              {/* B Label and Top Right Stacks (3x3 grid) */}
+              <div className="absolute left-[900px] top-6 font-bold text-xl text-[var(--text-muted)] tracking-widest">B</div>
+              <div className="absolute left-[850px] top-14 grid grid-cols-3 gap-x-6 gap-y-3">
+                {[
+                  '8', '5', '2',
+                  '9', '6', '3',
+                  null, '7', '4'
+                ].map((stackNo, i) => (
+                  stackNo ? renderBeasStack(stackNo) : <div key={`empty-${i}`} className="w-12 h-10"></div>
+                ))}
+              </div>
+
+              {/* Stack 10 (2198) - right of main grid */}
+              <div className="absolute left-[544px] top-[56px] flex flex-col items-center">
+                {renderBeasStack('10')}
+              </div>
+
+              {/* Stack 1 (1280) - to the right of Droll Room */}
+              <div className="absolute left-[1050px] top-[310px] flex flex-col items-center">
+                {renderBeasStack('1')}
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+            {/* Render actual active stacks */}
             {stacks.map((stack) => {
               const isCrossed = stack.status === 'EMPTY' || stack.totalBags <= 0;
               const colorClass = getMoistureColor(stack.averageMoisture, stack.status, stack.totalBags);
@@ -102,11 +212,57 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
               );
             })}
             
-            {stacks.length === 0 && (
-              <div className="col-span-full py-12 text-center text-[var(--text-muted)] border-2 border-dashed border-[var(--border-subtle)] rounded-xl">
-                No active stacks found in the plant.
+            {/* Render Empty Placeholders to visually simulate a physical plant grid layout */}
+            {Array.from({ length: Math.max(0, 24 - stacks.length) }).map((_, i) => (
+              <div 
+                key={`empty-slot-${i}`}
+                className="relative flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-[var(--border-subtle)] bg-[var(--bg-panel-hover)] opacity-40 select-none"
+              >
+                <span className="text-sm font-medium text-[var(--text-muted-alt)] mb-1">Empty Plot</span>
+                <span className="text-[10px] text-[var(--text-muted-alt)]">Available</span>
               </div>
-            )}
+            ))}
+          </div>
+        )}
+
+        {/* Active Unloading Trucks Downside Strips */}
+        {!loading && activeTrucks.length > 0 && (
+          <div className="mt-8 border-t border-[var(--border-subtle)] pt-6">
+            <h3 className="text-sm font-bold text-[var(--text-main)] mb-4">Actively Unloading Trucks</h3>
+            <div className="flex flex-col gap-3">
+              {activeTrucks.map((truck, idx) => {
+                const mo = truck.quality?.moisture || 0;
+                const moColor = mo >= 20.1 ? 'text-red-500' : mo >= 18.1 ? 'text-yellow-500' : mo >= 17 ? 'text-green-500' : mo >= 14 ? 'text-blue-500' : 'text-[var(--text-main)]';
+                return (
+                  <div key={truck.id || idx} className="flex items-center justify-between p-3 bg-[var(--bg-panel-hover)] border border-[var(--border-subtle)] rounded-lg hover:border-[#e67e00] transition-colors cursor-pointer" onClick={() => setSelectedStack(truck.paddyInwardDetails?.stackNo)}>
+                    <div className="flex items-center gap-6">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-[var(--text-muted-alt)] uppercase">Stack No</span>
+                        <span className="font-bold text-lg text-[var(--text-main)]">{truck.paddyInwardDetails?.stackNo || '-'}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-[var(--text-muted-alt)] uppercase">Truck No</span>
+                        <span className="font-medium text-sm text-[var(--text-main)]">{truck.truckNo}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-[var(--text-muted-alt)] uppercase">Supplier</span>
+                        <span className="font-medium text-sm text-[var(--text-main)] truncate max-w-[150px]">{truck.supplier?.name || '-'}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] text-[var(--text-muted-alt)] uppercase">Moisture</span>
+                        <span className={`font-bold text-sm ${moColor}`}>{mo}%</span>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] text-[var(--text-muted-alt)] uppercase">Bags (A Class)</span>
+                        <span className="font-bold text-sm text-[var(--text-main)]">{truck.paddyInwardDetails?.bagsRecAtMill || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
