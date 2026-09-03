@@ -7,6 +7,11 @@ import { RequirePermission } from '../common/decorators/require-permission.decor
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('dashboard')
 export class DashboardController {
+  @Get('production-analysis')
+  async getProductionAnalysisSummary(@Query('plantId') plantId?: string) {
+    return this.dashboardService.getProductionAnalysisSummary(plantId);
+  }
+
   constructor(private readonly dashboardService: DashboardService) {}
 
   // The legacy endpoint to keep compatibility with old frontend (optional)

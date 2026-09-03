@@ -603,17 +603,29 @@ export const ProductionManagement = () => {
       <option value="Raw">Raw</option>
     </select>
    </div>
-   <div>
+     <div>
    <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Variety</label>
-   <input type="text" name="variety" value={formData.variety} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
-   </div>
-   </div>
-   <div className="grid grid-cols-2 gap-4">
-   <div>
-   <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Paddy Source</label>
-   <input type="text" name="paddySource" value={formData.paddySource} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" />
-   </div>
-   <div>
+   <select name="variety" value={formData.variety} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none">
+      <option value="Sugandha">Sugandha</option>
+      <option value="PR-11">PR-11</option>
+      <option value="1121">1121</option>
+      <option value="1509">1509</option>
+      <option value="1718">1718</option>
+      <option value="PB-1">PB-1</option>
+      <option value="Sharbati">Sharbati</option>
+   </select>
+     </div>
+     <div>
+       <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Supervisor Name</label>
+       <input type="text" name="supervisorName" value={formData.supervisorName} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" placeholder="Name" />
+     </div>
+     <div>
+       <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Analysis sheet no</label>
+       <input type="text" name="analysisSheetNo" value={formData.analysisSheetNo} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none" placeholder="Sheet No" />
+     </div>
+     </div>
+     <div className="grid grid-cols-2 gap-4">
+     <div>
     <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Moisture (%) *</label>
     <input 
       type="number"

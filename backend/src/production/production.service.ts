@@ -152,6 +152,8 @@ export class ProductionService {
         paddyType: dto.paddyType,
         variety: dto.variety,
         paddySource: dto.paddySource,
+        supervisorName: dto.supervisorName,
+        analysisSheetNo: dto.analysisSheetNo,
         paddyUsedQty: dto.paddyUsedQty,
         moisture: dto.moisture,
         rBranBags: dto.additionalOutputs?.['R. Bran']?.produced || 0,
@@ -603,51 +605,35 @@ export class ProductionService {
     const {
       paddyMoisture, khanjanBroken, polisher1, polisher2, polisher3, polisher4, 
       difference1To4, pamalaBroken, finalBroken, riceMoisture, 
-      damagePercent, discolourPercent, frkPercent
+      damagePercent, discolourPercent, frkPercent, supervisorName
     } = data;
 
-    const existing = await this.prisma.batchAnalysis.findUnique({
+    const existingCount = await this.prisma.batchAnalysis.count({
       where: { productionBatchId: batchId }
     });
 
-    if (existing) {
-      return this.prisma.batchAnalysis.update({
-        where: { productionBatchId: batchId },
-        data: {
-          paddyMoisture: paddyMoisture ? Number(paddyMoisture) : null,
-          khanjanBroken: khanjanBroken ? Number(khanjanBroken) : null,
-          polisher1: polisher1 ? Number(polisher1) : null,
-          polisher2: polisher2 ? Number(polisher2) : null,
-          polisher3: polisher3 ? Number(polisher3) : null,
-          polisher4: polisher4 ? Number(polisher4) : null,
-          difference1To4: difference1To4 ? Number(difference1To4) : null,
-          pamalaBroken: pamalaBroken ? Number(pamalaBroken) : null,
-          finalBroken: finalBroken ? Number(finalBroken) : null,
-          riceMoisture: riceMoisture ? Number(riceMoisture) : null,
-          damagePercent: damagePercent ? Number(damagePercent) : null,
-          discolourPercent: discolourPercent ? Number(discolourPercent) : null,
-          frkPercent: frkPercent ? Number(frkPercent) : null,
-        }
-      });
-    } else {
-      return this.prisma.batchAnalysis.create({
-        data: {
-          productionBatchId: batchId,
-          paddyMoisture: paddyMoisture ? Number(paddyMoisture) : null,
-          khanjanBroken: khanjanBroken ? Number(khanjanBroken) : null,
-          polisher1: polisher1 ? Number(polisher1) : null,
-          polisher2: polisher2 ? Number(polisher2) : null,
-          polisher3: polisher3 ? Number(polisher3) : null,
-          polisher4: polisher4 ? Number(polisher4) : null,
-          difference1To4: difference1To4 ? Number(difference1To4) : null,
-          pamalaBroken: pamalaBroken ? Number(pamalaBroken) : null,
-          finalBroken: finalBroken ? Number(finalBroken) : null,
-          riceMoisture: riceMoisture ? Number(riceMoisture) : null,
-          damagePercent: damagePercent ? Number(damagePercent) : null,
-          discolourPercent: discolourPercent ? Number(discolourPercent) : null,
-          frkPercent: frkPercent ? Number(frkPercent) : null,
-        }
-      });
+    if (existingCount >= 4) {
+      throw new Error("Maximum of 4 analysis entries allowed per batch shift.");
     }
+
+    return this.prisma.batchAnalysis.create({
+      data: {
+        productionBatchId: batchId,
+        supervisorName: supervisorName || null,
+          paddyMoisture: paddyMoisture ? Number(paddyMoisture) : null,
+          khanjanBroken: khanjanBroken ? Number(khanjanBroken) : null,
+          polisher1: polisher1 ? Number(polisher1) : null,
+          polisher2: polisher2 ? Number(polisher2) : null,
+          polisher3: polisher3 ? Number(polisher3) : null,
+          polisher4: polisher4 ? Number(polisher4) : null,
+          difference1To4: difference1To4 ? Number(difference1To4) : null,
+          pamalaBroken: pamalaBroken ? Number(pamalaBroken) : null,
+          finalBroken: finalBroken ? Number(finalBroken) : null,
+          riceMoisture: riceMoisture ? Number(riceMoisture) : null,
+          damagePercent: damagePercent ? Number(damagePercent) : null,
+          discolourPercent: discolourPercent ? Number(discolourPercent) : null,
+          frkPercent: frkPercent ? Number(frkPercent) : null,
+      }
+    });
   }
 }

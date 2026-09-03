@@ -28,6 +28,45 @@ function getDateFilter(filter?: string) {
 
 @Injectable()
 export class DashboardService {
+  async getProductionAnalysisSummary(plantId?: string) {
+    const whereClause: any = {};
+    if (plantId && plantId !== 'global') {
+      whereClause.plantId = plantId;
+    }
+    
+    const batches = await this.prisma.productionBatch.findMany({
+      where: whereClause,
+      include: {
+        batchAnalysis: {
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        },
+        yieldReport: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+    
+    return batches.map(b => {
+      const latestAnalysis = b.batchAnalysis?.[0];
+      return {
+        batchNo: b.batchNo,
+        date: b.createdAt,
+        variety: b.variety,
+        supervisor: b.supervisorName || '-',
+        paddyUsed: b.paddyUsedQty || 0,
+        riceProduced: b.riceProducedQty || 0,
+        yieldPercent: b.yieldReport?.overallRecovery || 0,
+        analysis: latestAnalysis ? {
+          finalBroken: latestAnalysis.finalBroken || 0,
+          paddyMoisture: latestAnalysis.paddyMoisture || 0,
+          riceMoisture: latestAnalysis.riceMoisture || 0,
+          difference: latestAnalysis.difference1To4 || 0
+        } : null
+      };
+    });
+  }
+
   constructor(private readonly prisma: PrismaService) {}
 
   async getMetrics(plantId: string, filter?: string) {
@@ -254,6 +293,60 @@ export class DashboardService {
         details: `Supervisor created Batch ${b.batchNo} with high moisture (${b.moisture}%)`,
         time: b.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       });
+    });
+
+    // 3-Day Vapsi Reminders
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const oldBatches = await this.prisma.productionBatch.findMany({
+       where: { ...pFilter, shift: 'Day', createdAt: { lte: threeDaysAgo } }
+    });
+    oldBatches.forEach(b => {
+       if (!b.elevatorVapsiCheck) {
+          alerts.push({
+            type: 'VapsiAlert',
+            title: 'Elevator Vapsi Check Pending',
+            details: `Batch ${b.batchNo} is 3+ days old and Elevator Vapsi check is not done.`,
+            time: b.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          });
+       }
+       if (!b.paettiVapsiCheck) {
+          alerts.push({
+            type: 'VapsiAlert',
+            title: 'Paetti Vapsi Check Pending',
+            details: `Batch ${b.batchNo} is 3+ days old and Paetti Vapsi check is not done.`,
+            time: b.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          });
+       }
+    });
+
+    // Batch Analysis Flags
+    const recentAnalyses = await this.prisma.batchAnalysis.findMany({
+       where: { productionBatch: pFilter, createdAt: { gte: new Date(new Date().setHours(0,0,0,0)) } },
+       include: { productionBatch: true }
+    });
+    recentAnalyses.forEach(a => {
+       if (a.polisher1 !== null && a.polisher4 !== null) {
+          const diff = Math.abs(a.polisher1 - a.polisher4);
+          if (diff > 11) {
+             alerts.push({
+               type: 'QualityFlag',
+               title: 'High Polisher Difference',
+               details: `Batch ${a.productionBatch.batchNo} analysis shows ${diff.toFixed(2)}% difference (Limit 11%).`,
+               time: a.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+             });
+          }
+       }
+       if (a.finalBroken !== null && a.pamalaBroken !== null) {
+          if (a.finalBroken > (a.pamalaBroken * 0.02)) {
+             alerts.push({
+               type: 'QualityFlag',
+               title: 'Final Broken Rice Flag',
+               details: `Batch ${a.productionBatch.batchNo} Final Rice % exceeds 2% of Pamala Broken.`,
+               time: a.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+             });
+          }
+       }
     });
 
     return alerts;

@@ -47,6 +47,7 @@ export const Dashboard: React.FC = () => {
  const [lineData, setLineData] = useState<any[]>([]);
  const [pieData, setPieData] = useState<any[]>([]);
  const [activities, setActivities] = useState<any[]>([]);
+  const [productionAnalysis, setProductionAnalysis] = useState<any[]>([]);
  const [alerts, setAlerts] = useState<any[]>([]);
  const [today, setToday] = useState<any>(null);
  const [shortageSummary, setShortageSummary] = useState<any[]>([]);
@@ -358,7 +359,59 @@ export const Dashboard: React.FC = () => {
  )}
  </div>
 
- {/* Tier 3: Real-Time Plant Operations Panels */}
+ {/* Tier 2.5: Production & Analysis Summary */}
+  <div className="p-5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] mb-6">
+    <div className="flex justify-between items-center mb-4">
+      <h3 className="text-[var(--text-main)] font-semibold flex items-center gap-2">
+        <Factory size={18} className="text-[#e67e00]" />
+        Production & Analysis Summary
+      </h3>
+    </div>
+    <div className="overflow-x-auto">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="bg-[var(--bg-base)] text-[var(--text-muted)] border-b border-[var(--border-subtle)]">
+            <th className="px-4 py-3 text-xs uppercase font-semibold">Date & Batch No</th>
+            <th className="px-4 py-3 text-xs uppercase font-semibold">Variety</th>
+            <th className="px-4 py-3 text-xs uppercase font-semibold">Rice Produced / Paddy Used</th>
+            <th className="px-4 py-3 text-xs uppercase font-semibold">Yield %</th>
+            <th className="px-4 py-3 text-xs uppercase font-semibold text-center" colSpan={4}>Analysis (P. Moist | R. Moist | Diff 1-4 | F. Broken)</th>
+            <th className="px-4 py-3 text-xs uppercase font-semibold">Supervisor</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--border-subtle-alt)]">
+          {productionAnalysis.length === 0 ? (
+            <tr><td colSpan={6} className="px-4 py-4 text-center text-sm text-[var(--text-muted-alt)]">No production records found.</td></tr>
+          ) : (
+            productionAnalysis.map((row, idx) => (
+              <tr key={idx} className="hover:bg-[var(--bg-base)] transition-colors">
+                <td className="px-4 py-3 text-sm text-[var(--text-main)]">
+                  <div className="font-medium">Batch {row.batchNo}</div>
+                  <div className="text-xs text-[var(--text-muted-alt)]">{new Date(row.date).toLocaleDateString()}</div>
+                </td>
+                <td className="px-4 py-3 text-sm font-medium text-[#e67e00]">{row.variety}</td>
+                <td className="px-4 py-3 text-sm text-[var(--text-main)]">{row.riceProduced.toFixed(2)} MT / {row.paddyUsed.toFixed(2)} MT</td>
+                <td className="px-4 py-3 text-sm font-bold text-green-400">{row.yieldPercent > 0 ? row.yieldPercent.toFixed(2) + '%' : '-'}</td>
+                {row.analysis ? (
+                  <>
+                    <td className="px-1 py-3 text-xs text-center text-cyan-400">{row.analysis.paddyMoisture}%</td>
+                    <td className="px-1 py-3 text-xs text-center text-cyan-400">{row.analysis.riceMoisture}%</td>
+                    <td className="px-1 py-3 text-xs text-center text-yellow-400">{row.analysis.difference}%</td>
+                    <td className="px-1 py-3 text-xs text-center text-red-400">{row.analysis.finalBroken}%</td>
+                  </>
+                ) : (
+                  <td className="px-4 py-3 text-xs text-center text-[var(--text-muted-alt)]" colSpan={4}>No Analysis</td>
+                )}
+                <td className="px-4 py-3 text-sm text-[var(--text-muted)]">{row.supervisor}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {/* Tier 3: Real-Time Plant Operations Panels */}
  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
  <div className="p-5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)]">
  <div className="flex justify-between items-center mb-6">

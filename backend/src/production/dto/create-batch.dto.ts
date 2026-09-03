@@ -22,9 +22,17 @@ export class CreateBatchDto {
   @IsString()
   variety: string;
 
-  @IsOptional()
   @IsString()
+  @IsOptional()
   paddySource?: string;
+
+  @IsString()
+  @IsOptional()
+  supervisorName?: string;
+
+  @IsString()
+  @IsOptional()
+  analysisSheetNo?: string;
 
   @IsNumber()
   paddyUsedQty: number;

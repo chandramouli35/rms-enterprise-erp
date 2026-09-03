@@ -562,8 +562,12 @@ model ProductionBatch {
   shift          String // Day, Night
   productionLine String
   paddyType      String
-  variety        String
-  paddySource    String?
+  variety        String
+  paddySource    String?
+  supervisorName String?
+  analysisSheetNo String?
+  elevatorVapsiCheck Boolean @default(false)
+  paettiVapsiCheck Boolean @default(false)
 
   paddyUsedQty    Float // in MT
   riceProducedQty Float? // in MT
@@ -607,7 +611,7 @@ model ProductionBatch {
 
   stackInputs ProductionBatchStackInput[]
   yieldReport   YieldReport?
-  batchAnalysis BatchAnalysis?
+  batchAnalysis BatchAnalysis[]
 
   startTime DateTime? @default(now())
   endTime   DateTime?
@@ -1034,8 +1038,11 @@ model IntermillOutput {
 
 model BatchAnalysis {
   id                String          @id @default(uuid())
-  productionBatchId String          @unique
-  productionBatch   ProductionBatch @relation(fields: [productionBatchId], references: [id], onDelete: Cascade)
+  productionBatchId String
+  productionBatch   ProductionBatch @relation(fields: [productionBatchId], references: [id], onDelete: Cascade)
+
+  entryTime         DateTime @default(now())
+  supervisorName    String?
 
   paddyMoisture    Float?
   khanjanBroken    Float?
