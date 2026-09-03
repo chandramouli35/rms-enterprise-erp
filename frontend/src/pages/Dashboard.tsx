@@ -49,6 +49,7 @@ export const Dashboard: React.FC = () => {
  const [activities, setActivities] = useState<any[]>([]);
   const [productionAnalysis, setProductionAnalysis] = useState<any[]>([]);
  const [alerts, setAlerts] = useState<any[]>([]);
+  const [combinedBatches, setCombinedBatches] = useState<any[]>([]);
  const [today, setToday] = useState<any>(null);
  const [shortageSummary, setShortageSummary] = useState<any[]>([]);
  
@@ -90,6 +91,10 @@ export const Dashboard: React.FC = () => {
  setActivities(actRes.data);
  setAlerts(alertsRes.data);
  setToday(todayRes.data);
+
+      const batchesRes = await api.get(`/production/batches?plantId=${currentPlantId}&limit=5`);
+      setCombinedBatches(batchesRes.data?.data || []);
+
 
  // Fetch Mill-wise shortage summary if SUPER_ADMIN
  if (user?.role === 'SUPER_ADMIN') {
@@ -359,57 +364,6 @@ export const Dashboard: React.FC = () => {
  )}
  </div>
 
- {/* Tier 2.5: Production & Analysis Summary */}
-  <div className="p-5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] mb-6">
-    <div className="flex justify-between items-center mb-4">
-      <h3 className="text-[var(--text-main)] font-semibold flex items-center gap-2">
-        <Factory size={18} className="text-[#e67e00]" />
-        Production & Analysis Summary
-      </h3>
-    </div>
-    <div className="overflow-x-auto">
-      <table className="w-full text-left border-collapse">
-        <thead>
-          <tr className="bg-[var(--bg-base)] text-[var(--text-muted)] border-b border-[var(--border-subtle)]">
-            <th className="px-4 py-3 text-xs uppercase font-semibold">Date & Batch No</th>
-            <th className="px-4 py-3 text-xs uppercase font-semibold">Variety</th>
-            <th className="px-4 py-3 text-xs uppercase font-semibold">Rice Produced / Paddy Used</th>
-            <th className="px-4 py-3 text-xs uppercase font-semibold">Yield %</th>
-            <th className="px-4 py-3 text-xs uppercase font-semibold text-center" colSpan={4}>Analysis (P. Moist | R. Moist | Diff 1-4 | F. Broken)</th>
-            <th className="px-4 py-3 text-xs uppercase font-semibold">Supervisor</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[var(--border-subtle-alt)]">
-          {productionAnalysis.length === 0 ? (
-            <tr><td colSpan={6} className="px-4 py-4 text-center text-sm text-[var(--text-muted-alt)]">No production records found.</td></tr>
-          ) : (
-            productionAnalysis.map((row, idx) => (
-              <tr key={idx} className="hover:bg-[var(--bg-base)] transition-colors">
-                <td className="px-4 py-3 text-sm text-[var(--text-main)]">
-                  <div className="font-medium">Batch {row.batchNo}</div>
-                  <div className="text-xs text-[var(--text-muted-alt)]">{new Date(row.date).toLocaleDateString()}</div>
-                </td>
-                <td className="px-4 py-3 text-sm font-medium text-[#e67e00]">{row.variety}</td>
-                <td className="px-4 py-3 text-sm text-[var(--text-main)]">{row.riceProduced.toFixed(2)} MT / {row.paddyUsed.toFixed(2)} MT</td>
-                <td className="px-4 py-3 text-sm font-bold text-green-400">{row.yieldPercent > 0 ? row.yieldPercent.toFixed(2) + '%' : '-'}</td>
-                {row.analysis ? (
-                  <>
-                    <td className="px-1 py-3 text-xs text-center text-cyan-400">{row.analysis.paddyMoisture}%</td>
-                    <td className="px-1 py-3 text-xs text-center text-cyan-400">{row.analysis.riceMoisture}%</td>
-                    <td className="px-1 py-3 text-xs text-center text-yellow-400">{row.analysis.difference}%</td>
-                    <td className="px-1 py-3 text-xs text-center text-red-400">{row.analysis.finalBroken}%</td>
-                  </>
-                ) : (
-                  <td className="px-4 py-3 text-xs text-center text-[var(--text-muted-alt)]" colSpan={4}>No Analysis</td>
-                )}
-                <td className="px-4 py-3 text-sm text-[var(--text-muted)]">{row.supervisor}</td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  </div>
 
   {/* Tier 3: Real-Time Plant Operations Panels */}
  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -567,6 +521,68 @@ export const Dashboard: React.FC = () => {
  </div>
  </div>
  )}
- </div>
+ 
+      {/* Production & Analysis Combined Report */}
+      <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-[var(--text-main)]">Production & Analysis Combined Report</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs text-left text-[var(--text-main)]">
+            <thead className="bg-[var(--bg-base)] text-[var(--text-muted-alt)] uppercase border-b border-[var(--border-subtle)]">
+              <tr>
+                <th className="px-3 py-3">Batch No</th>
+                <th className="px-3 py-3">Date</th>
+                <th className="px-3 py-3">Rice Produced</th>
+                <th className="px-3 py-3">Analysis Entries</th>
+                <th className="px-3 py-3">Alerts</th>
+                <th className="px-3 py-3">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {combinedBatches.map((b: any, idx) => {
+                let diffAlert = false;
+                let brokenAlert = false;
+                if (b.batchAnalysis && b.batchAnalysis.length > 0) {
+                  b.batchAnalysis.forEach((a: any) => {
+                    if (a.difference1To4 > 11) diffAlert = true;
+                    if (a.finalBroken > 2) brokenAlert = true;
+                  });
+                }
+                
+                return (
+                  <tr key={b.id || idx} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-base)]">
+                    <td className="px-3 py-3 font-medium text-[#e67e00]">{b.batchNo}</td>
+                    <td className="px-3 py-3">{new Date(b.date).toLocaleDateString()}</td>
+                    <td className="px-3 py-3">{b.riceProducedQty || 0} MT</td>
+                    <td className="px-3 py-3 font-medium">{b.batchAnalysis?.length || 0} / 4</td>
+                    <td className="px-3 py-3">
+                      <div className="flex gap-2">
+                        {diffAlert && <span className="bg-red-500/10 text-red-500 px-2 py-0.5 rounded text-[10px] font-bold">Diff &gt; 11%</span>}
+                        {brokenAlert && <span className="bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded text-[10px] font-bold">Broken &gt; 2%</span>}
+                        {!diffAlert && !brokenAlert && <span className="text-[var(--text-muted-alt)]">-</span>}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3">
+                      <span className={`px-2 py-1 rounded text-[10px] font-bold ${
+                        b.status === 'COMPLETED' ? 'bg-green-500/10 text-green-500' : 
+                        b.status === 'IN_PROGRESS' ? 'bg-blue-500/10 text-blue-500' : 'bg-amber-500/10 text-amber-500'
+                      }`}>
+                        {b.status || 'ACTIVE'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {combinedBatches.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-6 text-[var(--text-muted-alt)]">No recent batches found</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+</div>
  );
 };

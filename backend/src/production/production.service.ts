@@ -118,7 +118,8 @@ export class ProductionService {
         where,
         orderBy: { date: 'desc' },
         skip,
-        take: limitNum
+        take: limitNum,
+        include: { batchAnalysis: true }
       })
     ]);
 
@@ -182,6 +183,7 @@ export class ProductionService {
         remarks: dto.remarks,
         status: 'In Progress',
         progress: 0,
+        finalOutputBiometricData: dto.finalOutputBiometricData || null,
         paddyDryingTargetStack: dto.paddyDryingTargetStack,
         stackInputs: {
           create: dto.stackInputs?.map(s => ({
@@ -605,7 +607,7 @@ export class ProductionService {
     const {
       paddyMoisture, khanjanBroken, polisher1, polisher2, polisher3, polisher4, 
       difference1To4, pamalaBroken, finalBroken, riceMoisture, 
-      damagePercent, discolourPercent, frkPercent, supervisorName
+      damagePercent, discolourPercent, frkPercent, supervisorName, biometricData
     } = data;
 
     const existingCount = await this.prisma.batchAnalysis.count({
@@ -633,6 +635,7 @@ export class ProductionService {
           damagePercent: damagePercent ? Number(damagePercent) : null,
           discolourPercent: discolourPercent ? Number(discolourPercent) : null,
           frkPercent: frkPercent ? Number(frkPercent) : null,
+          biometricData: biometricData || null,
       }
     });
   }

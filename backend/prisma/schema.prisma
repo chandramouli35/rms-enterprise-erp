@@ -614,7 +614,8 @@ model ProductionBatch {
   batchAnalysis BatchAnalysis[]
 
   startTime DateTime? @default(now())
-  endTime   DateTime?
+  endTime   DateTime?
+  finalOutputBiometricData String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1056,7 +1057,8 @@ model BatchAnalysis {
   riceMoisture     Float?
   damagePercent    Float?
   discolourPercent Float?
-  frkPercent       Float?
+  frkPercent       Float?
+  biometricData    String?
 
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt

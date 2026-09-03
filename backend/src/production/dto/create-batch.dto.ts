@@ -58,4 +58,8 @@ export class CreateBatchDto {
 
   @IsOptional()
   additionalOutputs?: Record<string, { produced: number; reused: number; wandProduced?: number; moisture?: number; targetStack?: string }>;
+
+  @IsOptional()
+  @IsString()
+  finalOutputBiometricData?: string;
 }

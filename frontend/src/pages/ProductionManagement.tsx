@@ -15,6 +15,7 @@ import { useAuthStore } from '../store/authStore';
 import { IntermillProcessing } from './IntermillProcessing';
 import { DailyStockReport } from '../components/Production/DailyStockReport';
 import { ShiftWiseReport } from '../components/Production/ShiftWiseReport';
+import { biometricService } from '../services/biometricService';
 
 const INTERMILL_ITEMS = [
   'R. Bran', 'K. Phuck', 'Broken Rice', 'Nakku 1', 'Nakku 2', 
@@ -285,7 +286,8 @@ export const ProductionManagement = () => {
     remarks: formData.remarks,
     productionType,
     stackInputs: formData.stackInputs,
-    paddyDryingTargetStack: formData.paddyDryingTargetStack
+    paddyDryingTargetStack: formData.paddyDryingTargetStack,
+    finalOutputBiometricData: bioData
  };
  
  await api.post('/production/batches', payload);
@@ -475,7 +477,7 @@ export const ProductionManagement = () => {
  {/* Tab Content */}
   {activeTab === 'batch_creation' && (
   <div className="flex flex-col gap-6 flex-1">
-  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div className={`grid grid-cols-1 ${productionType === 'Intermill Processing' ? '' : 'lg:grid-cols-2'} gap-6`}>
 
  {/* 1. Batch Creation Container */}
  <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-5 flex flex-col h-full">
@@ -1067,9 +1069,10 @@ export const ProductionManagement = () => {
  </div> */}
 
  {/* 2. Batch Analysis Container (Replaces Batch Summary) */}
+ {productionType !== 'Intermill Processing' && (
  <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-5 flex flex-col h-full overflow-y-auto">
    <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--border-subtle)]">
-     <h2 className="text-lg font-bold text-[var(--text-main)]">2. Batch Analysis</h2>
+     <h2 className="text-lg font-bold text-[var(--text-main)]">2. Batch Analysis (Max 4 Entries)</h2>
      {batches.length > 0 ? (
        <select id="batchAnalysisSelect" name="batchAnalysisSelect" autoComplete="off" data-lpignore="true" value={selectedBatchId || ''} onChange={e => setSelectedBatchId(e.target.value)} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-xs px-2 py-1 rounded text-[var(--text-main)] outline-none focus:border-[#e67e00]">
          <option value="">Select Batch...</option>
@@ -1082,72 +1085,84 @@ export const ProductionManagement = () => {
      )}
    </div>
    
-   <div className="space-y-4 text-sm flex-1">
-     <div className="grid grid-cols-2 gap-3">
-       <div>
-         <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Paddy Moisture</label>
-         <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 14.05%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.paddyMoisture} onChange={e => setAnalysisFormData({...analysisFormData, paddyMoisture: e.target.value})} />
-       </div>
-         <div>
-           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Khanjan Broken</label>
-           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 2.5" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.khanjanBroken} onChange={e => setAnalysisFormData({...analysisFormData, khanjanBroken: e.target.value})} />
-         </div>
-         <div>
-           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Polisher 1 (%)</label>
-           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 12.5%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.polisher1} onChange={e => setAnalysisFormData({...analysisFormData, polisher1: e.target.value})} />
-         </div>
-         <div>
-           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Polisher 2 (%)</label>
-           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 12.5%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.polisher2} onChange={e => setAnalysisFormData({...analysisFormData, polisher2: e.target.value})} />
-         </div>
-         <div>
-           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Polisher 3 (%)</label>
-           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 12.5%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.polisher3} onChange={e => setAnalysisFormData({...analysisFormData, polisher3: e.target.value})} />
-         </div>
-         <div>
-           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Polisher 4 (%)</label>
-           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 12.5%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.polisher4} onChange={e => setAnalysisFormData({...analysisFormData, polisher4: e.target.value})} />
-         </div>
-         <div className="col-span-2">
-           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Difference 1-4 (%)</label>
-           <div className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs font-bold ${!selectedBatchId ? 'opacity-50 text-[var(--text-muted)]' : 'text-amber-500'}`}>
-             {(analysisFormData.polisher1 && analysisFormData.polisher4) ? Math.abs(Number(analysisFormData.polisher1) - Number(analysisFormData.polisher4)).toFixed(2) : '-'}
-           </div>
-         </div>
-         <div>
-           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Pamala Broken</label>
-           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 2.5" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.pamalaBroken} onChange={e => setAnalysisFormData({...analysisFormData, pamalaBroken: e.target.value})} />
-         </div>
-         <div>
-           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Final Broken</label>
-           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 2.5" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.finalBroken} onChange={e => setAnalysisFormData({...analysisFormData, finalBroken: e.target.value})} />
-         </div>
-         <div>
-           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Rice Moisture</label>
-           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 12.0%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.riceMoisture} onChange={e => setAnalysisFormData({...analysisFormData, riceMoisture: e.target.value})} />
-         </div>
-         <div>
-           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Damage %</label>
-           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 1.5%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.damagePercent} onChange={e => setAnalysisFormData({...analysisFormData, damagePercent: e.target.value})} />
-         </div>
-         <div>
-           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">Discolour %</label>
-           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 0.5%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.discolourPercent} onChange={e => setAnalysisFormData({...analysisFormData, discolourPercent: e.target.value})} />
-         </div>
-         <div>
-           <label className="block text-[10px] uppercase font-bold text-[var(--text-muted-alt)] mb-1">FRK %</label>
-           <input type="number" step="0.1" disabled={!selectedBatchId} placeholder="e.g. 1.0%" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-xs text-[var(--text-main)] focus:border-[#e67e00] outline-none disabled:opacity-50" value={analysisFormData.frkPercent} onChange={e => setAnalysisFormData({...analysisFormData, frkPercent: e.target.value})} />
-         </div>
-       </div>
-       <button onClick={handleSaveAnalysis} disabled={loading || !selectedBatchId} className="w-full mt-4 py-2 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded font-bold text-sm transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50">
-         {loading ? 'Saving...' : 'Save Analysis'}
-       </button>
-       {!selectedBatchId && (
-         <p className="text-[10px] text-center text-[var(--text-muted-alt)] mt-2">Create and select a batch to fill analysis</p>
-       )}
-     </div>
+   <div className="flex-1 overflow-x-auto">
+     <table className="w-full text-xs text-left text-[var(--text-main)]">
+       <thead className="bg-[var(--bg-base)] text-[var(--text-muted-alt)] uppercase border-b border-[var(--border-subtle)]">
+         <tr>
+           <th className="px-2 py-2">#</th>
+           <th className="px-2 py-2">Paddy Moist</th>
+           <th className="px-2 py-2">Khanjan Brk</th>
+           <th className="px-2 py-2">P1</th>
+           <th className="px-2 py-2">P2</th>
+           <th className="px-2 py-2">P3</th>
+           <th className="px-2 py-2">P4</th>
+           <th className="px-2 py-2">Diff(1-4)</th>
+           <th className="px-2 py-2">Pamala Brk</th>
+           <th className="px-2 py-2">Final Brk</th>
+           <th className="px-2 py-2">Rice Moist</th>
+           <th className="px-2 py-2">Dam %</th>
+           <th className="px-2 py-2">Disc %</th>
+           <th className="px-2 py-2">FRK %</th>
+           <th className="px-2 py-2">Bio</th>
+         </tr>
+       </thead>
+       <tbody>
+         {selectedBatchDetails?.batchAnalysis?.map((analysis: any, index: number) => {
+           const diff = Number(analysis.difference1To4);
+           const finalBrk = Number(analysis.finalBroken);
+           const hasDiffAlert = diff > 11;
+           const hasBrkAlert = finalBrk > 2;
+           return (
+           <tr key={index} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-base)]">
+             <td className="px-2 py-1.5">{index + 1}</td>
+             <td className="px-2 py-1.5">{analysis.paddyMoisture}</td>
+             <td className="px-2 py-1.5">{analysis.khanjanBroken}</td>
+             <td className="px-2 py-1.5">{analysis.polisher1}</td>
+             <td className="px-2 py-1.5">{analysis.polisher2}</td>
+             <td className="px-2 py-1.5">{analysis.polisher3}</td>
+             <td className="px-2 py-1.5">{analysis.polisher4}</td>
+             <td className={`px-2 py-1.5 font-bold ${hasDiffAlert ? 'text-red-500 bg-red-500/10' : ''}`}>{analysis.difference1To4}</td>
+             <td className="px-2 py-1.5">{analysis.pamalaBroken}</td>
+             <td className={`px-2 py-1.5 font-bold ${hasBrkAlert ? 'text-red-500 bg-red-500/10' : ''}`}>{analysis.finalBroken}</td>
+             <td className="px-2 py-1.5">{analysis.riceMoisture}</td>
+             <td className="px-2 py-1.5">{analysis.damagePercent}</td>
+             <td className="px-2 py-1.5">{analysis.discolourPercent}</td>
+             <td className="px-2 py-1.5">{analysis.frkPercent}</td>
+             <td className="px-2 py-1.5 text-green-500" title={analysis.biometricData ? "Verified" : ""}>{analysis.biometricData ? '✓' : '-'}</td>
+           </tr>
+         )})}
+         
+         {(!selectedBatchDetails?.batchAnalysis || selectedBatchDetails.batchAnalysis.length < 4) && selectedBatchId && (
+           <tr className="bg-[var(--bg-base)]">
+             <td className="px-2 py-1.5 font-bold text-[#e67e00]">New</td>
+             <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.paddyMoisture} onChange={e => setAnalysisFormData({...analysisFormData, paddyMoisture: e.target.value})} /></td>
+             <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.khanjanBroken} onChange={e => setAnalysisFormData({...analysisFormData, khanjanBroken: e.target.value})} /></td>
+             <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.polisher1} onChange={e => setAnalysisFormData({...analysisFormData, polisher1: e.target.value})} /></td>
+             <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.polisher2} onChange={e => setAnalysisFormData({...analysisFormData, polisher2: e.target.value})} /></td>
+             <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.polisher3} onChange={e => setAnalysisFormData({...analysisFormData, polisher3: e.target.value})} /></td>
+             <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.polisher4} onChange={e => setAnalysisFormData({...analysisFormData, polisher4: e.target.value})} /></td>
+             <td className="px-2 py-1.5 font-bold text-amber-500">{(analysisFormData.polisher1 && analysisFormData.polisher4) ? Math.abs(Number(analysisFormData.polisher1) - Number(analysisFormData.polisher4)).toFixed(2) : '-'}</td>
+             <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.pamalaBroken} onChange={e => setAnalysisFormData({...analysisFormData, pamalaBroken: e.target.value})} /></td>
+             <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.finalBroken} onChange={e => setAnalysisFormData({...analysisFormData, finalBroken: e.target.value})} /></td>
+             <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.riceMoisture} onChange={e => setAnalysisFormData({...analysisFormData, riceMoisture: e.target.value})} /></td>
+             <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.damagePercent} onChange={e => setAnalysisFormData({...analysisFormData, damagePercent: e.target.value})} /></td>
+             <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.discolourPercent} onChange={e => setAnalysisFormData({...analysisFormData, discolourPercent: e.target.value})} /></td>
+             <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.frkPercent} onChange={e => setAnalysisFormData({...analysisFormData, frkPercent: e.target.value})} /></td>
+             <td className="px-1 py-1"><button onClick={handleSaveAnalysisWithBiometric} disabled={loading} className="px-2 py-1 bg-[#e67e00] hover:bg-[#cc7000] text-black font-bold rounded shadow-lg disabled:opacity-50 text-[10px]">Save & Bio</button></td>
+           </tr>
+         )}
+       </tbody>
+     </table>
+   </div>
+   {!selectedBatchId && (
+     <p className="text-[10px] text-center text-[var(--text-muted-alt)] mt-2">Create and select a batch to fill analysis</p>
+   )}
+   {(selectedBatchDetails?.batchAnalysis?.length >= 4) && (
+     <p className="text-[10px] text-center text-amber-500 mt-2">Maximum of 4 analysis entries reached for this batch.</p>
+   )}
  </div>
- </div>
+ )}
+</div>
 
 {false && (
   <>
