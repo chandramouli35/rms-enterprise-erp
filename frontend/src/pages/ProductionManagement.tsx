@@ -276,7 +276,7 @@ export const ProductionManagement = () => {
  if (!activePlant?.id) return;
  try {
  setNotification({ message: 'Please place thumb on scanner for final output verification...', type: 'success' });
- const bioData = await biometricService.captureThumbprint();
+ const bioData = await biometricService.captureFingerprint();
  
  setLoading(true);
  const payload = {
