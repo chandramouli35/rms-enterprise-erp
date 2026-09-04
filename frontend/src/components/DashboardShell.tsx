@@ -102,7 +102,8 @@ export const DashboardShell: React.FC = () => {
  { label: 'Production Tracking', tab: 'production_tracking' },
  { label: 'Daily Stock Report', tab: 'daily_stock_report' },
  { label: 'Shift-Wise Report', tab: 'shift_wise_report' },
- { label: 'Intermill History', tab: 'intermill_history' }
+ { label: 'Intermill History', tab: 'intermill_history' },
+ { label: 'Compare Reports', tab: 'compare_reports' }
  ]},
  { label: 'Yield Mgmt', href: '/yield', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
  { label: 'Yield Calculator', tab: 'yield_calculator' },

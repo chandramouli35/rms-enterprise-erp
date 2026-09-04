@@ -181,9 +181,9 @@ export class ProductionService {
         parmalReused: dto.additionalOutputs?.['Parmal']?.reused || 0,
         frkReused: dto.additionalOutputs?.['FRK']?.reused || 0,
         remarks: dto.remarks,
-        status: 'In Progress',
+        status: 'CREATED',
+        productionState: dto.productionType === 'Plant Off' ? 'PLANT_OFF' : 'RICE_MILLING',
         progress: 0,
-        finalOutputBiometricData: dto.finalOutputBiometricData || null,
         paddyDryingTargetStack: dto.paddyDryingTargetStack,
         stackInputs: {
           create: dto.stackInputs?.map(s => ({
@@ -212,43 +212,79 @@ export class ProductionService {
       }
     }
 
-    // 2. Deduct Paddy from Inventory
+    // Inventory deductions are now handled in submitBatch
+
+    return batch;
+  }
+
+  async submitBatch(batchId: string, biometricData: any) {
+    const batch = await this.prisma.productionBatch.findUnique({
+      where: { id: batchId }
+    });
+
+    if (!batch) {
+      throw new Error("Batch not found");
+    }
+
+    if (batch.status === 'SUBMITTED') {
+      throw new Error("Batch already submitted");
+    }
+
+    // 1. Deduct Paddy from Inventory
     await this.inventoryService.adjustStock({
-      plantId: dto.plantId,
+      plantId: batch.plantId,
       itemType: 'PADDY',
-      variety: dto.variety,
-      quantityChange: -dto.paddyUsedQty,
+      variety: batch.variety || 'Unknown',
+      quantityChange: -batch.paddyUsedQty,
       transactionType: 'OUT',
       referenceId: batch.id,
       remarks: `Issued to production batch ${batch.batchNo}`,
-      shift: dto.shift
+      shift: batch.shift
     });
 
-    // 3. Sync Additional Outputs (By-Products) to Inventory
-    if (dto.additionalOutputs) {
-      for (const [itemName, data] of Object.entries(dto.additionalOutputs)) {
-        const produced = Number(data.produced) || 0;
-        const reused = Number(data.reused) || 0;
-        const netQuantity = produced - reused;
+    // 2. Sync Additional Outputs (By-Products) to Inventory
+    // Reconstruct the logic based on batch data
+    const outputs = [
+      { name: 'R. Bran', produced: batch.rBranBags, reused: batch.rBranReused },
+      { name: 'K. Phuck', produced: batch.kPhuckBags, reused: batch.kPhuckReused },
+      { name: 'Broken Rice', produced: batch.brokenRiceBags, reused: batch.brokenRiceReused },
+      { name: 'Nakku 1', produced: batch.nakku1Bags, reused: batch.nakku1Reused },
+      { name: 'Nakku 2', produced: batch.nakku2Bags, reused: batch.nakku2Reused },
+      { name: 'Rejection', produced: batch.rejectionBags, reused: batch.rejectionReused },
+      { name: 'Final Rice', produced: batch.finalRiceBags, reused: batch.finalRiceReused },
+      { name: 'Mansoori', produced: batch.mansooriBags, reused: batch.mansooriReused },
+      { name: 'Wand', produced: batch.wandBags, reused: batch.wandReused },
+      { name: 'Parmal', produced: batch.parmalBags, reused: batch.parmalReused },
+      { name: 'FRK', produced: batch.frkBags, reused: batch.frkReused },
+    ];
 
-        // Validation happens in frontend, but backend can also check if reused > produced + currentStock
-        // For now we sync the net change to inventory
-        if (netQuantity !== 0) {
-          await this.inventoryService.adjustStock({
-            plantId: dto.plantId,
-            itemType: 'BYPRODUCT',
-            variety: itemName,
-            quantityChange: netQuantity,
-            transactionType: netQuantity > 0 ? 'IN' : 'OUT',
-            referenceId: batch.id,
-            remarks: `Net yield (Produced: ${produced}, Reused: ${reused}) from batch ${batch.batchNo}`,
-            shift: dto.shift
-          });
-        }
+    for (const out of outputs) {
+      const produced = Number(out.produced) || 0;
+      const reused = Number(out.reused) || 0;
+      const netQuantity = produced - reused;
+
+      if (netQuantity !== 0) {
+        await this.inventoryService.adjustStock({
+          plantId: batch.plantId,
+          itemType: 'BYPRODUCT',
+          variety: out.name,
+          quantityChange: netQuantity,
+          transactionType: netQuantity > 0 ? 'IN' : 'OUT',
+          referenceId: batch.id,
+          remarks: `Net yield (Produced: ${produced}, Reused: ${reused}) from batch ${batch.batchNo}`,
+          shift: batch.shift
+        });
       }
     }
 
-    return batch;
+    // Update batch status and biometric data
+    return this.prisma.productionBatch.update({
+      where: { id: batchId },
+      data: {
+        status: 'SUBMITTED',
+        finalOutputBiometricData: biometricData
+      }
+    });
   }
 
   async completeBatch(batchId: string, data: any) {
@@ -618,7 +654,7 @@ export class ProductionService {
       throw new Error("Maximum of 4 analysis entries allowed per batch shift.");
     }
 
-    return this.prisma.batchAnalysis.create({
+    const analysis = await this.prisma.batchAnalysis.create({
       data: {
         productionBatchId: batchId,
         supervisorName: supervisorName || null,
@@ -638,5 +674,219 @@ export class ProductionService {
           biometricData: biometricData || null,
       }
     });
+
+    // Update batch status to ANALYSIS_FILLED
+    await this.prisma.productionBatch.update({
+      where: { id: batchId },
+      data: { status: 'ANALYSIS_FILLED' }
+    });
+
+    return analysis;
+  }
+
+  async getCompareBatchWise(dateStr: string) {
+    const targetDate = new Date(dateStr);
+    targetDate.setHours(0, 0, 0, 0);
+    const nextDate = new Date(targetDate);
+    nextDate.setDate(nextDate.getDate() + 1);
+
+    const plants = await this.prisma.plant.findMany();
+    const batches = await this.prisma.productionBatch.findMany({
+      where: {
+        date: { gte: targetDate, lt: nextDate },
+      },
+      include: { plant: true }
+    });
+
+    // Mill Yield Benchmarks (Round Fig yield % of rice) from Feedback 03
+    const benchmarks = {
+      'Net rice': 100,
+      'R. Bran': 12.8,
+      'K. Phuck': 3.7,
+      'Broken Rice': 4.53,  // kani
+      'Nakku 1': 1.2,       // nakku
+      'Nakku 2': 0.6,
+      'Rejection': 1.5,
+      'Final Rice': 100,
+    };
+
+    const result = {};
+
+    for (const plant of plants) {
+      const pName = plant.name;
+      result[pName] = {
+        'R. Bran': { day: 0, night: 0 },
+        'K. Phuck': { day: 0, night: 0 },
+        'Broken Rice': { day: 0, night: 0 },
+        'Nakku 1': { day: 0, night: 0 },
+        'Nakku 2': { day: 0, night: 0 },
+        'Rejection': { day: 0, night: 0 },
+        'Final Rice': { day: 0, night: 0 },
+        'Net rice': { day: 0, night: 0 },
+        'Paddy Drying': { day: 0, night: 0 },
+        'Intermill Processing (Batches)': { day: 0, night: 0 },
+        'Intermill Input (MT)': { day: 0, night: 0 },
+        'Plant Off (Batches)': { day: 0, night: 0 },
+      };
+    }
+
+    batches.forEach(b => {
+      const pName = b.plant.name;
+      if (!result[pName]) return;
+
+      const isDay = b.shift === 'Day';
+      const type = isDay ? 'day' : 'night';
+
+      if (b.productionState === 'PADDY_DRYING') {
+        result[pName]['Paddy Drying'][type] += b.paddyUsedQty; 
+      } else if (b.productionState === 'RICE_MILLING') {
+        result[pName]['R. Bran'][type] += b.rBranBags || 0;
+        result[pName]['K. Phuck'][type] += b.kPhuckBags || 0;
+        result[pName]['Broken Rice'][type] += b.brokenRiceBags || 0;
+        result[pName]['Nakku 1'][type] += b.nakku1Bags || 0;
+        result[pName]['Nakku 2'][type] += b.nakku2Bags || 0;
+        result[pName]['Rejection'][type] += b.rejectionBags || 0;
+        result[pName]['Final Rice'][type] += b.finalRiceBags || 0;
+        result[pName]['Net rice'][type] += b.finalRiceBags || 0; 
+      } else if (b.productionState === 'INTERMILL_PROCESSING') {
+        result[pName]['Intermill Processing (Batches)'][type] += 1;
+        result[pName]['Intermill Input (MT)'][type] += b.paddyUsedQty || 0;
+      } else if (b.productionState === 'PLANT_OFF') {
+        result[pName]['Plant Off (Batches)'][type] += 1;
+      }
+    });
+
+    for (const plant of plants) {
+      const pName = plant.name;
+      const netRiceTotal = result[pName]['Net rice'].day + result[pName]['Net rice'].night;
+
+      Object.keys(result[pName]).forEach(key => {
+        const row = result[pName][key];
+        row.total = row.day + row.night;
+        
+        let yieldPercent: number | null = null;
+        let diffInYield: number | null = null;
+
+        if (key !== 'Paddy Drying' && key !== 'Intermill Processing (Batches)' && key !== 'Intermill Input (MT)' && key !== 'Plant Off (Batches)') {
+          yieldPercent = netRiceTotal > 0 ? (row.total / netRiceTotal) * 100 : 0;
+          diffInYield = benchmarks[key] ? yieldPercent - benchmarks[key] : null;
+          
+          yieldPercent = parseFloat(yieldPercent.toFixed(2));
+          if (diffInYield !== null) diffInYield = parseFloat(diffInYield.toFixed(2));
+        }
+        
+        row.yieldPercent = yieldPercent;
+        row.diffInYield = diffInYield;
+      });
+    }
+
+    return {
+      comparisonData: result,
+      rawBatches: batches.filter(b => b.productionState !== 'RICE_MILLING')
+    };
+  }
+
+  async getCompareDateRange(dateFrom: string, dateTo: string) {
+    const fromDate = new Date(dateFrom);
+    fromDate.setHours(0, 0, 0, 0);
+    const toDate = new Date(dateTo);
+    toDate.setDate(toDate.getDate() + 1);
+    toDate.setHours(0, 0, 0, 0);
+
+    const plants = await this.prisma.plant.findMany();
+    const batches = await this.prisma.productionBatch.findMany({
+      where: {
+        date: { gte: fromDate, lt: toDate },
+      },
+      include: { plant: true }
+    });
+
+    // Mill Yield Benchmarks (Round Fig yield % of rice) from Feedback 03
+    const benchmarks = {
+      'Net rice': 100,
+      'R. Bran': 12.8,
+      'K. Phuck': 3.7,
+      'Broken Rice': 4.53,  // kani
+      'Nakku 1': 1.2,       // nakku
+      'Nakku 2': 0.6,
+      'Rejection': 1.5,
+      'Final Rice': 100,
+    };
+
+    const result = {};
+
+    for (const plant of plants) {
+      const pName = plant.name;
+      result[pName] = {
+        'R. Bran': 0,
+        'K. Phuck': 0,
+        'Broken Rice': 0,
+        'Nakku 1': 0,
+        'Nakku 2': 0,
+        'Rejection': 0,
+        'Final Rice': 0,
+        'Net rice': 0,
+        'Paddy Drying': 0,
+        'Intermill Processing (Batches)': 0,
+        'Intermill Input (MT)': 0,
+        'Plant Off (Batches)': 0,
+      };
+    }
+
+    batches.forEach(b => {
+      const pName = b.plant.name;
+      if (!result[pName]) return;
+
+      if (b.productionState === 'PADDY_DRYING') {
+        result[pName]['Paddy Drying'] += b.paddyUsedQty; 
+      } else if (b.productionState === 'RICE_MILLING') {
+        result[pName]['R. Bran'] += b.rBranBags || 0;
+        result[pName]['K. Phuck'] += b.kPhuckBags || 0;
+        result[pName]['Broken Rice'] += b.brokenRiceBags || 0;
+        result[pName]['Nakku 1'] += b.nakku1Bags || 0;
+        result[pName]['Nakku 2'] += b.nakku2Bags || 0;
+        result[pName]['Rejection'] += b.rejectionBags || 0;
+        result[pName]['Final Rice'] += b.finalRiceBags || 0;
+        result[pName]['Net rice'] += b.finalRiceBags || 0; 
+      } else if (b.productionState === 'INTERMILL_PROCESSING') {
+        result[pName]['Intermill Processing (Batches)'] += 1;
+        result[pName]['Intermill Input (MT)'] += b.paddyUsedQty || 0;
+      } else if (b.productionState === 'PLANT_OFF') {
+        result[pName]['Plant Off (Batches)'] += 1;
+      }
+    });
+
+    const finalResult = {};
+    for (const plant of plants) {
+      const pName = plant.name;
+      const netRiceTotal = result[pName]['Net rice'];
+      finalResult[pName] = {};
+
+      Object.keys(result[pName]).forEach(key => {
+        const total = result[pName][key];
+        
+        let yieldPercent: number | null = null;
+        let diffInYield: number | null = null;
+
+        if (key !== 'Paddy Drying' && key !== 'Intermill Processing (Batches)' && key !== 'Intermill Input (MT)' && key !== 'Plant Off (Batches)') {
+          yieldPercent = netRiceTotal > 0 ? (total / netRiceTotal) * 100 : 0;
+          diffInYield = benchmarks[key] ? yieldPercent - benchmarks[key] : null;
+          
+          yieldPercent = parseFloat(yieldPercent.toFixed(2));
+          if (diffInYield !== null) diffInYield = parseFloat(diffInYield.toFixed(2));
+        }
+
+        finalResult[pName][key] = {
+          production: total,
+          yieldPercent,
+          diffInYield
+        };
+      });
+    }
+
+    return {
+      comparisonData: finalResult,
+      rawBatches: batches.filter(b => b.productionState !== 'RICE_MILLING')
+    };
   }
 }

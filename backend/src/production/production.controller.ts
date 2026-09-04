@@ -67,10 +67,31 @@ export class ProductionController {
     return this.productionService.getShiftWiseStockReport(plantId, dateStr);
   }
 
+  @Get('compare-batch-wise')
+  @RequirePermission('Production', 'canView')
+  getCompareBatchWise(@Query('date') dateStr: string) {
+    return this.productionService.getCompareBatchWise(dateStr);
+  }
+
+  @Get('compare-date-range')
+  @RequirePermission('Production', 'canView')
+  getCompareDateRange(
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string
+  ) {
+    return this.productionService.getCompareDateRange(dateFrom, dateTo);
+  }
+
   @Post('batches/:id/analysis')
   @RequirePermission('Production', 'canEdit')
   saveBatchAnalysis(@Param('id') id: string, @Body() data: any) {
     return this.productionService.saveBatchAnalysis(id, data);
+  }
+
+  @Post('batches/:id/submit')
+  @RequirePermission('Production', 'canEdit')
+  submitBatch(@Param('id') id: string, @Body() data: { biometricData: any }) {
+    return this.productionService.submitBatch(id, data.biometricData);
   }
 }
 

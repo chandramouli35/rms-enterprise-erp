@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 import { usePlantStore } from '../store/plantStore';
+import { CompareReports } from '../components/Production/CompareReports';
+import { CustomModal } from '../components/CustomModal';
 import { 
  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend 
 } from 'recharts';
@@ -23,8 +25,11 @@ const INTERMILL_ITEMS = [
 ];
 export const ProductionManagement = () => {
  const activePlant = usePlantStore(state => state.activePlant);
+ const setActivePlant = usePlantStore(state => state.setActivePlant);
  const [productionType, setProductionType] = useState('Rice Milling');
- const [searchParams] = useSearchParams();
+   const [isPlantOffModalOpen, setIsPlantOffModalOpen] = useState(false);
+   const [plantOffData, setPlantOffData] = useState({ date: new Date().toISOString().split('T')[0], time: '', shift: 'Day Shift', supervisorName: '' });
+ const [searchParams, setSearchParams] = useSearchParams();
  const activeTab = searchParams.get('tab') || 'batch_creation';
  
  const [loading, setLoading] = useState(false);
@@ -116,34 +121,25 @@ export const ProductionManagement = () => {
       if (filters.status) query.append('status', filters.status);
       
       const res = await api.get(`/production/batches?${query.toString()}`);
-      const fetchedBatches = Array.isArray(res.data) ? res.data : (res.data?.data || []);
-      setBatches(fetchedBatches);
-      if (fetchedBatches.length > 0 && !selectedBatchId) {
-        setSelectedBatchId(fetchedBatches[0].id);
-      }
-    } catch (error) {
+        const fetchedBatches = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        setBatches(fetchedBatches);
+        
+        if (fetchedBatches.length > 0) {
+          const exists = fetchedBatches.some((b: any) => b.id === selectedBatchId);
+          if (!selectedBatchId || !exists) {
+            setSelectedBatchId(fetchedBatches[0].id);
+          }
+        } else {
+          setSelectedBatchId('');
+        }
+      } catch (error) {
       console.error('Error fetching batches', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSaveAnalysisWithBiometric = async () => {
-    if (!selectedBatchId) {
-      setNotification({ message: 'Please select a batch first', type: 'error' });
-      return;
-    }
-    
-    setNotification({ message: 'Please place thumb on scanner to verify analysis...', type: 'success' });
-    try {
- const bioData = await biometricService.captureFingerprint();
-      await handleSaveAnalysis(bioData);
-    } catch (err: any) {
-      setNotification({ message: err.message || 'Biometric capture failed', type: 'error' });
-    }
-  };
-
-  const handleSaveAnalysis = async (bioData?: string) => {
+  const handleSaveAnalysis = async () => {
     if (!selectedBatchId) {
       setNotification({ message: 'Please select a batch first', type: 'error' });
       return;
@@ -158,7 +154,6 @@ export const ProductionManagement = () => {
       const dataToSave = {
         ...analysisFormData,
         difference1To4,
-        biometricData: bioData
       };
 
       await api.post(`/production/batches/${selectedBatchId}/analysis`, dataToSave);
@@ -167,6 +162,29 @@ export const ProductionManagement = () => {
     } catch (error: any) {
       console.error('Error saving batch analysis:', error);
       setNotification({ message: error.response?.data?.message || 'Failed to save analysis', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitBatch = async () => {
+    if (!selectedBatchId) {
+      setNotification({ message: 'Please select a batch first', type: 'error' });
+      return;
+    }
+    
+    setNotification({ message: 'Please place thumb on scanner to finalize batch...', type: 'success' });
+    try {
+      const bioData = await biometricService.captureFingerprint();
+      setLoading(true);
+      await api.post(`/production/batches/${selectedBatchId}/submit`, { biometricData: bioData });
+      setNotification({ message: 'Batch finalized successfully', type: 'success' });
+      fetchBatches();
+      fetchMetrics();
+      fetchCurrentStock();
+    } catch (error: any) {
+      console.error('Error submitting batch:', error);
+      setNotification({ message: error.response?.data?.message || 'Failed to submit batch', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -216,6 +234,20 @@ export const ProductionManagement = () => {
       fetchIntermillBatches();
     }
   }, [activePlant?.id, filters.dateFrom, filters.dateTo, filters.status]);
+
+  const handleMillClick = async (millName: string) => {
+    try {
+      const res = await api.get('/plants');
+      const plant = res.data.find((p: any) => p.name === millName);
+      if (plant) {
+        setActivePlant(plant);
+        setSearchParams({ tab: 'production_tracking' });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } catch (error) {
+      console.error('Error fetching plants', error);
+    }
+  };
 
   const fetchProducts = async () => {
     try {
@@ -275,9 +307,6 @@ export const ProductionManagement = () => {
  const handleCreateBatch = async () => {
  if (!activePlant?.id) return;
  try {
- setNotification({ message: 'Please place thumb on scanner for final output verification...', type: 'success' });
- const bioData = await biometricService.captureFingerprint();
- 
  setLoading(true);
  const payload = {
  plantId: activePlant.id,
@@ -306,7 +335,6 @@ export const ProductionManagement = () => {
     productionType,
     stackInputs: formData.stackInputs,
     paddyDryingTargetStack: formData.paddyDryingTargetStack,
-    finalOutputBiometricData: bioData
  };
  
  await api.post('/production/batches', payload);
@@ -492,6 +520,8 @@ export const ProductionManagement = () => {
  </div>
  ))}
  </div>
+ 
+ <CompareReports onMillClick={handleMillClick} />
 
  {/* Tab Content */}
   {activeTab === 'batch_creation' && (
@@ -504,22 +534,32 @@ export const ProductionManagement = () => {
  <h2 className="text-lg font-bold text-[var(--text-main)]">1. Batch Creation</h2>
  <div className="flex bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded overflow-hidden">
   <button 
-    onClick={() => setProductionType('Paddy Drying')}
+    onClick={() => { if (window.confirm('Are you sure you want to switch to Paddy Drying?')) setProductionType('Paddy Drying'); }}
     className={`px-4 py-1.5 text-sm font-bold transition-colors border-r border-[var(--border-subtle)] ${productionType === 'Paddy Drying' ? 'bg-[#e67e00] text-black' : 'text-[var(--text-muted-alt)] hover:text-[var(--text-main)]'}`}
   >
     Paddy Drying
   </button>
   <button 
-    onClick={() => setProductionType('Rice Milling')}
+    onClick={() => { if (window.confirm('Are you sure you want to switch to Rice Milling?')) setProductionType('Rice Milling'); }}
     className={`px-4 py-1.5 text-sm font-bold transition-colors border-r border-[var(--border-subtle)] ${productionType === 'Rice Milling' ? 'bg-[#e67e00] text-black' : 'text-[var(--text-muted-alt)] hover:text-[var(--text-main)]'}`}
   >
     Rice Milling
   </button>
   <button 
-    onClick={() => setProductionType('Intermill Processing')}
-    className={`px-4 py-1.5 text-sm font-bold transition-colors ${productionType === 'Intermill Processing' ? 'bg-[#e67e00] text-black' : 'text-[var(--text-muted-alt)] hover:text-[var(--text-main)]'}`}
+    onClick={() => { if (window.confirm('Are you sure you want to switch to Intermill Processing?')) setProductionType('Intermill Processing'); }}
+    className={`px-4 py-1.5 text-sm font-bold transition-colors border-r border-[var(--border-subtle)] ${productionType === 'Intermill Processing' ? 'bg-[#e67e00] text-black' : 'text-[var(--text-muted-alt)] hover:text-[var(--text-main)]'}`}
   >
     Inter-Mill Processing
+  </button>
+  <button 
+    onClick={() => {
+        if (window.confirm('Are you sure you want to initiate Plant Off?')) {
+           setIsPlantOffModalOpen(true);
+         }
+      }}
+    className={`px-4 py-1.5 text-sm font-bold transition-colors ${productionType === 'Plant Off' ? 'bg-[#e67e00] text-black' : 'text-[var(--text-muted-alt)] hover:text-[var(--text-main)]'}`}
+  >
+    Plant Off
   </button>
  </div>
  </div>
@@ -542,15 +582,20 @@ export const ProductionManagement = () => {
     <option value="Night Shift">Night Shift</option>
   </select>
  </div>
- <div>
- <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Production Line <span className="text-red-500">*</span></label>
-  <select name="productionLine" value={formData.productionLine} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none">
-    <option value="Line 1">Line 1</option>
-    <option value="Line 2">Line 2</option>
-  </select>
- </div>
- </div>
- </div>
+  {productionType !== 'Plant Off' && (
+    <div>
+    <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Production Line <span className="text-red-500">*</span></label>
+     <select name="productionLine" value={formData.productionLine} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none">
+       <option value="Line 1">Line 1</option>
+       <option value="Line 2">Line 2</option>
+     </select>
+    </div>
+  )}
+  
+  </div>
+  </div>
+
+  
 
  {(productionType === 'Rice Milling' || productionType === 'Paddy Drying') && (
    <div className="col-span-2 bg-[var(--bg-panel-alt)] p-4 rounded-lg border border-[var(--border-subtle)] mb-4 mt-4">
@@ -1168,12 +1213,21 @@ export const ProductionManagement = () => {
              <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.damagePercent} onChange={e => setAnalysisFormData({...analysisFormData, damagePercent: e.target.value})} /></td>
              <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.discolourPercent} onChange={e => setAnalysisFormData({...analysisFormData, discolourPercent: e.target.value})} /></td>
              <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.frkPercent} onChange={e => setAnalysisFormData({...analysisFormData, frkPercent: e.target.value})} /></td>
-             <td className="px-1 py-1"><button onClick={handleSaveAnalysisWithBiometric} disabled={loading} className="px-2 py-1 bg-[#e67e00] hover:bg-[#cc7000] text-black font-bold rounded shadow-lg disabled:opacity-50 text-[10px]">Save & Bio</button></td>
+             <td className="px-1 py-1"><button onClick={handleSaveAnalysis} disabled={loading} className="px-2 py-1 bg-[#e67e00] hover:bg-[#cc7000] text-black font-bold rounded shadow-lg disabled:opacity-50 text-[10px]">Save Analysis</button></td>
            </tr>
          )}
        </tbody>
      </table>
    </div>
+   
+   {selectedBatchId && selectedBatchDetails?.status !== 'SUBMITTED' && selectedBatchDetails?.status !== 'Completed' && (
+      <div className="mt-4 flex justify-end">
+        <button onClick={handleSubmitBatch} disabled={loading} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded shadow-lg disabled:opacity-50 transition-colors">
+          Submit Batch (Fingerprint Required)
+        </button>
+      </div>
+    )}
+
    </div>
    {!selectedBatchId && (
      <p className="text-[10px] text-center text-[var(--text-muted-alt)] mt-2">Create and select a batch to fill analysis</p>

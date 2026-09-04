@@ -62,4 +62,12 @@ export class CreateBatchDto {
   @IsOptional()
   @IsString()
   finalOutputBiometricData?: string;
+
+  @IsOptional()
+  @IsString()
+  productionState?: string;
+
+  @IsOptional()
+  @IsString()
+  biometricData?: string;
 }
