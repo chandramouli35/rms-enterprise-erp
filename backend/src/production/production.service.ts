@@ -889,4 +889,88 @@ export class ProductionService {
       rawBatches: batches.filter(b => b.productionState !== 'RICE_MILLING')
     };
   }
+
+  async getAdminAnalysisReport(dateStr?: string) {
+    const targetDate = dateStr ? new Date(dateStr) : new Date();
+    targetDate.setUTCHours(0,0,0,0);
+    const nextDate = new Date(targetDate);
+    nextDate.setDate(nextDate.getDate() + 1);
+
+    const analyses = await this.prisma.batchAnalysis.findMany({
+      where: {
+        productionBatch: {
+          date: {
+            gte: targetDate,
+            lt: nextDate
+          }
+        }
+      },
+      include: {
+        productionBatch: {
+          include: {
+            plant: true
+          }
+        }
+      }
+    });
+
+    // Group by plant and shift
+    const grouped: any = {};
+    const shifts = ['Day Shift', 'Night Shift'];
+    const fields = [
+      'paddyMoisture', 'khanjanBroken', 'polisher1', 'polisher2', 
+      'polisher3', 'polisher4', 'difference1To4', 'pamalaBroken', 
+      'finalBroken', 'riceMoisture', 'damagePercent', 'discolourPercent', 'frkPercent'
+    ];
+
+    // Initialize structure for all plants
+    const allPlants = await this.prisma.plant.findMany();
+    allPlants.forEach(plant => {
+      grouped[plant.name] = {
+        plantId: plant.id,
+        'Day Shift': { records: [] },
+        'Night Shift': { records: [] }
+      };
+    });
+
+    analyses.forEach(a => {
+      const plantName = a.productionBatch?.plant?.name;
+      let shift = a.productionBatch?.shift;
+      if (shift === 'Day') shift = 'Day Shift';
+      if (shift === 'Night') shift = 'Night Shift';
+      if (plantName && shift && grouped[plantName] && grouped[plantName][shift]) {
+        grouped[plantName][shift].records.push(a);
+      }
+    });
+
+    const report: any = {};
+
+    Object.keys(grouped).forEach(plantName => {
+      report[plantName] = { plantId: grouped[plantName].plantId };
+      shifts.forEach(shift => {
+        const records = grouped[plantName][shift].records;
+        const avgData: any = {};
+        if (records.length > 0) {
+          fields.forEach(field => {
+            const validVals = records.map((r: any) => Number(r[field])).filter((v: number) => !isNaN(v) && v !== null);
+            if (validVals.length > 0) {
+              avgData[field] = (validVals.reduce((sum: number, val: number) => sum + val, 0) / validVals.length).toFixed(2);
+            } else {
+              avgData[field] = null;
+            }
+          });
+          // Supervisor logic: just pick the first available one for that shift
+          const supervisor = records.find((r: any) => r.supervisorName)?.supervisorName || 
+                             records.find((r: any) => r.productionBatch?.supervisorName)?.productionBatch?.supervisorName || '';
+          avgData.supervisorName = supervisor;
+        }
+        report[plantName][shift] = {
+          averages: avgData,
+          rawRecords: records
+        };
+      });
+    });
+
+    return report;
+  }
 }

@@ -92,3 +92,43 @@
     @apply bg-[var(--bg-panel)] backdrop-blur-md border-[var(--border-subtle)] shadow-xl;
   }
 }
+
+@media print {
+  /* Hide sidebar, topbar and unnecessary buttons */
+  aside, .print-hide, button {
+    display: none !important;
+  }
+  
+  /* Reset background and text color for print */
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+  
+  /* Print layout tweaks for tables */
+  .print-area {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  
+  th, td {
+    border: 1px solid #ddd !important;
+    padding: 8px !important;
+    color: black !important;
+  }
+  
+  th {
+    background-color: #f3f4f6 !important;
+  }
+  
+  /* Avoid page breaks inside rows */
+  tr {
+    page-break-inside: avoid !important;
+  }
+}

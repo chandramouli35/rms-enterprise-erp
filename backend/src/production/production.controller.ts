@@ -93,5 +93,11 @@ export class ProductionController {
   submitBatch(@Param('id') id: string, @Body() data: { biometricData: any }) {
     return this.productionService.submitBatch(id, data.biometricData);
   }
+
+  @Get('analysis-report')
+  @RequirePermission('Production', 'canView')
+  getAdminAnalysisReport(@Query('date') date: string) {
+    return this.productionService.getAdminAnalysisReport(date);
+  }
 }
 

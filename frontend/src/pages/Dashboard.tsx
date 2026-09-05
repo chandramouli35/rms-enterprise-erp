@@ -5,6 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuthStore } from '../store/authStore';
 import { SupervisorDashboard } from './SupervisorDashboard';
+import AdminAnalysisReport from '../components/Admin/AdminAnalysisReport';
+
 import { 
  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell,
  LineChart, Line, PieChart, Pie, Legend
@@ -364,6 +366,11 @@ export const Dashboard: React.FC = () => {
  )}
  </div>
 
+
+  {/* Admin Analysis Report */}
+  {user?.role === 'SUPER_ADMIN' && (
+    <AdminAnalysisReport />
+  )}
 
   {/* Tier 3: Real-Time Plant Operations Panels */}
  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
