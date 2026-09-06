@@ -36,18 +36,23 @@ export class InventoryService {
     category?: string;
     unit?: string;
     stockValueChange?: number;
+    tx?: any;
   }) {
-    const { plantId, itemType, variety, godown, quantityChange, transactionType, referenceId, remarks, shift, usableChange = 0, category, unit, stockValueChange = 0 } = params;
+    const { plantId, itemType, variety, godown, quantityChange, transactionType, referenceId, remarks, shift, usableChange = 0, category, unit, stockValueChange = 0, tx } = params;
     const resolvedGodown = godown || 'Main Yard';
     const resolvedVariety = variety || 'Standard';
+    const db = tx || this.prisma;
 
     // 1. Find or create the inventory record
-    let inventory = await this.prisma.inventory.findFirst({
+    let inventory = await db.inventory.findFirst({
       where: { plantId, itemType, variety: resolvedVariety, godown: resolvedGodown }
     });
 
     if (inventory) {
-      inventory = await this.prisma.inventory.update({
+      if (quantityChange < 0 && inventory.quantity + quantityChange < 0) {
+        throw new Error(`Insufficient stock for ${resolvedVariety}. Available: ${inventory.quantity}, Required: ${Math.abs(quantityChange)}`);
+      }
+      inventory = await db.inventory.update({
         where: { id: inventory.id },
         data: {
           quantity: { increment: quantityChange },
@@ -56,7 +61,7 @@ export class InventoryService {
         }
       });
     } else {
-      inventory = await this.prisma.inventory.create({
+      inventory = await db.inventory.create({
         data: {
           plantId,
           itemType,
@@ -72,7 +77,7 @@ export class InventoryService {
     }
 
     // 2. Log in Stock Ledger
-    await this.prisma.stockLedger.create({
+    await db.stockLedger.create({
       data: {
         plantId,
         transaction: transactionType, // IN, OUT, TRANSFER, ADJUSTMENT

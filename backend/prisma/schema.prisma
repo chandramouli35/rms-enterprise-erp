@@ -483,6 +483,19 @@ model GatePass {
   biometricData   String? // Store fingerprint XML/PID data
   gstNo           String?
 
+  // New Requirements Fields (Defaulted/Optional for zero data loss)
+  rstNo                 String?
+  gpStartDate           DateTime? @default(now())
+  gpCompleteDate        DateTime?
+  isCompleteDateNA      Boolean   @default(false)
+  weighbridgeActive     Boolean   @default(false)
+  completedBySupervisor String?
+  mainBags              Int       @default(0)
+  shortageBags          Int       @default(0)
+  isDraft               Boolean   @default(true)
+
+  items                 GatePassItem[]
+
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
@@ -493,6 +506,20 @@ model GatePass {
   @@index([plantId])
   @@index([vehicleNo])
   @@index([status])
+}
+
+model GatePassItem {
+  id         String   @id @default(uuid())
+  gatePassId String
+  gatePass   GatePass @relation(fields: [gatePassId], references: [id], onDelete: Cascade)
+  itemName   String
+  unit       String   // "Bags" or "Quintal"
+  quantity   Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([gatePassId])
 }
 
 model DuplicateGatePassLog {
@@ -1323,4 +1350,15 @@ model PlantDowntime {
 
   @@index([plantId])
   @@index([date])
+}
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  type      String   @default("INFO") // INFO, WARNING, ALERT
+  userId    String?  // If targeted at a specific user
+  role      String?  // If targeted at a role (e.g., ADMIN)
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { GatePassService } from './gate-pass.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -38,10 +38,11 @@ export class GatePassController {
   getRecentGatePasses(
     @Param('plantId') plantId: string, 
     @Query('type') type: string,
+    @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string
   ) {
-    return this.gatePassService.getRecentGatePasses(plantId, type || 'INWARD', page, limit);
+    return this.gatePassService.getRecentGatePasses(plantId, type || 'INWARD', status, page, limit);
   }
 
   @Get('scan/:qrCode')
@@ -56,10 +57,22 @@ export class GatePassController {
     return this.gatePassService.getAnalytics(plantId);
   }
 
+  @Patch(':id')
+  @RequirePermission('Gate Pass', 'canEdit')
+  updateGatePass(@Param('id') id: string, @Body() data: any) {
+    return this.gatePassService.updateGatePass(id, data);
+  }
+
   @Post(':id/complete')
   @RequirePermission('Gate Pass', 'canEdit')
-  completeGatePass(@Param('id') id: string) {
-    return this.gatePassService.completeGatePass(id);
+  completeGatePass(@Param('id') id: string, @Body() data?: any) {
+    return this.gatePassService.completeGatePass(id, data);
+  }
+
+  @Post('report/finalize/:plantId')
+  @RequirePermission('Gate Pass', 'canEdit')
+  finalizeDailyReport(@Param('plantId') plantId: string, @Body() data: any) {
+    return this.gatePassService.finalizeDailyReport(plantId, data);
   }
 
   @Get('duplicate-logs/:plantId')
