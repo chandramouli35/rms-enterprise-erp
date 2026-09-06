@@ -86,11 +86,11 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
 };
 
 export const GatePassManagement = () => {
- const [searchParams] = useSearchParams();
+ const [searchParams, setSearchParams] = useSearchParams();
  const activeTab = searchParams.get('tab') || 'gate_in';
  const activePlant = usePlantStore(state => state.activePlant);
   const [passCategory, setPassCategory] = useState<'INWARD' | 'OUTWARD' | null>(null);
-  const [tableFilter, setTableFilter] = useState<'INWARD' | 'OUTWARD'>('INWARD');
+  const [tableFilter, setTableFilter] = useState<'INWARD' | 'OUTWARD' | 'ACTIVE'>('INWARD');
  const [trucks, setTrucks] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -676,7 +676,7 @@ export const GatePassManagement = () => {
  </div>
 
  <div 
-    onClick={() => { setActiveTab('report_summary'); setTableFilter('ACTIVE'); }}
+    onClick={() => { setSearchParams({ tab: 'report_summary' }); setTableFilter('ACTIVE'); }}
     className="bg-[var(--bg-panel)] p-4 rounded-xl border border-[var(--border-subtle-alt)] flex flex-col justify-center cursor-pointer hover:bg-[var(--glass-bg)] transition-colors relative overflow-hidden group"
   >
   <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
