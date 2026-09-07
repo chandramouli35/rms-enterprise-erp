@@ -16,7 +16,9 @@ export class GatePassService {
       // Legacy fields
       material, noOfBags,
       // New fields
-      rstNo, gpStartDate, isCompleteDateNA, weighbridgeActive, mainBags, shortageBags, isDraft, items
+      rstNo, gpStartDate, isCompleteDateNA, weighbridgeActive, mainBags, shortageBags, isDraft, items,
+      // Transfer Entry fields
+      isTransfer, deliveryAtId
     } = data;
     
     // Duplicate prevention for INWARD passes
@@ -102,6 +104,7 @@ export class GatePassService {
     }
 
     const seq = String(nextSeq).padStart(5, '0');
+    const gpSuffix = isTransfer ? '(T)' : null;
     const qrCode = `${prefix}-${year}-${seq}`;
 
     const newPass = await this.prisma.gatePass.create({
@@ -143,6 +146,10 @@ export class GatePassService {
         mainBags: mainBags ? parseInt(mainBags) : 0,
         shortageBags: shortageBags ? parseInt(shortageBags) : 0,
         isDraft: isDraft === true,
+        isTransfer: isTransfer === true,
+        deliveryAtId: isTransfer ? (deliveryAtId || null) : null,
+        gpSuffix: gpSuffix,
+        actualDispatchPlantId: isTransfer ? plantId : null,
 
         // Items creation
         items: items && items.length > 0 ? {
@@ -164,6 +171,41 @@ export class GatePassService {
         }
       }
     });
+
+    // If this is a Transfer Entry, create a TransferTicket
+    if (isTransfer && supplierId) {
+      // supplierId in transfer context = recipientPlantId (the mill on whose behalf)
+      // We look up the supplier to get the name for deliveryAtName
+      let deliveryAtName = 'Unknown';
+      if (deliveryAtId) {
+        const deliverySupplier = await this.prisma.supplier.findUnique({ where: { id: deliveryAtId } });
+        if (deliverySupplier) deliveryAtName = deliverySupplier.name;
+      }
+
+      // Find the recipient plant from the suppliers list or use a mapping
+      // For now, we store supplierId as the recipientPlantId reference
+      await this.prisma.transferTicket.create({
+        data: {
+          dispatchPlantId: plantId,
+          recipientPlantId: plantId, // Will be updated when recipient confirms
+          deliveryAtId: deliveryAtId || null,
+          deliveryAtName,
+          status: 'PENDING_CONFIRMATION',
+          originalGpId: newPass.id
+        }
+      });
+
+      // Send notification to Admin about new transfer ticket
+      await this.prisma.notification.create({
+        data: {
+          title: 'New Transfer Entry Created',
+          message: `Transfer GP ${qrCode} ${gpSuffix} has been created. Delivery At: ${deliveryAtName}. Awaiting recipient confirmation.`,
+          type: 'INFO',
+          role: 'SUPER_ADMIN'
+        }
+      });
+    }
+
     return newPass;
   }
 
@@ -319,6 +361,8 @@ export class GatePassService {
     const pass = await this.prisma.gatePass.findUnique({ where: { id } });
     if (!pass) throw new NotFoundException('Gate Pass not found');
     if (!pass.isDraft) throw new BadRequestException('Only Draft Gate Passes can be edited');
+    // Block edits on Transfer GP entries (Section 3.7)
+    if (pass.isTransfer) throw new BadRequestException('Transfer Gate Passes cannot be edited independently.');
 
     const { 
       vehicleNo, vehicleType, purpose, supplierId, driverName, contactNo, challanNo, 
@@ -547,5 +591,274 @@ export class GatePassService {
       }
     }
     return { nextSeq };
+  }
+
+  // ===========================
+  // TRANSFER ENTRY MANAGEMENT
+  // ===========================
+
+  /** Get all transfer tickets with filtering */
+  async getTransferTickets(plantId: string, status?: string) {
+    const whereClause: any = {};
+    if (plantId !== 'global') {
+      whereClause.OR = [
+        { dispatchPlantId: plantId },
+        { recipientPlantId: plantId }
+      ];
+    }
+    if (status && status !== 'all') {
+      whereClause.status = status;
+    }
+
+    return this.prisma.transferTicket.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        dispatchPlant: true,
+        recipientPlant: true,
+        originalGp: {
+          include: { supplier: true, items: true }
+        },
+        autoGpIn: {
+          include: { supplier: true, items: true }
+        },
+        autoGpOut: {
+          include: { supplier: true, items: true }
+        }
+      }
+    });
+  }
+
+  /** Confirm a transfer ticket — atomic dual-entry (GP In + GP Out) */
+  async confirmTransferTicket(ticketId: string, confirmData: { supervisorName: string; recipientPlantId: string }) {
+    const ticket = await this.prisma.transferTicket.findUnique({
+      where: { id: ticketId },
+      include: {
+        originalGp: { include: { items: true, supplier: true } }
+      }
+    });
+
+    if (!ticket) throw new NotFoundException('Transfer Ticket not found');
+    if (ticket.status !== 'PENDING_CONFIRMATION') throw new BadRequestException('This transfer ticket has already been processed.');
+
+    const originalGp = ticket.originalGp;
+    const recipientPlantId = confirmData.recipientPlantId || ticket.recipientPlantId;
+
+    // --- ATOMIC TRANSACTION: Create GP In + GP Out for Recipient Mill ---
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Generate GP In sequence for the recipient plant
+      const yearNow = new Date().getFullYear();
+
+      // GP In sequence
+      const allInPasses = await tx.gatePass.findMany({
+        where: { passType: 'INWARD', qrCode: { startsWith: `GIN-${yearNow}-` } },
+        select: { qrCode: true }
+      });
+      let lastInSeq = 0;
+      for (const p of allInPasses) {
+        if (!p.qrCode) continue;
+        const parts = p.qrCode.split('-');
+        if (parts.length === 3) {
+          const s = parseInt(parts[2], 10);
+          if (!isNaN(s) && s > lastInSeq) lastInSeq = s;
+        }
+      }
+      const gpInSeq = String(lastInSeq + 1).padStart(5, '0');
+      const gpInQrCode = `GIN-${yearNow}-${gpInSeq}`;
+
+      // GP Out sequence
+      const allOutPasses = await tx.gatePass.findMany({
+        where: { passType: 'OUTWARD', qrCode: { startsWith: `GOUT-${yearNow}-` } },
+        select: { qrCode: true }
+      });
+      let lastOutSeq = 0;
+      for (const p of allOutPasses) {
+        if (!p.qrCode) continue;
+        const parts = p.qrCode.split('-');
+        if (parts.length === 3) {
+          const s = parseInt(parts[2], 10);
+          if (!isNaN(s) && s > lastOutSeq) lastOutSeq = s;
+        }
+      }
+      const gpOutSeq = String(lastOutSeq + 1).padStart(5, '0');
+      const gpOutQrCode = `GOUT-${yearNow}-${gpOutSeq}`;
+
+      // 2. Create GP In for Recipient Mill — Party Name = Actual Dispatch Mill
+      const gpIn = await tx.gatePass.create({
+        data: {
+          plantId: recipientPlantId,
+          passType: 'INWARD',
+          vehicleNo: originalGp.vehicleNo,
+          vehicleType: originalGp.vehicleType,
+          purpose: 'Intermill',
+          supplierId: originalGp.supplierId,
+          material: originalGp.material,
+          driverName: originalGp.driverName,
+          contactNo: originalGp.contactNo,
+          challanNo: originalGp.challanNo,
+          noOfBags: originalGp.noOfBags,
+          grossWeight: originalGp.grossWeight,
+          tareWeight: originalGp.tareWeight,
+          netWeight: originalGp.netWeight,
+          status: 'COMPLETED',
+          qrCode: gpInQrCode,
+          isTransfer: true,
+          gpSuffix: '(T)',
+          actualDispatchPlantId: ticket.dispatchPlantId,
+          completedBySupervisor: confirmData.supervisorName,
+          gpCompleteDate: new Date(),
+          remarks: `Auto-generated Transfer GP In from ${originalGp.qrCode} (T)`,
+          items: originalGp.items && originalGp.items.length > 0 ? {
+            create: originalGp.items.map((item: any) => ({
+              itemName: item.itemName,
+              unit: item.unit,
+              quantity: item.quantity
+            }))
+          } : undefined
+        }
+      });
+
+      // 3. Create GP Out for Recipient Mill — Party Name = Delivery At
+      const gpOut = await tx.gatePass.create({
+        data: {
+          plantId: recipientPlantId,
+          passType: 'OUTWARD',
+          vehicleNo: originalGp.vehicleNo,
+          vehicleType: originalGp.vehicleType,
+          purpose: 'Intermill',
+          supplierId: originalGp.supplierId,
+          material: originalGp.material,
+          driverName: originalGp.driverName,
+          contactNo: originalGp.contactNo,
+          challanNo: originalGp.challanNo,
+          noOfBags: originalGp.noOfBags,
+          grossWeight: originalGp.grossWeight,
+          tareWeight: originalGp.tareWeight,
+          netWeight: originalGp.netWeight,
+          status: 'COMPLETED',
+          qrCode: gpOutQrCode,
+          isTransfer: true,
+          gpSuffix: '(T)',
+          deliveryAtId: ticket.deliveryAtId,
+          actualDispatchPlantId: ticket.dispatchPlantId,
+          completedBySupervisor: confirmData.supervisorName,
+          gpCompleteDate: new Date(),
+          remarks: `Auto-generated Transfer GP Out to ${ticket.deliveryAtName} from ${originalGp.qrCode} (T)`,
+          items: originalGp.items && originalGp.items.length > 0 ? {
+            create: originalGp.items.map((item: any) => ({
+              itemName: item.itemName,
+              unit: item.unit,
+              quantity: item.quantity
+            }))
+          } : undefined
+        }
+      });
+
+      // 4. Process inventory for GP In (add stock) and GP Out (remove stock) — NIL EFFECT
+      if (originalGp.items && originalGp.items.length > 0) {
+        for (const item of originalGp.items) {
+          let itemType = 'FINISHED_GOODS';
+          const upMat = item.itemName.toUpperCase();
+          if (upMat.includes('RICE')) itemType = 'RICE';
+          if (upMat.includes('BRAN')) itemType = 'BRAN';
+          if (upMat.includes('HUSK')) itemType = 'HUSK';
+          if (upMat.includes('PADDY')) itemType = 'PADDY';
+
+          // GP In: Add to stock
+          await this.inventoryService.adjustStock({
+            plantId: recipientPlantId,
+            itemType,
+            variety: item.itemName,
+            quantityChange: Number(item.quantity),
+            transactionType: 'IN',
+            referenceId: gpIn.id,
+            remarks: `Transfer GP In ${gpInQrCode} (T)`,
+            tx
+          });
+
+          // GP Out: Remove from stock (net zero effect)
+          await this.inventoryService.adjustStock({
+            plantId: recipientPlantId,
+            itemType,
+            variety: item.itemName,
+            quantityChange: -Number(item.quantity),
+            transactionType: 'OUT',
+            referenceId: gpOut.id,
+            remarks: `Transfer GP Out ${gpOutQrCode} (T)`,
+            tx
+          });
+        }
+      }
+
+      // 5. Close the transfer ticket
+      const updatedTicket = await tx.transferTicket.update({
+        where: { id: ticketId },
+        data: {
+          status: 'CLOSED',
+          recipientPlantId,
+          autoGpInId: gpIn.id,
+          autoGpOutId: gpOut.id
+        }
+      });
+
+      return { ticket: updatedTicket, gpIn, gpOut };
+    });
+
+    // Send notification about closure
+    await this.prisma.notification.create({
+      data: {
+        title: 'Transfer Ticket Confirmed',
+        message: `Transfer Ticket for GP ${ticket.originalGp.qrCode} (T) has been confirmed by ${confirmData.supervisorName}. Auto-generated GP In: ${result.gpIn.qrCode} (T), GP Out: ${result.gpOut.qrCode} (T).`,
+        type: 'INFO',
+        role: 'SUPER_ADMIN'
+      }
+    });
+
+    return result;
+  }
+
+  /** Get consignment slip data — only available for Recipient Mill's GP Out */
+  async getConsignmentSlipData(gatePassId: string, requestingPlantId: string) {
+    const pass = await this.prisma.gatePass.findUnique({
+      where: { id: gatePassId },
+      include: { supplier: true, items: true, plant: true }
+    });
+
+    if (!pass) throw new NotFoundException('Gate Pass not found');
+    if (!pass.isTransfer) throw new BadRequestException('Consignment slips are only available for Transfer GPs.');
+
+    // Section 4.1: Actual Dispatch Mill CANNOT create the consignment slip
+    if (pass.actualDispatchPlantId === requestingPlantId) {
+      throw new BadRequestException('Actual Dispatch Mill cannot create the Consignment dispatch slip. Only the Recipient Mill can.');
+    }
+
+    // Section 4.2: Only GP Out of the Recipient Mill can generate the slip
+    if (pass.passType !== 'OUTWARD') {
+      throw new BadRequestException('Consignment slip can only be generated from the Recipient Mill\'s GP Out entry.');
+    }
+
+    // Get the transfer ticket for context
+    const ticket = await this.prisma.transferTicket.findFirst({
+      where: { autoGpOutId: gatePassId },
+      include: { dispatchPlant: true, recipientPlant: true, originalGp: true }
+    });
+
+    return {
+      gatePass: pass,
+      transferTicket: ticket,
+      consignmentData: {
+        date: pass.gpCompleteDate || pass.createdAt,
+        fromMill: ticket?.recipientPlant?.name || pass.plant?.name,
+        toDeliveryAt: ticket?.deliveryAtName || 'N/A',
+        truckNo: pass.vehicleNo,
+        driverName: pass.driverName,
+        items: pass.items,
+        netWeight: pass.netWeight,
+        noOfBags: pass.noOfBags,
+        gpNo: `${pass.qrCode} ${pass.gpSuffix || ''}`,
+        originalDispatchGpNo: ticket?.originalGp?.qrCode ? `${ticket.originalGp.qrCode} (T)` : 'N/A',
+        supervisorName: pass.completedBySupervisor
+      }
+    };
   }
 }

@@ -91,7 +91,7 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
   };
 
   return (
-    <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] shadow-sm overflow-hidden flex flex-col h-full">
+    <div className="flex flex-col h-full">
       <div className="p-4 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]/50">
         <div className="flex items-center gap-2">
           <Layers className="text-[#e67e00]" size={20} />

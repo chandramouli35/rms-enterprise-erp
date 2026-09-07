@@ -53,4 +53,48 @@ export class GatePassCronService {
       }
     }
   }
+
+  // 3. Transfer Ticket 48-Hour Escalation (Section 3.1)
+  @Cron(CronExpression.EVERY_HOUR)
+  async checkTransferTicketEscalations() {
+    this.logger.log('Checking for pending Transfer Tickets older than 48 hours...');
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+    const pendingTickets = await this.prisma.transferTicket.findMany({
+      where: {
+        status: 'PENDING_CONFIRMATION',
+        createdAt: {
+          lt: twoDaysAgo,
+        },
+      },
+      include: {
+        originalGp: true,
+        dispatchPlant: true,
+      }
+    });
+
+    if (pendingTickets.length > 0) {
+      this.logger.warn(`Found ${pendingTickets.length} unconfirmed Transfer Tickets (48+ hours).`);
+      for (const ticket of pendingTickets) {
+        // Escalate status
+        await this.prisma.transferTicket.update({
+          where: { id: ticket.id },
+          data: { status: 'ESCALATED' }
+        });
+
+        // Notify Admin
+        await this.prisma.notification.create({
+          data: {
+            title: 'Transfer Ticket Escalation (48+ Hours)',
+            message: `Transfer Ticket for GP ${ticket.originalGp?.qrCode || 'N/A'} (T) from ${ticket.dispatchPlant?.name || 'Unknown'} has been PENDING for over 48 hours. Auto-escalated to Admin.`,
+            type: 'WARNING',
+            role: 'SUPER_ADMIN'
+          }
+        });
+
+        this.logger.warn(`[ESCALATION] Transfer Ticket ${ticket.id} escalated to Admin.`);
+      }
+    }
+  }
 }

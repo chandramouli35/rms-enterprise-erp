@@ -6,7 +6,7 @@ import { InventoryService } from './inventory.service';
 import { GetInventoryFilterDto, GetStockReportDto } from './dto/inventory.dto';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
-@Controller('inventory')
+@Controller('api/inventory')
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 

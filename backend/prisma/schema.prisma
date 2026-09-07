@@ -42,6 +42,10 @@ model Plant {
   systemUtility           SystemUtility?
   plantDowntimes          PlantDowntime[]
 
+  // Transfers
+  transfersDispatched TransferTicket[] @relation("TransferDispatch")
+  transfersReceived   TransferTicket[] @relation("TransferRecipient")
+
   // Power Management
   powerSources PowerSource[]
   powerReadings PowerReading[]
@@ -493,6 +497,16 @@ model GatePass {
   mainBags              Int       @default(0)
   shortageBags          Int       @default(0)
   isDraft               Boolean   @default(true)
+
+  // Transfer Entry Management
+  isTransfer            Boolean   @default(false)
+  deliveryAtId          String?
+  gpSuffix              String?
+  actualDispatchPlantId String?
+  
+  originalTransferTicket TransferTicket? @relation("OriginalGp")
+  autoGpInTicket         TransferTicket? @relation("AutoGpIn")
+  autoGpOutTicket        TransferTicket? @relation("AutoGpOut")
 
   items                 GatePassItem[]
 
@@ -1361,4 +1375,34 @@ model Notification {
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// Transfer Entry Management (Tickets)
+// -----------------------------------------------------------------------------
+model TransferTicket {
+  id               String   @id @default(uuid())
+  dispatchPlantId  String
+  recipientPlantId String
+  deliveryAtId     String?
+  deliveryAtName   String
+  status           String   @default("PENDING_CONFIRMATION") // PENDING_CONFIRMATION, CLOSED, ESCALATED
+  
+  originalGpId     String   @unique
+  autoGpInId       String?  @unique
+  autoGpOutId      String?  @unique
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  dispatchPlant    Plant    @relation("TransferDispatch", fields: [dispatchPlantId], references: [id])
+  recipientPlant   Plant    @relation("TransferRecipient", fields: [recipientPlantId], references: [id])
+  
+  originalGp       GatePass @relation("OriginalGp", fields: [originalGpId], references: [id])
+  autoGpIn         GatePass? @relation("AutoGpIn", fields: [autoGpInId], references: [id])
+  autoGpOut        GatePass? @relation("AutoGpOut", fields: [autoGpOutId], references: [id])
+
+  @@index([dispatchPlantId])
+  @@index([recipientPlantId])
+  @@index([status])
 }

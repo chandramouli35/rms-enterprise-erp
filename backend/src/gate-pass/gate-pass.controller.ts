@@ -80,4 +80,35 @@ export class GatePassController {
   getDuplicateLogs(@Param('plantId') plantId: string) {
     return this.gatePassService.getDuplicateLogs(plantId);
   }
+
+  // ===========================
+  // TRANSFER ENTRY MANAGEMENT
+  // ===========================
+
+  @Get('transfers/:plantId')
+  @RequirePermission('Gate Pass', 'canView')
+  getTransferTickets(
+    @Param('plantId') plantId: string,
+    @Query('status') status?: string
+  ) {
+    return this.gatePassService.getTransferTickets(plantId, status);
+  }
+
+  @Post('transfer/:ticketId/confirm')
+  @RequirePermission('Gate Pass', 'canEdit')
+  confirmTransferTicket(
+    @Param('ticketId') ticketId: string,
+    @Body() data: { supervisorName: string; recipientPlantId: string }
+  ) {
+    return this.gatePassService.confirmTransferTicket(ticketId, data);
+  }
+
+  @Get('consignment/:gatePassId/:plantId')
+  @RequirePermission('Gate Pass', 'canView')
+  getConsignmentSlipData(
+    @Param('gatePassId') gatePassId: string,
+    @Param('plantId') plantId: string
+  ) {
+    return this.gatePassService.getConsignmentSlipData(gatePassId, plantId);
+  }
 }
