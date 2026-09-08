@@ -16,6 +16,22 @@ export const DashboardShell: React.FC = () => {
  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
  const [showNotifications, setShowNotifications] = useState(false);
  const [unrecoveredShortagesCount, setUnrecoveredShortagesCount] = useState(0);
+ const [notifications, setNotifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadNotifs = async () => {
+      try {
+        const role = user?.role;
+        const res = await api.get('/dashboard/notifications', { params: { role } });
+        setNotifications(Array.isArray(res.data) ? res.data : []);
+      } catch {
+        setNotifications([]);
+      }
+    };
+    if (user?.role) loadNotifs();
+    const t = setInterval(loadNotifs, 60000);
+    return () => clearInterval(t);
+  }, [user?.role]);
  
  // Theme state
  const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -105,10 +121,14 @@ export const DashboardShell: React.FC = () => {
  { label: 'Intermill History', tab: 'intermill_history' },
  { label: 'Compare Reports', tab: 'compare_reports' }
  ]},
- { label: 'Yield Mgmt', href: '/yield', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
+ { label: 'Yield Mgmt', href: '/yield', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'SUPERVISOR'], subItems: [
+ { label: 'Mill Yield Benchmarks', tab: 'mill_yield_benchmarks' },
+ { label: 'Yield from Rice', tab: 'yield_from_rice' },
+ { label: 'Yield from Paddy', tab: 'yield_from_paddy' },
+ { label: 'Stock Health Report', tab: 'stock_health' },
+ { label: 'Consignment Dispatch', tab: 'consignment_dispatch' },
  { label: 'Yield Calculator', tab: 'yield_calculator' },
  { label: 'Yield Analytics', tab: 'yield_analytics' },
- { label: 'Stock Health Report', tab: 'stock_health' },
  { label: 'Historical Reports', tab: 'historical_reports' }
  ]},
  { label: 'Inventory', href: '/inventory', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
@@ -129,7 +149,7 @@ export const DashboardShell: React.FC = () => {
  { label: 'History', tab: 'history' },
  { label: 'Settings', tab: 'settings' }
  ]},
- { label: 'Gate Pass', href: '/gate-pass', icon: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'WEIGHBRIDGE_OPERATOR'], subItems: [
+ { label: 'Gate Pass', href: '/gate-pass', icon: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'WEIGHBRIDGE_OPERATOR', 'SUPERVISOR'], subItems: [
  { label: 'Create Gate Pass', tab: 'create_pass' },
  { label: 'Report Summary', tab: 'report_summary' },
  { label: 'Transfer Entry Management', tab: 'transfer_management' },
@@ -480,7 +500,7 @@ export const DashboardShell: React.FC = () => {
  <div className="relative">
    <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)]">
    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-   {unrecoveredShortagesCount > 0 && (
+   {(unrecoveredShortagesCount > 0 || notifications.length > 0) && (
      <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[var(--bg-base)]"></span>
    )}
    </button>
@@ -488,7 +508,7 @@ export const DashboardShell: React.FC = () => {
      <div className="absolute right-0 mt-2 w-80 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl shadow-2xl overflow-hidden z-50">
        <div className="p-3 border-b border-[var(--border-subtle)] font-bold text-[var(--text-main)]">Notifications</div>
        <div className="max-h-64 overflow-y-auto">
-         {unrecoveredShortagesCount > 0 ? (
+         {unrecoveredShortagesCount > 0 && (
            <div className="p-4 border-b border-[var(--border-subtle)] bg-red-500/5 hover:bg-red-500/10 cursor-pointer" onClick={() => { setShowNotifications(false); navigate('/procurement?tab=reports'); }}>
              <div className="flex items-start gap-3">
                <div className="mt-0.5 text-red-500"><AlertTriangle size={18} /></div>
@@ -499,7 +519,31 @@ export const DashboardShell: React.FC = () => {
                </div>
              </div>
            </div>
-         ) : (
+         )}
+         {notifications.map((n) => {
+           const goTransfer = /transfer/i.test(n.title || '') || /transfer/i.test(n.message || '');
+           const goConsignment = /consignment/i.test(n.title || '') || /consignment/i.test(n.message || '');
+           return (
+             <div
+               key={n.id}
+               className="p-4 border-b border-[var(--border-subtle)] hover:bg-[var(--glass-bg)] cursor-pointer"
+               onClick={() => {
+                 setShowNotifications(false);
+                 if (goTransfer) navigate('/gate-pass?tab=transfer_management');
+                 else if (goConsignment) navigate('/yield?tab=consignment_dispatch');
+               }}
+             >
+               <h4 className={`text-sm font-bold ${n.type === 'WARNING' || n.type === 'ALERT' ? 'text-amber-400' : 'text-[var(--text-main)]'}`}>
+                 {n.title}
+               </h4>
+               <p className="text-xs text-[var(--text-muted)] mt-1">{n.message}</p>
+               <span className="text-[10px] text-[var(--text-muted-alt)] mt-1 inline-block">
+                 {n.createdAt ? new Date(n.createdAt).toLocaleString() : ''}
+               </span>
+             </div>
+           );
+         })}
+         {unrecoveredShortagesCount === 0 && notifications.length === 0 && (
            <div className="p-6 text-center text-sm text-[var(--text-muted-alt)]">No new notifications.</div>
          )}
        </div>

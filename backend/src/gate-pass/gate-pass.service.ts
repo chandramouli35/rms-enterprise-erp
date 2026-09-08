@@ -18,7 +18,7 @@ export class GatePassService {
       // New fields
       rstNo, gpStartDate, isCompleteDateNA, weighbridgeActive, mainBags, shortageBags, isDraft, items,
       // Transfer Entry fields
-      isTransfer, deliveryAtId
+      isTransfer, deliveryAtId, recipientPlantId
     } = data;
     
     // Duplicate prevention for INWARD passes
@@ -107,14 +107,34 @@ export class GatePassService {
     const gpSuffix = isTransfer ? '(T)' : null;
     const qrCode = `${prefix}-${year}-${seq}`;
 
+    // Resolve transfer party names before create
+    let transferRecipientName: string | null = null;
+    let deliveryAtName: string | null = null;
+    const resolvedRecipientPlantId = recipientPlantId || (isTransfer ? supplierId : null);
+    if (isTransfer) {
+      if (!resolvedRecipientPlantId) {
+        throw new BadRequestException('Recipient Mill is required for Transfer Entry.');
+      }
+      if (!deliveryAtId) {
+        throw new BadRequestException('Delivery At is required for Transfer Entry.');
+      }
+      const recipientPlant = await this.prisma.plant.findUnique({ where: { id: resolvedRecipientPlantId } });
+      if (!recipientPlant) {
+        throw new BadRequestException('Recipient Mill plant not found.');
+      }
+      transferRecipientName = recipientPlant.name;
+      const deliverySupplier = await this.prisma.supplier.findUnique({ where: { id: deliveryAtId } });
+      deliveryAtName = deliverySupplier?.name || 'Unknown';
+    }
+
     const newPass = await this.prisma.gatePass.create({
       data: {
         plantId,
         passType,
         vehicleNo,
         vehicleType,
-        purpose,
-        supplierId: supplierId || null,
+        purpose: isTransfer ? 'Transfer Entry' : purpose,
+        supplierId: isTransfer ? null : (supplierId || null),
         material,
         driverName,
         contactNo,
@@ -125,12 +145,16 @@ export class GatePassService {
         netWeight: netWeight ? parseFloat(netWeight) : null,
         emptyVideoTime,
         loadedVideoTime,
-        partyName,
+        // Feedback 21: Party Name = Recipient Mill; Note = Delivery At
+        partyName: isTransfer ? transferRecipientName : partyName,
         ntWtParty: ntWtParty ? parseFloat(ntWtParty) : null,
         sodaNo,
-        remarks,
+        remarks: isTransfer ? `Delivery At: ${deliveryAtName}` : remarks,
         gstNo,
         biometricData: data.biometricData || null,
+        completedBySupervisor: isTransfer
+          ? (data.completedBySupervisor || data.supervisorName || data.submittedBy || null)
+          : (data.completedBySupervisor || null),
         status: isDraft ? 'ACTIVE' : 'ACTIVE', // Will keep ACTIVE for both, draft is a flag
         qrCode,
         previousTruckReading: previousTruckReading ? parseFloat(previousTruckReading) : null,
@@ -173,36 +197,47 @@ export class GatePassService {
     });
 
     // If this is a Transfer Entry, create a TransferTicket
-    if (isTransfer && supplierId) {
-      // supplierId in transfer context = recipientPlantId (the mill on whose behalf)
-      // We look up the supplier to get the name for deliveryAtName
-      let deliveryAtName = 'Unknown';
-      if (deliveryAtId) {
-        const deliverySupplier = await this.prisma.supplier.findUnique({ where: { id: deliveryAtId } });
-        if (deliverySupplier) deliveryAtName = deliverySupplier.name;
-      }
+    if (isTransfer && resolvedRecipientPlantId) {
+      const dispatchPlant = await this.prisma.plant.findUnique({ where: { id: plantId } });
 
-      // Find the recipient plant from the suppliers list or use a mapping
-      // For now, we store supplierId as the recipientPlantId reference
       await this.prisma.transferTicket.create({
         data: {
           dispatchPlantId: plantId,
-          recipientPlantId: plantId, // Will be updated when recipient confirms
+          recipientPlantId: resolvedRecipientPlantId,
           deliveryAtId: deliveryAtId || null,
-          deliveryAtName,
+          deliveryAtName: deliveryAtName || 'Unknown',
           status: 'PENDING_CONFIRMATION',
           originalGpId: newPass.id
         }
       });
 
-      // Send notification to Admin about new transfer ticket
+      // Intimation to recipient mill users (Feedback 21) + admin roles
+      const msgBase = `${dispatchPlant?.name || 'Dispatch mill'} transferred goods to ${deliveryAtName} on behalf of ${transferRecipientName} via GP ${qrCode} (T). Confirm the transfer ticket to generate GP In/Out.`;
+
+      const access = await this.prisma.userPlantAccess.findMany({
+        where: { plantId: resolvedRecipientPlantId },
+        include: { user: { include: { role: true } } },
+      });
+      for (const a of access) {
+        const roleName = (a.user as any)?.role?.name || '';
+        if (!/SUPERVISOR|PLANT_MANAGER|SUPER_ADMIN/i.test(roleName)) continue;
+        await this.prisma.notification.create({
+          data: {
+            title: 'Transfer Entry — Action Required',
+            message: `[${transferRecipientName}] ${msgBase}`,
+            type: 'WARNING',
+            userId: a.userId,
+            role: roleName,
+          },
+        });
+      }
       await this.prisma.notification.create({
         data: {
           title: 'New Transfer Entry Created',
-          message: `Transfer GP ${qrCode} ${gpSuffix} has been created. Delivery At: ${deliveryAtName}. Awaiting recipient confirmation.`,
+          message: `Transfer GP ${qrCode} (T) created by ${dispatchPlant?.name || plantId}. Recipient: ${transferRecipientName}. Delivery At: ${deliveryAtName}. Awaiting confirmation.`,
           type: 'INFO',
-          role: 'SUPER_ADMIN'
-        }
+          role: 'SUPER_ADMIN',
+        },
       });
     }
 
@@ -255,7 +290,49 @@ export class GatePassService {
       }),
     ]);
 
-    return { data, total };
+    // Enrich transfer GPs with Delivery At note for report Note column (Feedback 21)
+    const transferIds = data.filter((p) => p.isTransfer).map((p) => p.id);
+    let ticketByGp = new Map<string, any>();
+    if (transferIds.length > 0) {
+      const tickets = await this.prisma.transferTicket.findMany({
+        where: {
+          OR: [
+            { originalGpId: { in: transferIds } },
+            { autoGpInId: { in: transferIds } },
+            { autoGpOutId: { in: transferIds } },
+          ],
+        },
+        include: { dispatchPlant: true, recipientPlant: true },
+      });
+      for (const t of tickets) {
+        if (t.originalGpId) ticketByGp.set(t.originalGpId, t);
+        if (t.autoGpInId) ticketByGp.set(t.autoGpInId, t);
+        if (t.autoGpOutId) ticketByGp.set(t.autoGpOutId, t);
+      }
+    }
+
+    const enriched = data.map((p) => {
+      const ticket = ticketByGp.get(p.id);
+      let deliveryAtNote = p.remarks || null;
+      let displayParty = p.partyName || p.supplier?.name || null;
+      if (p.isTransfer && ticket) {
+        deliveryAtNote = ticket.deliveryAtName;
+        if (p.id === ticket.originalGpId) {
+          displayParty = ticket.recipientPlant?.name || displayParty;
+        } else if (p.id === ticket.autoGpInId) {
+          displayParty = ticket.dispatchPlant?.name || displayParty;
+        } else if (p.id === ticket.autoGpOutId) {
+          displayParty = ticket.deliveryAtName || displayParty;
+        }
+      }
+      return {
+        ...p,
+        partyName: displayParty || p.partyName,
+        deliveryAtNote,
+      };
+    });
+
+    return { data: enriched, total };
   }
 
   async getGatePassByQr(qrCode: string) {
@@ -688,20 +765,53 @@ export class GatePassService {
     });
   }
 
-  /** Confirm a transfer ticket â€” atomic dual-entry (GP In + GP Out) */
-  async confirmTransferTicket(ticketId: string, confirmData: { supervisorName: string; recipientPlantId: string }) {
+  /** Confirm a transfer ticket — atomic dual-entry (GP In + GP Out) */
+  async confirmTransferTicket(
+    ticketId: string,
+    confirmData: {
+      supervisorName: string;
+      recipientPlantId?: string;
+      biometricData?: string;
+      confirmingPlantId?: string;
+    },
+  ) {
+    if (!confirmData?.biometricData) {
+      throw new BadRequestException('Fingerprint is required to confirm Transfer Entry.');
+    }
+
     const ticket = await this.prisma.transferTicket.findUnique({
       where: { id: ticketId },
       include: {
-        originalGp: { include: { items: true, supplier: true } }
+        originalGp: { include: { items: true, supplier: true, plant: true } },
+        dispatchPlant: true,
+        recipientPlant: true,
       }
     });
 
     if (!ticket) throw new NotFoundException('Transfer Ticket not found');
     if (ticket.status !== 'PENDING_CONFIRMATION') throw new BadRequestException('This transfer ticket has already been processed.');
 
+    // Feedback 21: only the Recipient Mill confirms — cannot rewrite recipient
+    const recipientPlantId = ticket.recipientPlantId;
+    if (
+      confirmData.confirmingPlantId &&
+      confirmData.confirmingPlantId !== 'global' &&
+      confirmData.confirmingPlantId !== recipientPlantId
+    ) {
+      throw new BadRequestException(
+        'Only the Recipient Mill can confirm this Transfer Entry. Switch plant context to the recipient mill.',
+      );
+    }
+    if (
+      confirmData.recipientPlantId &&
+      confirmData.recipientPlantId !== recipientPlantId
+    ) {
+      throw new BadRequestException('Recipient Mill is fixed on the transfer ticket and cannot be changed at confirm.');
+    }
+
     const originalGp = ticket.originalGp;
-    const recipientPlantId = confirmData.recipientPlantId || ticket.recipientPlantId;
+    const dispatchPlantName = ticket.dispatchPlant?.name || originalGp.plant?.name || 'Dispatch Mill';
+    const deliveryAtName = ticket.deliveryAtName || 'Delivery At';
 
     // --- ATOMIC TRANSACTION: Create GP In + GP Out for Recipient Mill ---
     const result = await this.prisma.$transaction(async (tx) => {
@@ -742,14 +852,14 @@ export class GatePassService {
       const gpOutSeq = String(lastOutSeq + 1).padStart(5, '0');
       const gpOutQrCode = `GOUT-${yearNow}-${gpOutSeq}`;
 
-      // 2. Create GP In for Recipient Mill â€” Party Name = Actual Dispatch Mill
+      // 2. Create GP In for Recipient Mill — Party Name = Actual Dispatch Mill
       const gpIn = await tx.gatePass.create({
         data: {
           plantId: recipientPlantId,
           passType: 'INWARD',
           vehicleNo: originalGp.vehicleNo,
           vehicleType: originalGp.vehicleType,
-          purpose: 'Intermill',
+          purpose: 'Transfer Entry',
           supplierId: originalGp.supplierId,
           material: originalGp.material,
           driverName: originalGp.driverName,
@@ -759,14 +869,19 @@ export class GatePassService {
           grossWeight: originalGp.grossWeight,
           tareWeight: originalGp.tareWeight,
           netWeight: originalGp.netWeight,
+          mainBags: originalGp.mainBags,
+          shortageBags: originalGp.shortageBags,
+          weighbridgeActive: originalGp.weighbridgeActive,
           status: 'COMPLETED',
           qrCode: gpInQrCode,
           isTransfer: true,
           gpSuffix: '(T)',
+          partyName: dispatchPlantName,
+          remarks: `Delivery At: ${deliveryAtName}`,
           actualDispatchPlantId: ticket.dispatchPlantId,
           completedBySupervisor: confirmData.supervisorName,
+          biometricData: confirmData.biometricData,
           gpCompleteDate: new Date(),
-          remarks: `Auto-generated Transfer GP In from ${originalGp.qrCode} (T)`,
           items: originalGp.items && originalGp.items.length > 0 ? {
             create: originalGp.items.map((item: any) => ({
               itemName: item.itemName,
@@ -777,14 +892,14 @@ export class GatePassService {
         }
       });
 
-      // 3. Create GP Out for Recipient Mill â€” Party Name = Delivery At
+      // 3. Create GP Out for Recipient Mill — Party Name = Delivery At
       const gpOut = await tx.gatePass.create({
         data: {
           plantId: recipientPlantId,
           passType: 'OUTWARD',
           vehicleNo: originalGp.vehicleNo,
           vehicleType: originalGp.vehicleType,
-          purpose: 'Intermill',
+          purpose: 'Transfer Entry',
           supplierId: originalGp.supplierId,
           material: originalGp.material,
           driverName: originalGp.driverName,
@@ -794,15 +909,20 @@ export class GatePassService {
           grossWeight: originalGp.grossWeight,
           tareWeight: originalGp.tareWeight,
           netWeight: originalGp.netWeight,
+          mainBags: originalGp.mainBags,
+          shortageBags: originalGp.shortageBags,
+          weighbridgeActive: originalGp.weighbridgeActive,
           status: 'COMPLETED',
           qrCode: gpOutQrCode,
           isTransfer: true,
           gpSuffix: '(T)',
+          partyName: deliveryAtName,
+          remarks: `Delivery At: ${deliveryAtName}`,
           deliveryAtId: ticket.deliveryAtId,
           actualDispatchPlantId: ticket.dispatchPlantId,
           completedBySupervisor: confirmData.supervisorName,
+          biometricData: confirmData.biometricData,
           gpCompleteDate: new Date(),
-          remarks: `Auto-generated Transfer GP Out to ${ticket.deliveryAtName} from ${originalGp.qrCode} (T)`,
           items: originalGp.items && originalGp.items.length > 0 ? {
             create: originalGp.items.map((item: any) => ({
               itemName: item.itemName,

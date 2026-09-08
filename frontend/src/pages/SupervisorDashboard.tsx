@@ -1,9 +1,40 @@
 import React from 'react';
-import { Factory, Percent, CheckCircle2, Zap, Truck, Users, AlertTriangle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Factory, Percent, CheckCircle2, Zap, Truck, Users, AlertTriangle, ClipboardList } from 'lucide-react';
 
 export const SupervisorDashboard = ({ metrics, alerts, today }: any) => {
+  const navigate = useNavigate();
   return (
     <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <button
+          type="button"
+          onClick={() => navigate('/yield?tab=consignment_dispatch')}
+          className="p-5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-left hover:bg-amber-500/20 transition"
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <ClipboardList className="text-amber-400" size={22} />
+            <h3 className="text-[var(--text-main)] font-semibold">Consignment Dispatch Details</h3>
+          </div>
+          <p className="text-xs text-[var(--text-muted-alt)]">
+            Dedicated entry for supervisors — fill after GP report.
+          </p>
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/gate-pass?tab=transfer_management')}
+          className="p-5 rounded-xl border border-purple-500/40 bg-purple-500/10 text-left hover:bg-purple-500/20 transition"
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <Truck className="text-purple-400" size={22} />
+            <h3 className="text-[var(--text-main)] font-semibold">Transfer Entry Management</h3>
+          </div>
+          <p className="text-xs text-[var(--text-muted-alt)]">
+            Confirm pending transfer tickets and view (T) GPs.
+          </p>
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Daily Shift Wise Production */}
         <div className="p-5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)]">

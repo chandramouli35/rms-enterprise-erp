@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards, Param, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Query, UseGuards, Param, Req } from '@nestjs/common';
 import { ProductionService } from './production.service';
 import { CreateBatchDto } from './dto/create-batch.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -80,6 +80,30 @@ export class ProductionController {
     @Query('dateTo') dateTo: string
   ) {
     return this.productionService.getCompareDateRange(dateFrom, dateTo);
+  }
+
+  @Get('mill-yield-benchmarks')
+  @RequirePermission('Yield', 'canView')
+  listMillYieldBenchmarks() {
+    return this.productionService.listMillYieldBenchmarks();
+  }
+
+  @Post('mill-yield-benchmarks')
+  @RequirePermission('Yield', 'canEdit')
+  createMillYieldBenchmark(@Body() body: any) {
+    return this.productionService.createMillYieldBenchmark(body);
+  }
+
+  @Put('mill-yield-benchmarks/:id')
+  @RequirePermission('Yield', 'canEdit')
+  updateMillYieldBenchmark(@Param('id') id: string, @Body() body: any) {
+    return this.productionService.updateMillYieldBenchmark(id, body);
+  }
+
+  @Delete('mill-yield-benchmarks/:id')
+  @RequirePermission('Yield', 'canEdit')
+  softDeleteMillYieldBenchmark(@Param('id') id: string) {
+    return this.productionService.softDeleteMillYieldBenchmark(id);
   }
 
   @Post('batches/:id/analysis')

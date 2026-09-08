@@ -698,17 +698,8 @@ export class ProductionService {
       include: { plant: true }
     });
 
-    // Mill Yield Benchmarks (Round Fig yield % of rice) from Feedback 03
-    const benchmarks = {
-      'Net rice': 100,
-      'R. Bran': 12.8,
-      'K. Phuck': 3.7,
-      'Broken Rice': 4.53,  // kani
-      'Nakku 1': 1.2,       // nakku
-      'Nakku 2': 0.6,
-      'Rejection': 1.5,
-      'Final Rice': 100,
-    };
+    // Mill Yield Benchmarks from DB (Feedback 03)
+    const benchmarks = await this.getBenchmarkMapForCompare();
 
     const result = {};
 
@@ -801,17 +792,8 @@ export class ProductionService {
       include: { plant: true }
     });
 
-    // Mill Yield Benchmarks (Round Fig yield % of rice) from Feedback 03
-    const benchmarks = {
-      'Net rice': 100,
-      'R. Bran': 12.8,
-      'K. Phuck': 3.7,
-      'Broken Rice': 4.53,  // kani
-      'Nakku 1': 1.2,       // nakku
-      'Nakku 2': 0.6,
-      'Rejection': 1.5,
-      'Final Rice': 100,
-    };
+    // Mill Yield Benchmarks from DB (Feedback 03)
+    const benchmarks = await this.getBenchmarkMapForCompare();
 
     const result = {};
 
@@ -972,5 +954,141 @@ export class ProductionService {
     });
 
     return report;
+  }
+
+  // ─── Feedback 03: Mill Yield Benchmarks (DB + list) ───────────────────────
+
+  private readonly DEFAULT_BENCHMARKS = [
+    { itemKey: 'PADDY', itemLabel: 'Paddy', requiredQty: 95817, yieldPctPaddy: 100, yieldPctRice: 0, roundFigRicePct: 0, sortOrder: 1 },
+    { itemKey: 'NET_RICE', itemLabel: 'Net rice', requiredQty: 63430.854, yieldPctPaddy: 66.2, yieldPctRice: 100, roundFigRicePct: 100, sortOrder: 2 },
+    { itemKey: 'KANI', itemLabel: 'kani / Broken Rice', requiredQty: 2874.51, yieldPctPaddy: 3, yieldPctRice: 4.531722054, roundFigRicePct: 4.53, sortOrder: 3 },
+    { itemKey: 'NAKKU', itemLabel: 'nakku', requiredQty: 766.536, yieldPctPaddy: 0.8, yieldPctRice: 1.208459215, roundFigRicePct: 1.2, sortOrder: 4 },
+    { itemKey: 'REJECTION', itemLabel: 'Rejection', requiredQty: 958.17, yieldPctPaddy: 1, yieldPctRice: 1.510574018, roundFigRicePct: 1.5, sortOrder: 5 },
+    { itemKey: 'BRAN', itemLabel: 'Bran / R. Bran', requiredQty: 8144.445, yieldPctPaddy: 8.5, yieldPctRice: 12.83987915, roundFigRicePct: 12.8, sortOrder: 6 },
+    { itemKey: 'K_PHUCK', itemLabel: 'K.Phuck', requiredQty: 2395.425, yieldPctPaddy: 2.5, yieldPctRice: 3.776435045, roundFigRicePct: 3.7, sortOrder: 7 },
+    { itemKey: 'HUSK', itemLabel: 'Husk', requiredQty: 15809.805, yieldPctPaddy: 16.5, yieldPctRice: 24.9244713, roundFigRicePct: 24.92, sortOrder: 8 },
+    { itemKey: 'PURCHASED_RICE', itemLabel: 'Purchased Rice', requiredQty: 3832.68, yieldPctPaddy: 4, yieldPctRice: 6.042296073, roundFigRicePct: 6, sortOrder: 9 },
+  ];
+
+  async ensureDefaultBenchmarks() {
+    for (const b of this.DEFAULT_BENCHMARKS) {
+      await this.prisma.millYieldBenchmark.upsert({
+        where: { itemKey: b.itemKey },
+        update: {},
+        create: b,
+      });
+    }
+  }
+
+  async listMillYieldBenchmarks() {
+    await this.ensureDefaultBenchmarks();
+    const rows = await this.prisma.millYieldBenchmark.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+    // Persist targets on special TARGETS row (Feedback 03 editable targets)
+    let targetRow = await this.prisma.millYieldBenchmark.findUnique({ where: { itemKey: 'TARGETS' } });
+    if (!targetRow) {
+      targetRow = await this.prisma.millYieldBenchmark.create({
+        data: {
+          itemKey: 'TARGETS',
+          itemLabel: 'Yield Targets',
+          requiredQty: 0,
+          yieldPctPaddy: 71,
+          yieldPctRice: 66.2,
+          roundFigRicePct: 0,
+          sortOrder: 99,
+          isActive: false, // hidden from main list
+        },
+      });
+    }
+    return {
+      rows,
+      targets: {
+        yieldTargetPctPaddy: targetRow.yieldPctPaddy,
+        yieldTargetPctRice: targetRow.yieldPctRice,
+        targetId: targetRow.id,
+      },
+    };
+  }
+
+  async updateMillYieldBenchmark(id: string, data: {
+    requiredQty?: number;
+    yieldPctPaddy?: number;
+    yieldPctRice?: number;
+    roundFigRicePct?: number;
+    itemLabel?: string;
+    isActive?: boolean;
+  }) {
+    return this.prisma.millYieldBenchmark.update({
+      where: { id },
+      data: {
+        ...(data.requiredQty != null ? { requiredQty: Number(data.requiredQty) } : {}),
+        ...(data.yieldPctPaddy != null ? { yieldPctPaddy: Number(data.yieldPctPaddy) } : {}),
+        ...(data.yieldPctRice != null ? { yieldPctRice: Number(data.yieldPctRice) } : {}),
+        ...(data.roundFigRicePct != null ? { roundFigRicePct: Number(data.roundFigRicePct) } : {}),
+        ...(data.itemLabel != null ? { itemLabel: data.itemLabel } : {}),
+        ...(data.isActive != null ? { isActive: !!data.isActive } : {}),
+      },
+    });
+  }
+
+  async softDeleteMillYieldBenchmark(id: string) {
+    const row = await this.prisma.millYieldBenchmark.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('Benchmark not found');
+    if (row.itemKey === 'TARGETS') {
+      throw new BadRequestException('Cannot delete yield targets row');
+    }
+    return this.prisma.millYieldBenchmark.update({
+      where: { id },
+      data: { isActive: false },
+    });
+  }
+
+  async createMillYieldBenchmark(data: {
+    itemKey: string;
+    itemLabel: string;
+    requiredQty?: number;
+    yieldPctPaddy?: number;
+    yieldPctRice?: number;
+    roundFigRicePct?: number;
+  }) {
+    const maxSort = await this.prisma.millYieldBenchmark.aggregate({ _max: { sortOrder: true } });
+    return this.prisma.millYieldBenchmark.create({
+      data: {
+        itemKey: data.itemKey,
+        itemLabel: data.itemLabel,
+        requiredQty: data.requiredQty ?? 0,
+        yieldPctPaddy: data.yieldPctPaddy ?? 0,
+        yieldPctRice: data.yieldPctRice ?? 0,
+        roundFigRicePct: data.roundFigRicePct ?? 0,
+        sortOrder: (maxSort._max.sortOrder || 0) + 1,
+        isActive: true,
+      },
+    });
+  }
+
+  /** Map DB benchmarks → compare-report keys (Feedback 03 round fig % of rice) */
+  async getBenchmarkMapForCompare(): Promise<Record<string, number>> {
+    await this.ensureDefaultBenchmarks();
+    const rows = await this.prisma.millYieldBenchmark.findMany({ where: { isActive: true } });
+    const map: Record<string, number> = {
+      'Net rice': 100,
+      'Final Rice': 100,
+    };
+    for (const r of rows) {
+      if (r.itemKey === 'BRAN') map['R. Bran'] = r.roundFigRicePct;
+      if (r.itemKey === 'K_PHUCK') map['K. Phuck'] = r.roundFigRicePct;
+      if (r.itemKey === 'KANI') map['Broken Rice'] = r.roundFigRicePct;
+      if (r.itemKey === 'NAKKU') {
+        map['Nakku 1'] = r.roundFigRicePct;
+        map['Nakku 2'] = Number((r.roundFigRicePct / 2).toFixed(2));
+      }
+      if (r.itemKey === 'REJECTION') map['Rejection'] = r.roundFigRicePct;
+      if (r.itemKey === 'NET_RICE') map['Net rice'] = r.roundFigRicePct;
+      if (r.itemKey === 'HUSK') map['Husk'] = r.roundFigRicePct;
+      if (r.itemKey === 'PURCHASED_RICE') map['Purchased Rice'] = r.roundFigRicePct;
+    }
+    return map;
   }
 }

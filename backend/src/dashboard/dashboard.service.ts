@@ -416,4 +416,25 @@ export class DashboardService {
       netShortageQtl: Number(netShortageToday.toFixed(2))
     };
   }
+
+  async listNotifications(role?: string, userId?: string, limit = 30) {
+    const or: any[] = [];
+    if (role) or.push({ role }, { role: null });
+    if (userId) or.push({ userId });
+    return this.prisma.notification.findMany({
+      where: {
+        isRead: false,
+        ...(or.length ? { OR: or } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  }
+
+  async markNotificationRead(id: string) {
+    return this.prisma.notification.update({
+      where: { id },
+      data: { isRead: true },
+    });
+  }
 }

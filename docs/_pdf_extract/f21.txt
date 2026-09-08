@@ -1,0 +1,84 @@
+=== PAGE 1 ===
+ Inter-mill section Entry Management 
+ Rename the section with Transfer Entry Management 
+ ●  [ ] Use a  Transfer Entry  when material is sent to  a third place on behalf of another mill, 
+ cutting the GP under the name of the mill on whose behalf goods are dispatched. 
+ ●  [ ] Display this transfer option directly inside the  GP  interface. 
+ ●  [ ] When the actual dispatching party cuts the GP with the Transfer mark, write the name 
+ of the mill on whose behalf the goods are being dispatched in the  Party Name  field. 
+ Transfer Entry Checklist 
+ ●  [ ] Add a "  Delivery At  option" drop-down field to  select party name indicating where 
+ goods are being sent. 
+ ●  [ ] Dispatch goods on behalf of the recipient (e.g., Beas Agro dispatches to Gurdaspur FCI 
+ Depo on behalf of Rajoa Agro Mill). 
+ ●  Actual Dispatch Mill  - Beas Agro 
+ Recipient Mill  - Rajoa Agro 
+ Delivery At  - Gurdaspur Depo. 
+ ●  [ ] Ensure the while cutting a transfer entry in  Actual  Dispatch Mill  (here Beas Agro) the 
+ series will be in chronological order of the normal GP series  [with  T  looks like  : 501  (T)  ] 
+ Here the supervisor selects the party name as  Recipient  Mill-  Rajoa Agro and supervisor 
+ selects  Delivery At  (here Gurdaspur Depo.) 
+ ●  [ ] Ensure in GP report of  Actual Dispatch Mill  (here  Beas Agro),in  Party name section 
+ of report Write the  Recipient Mill  (here Rajoa Agro)  on whose behalf  the  goods are 
+ actually delivered, in the  Note  section of GP report  of mention the the party name where 
+ actual goods are delivered  Delivery At  (here Gurdaspur  Depo.). 
+ ●  [ ] Send an intimation to the recipient mill (Rajoa Mill) detailing the goods transferred to 
+ Gurdaspur FCI Depo on their behalf by Beas Agro with GP details of Beas Agro. 
+ ●  [ ] Confirm notification, for the transfer entry by the recipient party(here Rajoa Agro is the 
+ recipient Party) to trigger the following 02 automated updates: 
+ ●  1st Entry With effect in GP, GP report & Inventory: 
+ ○  [ ] Automatically Make a transfer  GP In  with new GP  no. of the  Recipient Mill 
+ (Rajoa Agro) in chronological order of the normal GP series [with  T  looks like  : 
+ 479  (T)  ]  in the Party Name as  Actual Dispatch Mill  (here Beas Agro). and the 
+ same details of  Actual Dispatch Party GP  in it Mainly  pick Items,Bags details, 
+ weight at Mill details and Truck No. 
+ ○  [ ] Entry to the G.P. report with new GP no. allotted (i.e.  479  (T)  ) with details of GP. 
+ ○  [ ] With this it will be added to item inventory. 
+ ●  2nd Entry With effect in GP, GP report & Inventory: 
+ ○  [ ]  Automatically Make a transfer  GP Out  with new  GP no. of the  Recipient Mill 
+ (Rajoa Agro) in chronological order of the normal GP series [with  T  looks like  : 
+ 480  (T)  ]  in the Party Name as  Delivery At  (here  Gurdaspur Depo.). and the same 
+ details of  Actual Dispatch Party GP  in it Mainly pick  Items,Bags details, weight at 
+ Mill details and Truck No. 
+ ○  [ ]  Entry to the G.P. report with new GP no. allotted (i.e.  480  (T)  ) with details of GP. 
+ ○  [ ] Automatically reduce inventory from stock to create a  nil entry effect  . 
+
+=== PAGE 2 ===
+ ●  [ ] Ensure these two entries are processed together after confirmation. 
+ ●  [ ] Close the transfer ticket upon slip when  Recipient  Mill  (here Rajoa Agro) Transfer 
+ confirmation. 
+ ●  [ ] Verify that the supervisor can view the transfer ticket in the Notification section upon 
+ opening their dashboard. 
+ ●  [ ] Notify the Admin automatically if a transfer ticket remains unclosed for more than 2 
+ days. 
+ ●  [ ] Ensure Admin can see all mill-wise transfer tickets in the  Transfer section  with there 
+ status whether open or closed and admin can filter each heading. 
+ ●  [ ] Format 
+ Firm:Goyal 
+ Agro 
+ Transfer 
+ Details 
+ S.no  Type  GP No. 
+ Truck 
+ no. 
+ Recipient 
+ Mill 
+ Delivery 
+ At  Items  Quantity 
+ Net 
+ Weight at 
+ mill  Status 
+ Supervisor 
+ Sign(GP 
+ wise)  Note 
+ ●  [ ] Ensure only one GP entry is shown in  Actual Dispatch  Mill  here: 
+ (Beas Agro with GP.  501  (T)  ). 
+ ●  [ ] Ensure both GP entries are shown in the  Recipient  Mill  here: 
+ (Rajoa Agro with GP.  479  (T)  &  480  (T)  ). 
+ ●  [ ] Ensure supervisor sign is shown who has created the Transfer GP. 
+ ●  [ ] Ensure supervisor sign is shown who has accepted the Transfer GP. 
+ Consignment Checklist 
+ ●  [ ] Ensure  Actual Dispatch Mill  (here Beas Agro) does  not create the  Consignment 
+ dispatch slip. 
+ ●  [ ] Ensure  Recipient Mill  (here Rajoa Agro) creates  the  Consignment dispatch slip 
+ upon receiving date of the transfer entry. 

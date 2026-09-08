@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { 
  Calculator, LineChart, FileText, Download, TrendingUp, TrendingDown, 
- Target, Search, Calendar, Package, Droplet, Printer, Activity
+ Target, Search, Calendar, Package, Droplet, Printer, Activity, Truck, Wheat, Percent
 } from 'lucide-react';
 import { 
  LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -12,11 +12,14 @@ import {
 import { exportToPDF, exportToExcel } from '../utils/exportUtils';
 import { usePlantStore } from '../store/plantStore';
 import { StockHealthReport } from '../components/Yield/StockHealthReport';
+import { ConsignmentDispatchReport } from '../components/Yield/ConsignmentDispatchReport';
+import { YieldMillCompare } from '../components/Yield/YieldMillCompare';
+import { MillYieldBenchmarks } from '../components/Production/MillYieldBenchmarks';
 
 export const YieldManagement = () => {
  const activePlant = usePlantStore(state => state.activePlant);
  const [searchParams, setSearchParams] = useSearchParams();
- const activeTab = searchParams.get('tab') || 'yield_analytics';
+ const activeTab = searchParams.get('tab') || 'yield_from_rice';
  
  const [metricsData, setMetricsData] = useState<any>({});
  const [yieldTrendData, setYieldTrendData] = useState<any[]>([]);
@@ -148,9 +151,13 @@ export const YieldManagement = () => {
  ];
 
  const tabs = [
+  { id: 'mill_yield_benchmarks', label: 'Mill Yield Benchmarks', icon: Percent },
+  { id: 'yield_from_rice', label: 'Yield from Rice', icon: Package },
+  { id: 'yield_from_paddy', label: 'Yield from Paddy', icon: Wheat },
+  { id: 'stock_health', label: 'Stock Health Report', icon: Activity },
+  { id: 'consignment_dispatch', label: 'Consignment Dispatch', icon: Truck },
   { id: 'yield_calculator', label: 'Yield Calculator', icon: Calculator },
   { id: 'yield_analytics', label: 'Yield Analytics', icon: LineChart },
-  { id: 'stock_health', label: 'Stock Health Report', icon: Activity },
   { id: 'historical_reports', label: 'Historical Yield Reports', icon: FileText },
  ];
 
@@ -175,7 +182,7 @@ export const YieldManagement = () => {
  <div className="flex-1 overflow-y-auto p-6 space-y-6">
  
  {/* Top Metric Cards (hidden on Stock Health — its own table is the focus) */}
- {activeTab !== 'stock_health' && (
+ {activeTab !== 'stock_health' && activeTab !== 'consignment_dispatch' && activeTab !== 'yield_from_rice' && activeTab !== 'yield_from_paddy' && activeTab !== 'mill_yield_benchmarks' && (
  <div className="grid grid-cols-6 gap-4">
  {metrics.map((m, i) => (
  <div key={i} className="bg-[var(--bg-panel)] p-4 rounded-xl border border-[var(--border-subtle)] flex flex-col justify-between shadow-lg shadow-black/20">
@@ -736,7 +743,11 @@ export const YieldManagement = () => {
    </div>
  )}
 
+ {activeTab === 'mill_yield_benchmarks' && <MillYieldBenchmarks />}
  {activeTab === 'stock_health' && <StockHealthReport />}
+ {activeTab === 'consignment_dispatch' && <ConsignmentDispatchReport />}
+ {activeTab === 'yield_from_rice' && <YieldMillCompare basis="rice" />}
+ {activeTab === 'yield_from_paddy' && <YieldMillCompare basis="paddy" />}
 
  </div>
  </div>

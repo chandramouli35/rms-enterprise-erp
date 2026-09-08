@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -64,5 +64,12 @@ export class DashboardController {
   @RequirePermission('Dashboard', 'canView')
   getTodaySummary(@Param('plantId') plantId: string) {
     return this.dashboardService.getTodaySummary(plantId);
+  }
+
+  @Get('notifications')
+  listNotifications(@Query('role') role?: string, @Req() req?: any) {
+    const userRole = role || req?.user?.role?.name || req?.user?.role;
+    const userId = req?.user?.userId || req?.user?.sub || req?.user?.id;
+    return this.dashboardService.listNotifications(userRole, userId);
   }
 }

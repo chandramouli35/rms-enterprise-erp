@@ -61,6 +61,8 @@ model Plant {
   pahunchMasters      PahunchMaster[]
   permissionOverrides PermissionOverride[]
   stockHealthConfig   StockHealthConfig?
+  consignmentDispatches ConsignmentDispatch[]
+  paddyUsageRecords     PaddyUsageRecord[]
 
   // Tracking
   createdAt DateTime  @default(now())
@@ -508,6 +510,7 @@ model GatePass {
   originalTransferTicket TransferTicket? @relation("OriginalGp")
   autoGpInTicket         TransferTicket? @relation("AutoGpIn")
   autoGpOutTicket        TransferTicket? @relation("AutoGpOut")
+  consignmentDispatches  ConsignmentDispatch[]
 
   items                 GatePassItem[]
 
@@ -1439,4 +1442,84 @@ model TransferTicket {
   @@index([dispatchPlantId])
   @@index([recipientPlantId])
   @@index([status])
+}
+
+// -----------------------------------------------------------------------------
+// Mill Yield Benchmarks (Feedback 03) — stored in DB + listable/editable
+// -----------------------------------------------------------------------------
+model MillYieldBenchmark {
+  id              String   @id @default(uuid())
+  itemKey         String   @unique // e.g. NET_RICE, KANI, NAKKU
+  itemLabel       String
+  requiredQty     Float?
+  yieldPctPaddy   Float    // Yield % as per paddy
+  yieldPctRice    Float    // Yield % as per rice (raw)
+  roundFigRicePct Float    // Round Fig yield % of rice
+  sortOrder       Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// Consignment Dispatch Details (Feedback 19)
+// -----------------------------------------------------------------------------
+model ConsignmentDispatch {
+  id              String   @id @default(uuid())
+  plantId         String
+  plant           Plant    @relation(fields: [plantId], references: [id])
+  date            DateTime
+  isNilDay        Boolean  @default(false) // "Today No Consignment dispatch"
+  gatePassId      String?
+  gatePass        GatePass? @relation(fields: [gatePassId], references: [id])
+  /// Comma-separated additional GatePass IDs (multi FCI / trucks in one entry — Feedback 19)
+  extraGatePassIds String?
+  fciGpNo         String?
+  consignmentNo   String?
+  mainBags        Float    @default(0)
+  shortageBags    Float    @default(0)
+  fciMoisture     Float?
+  fciDamage       Float?
+  fciDiscolour    Float?
+  fciBroken       Float?
+  fciDepoWeight   Float?
+  fciPortalWeight Float?
+  netWeightMill   Float?
+  biometricData   String?
+  submittedBy     String?
+  submittedAt     DateTime?
+  // Transfer rule (Feedback 21): only recipient mill creates consignment for transfer GPs
+  fromTransferTicket Boolean @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([plantId, date])
+  @@index([consignmentNo])
+  @@index([gatePassId])
+}
+
+// -----------------------------------------------------------------------------
+// Paddy Usage (Feedback 17 — yield as per paddy popup)
+// -----------------------------------------------------------------------------
+model PaddyUsageRecord {
+  id              String   @id @default(uuid())
+  plantId         String
+  plant           Plant    @relation(fields: [plantId], references: [id])
+  weekStart       DateTime
+  weekEnd         DateTime
+  openingStock    Float    @default(0)
+  stockInHand     Float    @default(0)
+  paddyDispatched Float    @default(0)
+  paddyInHoodi    Float    @default(0)
+  paddyInDryer    Float    @default(0)
+  paddyInSilos    Float    @default(0)
+  totalUsed       Float    @default(0)
+  biometricData   String?
+  submittedBy     String?
+  submittedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([plantId, weekStart])
+  @@index([plantId])
 }

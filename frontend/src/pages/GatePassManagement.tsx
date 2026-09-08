@@ -201,7 +201,7 @@
 //  const [transferStatusFilter, setTransferStatusFilter] = useState('all');
 //  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
 //  const [selectedTicket, setSelectedTicket] = useState<any>(null);
-//  const [confirmForm, setConfirmForm] = useState({ supervisorName: '', recipientPlantId: '' });
+//  const [confirmForm, setConfirmForm] = useState({ supervisorName: '', recipientPlantId: '', biometricData: '' });
 
 //  const handleViewPass = async (qrCode: string) => {
 //      try {
@@ -735,7 +735,7 @@
 //         <p className="text-xs text-[var(--text-muted-alt)] mt-0.5">Generate a transfer on behalf of another mill.</p>
 //       </div>
 //       <label className="relative inline-flex items-center cursor-pointer">
-//         <input type="checkbox" name="isTransfer" className="sr-only peer" checked={formData.isTransfer} onChange={(e) => setFormData(prev => ({...prev, isTransfer: e.target.checked, purpose: e.target.checked ? 'Intermill' : prev.purpose}))} />
+//         <input type="checkbox" name="isTransfer" className="sr-only peer" checked={formData.isTransfer} onChange={(e) => setFormData(prev => ({...prev, isTransfer: e.target.checked, purpose: e.target.checked ? 'Transfer Entry' : prev.purpose}))} />
 //         <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-500"></div>
 //       </label>
 //     </div>
@@ -1762,6 +1762,7 @@ import { CustomModal } from '../components/CustomModal';
 import { useUiStore } from '../store/uiStore';
 import Pagination from '../components/Pagination';
 import Combobox from '../components/Combobox';
+import { ConsignmentDispatchReport } from '../components/Yield/ConsignmentDispatchReport';
 import { productsApi } from '../api/products';
 import { DEFAULT_QUANTITY_UNITS, getUnitLabel, productFormatToUnit, getGatePassUnitOptions } from '../constants/quantityUnits';
 import type { QuantityUnit } from '../constants/quantityUnits';
@@ -1915,8 +1916,10 @@ export const GatePassManagement = () => {
   rstNo: '',
   isTransfer: false,
   deliveryAtId: '',
+  recipientPlantId: '',
+  supervisorName: '',
   actualDispatchPlantId: ''
- };
+};
  const [formData, setFormData] = useState(defaultFormData);
  
   // Auto-select first options for dynamic dropdowns if not already selected
@@ -1977,9 +1980,18 @@ export const GatePassManagement = () => {
  // Transfer Management State
  const [transferTickets, setTransferTickets] = useState<any[]>([]);
  const [transferStatusFilter, setTransferStatusFilter] = useState('all');
+ const [transferFirmFilter, setTransferFirmFilter] = useState('');
+ const [transferRecipientFilter, setTransferRecipientFilter] = useState('');
+ const [transferDeliveryFilter, setTransferDeliveryFilter] = useState('');
+ const [transferGpFilter, setTransferGpFilter] = useState('');
+ const [transferTruckFilter, setTransferTruckFilter] = useState('');
+ const [transferItemFilter, setTransferItemFilter] = useState('');
+ const [transferSupervisorFilter, setTransferSupervisorFilter] = useState('');
+ const [transferNoteFilter, setTransferNoteFilter] = useState('');
  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
  const [selectedTicket, setSelectedTicket] = useState<any>(null);
- const [confirmForm, setConfirmForm] = useState({ supervisorName: '', recipientPlantId: '' });
+ const [confirmForm, setConfirmForm] = useState({ supervisorName: '', recipientPlantId: '', biometricData: '' });
+ const [consignmentPromptOpen, setConsignmentPromptOpen] = useState(false);
 
  const fetchTransferTickets = async () => {
    const pid = activePlant?.id || 'global';
@@ -2002,16 +2014,34 @@ export const GatePassManagement = () => {
 
  const handleConfirmTransfer = async () => {
    if (!selectedTicket) return;
+   if (!confirmForm.biometricData) {
+     useUiStore.getState().addToast('Fingerprint is required to confirm transfer.', 'error');
+     return;
+   }
+   if (
+     activePlant?.id &&
+     activePlant.id !== 'global' &&
+     selectedTicket.recipientPlantId &&
+     activePlant.id !== selectedTicket.recipientPlantId
+   ) {
+     useUiStore.getState().addToast('Switch to the Recipient Mill plant context before confirming.', 'error');
+     return;
+   }
    try {
      await api.post(`/api/gate-pass/transfer/${selectedTicket.id}/confirm`, {
-       recipientPlantId: confirmForm.recipientPlantId,
-       supervisorName: confirmForm.supervisorName
+       recipientPlantId: selectedTicket.recipientPlantId || confirmForm.recipientPlantId,
+       supervisorName: confirmForm.supervisorName,
+       biometricData: confirmForm.biometricData,
+       confirmingPlantId: activePlant?.id || 'global',
      });
      useUiStore.getState().addToast('Transfer confirmed and GP entries generated.', 'success');
      setConfirmModalOpen(false);
      setSelectedTicket(null);
-     setConfirmForm({ supervisorName: '', recipientPlantId: '' });
+     setConfirmForm({ supervisorName: '', recipientPlantId: '', biometricData: '' });
      fetchTransferTickets();
+     // Feedback 21: Recipient mill fills Consignment Dispatch on receive/confirm date
+     setConsignmentPromptOpen(true);
+     useUiStore.getState().addToast('Fill Consignment Dispatch for this transfer receive date.', 'info');
    } catch (error: any) {
      console.error('Failed to confirm transfer:', error);
      useUiStore.getState().addToast(error?.response?.data?.message || 'Failed to confirm transfer.', 'error');
@@ -2358,6 +2388,10 @@ export const GatePassManagement = () => {
       setReportFinalizeModalOpen(false);
       setReportStatus('COMPLETED');
       fetchData();
+      // Feedback 19: prompt consignment details after GP report
+      setConsignmentPromptOpen(true);
+      setSearchParams({ tab: 'create_pass' }); // stay in GP; prompt handled via toast + navigate hint
+      toast('Please fill Consignment Dispatch details (Yield → Consignment Dispatch).', { icon: '📋' });
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to finalize report');
     }
@@ -2474,12 +2508,18 @@ export const GatePassManagement = () => {
  };
 
   const isBlock1Valid = formData.vehicleNo && formData.vehicleType && formData.driverName;
-  const isBlock2Valid = isBlock1Valid && formData.purpose && formData.material && formData.supplierId;
+  const isBlock2Valid = isBlock1Valid && formData.purpose && formData.material && (
+    formData.isTransfer ? formData.recipientPlantId && formData.deliveryAtId : formData.supplierId
+  );
 
   const handleGeneratePass = async (e: React.FormEvent) => {
   e.preventDefault();
   if (formData.plantId === 'global' || !formData.plantId) {
     useUiStore.getState().addToast('Please select a specific plant to generate a Gate Pass.', 'error');
+    return;
+  }
+  if (formData.isTransfer && !formData.supervisorName) {
+    useUiStore.getState().addToast('Supervisor name is required for Transfer Entry.', 'error');
     return;
   }
   try {
@@ -2512,6 +2552,9 @@ export const GatePassManagement = () => {
   isDraft: formData.isDraft,
   isTransfer: formData.isTransfer,
   deliveryAtId: formData.isTransfer ? formData.deliveryAtId : undefined,
+  recipientPlantId: formData.isTransfer ? formData.recipientPlantId : undefined,
+  completedBySupervisor: formData.isTransfer ? formData.supervisorName : undefined,
+  supervisorName: formData.isTransfer ? formData.supervisorName : undefined,
   items: formData.items
   });
 
@@ -2671,7 +2714,7 @@ export const GatePassManagement = () => {
         <p className="text-xs text-[var(--text-muted-alt)] mt-0.5">Generate a transfer on behalf of another mill.</p>
       </div>
       <label className="relative inline-flex items-center cursor-pointer">
-        <input type="checkbox" name="isTransfer" className="sr-only peer" checked={formData.isTransfer} onChange={(e) => setFormData(prev => ({...prev, isTransfer: e.target.checked, purpose: e.target.checked ? 'Intermill' : prev.purpose}))} />
+        <input type="checkbox" name="isTransfer" className="sr-only peer" checked={formData.isTransfer} onChange={(e) => setFormData(prev => ({...prev, isTransfer: e.target.checked, purpose: e.target.checked ? 'Transfer Entry' : prev.purpose}))} />
         <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-500"></div>
       </label>
     </div>
@@ -2767,8 +2810,9 @@ export const GatePassManagement = () => {
   <div>
   <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Purpose <span className="text-red-500">*</span></label>
   <select name="purpose" value={formData.purpose} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none" disabled={formData.isTransfer}>
-   <option value="Intermill">Intermill</option>
+   <option value="Transfer Entry">Transfer Entry</option>
    <option value="Not Applicable">Not Applicable</option>
+   <option value="Paddy Purchase">Paddy Purchase</option>
   </select>
   </div>
   {/* Item / Product dropdown removed in favor of Dynamic Items Section */}
@@ -2776,6 +2820,20 @@ export const GatePassManagement = () => {
   <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium truncate">
     {formData.isTransfer ? 'Recipient Mill (Party)' : (passCategory === 'INWARD' ? 'From (Supplier / Party)' : 'To (Party)')} <span className="text-red-500">*</span>
   </label>
+  {formData.isTransfer ? (
+    <select
+      name="recipientPlantId"
+      value={formData.recipientPlantId}
+      onChange={handleInputChange}
+      className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none"
+      required
+    >
+      <option value="">Select Recipient Mill…</option>
+      {plants.filter((p: any) => p.id !== activePlant?.id).map((p: any) => (
+        <option key={p.id} value={p.id}>{p.name}</option>
+      ))}
+    </select>
+  ) : (
   <Combobox
     name="supplierId"
     value={formData.supplierId}
@@ -2786,6 +2844,7 @@ export const GatePassManagement = () => {
     className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"
     required
   />
+  )}
  </div>
  {formData.isTransfer && (
    <div className="col-span-1">
@@ -2800,6 +2859,19 @@ export const GatePassManagement = () => {
       className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"
       required
     />
+   </div>
+ )}
+ {formData.isTransfer && (
+   <div className="col-span-3">
+     <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Creating Supervisor Sign <span className="text-red-500">*</span></label>
+     <input
+       name="supervisorName"
+       value={formData.supervisorName}
+       onChange={handleInputChange}
+       required
+       placeholder="Supervisor who creates this Transfer GP"
+       className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none"
+     />
    </div>
  )}
  </div>
@@ -3109,7 +3181,7 @@ export const GatePassManagement = () => {
        <h2 className="text-lg font-semibold text-[var(--text-main)] flex items-center gap-2">
          <RefreshCw size={20} className="text-purple-400" /> Transfer Entry Management
        </h2>
-       <div className="flex items-center gap-2">
+       <div className="flex items-center gap-2 flex-wrap">
          <select
            value={transferStatusFilter}
            onChange={(e) => setTransferStatusFilter(e.target.value)}
@@ -3120,6 +3192,54 @@ export const GatePassManagement = () => {
            <option value="CLOSED">Closed</option>
            <option value="ESCALATED">Escalated</option>
          </select>
+         <input
+           placeholder="Filter Firm…"
+           value={transferFirmFilter}
+           onChange={(e) => setTransferFirmFilter(e.target.value)}
+           className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm w-32 outline-none"
+         />
+         <input
+           placeholder="GP No…"
+           value={transferGpFilter}
+           onChange={(e) => setTransferGpFilter(e.target.value)}
+           className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm w-24 outline-none"
+         />
+         <input
+           placeholder="Truck No…"
+           value={transferTruckFilter}
+           onChange={(e) => setTransferTruckFilter(e.target.value)}
+           className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm w-28 outline-none"
+         />
+         <input
+           placeholder="Recipient Mill…"
+           value={transferRecipientFilter}
+           onChange={(e) => setTransferRecipientFilter(e.target.value)}
+           className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm w-36 outline-none"
+         />
+         <input
+           placeholder="Delivery At…"
+           value={transferDeliveryFilter}
+           onChange={(e) => setTransferDeliveryFilter(e.target.value)}
+           className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm w-32 outline-none"
+         />
+         <input
+           placeholder="Items…"
+           value={transferItemFilter}
+           onChange={(e) => setTransferItemFilter(e.target.value)}
+           className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm w-28 outline-none"
+         />
+         <input
+           placeholder="Supervisor…"
+           value={transferSupervisorFilter}
+           onChange={(e) => setTransferSupervisorFilter(e.target.value)}
+           className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm w-28 outline-none"
+         />
+         <input
+           placeholder="Note…"
+           value={transferNoteFilter}
+           onChange={(e) => setTransferNoteFilter(e.target.value)}
+           className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm w-28 outline-none"
+         />
          <button onClick={fetchTransferTickets} className="p-2 bg-purple-500/10 text-purple-400 rounded-lg hover:bg-purple-500/20 transition">
            <RefreshCw size={16} />
          </button>
@@ -3131,6 +3251,7 @@ export const GatePassManagement = () => {
          <thead>
            <tr className="border-b border-white/10">
              <th className="py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">S.No</th>
+             <th className="py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Firm</th>
              <th className="py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Type</th>
              <th className="py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">GP No.</th>
              <th className="py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Truck No.</th>
@@ -3141,22 +3262,104 @@ export const GatePassManagement = () => {
              <th className="py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Net Weight</th>
              <th className="py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Status</th>
              <th className="py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Supervisor</th>
+             <th className="py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Note</th>
              <th className="py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Actions</th>
            </tr>
          </thead>
          <tbody className="divide-y divide-white/5">
-           {transferTickets.length > 0 ? transferTickets.map((ticket: any, i: number) => (
+           {(() => {
+             const filtered = transferTickets.filter((ticket: any) => {
+               const firm = (ticket.dispatchPlant?.name || activePlant?.name || '').toLowerCase();
+               const recip = (ticket.recipientPlant?.name || '').toLowerCase();
+               const deliv = (ticket.deliveryAtName || '').toLowerCase();
+               const gp = [
+                 ticket.originalGp?.qrCode,
+                 ticket.autoGpIn?.qrCode,
+                 ticket.autoGpOut?.qrCode,
+               ]
+                 .filter(Boolean)
+                 .join(' ')
+                 .toLowerCase();
+               const truck = (ticket.originalGp?.vehicleNo || '').toLowerCase();
+               const items = (
+                 ticket.originalGp?.items?.map((it: any) => it.itemName).join(' ') ||
+                 ticket.originalGp?.material ||
+                 ''
+               ).toLowerCase();
+               const supervisors = [
+                 ticket.completedBySupervisor,
+                 ticket.confirmedBySupervisor,
+                 ticket.originalGp?.supervisorName,
+               ]
+                 .filter(Boolean)
+                 .join(' ')
+                 .toLowerCase();
+               const note = (ticket.deliveryAtName || ticket.note || '').toLowerCase();
+               if (transferFirmFilter && !firm.includes(transferFirmFilter.toLowerCase())) return false;
+               if (transferRecipientFilter && !recip.includes(transferRecipientFilter.toLowerCase())) return false;
+               if (transferDeliveryFilter && !deliv.includes(transferDeliveryFilter.toLowerCase())) return false;
+               if (transferGpFilter && !gp.includes(transferGpFilter.toLowerCase())) return false;
+               if (transferTruckFilter && !truck.includes(transferTruckFilter.toLowerCase())) return false;
+               if (transferItemFilter && !items.includes(transferItemFilter.toLowerCase())) return false;
+               if (transferSupervisorFilter && !supervisors.includes(transferSupervisorFilter.toLowerCase()))
+                 return false;
+               if (transferNoteFilter && !note.includes(transferNoteFilter.toLowerCase())) return false;
+               return true;
+             });
+             return filtered.length > 0 ? filtered.map((ticket: any, i: number) => (
              <tr key={ticket.id} className="hover:bg-[var(--glass-bg)] group">
                <td className="py-3 text-xs text-[var(--text-muted)]">{i + 1}</td>
+               <td className="py-3 text-xs text-[var(--text-muted)]">{ticket.dispatchPlant?.name || activePlant?.name || '-'}</td>
                <td className="py-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-400">Transfer</span></td>
                <td className="py-3 text-xs font-medium text-[var(--text-main)]">
-                 {ticket.originalGp?.qrCode} <span className="text-purple-400 font-bold">(T)</span>
-                 {ticket.autoGpIn && (
-                   <><br/><span className="text-green-400 text-[10px]">{ticket.autoGpIn.qrCode} (T) In</span></>
-                 )}
-                 {ticket.autoGpOut && (
-                   <><br/><span className="text-amber-400 text-[10px]">{ticket.autoGpOut.qrCode} (T) Out</span></>
-                 )}
+                 {(() => {
+                   const pid = activePlant?.id;
+                   const isGlobal = !pid || pid === 'global';
+                   const isDispatch = pid === ticket.dispatchPlantId;
+                   const isRecipient = pid === ticket.recipientPlantId;
+                   // Feedback 21: dispatch = original (T) only; recipient = In+Out; admin/global = all
+                   if (isRecipient && !isGlobal) {
+                     return (
+                       <>
+                         {ticket.autoGpIn ? (
+                           <span className="text-green-400 text-[10px]">{ticket.autoGpIn.qrCode} (T) In</span>
+                         ) : (
+                           <span className="text-[var(--text-muted)] text-[10px]">Pending confirm</span>
+                         )}
+                         {ticket.autoGpOut && (
+                           <>
+                             <br />
+                             <span className="text-amber-400 text-[10px]">{ticket.autoGpOut.qrCode} (T) Out</span>
+                           </>
+                         )}
+                       </>
+                     );
+                   }
+                   if (isDispatch && !isGlobal) {
+                     return (
+                       <>
+                         {ticket.originalGp?.qrCode} <span className="text-purple-400 font-bold">(T)</span>
+                       </>
+                     );
+                   }
+                   return (
+                     <>
+                       {ticket.originalGp?.qrCode} <span className="text-purple-400 font-bold">(T)</span>
+                       {ticket.autoGpIn && (
+                         <>
+                           <br />
+                           <span className="text-green-400 text-[10px]">{ticket.autoGpIn.qrCode} (T) In</span>
+                         </>
+                       )}
+                       {ticket.autoGpOut && (
+                         <>
+                           <br />
+                           <span className="text-amber-400 text-[10px]">{ticket.autoGpOut.qrCode} (T) Out</span>
+                         </>
+                       )}
+                     </>
+                   );
+                 })()}
                </td>
                <td className="py-3 text-xs text-[var(--text-muted)]">{ticket.originalGp?.vehicleNo}</td>
                <td className="py-3 text-xs text-[var(--text-muted)]">{ticket.recipientPlant?.name || 'Pending'}</td>
@@ -3175,11 +3378,24 @@ export const GatePassManagement = () => {
                  {ticket.originalGp?.completedBySupervisor || '-'}
                  {ticket.autoGpIn?.completedBySupervisor && (<><br/><span className="text-green-400">{ticket.autoGpIn.completedBySupervisor}</span></>)}
                </td>
+               <td className="py-3 text-xs text-[var(--text-muted)] max-w-[120px] truncate" title={ticket.deliveryAtName}>
+                 {ticket.deliveryAtName || '-'}
+               </td>
                <td className="py-3">
                  <div className="flex items-center gap-1">
-                   {ticket.status === 'PENDING_CONFIRMATION' && (
+                   {ticket.status === 'PENDING_CONFIRMATION' &&
+                     (!activePlant?.id ||
+                       activePlant.id === 'global' ||
+                       activePlant.id === ticket.recipientPlantId) && (
                      <button
-                       onClick={() => { setSelectedTicket(ticket); setConfirmModalOpen(true); }}
+                       onClick={() => {
+                         setSelectedTicket(ticket);
+                         setConfirmForm((prev) => ({
+                           ...prev,
+                           recipientPlantId: ticket.recipientPlantId || '',
+                         }));
+                         setConfirmModalOpen(true);
+                       }}
                        className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-[10px] font-bold transition"
                      >Confirm</button>
                    )}
@@ -3194,9 +3410,10 @@ export const GatePassManagement = () => {
              </tr>
            )) : (
              <tr>
-               <td colSpan={12} className="py-8 text-center text-sm text-[var(--text-muted-alt)]">No transfer tickets found.</td>
+               <td colSpan={14} className="py-8 text-center text-sm text-[var(--text-muted-alt)]">No transfer tickets found.</td>
              </tr>
-           )}
+           );
+           })()}
          </tbody>
        </table>
      </div>
@@ -3219,15 +3436,15 @@ export const GatePassManagement = () => {
          </div>
          <div>
            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Recipient Plant (Mill)</label>
-           <select
-             value={confirmForm.recipientPlantId}
-             onChange={(e) => setConfirmForm(prev => ({ ...prev, recipientPlantId: e.target.value }))}
-             className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none appearance-none"
-             required
-           >
-             <option value="">Select Plant...</option>
-             {plants.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-           </select>
+           <input
+             type="text"
+             readOnly
+             value={selectedTicket.recipientPlant?.name || 'Recipient mill'}
+             className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none opacity-80"
+           />
+           <p className="text-[10px] text-[var(--text-muted-alt)] mt-1">
+             Fixed on the transfer ticket — only this mill can confirm. Switch plant context to the recipient if needed.
+           </p>
          </div>
          <div>
            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Supervisor Name (Accepting)</label>
@@ -3240,11 +3457,38 @@ export const GatePassManagement = () => {
              required
            />
          </div>
+         <div>
+           <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Fingerprint</label>
+           <div className="flex gap-2">
+             <input
+               type="password"
+               value={confirmForm.biometricData}
+               onChange={(e) => setConfirmForm(prev => ({ ...prev, biometricData: e.target.value }))}
+               className="flex-1 bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm outline-none"
+               placeholder="Scan fingerprint..."
+             />
+             <button
+               type="button"
+               onClick={async () => {
+                 try {
+                   const xml = await biometricService.captureFingerprint();
+                   setConfirmForm(prev => ({ ...prev, biometricData: xml }));
+                   toast.success('Fingerprint captured');
+                 } catch (err: any) {
+                   toast.error(err?.message || 'Scan failed');
+                 }
+               }}
+               className="px-3 py-2 bg-amber-500 text-black text-xs font-bold rounded-lg"
+             >
+               Scan
+             </button>
+           </div>
+         </div>
          <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)]">
            <button onClick={() => setConfirmModalOpen(false)} className="px-4 py-2 bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg text-sm font-medium hover:bg-[var(--glass-bg-hover)] transition">Cancel</button>
            <button
              onClick={handleConfirmTransfer}
-             disabled={!confirmForm.supervisorName || !confirmForm.recipientPlantId}
+             disabled={!confirmForm.supervisorName || !confirmForm.recipientPlantId || !confirmForm.biometricData}
              className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-green-500/20"
            >Confirm & Generate GPs</button>
          </div>
@@ -3436,9 +3680,16 @@ export const GatePassManagement = () => {
   </td>
   <td className="py-3 text-[11px] text-[var(--text-muted-alt)]">{entry.emptyVideoTime || '-'}</td>
   <td className="py-3 text-[11px] text-[var(--text-muted-alt)]">{entry.loadedVideoTime || '-'}</td>
-  <td className="py-3 text-sm font-medium">{entry.qrCode}</td>
+  <td className="py-3 text-sm font-medium">
+    {entry.qrCode}{entry.gpSuffix ? <span className="text-purple-400 font-bold"> {entry.gpSuffix}</span> : ''}
+  </td>
   <td className="py-3 text-sm font-medium">{entry.vehicleNo}</td>
-  <td className="py-3 text-sm max-w-[150px] truncate">{entry.supplier?.name || '-'} {entry.gstNo ? `(GST: ${entry.gstNo})` : ''}</td>
+  <td className="py-3 text-sm max-w-[150px] truncate">
+    {entry.isTransfer
+      ? (entry.partyName || entry.supplier?.name || plants.find((p: any) => p.id === entry.transferRecipientPlantId)?.name || '-')
+      : (entry.supplier?.name || entry.partyName || '-')}
+    {entry.gstNo ? ` (GST: ${entry.gstNo})` : ''}
+  </td>
   <td className="py-3 text-sm">{entry.items?.length > 0 ? entry.items.map((i: any) => i.itemName).join(', ') : entry.material || entry.purpose || '-'}</td>
   <td className="py-3 text-sm">
     {entry.passType === 'OUTWARD' && ((entry.mainBags || 0) > 0 || (entry.shortageBags || 0) > 0)
@@ -3452,7 +3703,9 @@ export const GatePassManagement = () => {
   <td className="py-3 text-sm font-bold text-blue-400">{entry.weighbridgeActive ? (entry.ntWtParty != null ? `${Number(entry.ntWtParty).toFixed(3)} Qtl` : 'N/A') : 'N/A'}</td>
   <td className="py-3 text-sm">{entry.sodaNo || '-'}</td>
   <td className="py-3 text-sm font-medium text-[var(--text-main)]">{entry.completedBySupervisor || '-'}</td>
-  <td className="py-3 text-sm text-[var(--text-muted-alt)] truncate max-w-[120px]">{entry.remarks || '-'}</td>
+  <td className="py-3 text-sm text-[var(--text-muted-alt)] truncate max-w-[120px]" title={entry.isTransfer ? (entry.deliveryAtNote || entry.remarks || '') : (entry.remarks || '')}>
+    {entry.isTransfer ? (entry.deliveryAtNote || entry.remarks || '-') : (entry.remarks || '-')}
+  </td>
   </tr>
   ))}
   </tbody>
@@ -3767,6 +4020,13 @@ export const GatePassManagement = () => {
       </div>
     </form>
   </CustomModal>
+
+  {consignmentPromptOpen && (
+    <ConsignmentDispatchReport
+      promptOpen={consignmentPromptOpen}
+      onPromptClose={() => setConsignmentPromptOpen(false)}
+    />
+  )}
 
   <CustomModal isOpen={closeModalOpen} onClose={() => setCloseModalOpen(false)} title="Close Gate Pass (Fingerprint Required)">
     <form onSubmit={handleCloseGatePass} className="space-y-4 p-1">

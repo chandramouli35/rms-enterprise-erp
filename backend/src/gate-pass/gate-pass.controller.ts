@@ -112,7 +112,7 @@ export class GatePassController {
   @RequirePermission('Gate Pass', 'canEdit')
   confirmTransferTicket(
     @Param('ticketId') ticketId: string,
-    @Body() data: { supervisorName: string; recipientPlantId: string }
+    @Body() data: { supervisorName: string; recipientPlantId?: string; biometricData?: string; confirmingPlantId?: string },
   ) {
     return this.gatePassService.confirmTransferTicket(ticketId, data);
   }
