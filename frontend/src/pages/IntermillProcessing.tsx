@@ -4,6 +4,7 @@ import { usePlantStore } from '../store/plantStore';
 import { useIntermillStore } from '../store/intermillStore';
 import { useAuthStore } from '../store/authStore';
 import api from '../api/axios';
+import { getUnitLabel } from '../constants/quantityUnits';
 
 export const IntermillProcessing = () => {
   const activePlant = usePlantStore(state => state.activePlant);
@@ -172,7 +173,7 @@ export const IntermillProcessing = () => {
                   <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Raw Material</label>
                   <select value={formData.rawMaterialId} onChange={e => setFormData({...formData, rawMaterialId: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]">
                     <option value="">Select Material...</option>
-                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {products.map(p => <option key={p.id} value={p.id}>{p.name} ({getUnitLabel(p.quantityFormat)})</option>)}
                   </select>
                 </div>
                 <div>
@@ -188,7 +189,7 @@ export const IntermillProcessing = () => {
                 {products.map(p => (
                   <label key={p.id} className="flex items-center gap-2 text-sm text-[var(--text-main)]">
                     <input type="checkbox" checked={!!selectedOutputs[p.id]} onChange={e => setSelectedOutputs({...selectedOutputs, [p.id]: e.target.checked})} className="accent-blue-500 w-4 h-4" />
-                    {p.name}
+                    {p.name} <span className="text-[var(--text-muted-alt)]">({getUnitLabel(p.quantityFormat)})</span>
                   </label>
                 ))}
               </div>

@@ -9,6 +9,24 @@ import { RequirePermission } from '../common/decorators/require-permission.decor
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
+  @Get('units/list')
+  @RequirePermission('Products', 'canView')
+  listUnits() {
+    return this.productsService.listUnits();
+  }
+
+  @Post('units')
+  @RequirePermission('Products', 'canAdd')
+  createUnit(@Body() body: { code: string; label: string; description?: string }) {
+    return this.productsService.createUnit(body);
+  }
+
+  @Get('for-selection')
+  @RequirePermission('Products', 'canView')
+  findForSelection(@Query('plantId') plantId?: string) {
+    return this.productsService.findForSelection(plantId);
+  }
+
   @Post()
   @RequirePermission('Products', 'canAdd')
   create(@Body() body: any) {
@@ -39,4 +57,3 @@ export class ProductsController {
     return this.productsService.remove(id);
   }
 }
-

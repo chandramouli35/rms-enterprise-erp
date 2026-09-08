@@ -50,6 +50,14 @@ export class GatePassCronService {
             role: 'SUPER_ADMIN'
           }
         });
+        await this.prisma.notification.create({
+          data: {
+            title: 'Gate Pass Escalation (48+ Hours)',
+            message: `Gate Pass ${pass.qrCode || pass.vehicleNo} has been ACTIVE for over 48 hours. Please review.`,
+            type: 'WARNING',
+            role: 'SUPERVISOR'
+          }
+        });
       }
     }
   }

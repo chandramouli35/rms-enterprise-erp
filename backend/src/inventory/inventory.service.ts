@@ -196,10 +196,17 @@ export class InventoryService {
       whereClause.godown = godown;
     }
 
-    return await this.prisma.inventory.findMany({
+    const items = await this.prisma.inventory.findMany({
       where: whereClause,
+      include: { product: true },
       orderBy: { updatedAt: 'desc' }
     });
+
+    return items.map((item) => ({
+      ...item,
+      quantityFormat: item.product?.quantityFormat || item.unit,
+      unit: item.product?.quantityFormat || item.unit,
+    }));
   }
 
   async getStockReport(plantId: string, filterDto: GetStockReportDto) {

@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { GatePassService } from './gate-pass.service';
+import { ProductsService } from '../products/products.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { RequirePermission } from '../common/decorators/require-permission.decorator';
@@ -7,7 +8,10 @@ import { RequirePermission } from '../common/decorators/require-permission.decor
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('api/gate-pass')
 export class GatePassController {
-  constructor(private readonly gatePassService: GatePassService) {}
+  constructor(
+    private readonly gatePassService: GatePassService,
+    private readonly productsService: ProductsService,
+  ) {}
 
   @Post('generate')
   @RequirePermission('Gate Pass', 'canAdd')
@@ -40,9 +44,19 @@ export class GatePassController {
     @Query('type') type: string,
     @Query('status') status?: string,
     @Query('page') page?: string,
-    @Query('limit') limit?: string
+    @Query('limit') limit?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
   ) {
-    return this.gatePassService.getRecentGatePasses(plantId, type || 'INWARD', status, page, limit);
+    return this.gatePassService.getRecentGatePasses(
+      plantId,
+      type || 'INWARD',
+      status,
+      page,
+      limit,
+      dateFrom,
+      dateTo,
+    );
   }
 
   @Get('scan/:qrCode')
@@ -110,5 +124,11 @@ export class GatePassController {
     @Param('plantId') plantId: string
   ) {
     return this.gatePassService.getConsignmentSlipData(gatePassId, plantId);
+  }
+
+  @Get('product-options')
+  @RequirePermission('Gate Pass', 'canView')
+  getProductOptions(@Query('plantId') plantId?: string) {
+    return this.productsService.findForSelection(plantId);
   }
 }

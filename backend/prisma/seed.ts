@@ -97,6 +97,22 @@ async function main() {
     },
   });
 
+  console.log('Creating default quantity units...');
+  const defaultUnits = [
+    { code: 'NOS', label: 'Nos', description: 'Number', isSystem: true },
+    { code: 'BAGS', label: 'Bags', description: 'Bags', isSystem: true },
+    { code: 'KG', label: 'Kg', description: 'Kilogram', isSystem: true },
+    { code: 'QTL', label: 'Qtl', description: 'Quintal', isSystem: true },
+    { code: 'LTR', label: 'Ltr', description: 'Liter', isSystem: true },
+  ];
+  for (const unit of defaultUnits) {
+    await prisma.quantityUnit.upsert({
+      where: { code: unit.code },
+      update: {},
+      create: unit,
+    });
+  }
+
   console.log('\n✅ Seeding complete successfully!');
   console.log('--------------------------------------------------');
   console.log(`Email:    ${adminEmail}`);

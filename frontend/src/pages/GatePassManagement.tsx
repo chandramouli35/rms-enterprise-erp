@@ -1762,6 +1762,10 @@ import { CustomModal } from '../components/CustomModal';
 import { useUiStore } from '../store/uiStore';
 import Pagination from '../components/Pagination';
 import Combobox from '../components/Combobox';
+import { productsApi } from '../api/products';
+import { DEFAULT_QUANTITY_UNITS, getUnitLabel, productFormatToUnit, getGatePassUnitOptions } from '../constants/quantityUnits';
+import type { QuantityUnit } from '../constants/quantityUnits';
+import { biometricService } from '../services/biometricService';
 
 import toast from 'react-hot-toast';
 
@@ -1844,9 +1848,19 @@ export const GatePassManagement = () => {
  const activePlant = usePlantStore(state => state.activePlant);
   const [passCategory, setPassCategory] = useState<'INWARD' | 'OUTWARD' | null>(null);
   const [tableFilter, setTableFilter] = useState<'INWARD' | 'OUTWARD' | 'ACTIVE'>('INWARD');
+  const [reportStatus, setReportStatus] = useState<'COMPLETED' | 'ACTIVE'>('COMPLETED');
+  const [reportDateFrom, setReportDateFrom] = useState('');
+  const [reportDateTo, setReportDateTo] = useState('');
+  const [closeModalOpen, setCloseModalOpen] = useState(false);
+  const [closePassId, setClosePassId] = useState<string | null>(null);
+  const [closeForm, setCloseForm] = useState({ supervisorName: '', biometricData: '', isCompleteDateNA: false });
+  const [lastFinalizeInfo, setLastFinalizeInfo] = useState<{ supervisorName: string; submittedAt: string } | null>(null);
+  const [suggestedSeq, setSuggestedSeq] = useState<{ nextSeq: number; nextRst: number } | null>(null);
  const [trucks, setTrucks] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [quantityUnits, setQuantityUnits] = useState<QuantityUnit[]>(DEFAULT_QUANTITY_UNITS);
   const [stockMap, setStockMap] = useState<Record<string, number>>({});
   const [plants, setPlants] = useState<any[]>([]);
  const [recentEntries, setRecentEntries] = useState<any[]>([]);
@@ -1894,7 +1908,7 @@ export const GatePassManagement = () => {
  boliChecklist: false,
   isCompleteDateNA: false,
   weighbridgeActive: true,
-  items: [{ itemName: '', quantity: '', unit: 'Quintal' }],
+  items: [{ itemName: '', quantity: '', unit: 'Quintal', productId: '' }],
   mainBags: '',
   shortageBags: '',
   isDraft: false,
@@ -1907,8 +1921,19 @@ export const GatePassManagement = () => {
  
   // Auto-select first options for dynamic dropdowns if not already selected
   useEffect(() => {
+    productsApi.listUnits().then((res) => {
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        setQuantityUnits(res.data);
+      }
+    }).catch(console.error);
+  }, []);
+
+  useEffect(() => {
     if (activePlant) {
        api.get(`/api/inventory/byproducts`).then(res => setStockMap(res.data)).catch(console.error);
+       api.get('/api/gate-pass/product-options', { params: { plantId: activePlant.id } })
+         .then(res => setProducts(Array.isArray(res.data) ? res.data : []))
+         .catch(console.error);
     }
   }, [activePlant]);
 
@@ -2162,10 +2187,10 @@ export const GatePassManagement = () => {
     if (activeTab === 'report_summary') {
     try {
       const pid = activePlant?.id || 'global';
-      const res = await api.get(`/api/gatepass/recent/${pid}?limit=1000000&status=all`);
+      const res = await api.get(`/api/gate-pass/recent/${pid}?limit=1000000&status=all`);
       const allEntries = res.data.data || [];
       if (allEntries.length === 0) return;
-      const headers = ['S.No.', 'Type', 'Empty Video Time', 'Loaded Video Time', 'GP No', 'Truck No', 'Party', 'Item', 'Bags', 'Net Weight', 'Soda No.', 'Note'];
+      const headers = ['S.No.', 'Type', 'Empty Video Time', 'Loaded Video Time', 'GP No', 'Truck No', 'Party', 'Item', 'Quantity', 'Net Weight at Mill', 'Net Weight at Party', 'Soda No.', 'Supervisor Sign', 'Note'];
       const rows = allEntries.map((entry: any, idx: number) => [
       idx + 1,
       entry.passType,
@@ -2174,10 +2199,14 @@ export const GatePassManagement = () => {
       entry.qrCode,
       entry.vehicleNo,
       entry.supplier?.name || '',
-      entry.material || entry.purpose || '',
-      entry.noOfBags || '',
-      entry.netWeight || '',
+      entry.items?.length > 0 ? entry.items.map((i: any) => i.itemName).join(', ') : (entry.material || entry.purpose || ''),
+      entry.passType === 'OUTWARD' && (entry.mainBags || entry.shortageBags)
+        ? `${entry.mainBags || 0} + ${entry.shortageBags || 0} = ${(entry.mainBags || 0) + (entry.shortageBags || 0)} Bags`
+        : (entry.items?.length > 0 ? entry.items.map((i: any) => `${i.quantity} ${i.unit}`).join(', ') : (entry.noOfBags || '')),
+      entry.weighbridgeActive ? (entry.netWeight ?? '') : 'N/A',
+      entry.weighbridgeActive ? (entry.ntWtParty ?? 'N/A') : 'N/A',
       entry.sodaNo || '',
+      entry.completedBySupervisor || '',
       entry.remarks || ''
       ]);
       const csvContent = headers.join(',') + '\n' + rows.map((r: any) => r.map((v: any) => `"${v}"`).join(',')).join('\n');
@@ -2232,7 +2261,23 @@ export const GatePassManagement = () => {
     const pid = activePlant?.id || 'global';
     setFormData(prev => ({ ...prev, plantId: pid }));
     fetchData();
-  }, [activePlant, activeTab, currentPage]);
+  }, [activePlant, activeTab, currentPage, tableFilter, reportStatus, reportDateFrom, reportDateTo]);
+
+  useEffect(() => {
+    const loadNextSeq = async () => {
+      if (!passCategory || !activePlant?.id) {
+        setSuggestedSeq(null);
+        return;
+      }
+      try {
+        const res = await api.get(`/api/gate-pass/next-seq/${activePlant.id}/${passCategory}`);
+        setSuggestedSeq({ nextSeq: res.data.nextSeq, nextRst: res.data.nextRst });
+      } catch {
+        setSuggestedSeq(null);
+      }
+    };
+    loadNextSeq();
+  }, [passCategory, activePlant?.id, generatedPass]);
 
   const fetchData = async () => {
     const pid = activePlant?.id || 'global';
@@ -2266,11 +2311,18 @@ export const GatePassManagement = () => {
       console.error('Failed to fetch drivers:', error);
     }
 
-    // Fetch other data independently using allSettled so one failure doesn't block the rest
+    // Report: COMPLETED by default (exclude ACTIVE); Active box uses ACTIVE
+    let statusParam = '';
+    if (activeTab === 'report_summary') {
+      statusParam = `&status=${reportStatus}`;
+      if (reportDateFrom) statusParam += `&dateFrom=${reportDateFrom}`;
+      if (reportDateTo) statusParam += `&dateTo=${reportDateTo}`;
+    }
+
     try {
       const [analyticsRes, recentRes, logsRes] = await Promise.allSettled([
         api.get(`/api/gate-pass/analytics/${pid}`),
-        api.get(`/api/gate-pass/recent/${pid}?type=${activeTab === 'report_summary' ? 'ALL' : tableFilter}&page=${currentPage}&limit=10${activeTab === 'report_summary' ? '&status=COMPLETED' : ''}`),
+        api.get(`/api/gate-pass/recent/${pid}?type=${activeTab === 'report_summary' ? 'ALL' : tableFilter}&page=${currentPage}&limit=10${statusParam}`),
         api.get(`/api/gate-pass/duplicate-logs/${pid}`)
       ]);
       
@@ -2297,15 +2349,36 @@ export const GatePassManagement = () => {
     }
     try {
       const pid = activePlant?.id || 'global';
-      await api.post(`/api/gate-pass/report/finalize/${pid}`, reportFinalizeForm);
-      toast.success('Daily Gate Pass Report finalized successfully!');
+      const res = await api.post(`/api/gate-pass/report/finalize/${pid}`, reportFinalizeForm);
+      setLastFinalizeInfo({
+        supervisorName: res.data?.supervisorName || reportFinalizeForm.supervisorName,
+        submittedAt: res.data?.submittedAt || new Date().toISOString(),
+      });
+      toast.success(`Report finalized by ${res.data?.supervisorName || reportFinalizeForm.supervisorName}. Closed ${res.data?.closedCount ?? 0} active pass(es).`);
       setReportFinalizeModalOpen(false);
-      // Reload report
-      const res = await api.get(`/api/gate-pass/recent/${pid}?type=ALL&page=${currentPage}&limit=10&status=COMPLETED`);
-      setRecentEntries(res.data.data || []);
-      setTotalItems(res.data.total || 0);
+      setReportStatus('COMPLETED');
+      fetchData();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to finalize report');
+    }
+  };
+
+  const handleCloseGatePass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!closePassId) return;
+    if (!closeForm.biometricData) {
+      toast.error('Fingerprint / biometric is required to close the Gate Pass.');
+      return;
+    }
+    try {
+      await api.post(`/api/gate-pass/${closePassId}/complete`, closeForm);
+      toast.success('Gate Pass closed successfully.');
+      setCloseModalOpen(false);
+      setClosePassId(null);
+      setCloseForm({ supervisorName: '', biometricData: '', isCompleteDateNA: false });
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to close Gate Pass');
     }
   };
 
@@ -2355,13 +2428,45 @@ export const GatePassManagement = () => {
  setGeneratedPass(null);
  };
 
+ const LEGACY_STOCK_UNITS: Record<string, string> = {
+   PADDY: 'QTL',
+   RICE: 'QTL',
+   BRAN: 'QTL',
+   HUSK: 'QTL',
+   BROKEN: 'QTL',
+   OTHER: 'QTL',
+ };
+
  const handleItemChange = (index: number, field: string, value: string) => {
    const newItems = [...formData.items];
-   newItems[index] = { ...newItems[index], [field]: value };
+   const updated = { ...newItems[index], [field]: value };
+
+   if (field === 'itemName') {
+     const product = products.find((p) => p.name === value);
+     if (product) {
+       // Feedback 23: auto-display product quantity format (e.g. Rubber Roll → Nos)
+       updated.unit = productFormatToUnit(product.quantityFormat, quantityUnits);
+       updated.productId = product.id;
+     } else {
+       // Legacy stock items (PADDY/RICE/…) default to Quintal
+       const stockDefaults: Record<string, string> = {
+         PADDY: 'Quintal',
+         RICE: 'Quintal',
+         BRAN: 'Quintal',
+         HUSK: 'Quintal',
+         BROKEN: 'Quintal',
+         OTHER: 'Quintal',
+       };
+       updated.unit = stockDefaults[value] || 'Quintal';
+       updated.productId = '';
+     }
+   }
+
+   newItems[index] = updated;
    setFormData(prev => ({ ...prev, items: newItems }));
  };
  const addItem = () => {
-   setFormData(prev => ({ ...prev, items: [...prev.items, { itemName: '', quantity: '', unit: 'Quintal' }] }));
+   setFormData(prev => ({ ...prev, items: [...prev.items, { itemName: '', quantity: '', unit: 'Quintal', productId: '' }] }));
  };
  const removeItem = (index: number) => {
    const newItems = formData.items.filter((_, i) => i !== index);
@@ -2390,9 +2495,11 @@ export const GatePassManagement = () => {
   const response = await api.post(`/api/gate-pass/generate`, {
   ...formData,
   passType: type,
-  grossWeight: formData.weightInputType === 'GROSS' && formData.grossWeight ? parseFloat(formData.grossWeight as any) : null,
-  tareWeight: formData.weightInputType === 'TARE' && formData.tareWeight ? parseFloat(formData.tareWeight as any) : null,
-  netWeight: formData.netWeight ? parseFloat(formData.netWeight as any) : null,
+  gpStartDate: formData.entryDateTime || new Date().toISOString(),
+  grossWeight: formData.weighbridgeActive && formData.grossWeight ? parseFloat(formData.grossWeight as any) : null,
+  tareWeight: formData.weighbridgeActive && formData.tareWeight ? parseFloat(formData.tareWeight as any) : null,
+  netWeight: formData.weighbridgeActive && formData.netWeight ? parseFloat(formData.netWeight as any) : null,
+  ntWtParty: formData.weighbridgeActive && formData.ntWtParty ? parseFloat(formData.ntWtParty as any) : null,
   noOfBags: computedNoOfBags,
   mandiType: formData.purpose === 'Paddy Purchase' ? formData.mandiType : undefined,
   boliRate: formData.purpose === 'Paddy Purchase' && formData.mandiType === 'Boli' ? parseFloat(formData.boliRate as any) : undefined,
@@ -2516,7 +2623,7 @@ export const GatePassManagement = () => {
  </div>
 
  <div 
-    onClick={() => { setSearchParams({ tab: 'report_summary' }); setTableFilter('ACTIVE'); }}
+    onClick={() => { setSearchParams({ tab: 'report_summary' }); setReportStatus('ACTIVE'); setCurrentPage(1); }}
     className="bg-[var(--bg-panel)] p-4 rounded-xl border border-[var(--border-subtle-alt)] flex flex-col justify-center cursor-pointer hover:bg-[var(--glass-bg)] transition-colors relative overflow-hidden group"
   >
   <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -2574,12 +2681,15 @@ export const GatePassManagement = () => {
   <div className="grid grid-cols-2 gap-4">
   {/* Removed Plant Dropdown per requirement (Default to Supervisor Mill) */}
   <div>
- <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Entry Date & Time <span className="text-red-500">*</span></label>
- <input type="datetime-local" name="entryDateTime" value={formData.entryDateTime} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none css-color-scheme-dark" required />
+ <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Entry Date & Time (Auto Punch) <span className="text-red-500">*</span></label>
+ <input type="datetime-local" name="entryDateTime" value={formData.entryDateTime} readOnly className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none cursor-default" required />
  </div>
  <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">GP No. (Optional Override)</label>
- <input type="text" name="passNo" placeholder="Auto Generated" value={formData.passNo} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
+ <input type="text" name="passNo" placeholder={suggestedSeq ? `Next: ${passCategory === 'INWARD' ? 'GIN' : 'GOUT'}-${new Date().getFullYear()}-${String(suggestedSeq.nextSeq).padStart(4, '0')}` : 'Auto Generated'} value={formData.passNo} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
+ {suggestedSeq && (
+   <p className="text-[10px] text-blue-400 mt-1">Chronology: next sequence #{suggestedSeq.nextSeq}</p>
+ )}
  </div>
  <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Gate <span className="text-red-500">*</span></label>
@@ -2708,12 +2818,25 @@ export const GatePassManagement = () => {
           <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium">Item Name</label>
           <select value={item.itemName} onChange={(e) => handleItemChange(index, 'itemName', e.target.value)} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none" required>
             <option value="">Select...</option>
-            <option value="PADDY">PADDY {stockMap['PADDY'] !== undefined ? `[Available: ${stockMap['PADDY']}]` : ''}</option>
-            <option value="RICE">RICE {stockMap['RICE'] !== undefined ? `[Available: ${stockMap['RICE']}]` : ''}</option>
-            <option value="BRAN">BRAN {stockMap['BRAN'] !== undefined ? `[Available: ${stockMap['BRAN']}]` : ''}</option>
-            <option value="HUSK">HUSK {stockMap['HUSK'] !== undefined ? `[Available: ${stockMap['HUSK']}]` : ''}</option>
-            <option value="BROKEN">BROKEN {stockMap['BROKEN'] !== undefined ? `[Available: ${stockMap['BROKEN']}]` : ''}</option>
-            <option value="OTHER">OTHER</option>
+            {products.length > 0 && (
+              <optgroup label="Products">
+                {products.map((product) => (
+                  <option key={product.id} value={product.name}>
+                    {product.availableStock != null
+                      ? `(${product.availableStock} ${getUnitLabel(product.quantityFormat, quantityUnits)}) ${product.name}`
+                      : product.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="Stock Items">
+              <option value="PADDY">{stockMap['PADDY'] !== undefined ? `(${stockMap['PADDY']}) PADDY` : 'PADDY'}</option>
+              <option value="RICE">{stockMap['RICE'] !== undefined ? `(${stockMap['RICE']}) RICE` : 'RICE'}</option>
+              <option value="BRAN">{stockMap['BRAN'] !== undefined ? `(${stockMap['BRAN']}) BRAN` : 'BRAN'}</option>
+              <option value="HUSK">{stockMap['HUSK'] !== undefined ? `(${stockMap['HUSK']}) HUSK` : 'HUSK'}</option>
+              <option value="BROKEN">{stockMap['BROKEN'] !== undefined ? `(${stockMap['BROKEN']}) BROKEN` : 'BROKEN'}</option>
+              <option value="OTHER">OTHER</option>
+            </optgroup>
           </select>
         </div>
         <div className="col-span-3">
@@ -2722,10 +2845,20 @@ export const GatePassManagement = () => {
         </div>
         <div className="col-span-3">
           <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium">Unit</label>
-          <select value={item.unit} onChange={(e) => handleItemChange(index, 'unit', e.target.value)} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none">
-            <option value="Quintal">Quintal</option>
-            <option value="Bags">Bags</option>
+          <select
+            value={item.unit || 'Quintal'}
+            onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
+            className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none"
+          >
+            {getGatePassUnitOptions(quantityUnits).map((u) => (
+              <option key={u} value={u}>{u}</option>
+            ))}
           </select>
+          {item.productId && (
+            <p className="text-[9px] text-blue-400 mt-0.5">
+              Auto from product: {productFormatToUnit(products.find((p) => p.id === item.productId)?.quantityFormat, quantityUnits)}
+            </p>
+          )}
         </div>
         <div className="col-span-1 pb-1 flex justify-center">
           {formData.items.length > 1 && (
@@ -2771,7 +2904,10 @@ export const GatePassManagement = () => {
    </div>
    <div>
    <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">RST No.</label>
-   <input type="text" name="rstNo" value={formData.rstNo} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
+   <input type="text" name="rstNo" placeholder={suggestedSeq?.nextRst ? `Suggested: ${suggestedSeq.nextRst}` : ''} value={formData.rstNo} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
+   {suggestedSeq?.nextRst != null && (
+     <p className="text-[10px] text-blue-400 mt-1">Plant chronology: next RST {suggestedSeq.nextRst}</p>
+   )}
    </div>
    
    {passCategory !== 'OUTWARD' && (
@@ -2813,16 +2949,16 @@ export const GatePassManagement = () => {
   <div className="grid grid-cols-2 gap-3 items-end">
   <div>
   <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Empty Video Time</label>
-  <input type="time" name="emptyVideoTime" value={formData.emptyVideoTime} onChange={handleInputChange} disabled={formData.isCompleteDateNA} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none disabled:opacity-50" />
+  <input type="time" name="emptyVideoTime" value={formData.emptyVideoTime} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
   </div>
   <div>
   <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Loaded Video Time</label>
-  <input type="time" name="loadedVideoTime" value={formData.loadedVideoTime} onChange={handleInputChange} disabled={formData.isCompleteDateNA} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none disabled:opacity-50" />
+  <input type="time" name="loadedVideoTime" value={formData.loadedVideoTime} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
   </div>
   </div>
   <div className="mt-1">
     <label className="flex items-center gap-1.5 text-xs text-yellow-500/80 cursor-pointer w-max">
-      <input type="checkbox" name="isCompleteDateNA" checked={formData.isCompleteDateNA} onChange={(e) => setFormData(prev => ({...prev, isCompleteDateNA: e.target.checked}))} className="accent-yellow-500" /> Timestamps N/A
+      <input type="checkbox" name="isCompleteDateNA" checked={formData.isCompleteDateNA} onChange={(e) => setFormData(prev => ({...prev, isCompleteDateNA: e.target.checked}))} className="accent-yellow-500" /> GP Complete Date &amp; Time — Not Applicable
     </label>
   </div>
  </div>
@@ -2844,37 +2980,23 @@ export const GatePassManagement = () => {
   <div className={`space-y-4 transition-opacity duration-300 ${!isBlock2Valid ? 'opacity-40 pointer-events-none' : ''}`}>
   {formData.weighbridgeActive && (
     <>
-      <div className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] p-3 rounded-lg mt-3 mb-3">
-        <label className="text-xs text-[var(--text-muted-alt)] font-medium">Weight Entry Mode:</label>
-        <div className="flex items-center gap-4 mt-2">
-          <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-          <input type="radio" name="weightInputType" value="GROSS" checked={formData.weightInputType === 'GROSS'} onChange={handleInputChange} className="accent-[#e67e00]" /> Gross Weight
-          </label>
-          <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-          <input type="radio" name="weightInputType" value="TARE" checked={formData.weightInputType === 'TARE'} onChange={handleInputChange} className="accent-[#e67e00]" /> Tare Weight
-          </label>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-      {formData.weightInputType === 'GROSS' ? (
+      <div className="grid grid-cols-2 gap-3 mt-3">
       <div>
-      <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Gross Wt (MT)</label>
+      <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Gross Wt (Qtl)</label>
       <input type="number" min="0" step="0.001" name="grossWeight" value={formData.grossWeight} onChange={handleInputChange} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle-alt)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"  />
       </div>
-      ) : (
       <div>
-      <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Tare Wt (MT)</label>
+      <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Tare Wt (Qtl)</label>
       <input type="number" min="0" step="0.001" name="tareWeight" value={formData.tareWeight} onChange={handleInputChange} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle-alt)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"  />
       </div>
-      )}
       <div>
-      <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Net Wt (MT)</label>
+      <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Net Wt at Mill (Qtl)</label>
       <div className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle-alt)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] font-medium bg-opacity-50 flex items-center h-[38px]">
-      {formData.netWeight.toFixed(3)}
+      {Number(formData.netWeight || 0).toFixed(3)}
       </div>
       </div>
       <div>
-      <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Net Wt at Party (MT)</label>
+      <label className="block text-[11px] text-[var(--text-muted-alt)] mb-1 font-medium truncate">Net Wt at Party (Qtl)</label>
       <input type="number" min="0" step="0.001" name="ntWtParty" value={formData.ntWtParty} onChange={handleInputChange} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle-alt)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"  />
       </div>
       </div>
@@ -2947,7 +3069,18 @@ export const GatePassManagement = () => {
  </span>
  </td>
  <td className="py-3 text-center">
- <button onClick={() => handleViewPass(row.qrCode)} className="text-blue-500/50 group-hover:text-blue-500 transition"><Eye size={14} /></button>
+ <div className="flex items-center justify-center gap-2">
+ <button onClick={() => handleViewPass(row.qrCode)} className="text-blue-500/50 group-hover:text-blue-500 transition" title="View"><Eye size={14} /></button>
+ {row.status === 'ACTIVE' && (
+   <button
+     onClick={() => { setClosePassId(row.id); setCloseModalOpen(true); }}
+     className="text-green-500/70 hover:text-green-400 text-[10px] font-bold uppercase"
+     title="Close with fingerprint"
+   >
+     Close
+   </button>
+ )}
+ </div>
  </td>
  </tr>
  )) : (
@@ -3214,69 +3347,112 @@ export const GatePassManagement = () => {
   {/* REPORT SUMMARY TAB */}
   {activeTab === 'report_summary' && (
   <div className="flex-1 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle-alt)] p-5 overflow-x-auto">
-  <div className="flex items-center justify-between mb-6">
-  <h2 className="text-xl font-bold text-[var(--text-main)]">Gate Pass In / Out Report Summary</h2>
-  <button onClick={handleDownload} className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--glass-bg-hover)] transition-colors text-sm font-medium">
-  <Download size={16} /> Export CSV
-  </button>
+  <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+  <h2 className="text-xl font-bold text-[var(--text-main)]">
+    Gate Pass In / Out Report Summary
+    {reportStatus === 'ACTIVE' && <span className="ml-2 text-sm font-medium text-blue-400">(Active GPs)</span>}
+  </h2>
+  <div className="flex items-center gap-2 flex-wrap">
+    <button onClick={() => { setReportStatus('COMPLETED'); setCurrentPage(1); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${reportStatus === 'COMPLETED' ? 'bg-amber-500/20 border-amber-500/40 text-amber-400' : 'border-[var(--border-subtle)] text-[var(--text-muted)]'}`}>Completed</button>
+    <button onClick={() => { setReportStatus('ACTIVE'); setCurrentPage(1); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${reportStatus === 'ACTIVE' ? 'bg-blue-500/20 border-blue-500/40 text-blue-400' : 'border-[var(--border-subtle)] text-[var(--text-muted)]'}`}>Active</button>
+    <input type="date" value={reportDateFrom} onChange={(e) => setReportDateFrom(e.target.value)} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-2 py-1.5 text-xs text-[var(--text-main)]" title="From date" />
+    <input type="date" value={reportDateTo} onChange={(e) => setReportDateTo(e.target.value)} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-2 py-1.5 text-xs text-[var(--text-main)]" title="To date" />
+    <select
+      className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-2 py-1.5 text-xs text-[var(--text-main)]"
+      value={activePlant?.id || ''}
+      onChange={(e) => {
+        const p = plants.find((x: any) => x.id === e.target.value);
+        if (p) usePlantStore.getState().setActivePlant(p);
+      }}
+      title="Mill-wise navigation"
+    >
+      <option value="">All / Current Mill</option>
+      {plants.map((p: any) => (
+        <option key={p.id} value={p.id}>{p.name}</option>
+      ))}
+    </select>
+    <div className="flex items-center gap-1">
+      {plants.slice(0, 6).map((p: any) => (
+        <button
+          key={p.id}
+          type="button"
+          onClick={() => {
+            usePlantStore.getState().setActivePlant(p);
+            setCurrentPage(1);
+          }}
+          className={`px-2 py-1 rounded text-[10px] font-semibold border ${
+            activePlant?.id === p.id
+              ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
+              : 'border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--glass-bg)]'
+          }`}
+          title={`Open report for ${p.name}`}
+        >
+          {p.name}
+        </button>
+      ))}
+    </div>
+    <button onClick={() => window.print()} className="flex items-center gap-1 px-3 py-1.5 bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg text-xs font-medium"><Printer size={14} /> Print</button>
+    <button onClick={handleDownload} className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg hover:bg-[var(--glass-bg-hover)] transition-colors text-sm font-medium">
+    <Download size={16} /> Export CSV
+    </button>
   </div>
+  </div>
+  {lastFinalizeInfo && (
+    <div className="mb-4 p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-sm text-green-400">
+      Last report closed by <strong>{lastFinalizeInfo.supervisorName}</strong> at {new Date(lastFinalizeInfo.submittedAt).toLocaleString()} (fingerprint verified).
+    </div>
+  )}
   <table className="w-full text-left border-collapse whitespace-nowrap">
   <thead>
   <tr className="border-b border-[var(--border-subtle-alt)]">
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">S.No.</th>
-  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Date & Time</th>
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Type</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Empty Video</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Loaded Video</th>
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">GP No.</th>
-  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Vehicle No.</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Truck No.</th>
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Party</th>
-  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Item</th>
-  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Bags</th>
-  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Net Wt</th>
-  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Nt Wt Party</th>
-  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">GP Status</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Items</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Quantity</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Net Wt at Mill</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Net Wt at Party</th>
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Soda No.</th>
-  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Note</th>
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Supervisor Sign</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Note</th>
   </tr>
   </thead>
   <tbody>
   {recentEntries.length === 0 ? (
   <tr>
-  <td colSpan={13} className="py-8 text-center text-[var(--text-muted-alt)]">No records found</td>
+  <td colSpan={14} className="py-8 text-center text-[var(--text-muted-alt)]">No records found</td>
   </tr>
   ) : recentEntries.map((entry, idx) => (
   <tr key={entry.id} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)] transition-colors">
   <td className="py-3 text-sm">{idx + 1}</td>
-  <td className="py-3 text-[11px] font-medium text-[var(--text-muted-alt)]">{new Date(entry.createdAt).toLocaleString()}</td>
   <td className="py-3 text-sm">
   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${entry.passType === 'INWARD' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
   {entry.passType}
   </span>
   </td>
+  <td className="py-3 text-[11px] text-[var(--text-muted-alt)]">{entry.emptyVideoTime || '-'}</td>
+  <td className="py-3 text-[11px] text-[var(--text-muted-alt)]">{entry.loadedVideoTime || '-'}</td>
   <td className="py-3 text-sm font-medium">{entry.qrCode}</td>
   <td className="py-3 text-sm font-medium">{entry.vehicleNo}</td>
   <td className="py-3 text-sm max-w-[150px] truncate">{entry.supplier?.name || '-'} {entry.gstNo ? `(GST: ${entry.gstNo})` : ''}</td>
   <td className="py-3 text-sm">{entry.items?.length > 0 ? entry.items.map((i: any) => i.itemName).join(', ') : entry.material || entry.purpose || '-'}</td>
   <td className="py-3 text-sm">
-    {entry.items?.length > 0 
-      ? entry.items.map((i: any) => `${i.quantity} ${i.unit}`).join(', ') 
-      : (
-          entry.passType === 'OUTWARD' && entry.shortageBags > 0
-          ? `${entry.mainBags} + ${entry.shortageBags} = ${entry.mainBags + entry.shortageBags} Bags`
-          : (entry.noOfBags ? `${entry.noOfBags} Bags` : '-')
-        )
+    {entry.passType === 'OUTWARD' && ((entry.mainBags || 0) > 0 || (entry.shortageBags || 0) > 0)
+      ? `${entry.mainBags || 0} + ${entry.shortageBags || 0} = ${(entry.mainBags || 0) + (entry.shortageBags || 0)} Bags`
+      : entry.items?.length > 0
+        ? entry.items.map((i: any) => `${i.quantity} ${i.unit === 'QTL' ? 'Quintal' : i.unit}`).join(', ')
+        : (entry.noOfBags ? `${entry.noOfBags} Bags` : '-')
     }
   </td>
-  <td className="py-3 text-sm font-bold text-[#e67e00]">{entry.weighbridgeActive ? (entry.netWeight ? `${Number(entry.netWeight).toFixed(3)} MT` : '-') : 'N/A'}</td>
-  <td className="py-3 text-sm font-bold text-blue-400">{entry.ntWtParty ? `${Number(entry.ntWtParty).toFixed(3)} MT` : '-'}</td>
-  <td className="py-3 text-sm">
-  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${entry.isDraft ? 'bg-yellow-500/20 text-yellow-500' : entry.status === 'ACTIVE' ? 'bg-green-500/20 text-green-500' : 'bg-blue-500/20 text-blue-500'}`}>
-  {entry.isDraft ? 'DRAFT' : entry.status}
-  </span>
-  </td>
+  <td className="py-3 text-sm font-bold text-[#e67e00]">{entry.weighbridgeActive ? (entry.netWeight != null ? `${Number(entry.netWeight).toFixed(3)} Qtl` : '-') : 'N/A'}</td>
+  <td className="py-3 text-sm font-bold text-blue-400">{entry.weighbridgeActive ? (entry.ntWtParty != null ? `${Number(entry.ntWtParty).toFixed(3)} Qtl` : 'N/A') : 'N/A'}</td>
   <td className="py-3 text-sm">{entry.sodaNo || '-'}</td>
-  <td className="py-3 text-sm text-[var(--text-muted-alt)] truncate max-w-[120px]">{entry.remarks || '-'}</td>
   <td className="py-3 text-sm font-medium text-[var(--text-main)]">{entry.completedBySupervisor || '-'}</td>
+  <td className="py-3 text-sm text-[var(--text-muted-alt)] truncate max-w-[120px]">{entry.remarks || '-'}</td>
   </tr>
   ))}
   </tbody>
@@ -3556,21 +3732,91 @@ export const GatePassManagement = () => {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Biometric Signature (XML/PID)</label>
-          <input 
-            type="password"
-            required
-            value={reportFinalizeForm.biometricData}
-            onChange={(e) => setReportFinalizeForm(prev => ({ ...prev, biometricData: e.target.value }))}
-            className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"
-            placeholder="Scan fingerprint..."
-          />
+          <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Biometric Signature (Fingerprint)</label>
+          <div className="flex gap-2">
+            <input 
+              type="password"
+              required
+              value={reportFinalizeForm.biometricData}
+              onChange={(e) => setReportFinalizeForm(prev => ({ ...prev, biometricData: e.target.value }))}
+              className="flex-1 bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"
+              placeholder="Scan fingerprint..."
+            />
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const xml = await biometricService.captureFingerprint();
+                  setReportFinalizeForm(prev => ({ ...prev, biometricData: xml }));
+                  toast.success('Fingerprint captured');
+                } catch (err: any) {
+                  toast.error(err?.message || 'Fingerprint capture failed');
+                }
+              }}
+              className="px-3 py-2 bg-amber-500 text-black text-xs font-bold rounded-lg"
+            >
+              Scan
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)]">
         <button type="button" onClick={() => setReportFinalizeModalOpen(false)} className="px-4 py-2 bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg text-sm font-medium hover:bg-[var(--glass-bg-hover)] transition">Cancel</button>
         <button type="submit" disabled={!reportFinalizeForm.manualMatchConfirmed || !reportFinalizeForm.biometricData} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-blue-500/20">Finalize & Sign</button>
+      </div>
+    </form>
+  </CustomModal>
+
+  <CustomModal isOpen={closeModalOpen} onClose={() => setCloseModalOpen(false)} title="Close Gate Pass (Fingerprint Required)">
+    <form onSubmit={handleCloseGatePass} className="space-y-4 p-1">
+      <p className="text-sm text-[var(--text-muted-alt)]">Closing a Gate Pass updates inventory and records the supervisor biometric signature.</p>
+      <div>
+        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Supervisor Name</label>
+        <input
+          type="text"
+          required
+          value={closeForm.supervisorName}
+          onChange={(e) => setCloseForm(prev => ({ ...prev, supervisorName: e.target.value }))}
+          className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-main)] outline-none"
+          placeholder="Enter supervisor name"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Fingerprint</label>
+        <div className="flex gap-2">
+          <input
+            type="password"
+            required
+            value={closeForm.biometricData}
+            onChange={(e) => setCloseForm(prev => ({ ...prev, biometricData: e.target.value }))}
+            className="flex-1 bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2.5 text-sm outline-none"
+            placeholder="Scan fingerprint..."
+          />
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const xml = await biometricService.captureFingerprint();
+                setCloseForm(prev => ({ ...prev, biometricData: xml }));
+                toast.success('Fingerprint captured');
+              } catch (err: any) {
+                toast.error(err?.message || 'Fingerprint capture failed');
+              }
+            }}
+            className="px-3 py-2 bg-amber-500 text-black text-xs font-bold rounded-lg"
+          >
+            Scan
+          </button>
+        </div>
+      </div>
+      <label className="flex items-center gap-2 text-xs text-yellow-500 cursor-pointer">
+        <input type="checkbox" checked={closeForm.isCompleteDateNA} onChange={(e) => setCloseForm(prev => ({ ...prev, isCompleteDateNA: e.target.checked }))} className="accent-yellow-500" />
+        GP Complete Date &amp; Time — Not Applicable
+      </label>
+      <div className="flex justify-end gap-3 pt-2">
+        <button type="button" onClick={() => setCloseModalOpen(false)} className="px-4 py-2 border border-[var(--border-subtle)] rounded-lg text-sm">Cancel</button>
+        <button type="submit" className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium">Close &amp; Sign</button>
       </div>
     </form>
   </CustomModal>

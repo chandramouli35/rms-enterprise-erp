@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 
@@ -209,22 +209,35 @@ export class GatePassService {
     return newPass;
   }
 
-  async getRecentGatePasses(plantId: string, type: string, status?: string, page?: string, limit?: string) {
+  async getRecentGatePasses(
+    plantId: string,
+    type: string,
+    status?: string,
+    page?: string,
+    limit?: string,
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
     const whereClause: any = plantId === 'global' ? {} : { plantId };
     if (type !== 'ALL') {
       whereClause.passType = type;
     }
-    
-    // Explicitly filter by status if provided (e.g. 'COMPLETED' or 'ACTIVE')
+
     if (status && status !== 'all') {
       whereClause.status = status;
-    } else {
-      // If status is not provided or is 'all', for the default GP report, we might want to default to COMPLETED
-      // but to preserve existing behavior where it might fetch all, we only restrict if status is explicitly passed
+    }
+
+    if (dateFrom || dateTo) {
+      whereClause.createdAt = {};
+      if (dateFrom) whereClause.createdAt.gte = new Date(dateFrom);
+      if (dateTo) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        whereClause.createdAt.lte = end;
+      }
     }
 
     const pageNum = parseInt(page || '1', 10);
-    // If not provided, default to ALL = 50, otherwise 10
     let limitNum = parseInt(limit || '0', 10);
     if (!limitNum) {
       limitNum = type === 'ALL' ? 50 : 10;
@@ -238,8 +251,8 @@ export class GatePassService {
         orderBy: { createdAt: 'desc' },
         skip,
         take: limitNum,
-        include: { supplier: true, items: true }
-      })
+        include: { supplier: true, items: true, plant: true },
+      }),
     ]);
 
     return { data, total };
@@ -319,8 +332,8 @@ export class GatePassService {
       where: { ...whereClause, passType: 'OUTWARD', createdAt: { gte: today } }
     });
 
-    const activeInward = await this.prisma.gatePass.count({
-      where: { ...whereClause, status: 'ACTIVE', passType: 'INWARD' }
+    const activeGatePass = await this.prisma.gatePass.count({
+      where: { ...whereClause, status: 'ACTIVE' }
     });
 
     return {
@@ -328,23 +341,24 @@ export class GatePassService {
       totalGateOut,
       qrScanned: totalGateIn + totalGateOut, // Mocked for now
       duplicatesBlocked: 5, // Mocked for now
-      activeGatePass: activeInward
+      activeGatePass
     };
   }
 
   async getCampusStatus(plantId: string) {
     const whereClause = plantId === 'global' ? {} : { plantId };
-    const activeInward = await this.prisma.gatePass.count({
-      where: { ...whereClause, status: 'ACTIVE', passType: 'INWARD' }
+    const activeGatePass = await this.prisma.gatePass.count({
+      where: { ...whereClause, status: 'ACTIVE' }
     });
     const completed = await this.prisma.gatePass.count({
-      where: { plantId, status: 'COMPLETED' }
+      where: plantId === 'global' ? { status: 'COMPLETED' } : { plantId, status: 'COMPLETED' }
     });
 
     return {
-      activeInward,
+      activeInward: activeGatePass,
+      activeGatePass,
       completed,
-      total: activeInward + completed
+      total: activeGatePass + completed
     };
   }
 
@@ -360,41 +374,105 @@ export class GatePassService {
   async updateGatePass(id: string, data: any) {
     const pass = await this.prisma.gatePass.findUnique({ where: { id } });
     if (!pass) throw new NotFoundException('Gate Pass not found');
-    if (!pass.isDraft) throw new BadRequestException('Only Draft Gate Passes can be edited');
-    // Block edits on Transfer GP entries (Section 3.7)
-    if (pass.isTransfer) throw new BadRequestException('Transfer Gate Passes cannot be edited independently.');
+    // Feedback 11: Once a GP (including Draft) is saved, disable editing including Weighbridge data
+    throw new BadRequestException('Saved Gate Passes cannot be edited (including drafts and weighbridge data).');
+  }
 
-    const { 
-      vehicleNo, vehicleType, purpose, supplierId, driverName, contactNo, challanNo, 
-      emptyVideoTime, loadedVideoTime, partyName, sodaNo, remarks, gstNo, rstNo, isDraft, items
-    } = data;
+  /** Resolve inventory qty for a GP item â€” Feedback 20: use total bags when bag-based */
+  private resolveInventoryQuantity(
+    pass: any,
+    item: { quantity: number | null; unit: string },
+    options: { isPrimaryBagItem: boolean },
+  ) {
+    const bagTotal =
+      ((pass.mainBags || 0) + (pass.shortageBags || 0)) ||
+      pass.noOfBags ||
+      0;
+    const unit = (item.unit || '').toUpperCase();
+    const isBagUnit =
+      unit.includes('BAG') ||
+      unit === 'NOS' ||
+      unit === 'NUMBERS' ||
+      unit === 'NUMBER';
+    let qty = Number(item.quantity) || 0;
 
-    if (items && items.length > 0) {
-      await this.prisma.gatePassItem.deleteMany({ where: { gatePassId: id } });
-      await this.prisma.gatePassItem.createMany({
-        data: items.map((item: any) => ({
-          gatePassId: id,
-          itemName: item.itemName,
-          unit: item.unit,
-          quantity: item.quantity ? parseFloat(item.quantity) : 0
-        }))
-      });
+    // Feedback 20: inventory moves by Total Bags (Main + Shortage) for the primary bag line
+    if (isBagUnit && bagTotal > 0 && options.isPrimaryBagItem) {
+      qty = bagTotal;
+    } else if (isBagUnit && bagTotal > 0 && !options.isPrimaryBagItem) {
+      // Avoid double-counting total bags across multiple bag lines
+      qty = 0;
     }
 
-    return this.prisma.gatePass.update({
-      where: { id },
-      data: {
-        vehicleNo, vehicleType, purpose, supplierId: supplierId || null, 
-        driverName, contactNo, challanNo, emptyVideoTime, loadedVideoTime, 
-        partyName, sodaNo, remarks, gstNo, rstNo, isDraft
-      }
+    return qty;
+  }
+
+  private async applyGatePassInventory(pass: any, tx: any) {
+    let inventoryItems: { material: string; quantity: number | null; unit: string }[] = [];
+    if (pass.items && pass.items.length > 0) {
+      inventoryItems = pass.items.map((item: any) => ({
+        material: item.itemName,
+        quantity: item.quantity,
+        unit: item.unit,
+      }));
+    } else if (pass.material && (pass.netWeight || pass.noOfBags || pass.mainBags)) {
+      const bagTotal =
+        ((pass.mainBags || 0) + (pass.shortageBags || 0)) ||
+        pass.noOfBags ||
+        0;
+      inventoryItems = [
+        {
+          material: pass.material,
+          quantity: bagTotal || pass.netWeight,
+          unit: bagTotal ? 'Bags' : 'Quintal',
+        },
+      ];
+    }
+
+    const firstBagIdx = inventoryItems.findIndex((i) => {
+      const u = (i.unit || '').toUpperCase();
+      return u.includes('BAG') || u === 'NOS';
     });
+
+    for (let idx = 0; idx < inventoryItems.length; idx++) {
+      const item = inventoryItems[idx];
+      let itemType = 'FINISHED_GOODS';
+      const upMat = item.material.toUpperCase();
+      if (upMat.includes('RICE')) itemType = 'RICE';
+      else if (upMat.includes('BRAN')) itemType = 'BRAN';
+      else if (upMat.includes('HUSK')) itemType = 'HUSK';
+      else if (upMat.includes('PADDY')) itemType = 'PADDY';
+      else itemType = 'CONSUMABLES';
+
+      let qty = this.resolveInventoryQuantity(pass, item, {
+        isPrimaryBagItem: idx === firstBagIdx,
+      });
+      if (pass.passType === 'OUTWARD') {
+        qty = -Math.abs(qty);
+      } else {
+        qty = Math.abs(qty);
+      }
+
+      if (!qty) continue;
+
+      await this.inventoryService.adjustStock({
+        plantId: pass.plantId,
+        itemType,
+        variety: item.material,
+        quantityChange: qty,
+        transactionType: pass.passType === 'INWARD' ? 'IN' : 'OUT',
+        referenceId: pass.id,
+        remarks: `${pass.passType} Gate Pass ${pass.qrCode}`,
+        unit: item.unit || 'Bags',
+        tx,
+      });
+    }
   }
 
   async completeGatePass(id: string, completionData?: any) {
-    const pass = await this.prisma.gatePass.findUnique({ 
+    const pass = await this.prisma.gatePass.findUnique({
       where: { id },
-      include: { items: true } 
+      include: { items: true },
     });
     if (!pass) throw new NotFoundException('Gate Pass not found');
     if (pass.status === 'COMPLETED') throw new BadRequestException('Gate Pass already completed');
@@ -403,159 +481,125 @@ export class GatePassService {
       throw new BadRequestException('Biometric authentication is strictly required to close the Gate Pass');
     }
 
-    if (pass.weighbridgeActive && pass.netWeight && pass.ntWtParty) {
-      const diff = Math.abs(pass.netWeight - pass.ntWtParty);
-      if (diff > 0.50) {
-        // Trigger alert to Admin
+    // Weight difference alert â€” mill vs party in Qtl (threshold 0.50)
+    if (pass.weighbridgeActive && pass.netWeight != null && pass.ntWtParty != null) {
+      const diff = Math.abs(Number(pass.netWeight) - Number(pass.ntWtParty));
+      if (diff > 0.5) {
         await this.prisma.notification.create({
           data: {
-            title: "Weight Difference Alert",
-            message: `Gate Pass ${pass.qrCode} has a weight difference of ${diff.toFixed(2)} MT (Mill: ${pass.netWeight}, Party: ${pass.ntWtParty}).`,
-            type: "ALERT",
-            role: "SUPER_ADMIN"
-          }
+            title: 'Weight Difference Alert',
+            message: `Gate Pass ${pass.qrCode} has a weight difference of ${diff.toFixed(2)} Qtl (Mill: ${pass.netWeight}, Party: ${pass.ntWtParty}).`,
+            type: 'ALERT',
+            role: 'SUPER_ADMIN',
+          },
         });
       }
     }
 
-    // Capture supervisor name from payload
-    const supervisorName = completionData.supervisorName || "Authenticated Supervisor";
+    const supervisorName = completionData?.supervisorName || 'Authenticated Supervisor';
 
-    let completedBySupervisor = null;
     let gpCompleteDate: Date | null = null;
-
-    if (completionData) {
-      if (completionData.supervisorName) {
-        completedBySupervisor = completionData.supervisorName;
-      }
-      if (completionData.gpCompleteDate) {
-        gpCompleteDate = new Date(completionData.gpCompleteDate);
-      } else if (!pass.isCompleteDateNA) {
-        gpCompleteDate = new Date();
-      }
-    } else if (!pass.isCompleteDateNA) {
+    const isCompleteDateNA = completionData?.isCompleteDateNA ?? pass.isCompleteDateNA;
+    if (completionData?.gpCompleteDate) {
+      gpCompleteDate = new Date(completionData.gpCompleteDate);
+    } else if (!isCompleteDateNA) {
       gpCompleteDate = new Date();
     }
 
     const updateData: any = {
       status: 'COMPLETED',
-      biometricData: completionData.biometricData,
+      biometricData: completionData?.biometricData || pass.biometricData,
       gpCompleteDate,
-      isCompleteDateNA: completionData.isCompleteDateNA || false,
-      completedBySupervisor: supervisorName
+      isCompleteDateNA: !!isCompleteDateNA,
+      completedBySupervisor: supervisorName,
+      isDraft: false,
     };
 
-    // Run everything in a transaction for ACID compliance
     const updatedPass = await this.prisma.$transaction(async (tx) => {
       const gpass = await tx.gatePass.update({
         where: { id },
-        data: updateData
+        data: updateData,
       });
 
-      // Determine items for inventory. Use new `items` array if it exists, otherwise fallback to legacy `material`/`noOfBags`
-      let inventoryItems: { material: string; quantity: number | null; unit: string }[] = [];
-      if (pass.items && pass.items.length > 0) {
-        inventoryItems = pass.items.map(item => ({
-          material: item.itemName,
-          quantity: item.quantity,
-          unit: item.unit
-        }));
-      } else if (pass.material && (pass.netWeight || pass.noOfBags)) {
-        inventoryItems = [{
-          material: pass.material,
-          quantity: pass.netWeight || pass.noOfBags,
-          unit: pass.netWeight ? 'Quintal' : 'Bags'
-        }];
-      }
-
-      // Process inventory atomically
-      for (const item of inventoryItems) {
-        let itemType = 'FINISHED_GOODS';
-        const upMat = item.material.toUpperCase();
-        if (upMat.includes('RICE')) itemType = 'RICE';
-        if (upMat.includes('BRAN')) itemType = 'BRAN';
-        if (upMat.includes('HUSK')) itemType = 'HUSK';
-        if (upMat.includes('PADDY')) itemType = 'PADDY';
-
-        let qty = Number(item.quantity);
-        if (pass.passType === 'OUTWARD') {
-          // If OUTWARD, quantity is negated
-          qty = -qty;
-        }
-        
-        await this.inventoryService.adjustStock({
-          plantId: pass.plantId,
-          itemType: itemType,
-          variety: item.material,
-          quantityChange: qty,
-          transactionType: pass.passType === 'INWARD' ? 'IN' : 'OUT',
-          referenceId: pass.id,
-          remarks: `${pass.passType} Gate Pass ${pass.qrCode}`,
-          tx // pass transaction reference
-        });
-      }
-
+      await this.applyGatePassInventory(pass, tx);
       return gpass;
     });
-
-    // Check Weight Discrepancy outside transaction (non-critical)
-    if (pass.netWeight && pass.ntWtParty) {
-      const diff = Math.abs(pass.netWeight - pass.ntWtParty);
-      if (diff > 0.50) {
-        console.warn(`[ALERT] Weight discrepancy of ${diff.toFixed(2)} Qtl detected for GatePass ${pass.qrCode}. Notification sent to Admin.`);
-        // Assuming a Notification service exists, we would call it here:
-        // this.notificationService.notifyAdmin('WEIGHT_DISCREPANCY', pass.id);
-      }
-    }
 
     return updatedPass;
   }
 
   async finalizeDailyReport(plantId: string, data: any) {
     if (!data?.biometricData) {
-      throw new BadRequestException("Biometric fingerprint signature is strictly required to close the GP Report.");
+      throw new BadRequestException(
+        'Biometric fingerprint signature is strictly required to close the GP Report.',
+      );
     }
     if (!data?.manualMatchConfirmed) {
-      throw new BadRequestException("You must confirm that the digital GP report matches the manual physical GP records.");
+      throw new BadRequestException(
+        'You must confirm that the digital GP report matches the manual physical GP records.',
+      );
     }
 
-    const supervisorName = data.supervisorName || "Authenticated Supervisor";
+    const supervisorName = data.supervisorName || 'Authenticated Supervisor';
+    const submittedAt = new Date();
 
-    // Close all ACTIVE passes for today as part of the report finalization
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const whereClause: any = {
       status: 'ACTIVE',
-      createdAt: {
-        gte: today
-      }
+      createdAt: { gte: today },
     };
     if (plantId !== 'global') {
       whereClause.plantId = plantId;
     }
 
-    await this.prisma.gatePass.updateMany({
+    // Close each ACTIVE pass properly (with inventory) â€” Feedback 12/20
+    const activePasses = await this.prisma.gatePass.findMany({
       where: whereClause,
-      data: {
-        status: 'COMPLETED',
-        completedBySupervisor: supervisorName,
-        biometricData: data.biometricData,
-        gpCompleteDate: new Date()
-      }
+      select: { id: true, qrCode: true },
     });
 
-    // Log the report finalization
+    const closed: string[] = [];
+    for (const p of activePasses) {
+      try {
+        await this.completeGatePass(p.id, {
+          biometricData: data.biometricData,
+          supervisorName,
+          isCompleteDateNA: false,
+          gpCompleteDate: submittedAt.toISOString(),
+        });
+        closed.push(p.qrCode || p.id);
+      } catch (err: any) {
+        // Skip already-completed race; continue others
+        console.warn(`Finalize skip ${p.qrCode}: ${err?.message || err}`);
+      }
+    }
+
     await this.prisma.notification.create({
       data: {
         title: 'Daily GP Report Finalized',
-        message: `The Gate Pass Report for ${today.toDateString()} has been verified and closed by ${supervisorName}.`,
+        message: `GP Report for ${today.toDateString()} finalized by ${supervisorName} at ${submittedAt.toLocaleString()}. Fingerprint verified. Closed ${closed.length} active pass(es). Digital report confirmed to match manual records.`,
         type: 'INFO',
-        role: 'SUPER_ADMIN'
-      }
+        role: 'SUPER_ADMIN',
+      },
+    });
+    await this.prisma.notification.create({
+      data: {
+        title: 'Daily GP Report Finalized',
+        message: `GP Report for ${today.toDateString()} finalized by ${supervisorName} at ${submittedAt.toLocaleString()}. Fingerprint verified. Digital report confirmed to match manual records.`,
+        type: 'INFO',
+        role: 'SUPERVISOR',
+      },
     });
 
-    return { message: "Report successfully finalized and all active passes for today are closed." };
+    return {
+      message: 'Report successfully finalized.',
+      supervisorName,
+      submittedAt: submittedAt.toISOString(),
+      closedCount: closed.length,
+      closedPasses: closed,
+    };
   }
 
   async getLastTruckReading(vehicleNo: string) {
@@ -574,23 +618,38 @@ export class GatePassService {
     const prefix = passType === 'INWARD' ? 'GIN' : 'GOUT';
     const year = new Date().getFullYear();
 
-    const lastPass = await this.prisma.gatePass.findFirst({
-      where: { 
-        plantId,
+    // Match generateGatePass chronology (global unique qrCode series)
+    const allPasses = await this.prisma.gatePass.findMany({
+      where: {
         passType,
-        qrCode: { startsWith: `${prefix}-${year}-` }
+        qrCode: { startsWith: `${prefix}-${year}-` },
       },
-      orderBy: { qrCode: 'desc' }
+      select: { qrCode: true },
     });
-    
-    let nextSeq = 1;
-    if (lastPass && lastPass.qrCode) {
-      const parts = lastPass.qrCode.split('-');
+
+    let lastSeq = 0;
+    for (const p of allPasses) {
+      if (!p.qrCode) continue;
+      const parts = p.qrCode.split('-');
       if (parts.length === 3) {
-        nextSeq = parseInt(parts[2], 10) + 1;
+        const seqNum = parseInt(parts[2], 10);
+        if (!isNaN(seqNum) && seqNum > lastSeq) lastSeq = seqNum;
       }
     }
-    return { nextSeq };
+
+    // Also surface last RST for this plant for chronology UI
+    const allRstPasses = await this.prisma.gatePass.findMany({
+      where: { plantId, passType, rstNo: { not: null } },
+      select: { rstNo: true },
+    });
+    let lastRst = 0;
+    for (const p of allRstPasses) {
+      if (!p.rstNo) continue;
+      const val = parseInt(p.rstNo as string, 10);
+      if (!isNaN(val) && val > lastRst) lastRst = val;
+    }
+
+    return { nextSeq: lastSeq + 1, lastSeq, nextRst: lastRst + 1, lastRst };
   }
 
   // ===========================
@@ -629,7 +688,7 @@ export class GatePassService {
     });
   }
 
-  /** Confirm a transfer ticket — atomic dual-entry (GP In + GP Out) */
+  /** Confirm a transfer ticket â€” atomic dual-entry (GP In + GP Out) */
   async confirmTransferTicket(ticketId: string, confirmData: { supervisorName: string; recipientPlantId: string }) {
     const ticket = await this.prisma.transferTicket.findUnique({
       where: { id: ticketId },
@@ -683,7 +742,7 @@ export class GatePassService {
       const gpOutSeq = String(lastOutSeq + 1).padStart(5, '0');
       const gpOutQrCode = `GOUT-${yearNow}-${gpOutSeq}`;
 
-      // 2. Create GP In for Recipient Mill — Party Name = Actual Dispatch Mill
+      // 2. Create GP In for Recipient Mill â€” Party Name = Actual Dispatch Mill
       const gpIn = await tx.gatePass.create({
         data: {
           plantId: recipientPlantId,
@@ -718,7 +777,7 @@ export class GatePassService {
         }
       });
 
-      // 3. Create GP Out for Recipient Mill — Party Name = Delivery At
+      // 3. Create GP Out for Recipient Mill â€” Party Name = Delivery At
       const gpOut = await tx.gatePass.create({
         data: {
           plantId: recipientPlantId,
@@ -754,7 +813,7 @@ export class GatePassService {
         }
       });
 
-      // 4. Process inventory for GP In (add stock) and GP Out (remove stock) — NIL EFFECT
+      // 4. Process inventory for GP In (add stock) and GP Out (remove stock) â€” NIL EFFECT
       if (originalGp.items && originalGp.items.length > 0) {
         for (const item of originalGp.items) {
           let itemType = 'FINISHED_GOODS';
@@ -817,7 +876,7 @@ export class GatePassService {
     return result;
   }
 
-  /** Get consignment slip data — only available for Recipient Mill's GP Out */
+  /** Get consignment slip data â€” only available for Recipient Mill's GP Out */
   async getConsignmentSlipData(gatePassId: string, requestingPlantId: string) {
     const pass = await this.prisma.gatePass.findUnique({
       where: { id: gatePassId },

@@ -60,6 +60,7 @@ model Plant {
   labourMasters       LabourMaster[]
   pahunchMasters      PahunchMaster[]
   permissionOverrides PermissionOverride[]
+  stockHealthConfig   StockHealthConfig?
 
   // Tracking
   createdAt DateTime  @default(now())
@@ -557,10 +558,13 @@ model Inventory {
 
   itemType String // e.g. PADDY, RICE, BRAN, HUSK, CONSUMABLES
   category String? // Operational, Non-Operational
-  variety  String? // IR-64, Swarna, MTU-7029
+  variety  String? // IR-64, Swarna, MTU-7029, or Product name
   godown   String? // Godown A, Godown B
 
-  quantity Float // Total Stock in MT/Qty
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  quantity Float // Total Stock in selected unit
   usable   Float @default(0)
   reserved Float @default(0)
   damaged  Float @default(0)
@@ -572,6 +576,7 @@ model Inventory {
   updatedAt DateTime @updatedAt
 
   @@unique([plantId, itemType, variety, godown])
+  @@index([productId])
 }
 
 model StockLedger {
@@ -758,14 +763,26 @@ model InterPlantTransfer {
   @@index([requestNo])
 }
 
+model QuantityUnit {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  label       String
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model Product {
   id                String            @id @default(uuid())
   name              String            @unique
-  type              String
+  type              String            @default("GENERAL")
   category          String            @default("OPERATIONAL")
+  quantityFormat    String            @default("QTL")
   description       String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+  inventories       Inventory[]
   intermillAsRaw    IntermillBatch[]  @relation("IntermillRawMaterial")
   intermillAsOutput IntermillOutput[] @relation("IntermillOutputProduct")
 }
@@ -1375,6 +1392,23 @@ model Notification {
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// Stock Health Report (Yield Management)
+// -----------------------------------------------------------------------------
+model StockHealthConfig {
+  id          String   @id @default(uuid())
+  plantId     String   @unique
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  totalWork   Float    // Total Work (A) in consignments — set by admin
+  seasonLabel String?
+  setBy       String?
+  setAt       DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([plantId])
 }
 
 // -----------------------------------------------------------------------------

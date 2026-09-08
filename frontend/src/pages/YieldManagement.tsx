@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { 
  Calculator, LineChart, FileText, Download, TrendingUp, TrendingDown, 
- Target, Search, Calendar, Package, Droplet, Printer
+ Target, Search, Calendar, Package, Droplet, Printer, Activity
 } from 'lucide-react';
 import { 
  LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { exportToPDF, exportToExcel } from '../utils/exportUtils';
 import { usePlantStore } from '../store/plantStore';
+import { StockHealthReport } from '../components/Yield/StockHealthReport';
 
 export const YieldManagement = () => {
  const activePlant = usePlantStore(state => state.activePlant);
@@ -149,7 +150,8 @@ export const YieldManagement = () => {
  const tabs = [
   { id: 'yield_calculator', label: 'Yield Calculator', icon: Calculator },
   { id: 'yield_analytics', label: 'Yield Analytics', icon: LineChart },
-  { id: 'historical_reports', label: 'Historical Yield Reports', icon: FileText }
+  { id: 'stock_health', label: 'Stock Health Report', icon: Activity },
+  { id: 'historical_reports', label: 'Historical Yield Reports', icon: FileText },
  ];
 
  return (
@@ -172,7 +174,8 @@ export const YieldManagement = () => {
 
  <div className="flex-1 overflow-y-auto p-6 space-y-6">
  
- {/* Top Metric Cards (Visible across all tabs) */}
+ {/* Top Metric Cards (hidden on Stock Health — its own table is the focus) */}
+ {activeTab !== 'stock_health' && (
  <div className="grid grid-cols-6 gap-4">
  {metrics.map((m, i) => (
  <div key={i} className="bg-[var(--bg-panel)] p-4 rounded-xl border border-[var(--border-subtle)] flex flex-col justify-between shadow-lg shadow-black/20">
@@ -195,6 +198,7 @@ export const YieldManagement = () => {
  </div>
  ))}
  </div>
+ )}
 
 
 
@@ -731,6 +735,8 @@ export const YieldManagement = () => {
    </div>
    </div>
  )}
+
+ {activeTab === 'stock_health' && <StockHealthReport />}
 
  </div>
  </div>

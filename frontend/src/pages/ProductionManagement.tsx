@@ -18,6 +18,7 @@ import { IntermillProcessing } from './IntermillProcessing';
 import { DailyStockReport } from '../components/Production/DailyStockReport';
 import { ShiftWiseReport } from '../components/Production/ShiftWiseReport';
 import { biometricService } from '../services/biometricService';
+import { getUnitLabel } from '../constants/quantityUnits';
 
 const INTERMILL_ITEMS = [
   'R. Bran', 'K. Phuck', 'Broken Rice', 'Nakku 1', 'Nakku 2', 
@@ -900,7 +901,7 @@ export const ProductionManagement = () => {
           <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">Raw Material</label>
           <select value={intermillData.rawMaterialId} onChange={e => setIntermillData({...intermillData, rawMaterialId: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]">
             <option value="">Select Material...</option>
-            {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {products.map(p => <option key={p.id} value={p.id}>{p.name} ({getUnitLabel(p.quantityFormat)})</option>)}
           </select>
         </div>
         <div>

@@ -14,6 +14,7 @@ import { inventoryApi } from '../api/inventory';
 import api from '../api/axios';
 import { StockReport } from './StockReport';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { getUnitLabel, formatUnitNote, getQuantityDecimals } from '../constants/quantityUnits';
 
 const TABS = [
   { id: 'PADDY', label: 'Paddy Stock' },
@@ -289,6 +290,11 @@ export const InventoryManagement = () => {
     <div className="col-span-12 lg:col-span-9 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col shadow-sm">
       <div className="p-4 border-b border-[var(--border-subtle)]">
         <h3 className="font-bold text-[var(--text-main)] text-sm mb-3">Stock Details</h3>
+        {activeTab === 'CONSUMABLES' && (
+          <p className="text-xs text-amber-500 mb-3 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+            Product inventory is maintained in each item&apos;s configured quantity format (e.g. Nos, Bags, Kg, Qtl, Ltr).
+          </p>
+        )}
         <div className="flex items-center gap-3 flex-wrap">
           <select value={filters.category} onChange={e => setFilters(f => ({...f, category: e.target.value}))} className="bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-xs text-[var(--text-main)] outline-none min-w-[120px]">
             <option value="">All Categories</option>
@@ -385,7 +391,7 @@ export const InventoryManagement = () => {
               <th className="p-3">Category</th>
               <th className="p-3">Variety / Type</th>
               <th className="p-3">Godown</th>
-              <th className="p-3 text-right">Stock (MT/Qty)</th>
+              <th className="p-3 text-right">Stock</th>
               <th className="p-3 text-right">Usable Stock</th>
               <th className="p-3 text-right">Reserved Stock</th>
               <th className="p-3 text-right">Damaged / Rejected</th>
@@ -398,24 +404,32 @@ export const InventoryManagement = () => {
             {loading ? (
               <tr><td colSpan={11} className="p-8 text-center"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div></td></tr>
             ) : inventoryList.length > 0 ? (
-              inventoryList.map((item, i) => (
+              inventoryList.map((item, i) => {
+                const unitCode = item.quantityFormat || item.unit || 'MT';
+                const decimals = getQuantityDecimals(unitCode);
+                return (
                 <tr key={item.id} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)]">
                   <td className="p-3 font-medium text-[var(--text-main)] flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-amber-500"></div>
-                    {item.variety || item.itemType}
+                    <div>
+                      <div>{item.variety || item.itemType}</div>
+                      {(item.productId || item.quantityFormat || activeTab === 'CONSUMABLES') && (
+                        <div className="text-[10px] text-[var(--text-muted-alt)]">{formatUnitNote(unitCode)}</div>
+                      )}
+                    </div>
                   </td>
                   <td className="p-3 text-[var(--text-muted)]">{item.itemType}</td>
                   <td className="p-3 text-[var(--text-muted)]">{item.variety || '-'}</td>
                   <td className="p-3 text-[var(--text-muted)]">{item.godown || '-'}</td>
-                  <td className="p-3 text-right font-bold text-[var(--text-main)]">{item.quantity.toFixed(3)}</td>
-                  <td className="p-3 text-right text-green-500 font-medium">{(item.usable || 0).toFixed(3)}</td>
-                  <td className="p-3 text-right text-amber-500 font-medium">{(item.reserved || 0).toFixed(3)}</td>
-                  <td className="p-3 text-right text-red-500 font-medium">{(item.damaged || 0).toFixed(3)}</td>
-                  <td className="p-3 text-center text-[var(--text-muted-alt)]">{item.unit || 'MT'}</td>
+                  <td className="p-3 text-right font-bold text-[var(--text-main)]">{item.quantity.toFixed(decimals)}</td>
+                  <td className="p-3 text-right text-green-500 font-medium">{(item.usable || 0).toFixed(decimals)}</td>
+                  <td className="p-3 text-right text-amber-500 font-medium">{(item.reserved || 0).toFixed(decimals)}</td>
+                  <td className="p-3 text-right text-red-500 font-medium">{(item.damaged || 0).toFixed(decimals)}</td>
+                  <td className="p-3 text-center text-[var(--text-muted-alt)]">{getUnitLabel(unitCode)}</td>
                   <td className="p-3 text-right text-[var(--text-muted)]">{(item.stockValue || 0).toLocaleString('en-IN')}</td>
                   <td className="p-3 text-right text-[var(--text-muted-alt)]">Today 11:20 AM</td>
                 </tr>
-              ))
+              );})
             ) : (
               <tr><td colSpan={11} className="p-8 text-center text-[var(--text-muted-alt)]">No items found</td></tr>
             )}
