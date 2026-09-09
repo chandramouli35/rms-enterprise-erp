@@ -290,7 +290,7 @@ export const WeighbridgeManagement = () => {
  }
  try {
  setIsStreaming(true);
- const res = await api.get(`/weighbridge/stream/${vehicleNo}`);
+ const res = await api.get(`/api/weighbridge/stream/${vehicleNo}`);
  setWeightData(res.data);
  setLastReading(new Date().toLocaleString());
  } catch (error: any) {

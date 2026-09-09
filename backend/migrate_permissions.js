@@ -12,16 +12,89 @@ if (!connectionString) {
 
 const client = new Client({ connectionString });
 
+/** Keep in sync with users-roles.service.ts MODULE_STRUCTURE (no Milestone 4) */
 const MODULE_STRUCTURE = [
-  { name: 'Procurement', subModules: ['Supplier Master', 'Paddy Purchase & Quality', 'Paddy Inward', 'Inward List', 'Quality Inspection', 'Purchase Register'] },
-  { name: 'Production', subModules: ['Batch Creation', 'Production Tracking'] },
-  { name: 'Inventory', subModules: ['Paddy Stock', 'Rice Stock', 'Bran Stock', 'Husk Stock', 'Finished Goods', 'Consumables Inventory'] },
-  { name: 'Yield Mgmt', subModules: ['Yield Calculator', 'Yield Analytics', 'Historical Reports'] },
+  { name: 'Dashboard', subModules: [] },
+  {
+    name: 'Procurement',
+    subModules: [
+      'Supplier Master',
+      'Mandi Master',
+      'Paddy Purchase & Quality',
+      'Paddy Inward',
+      'Inward List',
+      'Stack to Hoodi',
+      'Global Settings (Govt Rate)',
+      'Reports',
+      'Quality Inspection',
+      'Purchase Register',
+    ],
+  },
+  {
+    name: 'Production',
+    subModules: [
+      'Batch Creation',
+      'Production Tracking',
+      'Daily Stock Report',
+      'Shift-Wise Report',
+      'Intermill History',
+      'Compare Reports',
+    ],
+  },
+  {
+    name: 'Yield Mgmt',
+    subModules: [
+      'Mill Yield Benchmarks',
+      'Yield from Rice',
+      'Yield from Paddy',
+      'Stock Health Report',
+      'Consignment Dispatch',
+      'Yield Calculator',
+      'Yield Analytics',
+      'Historical Reports',
+    ],
+  },
+  {
+    name: 'Inventory',
+    subModules: [
+      'Paddy Stock',
+      'Rice Stock',
+      'Bran Stock',
+      'Husk Stock',
+      'Finished Goods',
+      'Consumables Inventory',
+    ],
+  },
   { name: 'Transfer', subModules: ['Transfer Request', 'Transfer Tracking', 'In Transit Stock'] },
   { name: 'Weighbridge', subModules: ['Capture', 'History', 'Settings'] },
-  { name: 'Gate Pass', subModules: ['Gate In', 'Gate Out', 'Report Summary', 'QR Barcode', 'Duplicate Prevention'] },
+  {
+    name: 'Gate Pass',
+    subModules: [
+      'Create Gate Pass',
+      'Report Summary',
+      'Transfer Entry Management',
+      'QR Barcode',
+      'Duplicate Prevention',
+    ],
+  },
+  { name: 'Staff Management', subModules: ['Staff List', 'Add Staff', 'Truck Management'] },
+  { name: 'Dryer Work', subModules: ['GOYAL AGRO', 'RAJOA AGRO', 'BEAS AGRO'] },
   { name: 'Users and Roles', subModules: ['Users', 'Roles', 'Permissions', 'Audit Access'] },
-  { name: 'Settings', subModules: ['Global Settings'] }
+  { name: 'Products', subModules: [] },
+  { name: 'Plants', subModules: [] },
+  { name: 'Settings', subModules: ['Global Settings'] },
+  {
+    name: 'Finance',
+    subModules: [
+      'Deals / Soda Record',
+      'Sale',
+      'Purchase',
+      'Receivables',
+      'Payables',
+      'Payment Received',
+      'Payment Paid',
+    ],
+  },
 ];
 
 async function main() {
@@ -29,46 +102,50 @@ async function main() {
     await client.connect();
     console.log(`Connected to database: ${connectionString.split('@')[1] || 'Local/Unknown'}`);
     console.log('Starting migration to backfill hierarchical submodule permissions in the database...');
-    
+
     const rolesRes = await client.query('SELECT id, name FROM "Role"');
     const roles = rolesRes.rows;
-    
+
     console.log(`Found ${roles.length} roles to process.`);
-    
+
     for (const role of roles) {
       console.log(`\nProcessing Role: ${role.name}`);
-      
-      // Fetch current permissions for this role
-      const permsRes = await client.query('SELECT * FROM "ModulePermission" WHERE "roleId" = $1', [role.id]);
-      const perms = permsRes.rows;
-      
+
       for (const mod of MODULE_STRUCTURE) {
-        // Find parent permission
-        const parentPerm = perms.find(p => p.moduleName === mod.name && (!p.subModuleName || p.subModuleName === ''));
-        
-        if (!parentPerm) {
-          continue;
+        const parentExists = await client.query(
+          `SELECT id FROM "ModulePermission" WHERE "roleId" = $1 AND "moduleName" = $2 AND ("subModuleName" IS NULL OR "subModuleName" = '')`,
+          [role.id, mod.name],
+        );
+        if (parentExists.rows.length === 0) {
+          await client.query(
+            `INSERT INTO "ModulePermission" ("id", "roleId", "moduleName", "subModuleName", "canView", "canAdd", "canEdit", "canDelete", "canApprove", "createdAt", "updatedAt")
+             VALUES (gen_random_uuid()::text, $1, $2, '', $3, $3, $3, $3, false, NOW(), NOW())`,
+            [role.id, mod.name, role.name === 'SUPER_ADMIN'],
+          );
+          console.log(`  + parent ${mod.name}`);
         }
-        
-        console.log(`- Found parent access for ${mod.name}. Backfilling submodules...`);
-        
+
         for (const sub of mod.subModules) {
-          const subPermExists = perms.some(p => p.moduleName === mod.name && p.subModuleName === sub);
-          
-          if (!subPermExists) {
+          const subExists = await client.query(
+            `SELECT id FROM "ModulePermission" WHERE "roleId" = $1 AND "moduleName" = $2 AND "subModuleName" = $3`,
+            [role.id, mod.name, sub],
+          );
+          if (subExists.rows.length === 0) {
             await client.query(
-              'INSERT INTO "ModulePermission" ("id", "roleId", "moduleName", "subModuleName", "canView", "canAdd", "canEdit", "canDelete", "canApprove", "createdAt", "updatedAt") VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW()) ON CONFLICT DO NOTHING',
-              [role.id, mod.name, sub, parentPerm.canView, parentPerm.canAdd, parentPerm.canEdit, parentPerm.canDelete, parentPerm.canApprove]
+              `INSERT INTO "ModulePermission" ("id", "roleId", "moduleName", "subModuleName", "canView", "canAdd", "canEdit", "canDelete", "canApprove", "createdAt", "updatedAt")
+               VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $4, $4, $4, false, NOW(), NOW())`,
+              [role.id, mod.name, sub, role.name === 'SUPER_ADMIN'],
             );
-            console.log(`   + Created submodule: ${sub} (Inherited parent perms)`);
+            console.log(`  + ${mod.name} / ${sub}`);
           }
         }
       }
     }
-    
-    console.log('\nMigration complete! All roles in the database now have fully dynamic hierarchical submodule rows.');
-  } catch (error) {
-    console.error('Migration failed:', error);
+
+    console.log('\nDone. Open users?tab=Permissions and review/save each role.');
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
   } finally {
     await client.end();
   }

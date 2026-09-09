@@ -15,8 +15,14 @@ export const PaddyStackMap: React.FC<PaddyStackMapProps> = ({ onSelectStack, sel
     const fetchOccupied = async () => {
       try {
         if (!plantId) return;
-        const res = await api.get(`/procurement/stacks?plantId=${plantId}`);
-        setOccupiedStacks(res.data.data || []);
+        const res = await api.get(`/api/procurement/occupied-stacks/${plantId}`);
+        const raw = res.data;
+        // API returns a map keyed by stackNo; keep array form for older shapes
+        setOccupiedStacks(
+          Array.isArray(raw)
+            ? raw
+            : Object.keys(raw || {}).map((stackNo) => ({ stackNo, ...(raw[stackNo] || {}) })),
+        );
       } catch (error) {
         console.error('Failed to fetch occupied stacks', error);
       } finally {
@@ -42,8 +48,9 @@ export const PaddyStackMap: React.FC<PaddyStackMapProps> = ({ onSelectStack, sel
   };
 
   const getStackStatus = (stackNum: string) => {
-    // Check if it's occupied
-    const stack = occupiedStacks.find(s => s.inwardDetails?.stackNo === stackNum);
+    const stack = occupiedStacks.find(
+      (s) => s.stackNo === stackNum || s.inwardDetails?.stackNo === stackNum,
+    );
     return stack ? 'occupied' : 'empty';
   };
 

@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Query, UseGuards, Req } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { RequirePermission } from '../common/decorators/require-permission.decorator';
+import { RequirePermission, RequireAnyPermission } from '../common/decorators/require-permission.decorator';
 import { InventoryService } from './inventory.service';
 import { GetInventoryFilterDto, GetStockReportDto } from './dto/inventory.dto';
 
@@ -10,8 +10,9 @@ import { GetInventoryFilterDto, GetStockReportDto } from './dto/inventory.dto';
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
+  /** Used by Gate Pass / Production stock dropdowns as well as Inventory. */
   @Get('byproducts')
-  @RequirePermission('Inventory', 'canView')
+  @RequireAnyPermission(['Inventory', 'Production', 'Gate Pass'], 'canView')
   getByProductStock(@Req() req: any) {
     const plantId = req.user.plantId;
     return this.inventoryService.getByProductStock(plantId);

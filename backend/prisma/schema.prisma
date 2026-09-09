@@ -39,6 +39,9 @@ model Plant {
   paddySodaPendings       PaddySodaPending[]
   dispatches              Dispatch[]
   financeTransactions     FinanceTransaction[]
+  financeSodaMills        FinanceSodaMill[]
+  financeSodasAsParty     FinanceSoda[]        @relation("SodaPartyPlant")
+  financeSalePurchaseLines FinanceSalePurchaseLine[]
   systemUtility           SystemUtility?
   plantDowntimes          PlantDowntime[]
 
@@ -182,6 +185,10 @@ model Supplier {
   procurements      ProcurementBatch[]
   gatePasses        GatePass[]
   paddySodaPendings PaddySodaPending[]
+
+  /// Mill-scoped Arthiya (same name allowed in other mills as separate rows)
+  @@index([plantId])
+  @@index([plantId, name])
 }
 
 // -----------------------------------------------------------------------------
@@ -490,6 +497,13 @@ model GatePass {
   biometricData   String? // Store fingerprint XML/PID data
   gstNo           String?
 
+  // Feedback 28 — Finance Soda / Bill / Bag Type on Gate Pass
+  financeSodaId   String?
+  financeSoda     FinanceSoda? @relation("FinanceSodaGatePasses", fields: [financeSodaId], references: [id])
+  billNo          String?
+  billNoNA        Boolean      @default(false)
+  bagTypeGp       String? // PLASTIC | JUTE | NOT_APPLICABLE
+  financeSalePurchaseLine FinanceSalePurchaseLine?
   // New Requirements Fields (Defaulted/Optional for zero data loss)
   rstNo                 String?
   gpStartDate           DateTime? @default(now())
@@ -524,6 +538,7 @@ model GatePass {
   @@index([plantId])
   @@index([vehicleNo])
   @@index([status])
+  @@index([financeSodaId])
 }
 
 model GatePassItem {
@@ -788,6 +803,7 @@ model Product {
   inventories       Inventory[]
   intermillAsRaw    IntermillBatch[]  @relation("IntermillRawMaterial")
   intermillAsOutput IntermillOutput[] @relation("IntermillOutputProduct")
+  financeSodas      FinanceSoda[]
 }
 
 // -----------------------------------------------------------------------------
@@ -816,7 +832,114 @@ model Dispatch {
 }
 
 // -----------------------------------------------------------------------------
-// Finance Management
+// Finance Management — Feedback 28 Soda / Deals
+// -----------------------------------------------------------------------------
+model FinanceParty {
+  id        String   @id @default(uuid())
+  name      String
+  contact   String?
+  firmName  String?
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sodas FinanceSoda[]
+
+  @@index([name])
+}
+
+model FinanceSoda {
+  id            String   @id @default(uuid())
+  sodaType      String // SALE | PURCHASE
+  sodaNumber    Int
+  date          DateTime
+  itemId        String
+  item          Product  @relation(fields: [itemId], references: [id])
+  partyId       String?
+  party         FinanceParty? @relation(fields: [partyId], references: [id])
+  partyPlantId  String?
+  partyPlant    Plant?   @relation("SodaPartyPlant", fields: [partyPlantId], references: [id])
+  rate          Float?
+  isShift       Boolean  @default(false)
+  quantity      Int // truck/count quota
+  note          String?
+  paymentStatus String   @default("NOT_CLEAR") // CLEAR | UNDERWAY | NOT_CLEAR
+  paymentAmount Float    @default(0) // F29 will sync; stub for Section K
+  mirrorSodaId  String?  @unique
+  mirrorSoda    FinanceSoda? @relation("SodaMirror", fields: [mirrorSodaId], references: [id])
+  mirroredFrom  FinanceSoda? @relation("SodaMirror")
+  createdById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  mills      FinanceSodaMill[]
+  gatePasses GatePass[] @relation("FinanceSodaGatePasses")
+  salePurchaseLines FinanceSalePurchaseLine[]
+  paymentStatusAudits FinancePaymentStatusAudit[]
+
+  @@unique([sodaType, sodaNumber])
+  @@index([sodaType])
+  @@index([date])
+  @@index([itemId])
+}
+
+model FinanceSodaMill {
+  id     String @id @default(uuid())
+  sodaId String
+  soda   FinanceSoda @relation(fields: [sodaId], references: [id], onDelete: Cascade)
+  plantId String
+  plant   Plant @relation(fields: [plantId], references: [id])
+
+  @@unique([sodaId, plantId])
+  @@index([plantId])
+}
+
+// Feedback 29 — Sale / Purchase Report line (one per submitted non-draft GP)
+model FinanceSalePurchaseLine {
+  id          String   @id @default(uuid())
+  reportType  String // SALE | PURCHASE
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  financeSodaId String
+  financeSoda FinanceSoda @relation(fields: [financeSodaId], references: [id])
+  gatePassId  String   @unique
+  gatePass    GatePass @relation(fields: [gatePassId], references: [id], onDelete: Cascade)
+
+  /// Section H — chronological serial within parent soda (cross-mill)
+  serialNo Int
+
+  /// Section N — Yes/No bag tare consideration (default No)
+  bagWeightConsideration Boolean @default(false)
+  /// Section O — oil result % (Rice Bran)
+  oilResult Float?
+  /// Section X — cash discount %
+  cdPercent Float @default(0)
+  /// Section AA
+  note String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([financeSodaId, serialNo])
+  @@index([plantId, reportType])
+  @@index([financeSodaId])
+}
+
+model FinancePaymentStatusAudit {
+  id            String   @id @default(uuid())
+  financeSodaId String
+  financeSoda   FinanceSoda @relation(fields: [financeSodaId], references: [id], onDelete: Cascade)
+  fromStatus    String
+  toStatus      String
+  changedById   String?
+  createdAt     DateTime @default(now())
+
+  @@index([financeSodaId])
+}
+
+// -----------------------------------------------------------------------------
+// Finance Management — Ledger (Milestone 4 / Feedback 31)
 // -----------------------------------------------------------------------------
 model FinanceTransaction {
   id              String   @id @default(uuid())

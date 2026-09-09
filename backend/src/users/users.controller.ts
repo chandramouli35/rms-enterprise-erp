@@ -11,7 +11,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  @RequirePermission('Users', 'canView')
+  @RequirePermission('Users and Roles', 'canView')
   async findAll(@Req() req: any) {
     const plantId = req.headers['x-plant-id'];
     if (!plantId) {
@@ -21,7 +21,7 @@ export class UsersController {
   }
 
   @Post()
-  @RequirePermission('Users', 'canAdd')
+  @RequirePermission('Users and Roles', 'canAdd')
   async create(@Body() data: any, @Req() req: any) {
     // In a real app we'd check if req.user has SUPER_ADMIN or PLANT_MANAGER roles here
     // using the @Permissions decorator.
@@ -29,19 +29,17 @@ export class UsersController {
   }
 
   @Post('overrides')
+  @RequirePermission('Users and Roles', 'canEdit')
   async grantOverride(@Body() data: { targetUserId: string, permissionType: string }, @Req() req: any) {
     const plantId = req.headers['x-plant-id'];
     if (!plantId) {
       throw new UnauthorizedException('Plant context missing');
     }
-    // Only Admin can grant overrides
-    if (req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'PLANT_MANAGER' && req.user.role !== 'ADMIN') {
-        throw new UnauthorizedException('Insufficient permissions to grant overrides');
-    }
     return this.usersService.grantOverride(plantId, data.targetUserId, data.permissionType, req.user.id);
   }
 
   @Get('overrides/active')
+  @RequirePermission('Users and Roles', 'canView')
   async getActiveOverrides(@Req() req: any) {
     const plantId = req.headers['x-plant-id'];
     return this.usersService.getActiveOverrides(plantId, req.user.id);

@@ -1,6 +1,9 @@
-import { Controller, Get, Put, Body, Post, Headers, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Put, Body, Post, Headers, HttpException, HttpStatus, UseGuards } from '@nestjs/common';
 import { PowerManagementService } from './power-management.service';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
+/** Milestone 4 — JWT only until Power is added to Permissions MODULE_STRUCTURE. */
+@UseGuards(JwtAuthGuard)
 @Controller('power-management')
 export class PowerManagementController {
   constructor(private readonly powerManagementService: PowerManagementService) {}

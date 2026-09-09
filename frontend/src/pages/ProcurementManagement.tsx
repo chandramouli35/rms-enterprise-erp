@@ -48,8 +48,9 @@ export const ProcurementManagement = () => {
         console.error('Failed to fetch plants', error);
       }
     };
-    if (!activePlant) fetchPlants();
-  }, [activePlant]);
+    // SUPER_ADMIN needs plant list for mill pickers; others use assigned activePlant
+    if (!activePlant || user?.role === 'SUPER_ADMIN') fetchPlants();
+  }, [activePlant, user?.role]);
 
  const defaultFormData = {
  plantId: activePlant?.id || '',
@@ -117,7 +118,7 @@ export const ProcurementManagement = () => {
     if (isSupervisor && activePlant) {
       const fetchShortages = async () => {
         try {
-          const res = await api.get(`/procurement/reports/shortage-summary?plantId=${activePlant.id}`);
+          const res = await api.get(`/api/procurement/reports/shortage-summary?plantId=${activePlant.id}`);
           const unrecovered = res.data.filter((r: any) => r.netShortageQtl > 0);
           setUnrecoveredShortagesCount(unrecovered.length);
         } catch (error) {
@@ -219,7 +220,7 @@ export const ProcurementManagement = () => {
         safaiCut: parseFloat(plantSettings.safaiCut) || 2,
         processingCut: parseFloat(plantSettings.processingCut) || 4,
       };
-      await api.put(`/api/plants/${activePlant.id}`, payload);
+      await api.put(`/plants/${activePlant.id}`, payload);
       setIsEditingSettings(false);
       const { setActivePlant } = usePlantStore.getState();
       setActivePlant({ ...activePlant, ...payload });
@@ -335,9 +336,9 @@ export const ProcurementManagement = () => {
   const isPaddyBlock1Valid = paddyPurchaseModal.plantId && paddyPurchaseModal.supplierId && paddyPurchaseModal.date;
   const handlePaddyPurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const selectedPlantId = paddyPurchaseModal.plantId || activePlant?.id ;
+    const selectedPlantId = paddyPurchaseModal.plantId || activePlant?.id;
     if (!selectedPlantId) {
-      useUiStore.getState().addToast('Please select a plant at the top of the page first.', 'error');
+      useUiStore.getState().addToast('Rice mill is required (assigned plant missing)', 'error');
       return;
     }
     try {
@@ -501,12 +502,15 @@ export const ProcurementManagement = () => {
  }
  };
 
- const fetchSuppliers = async () => {
+ const fetchSuppliers = async (plantIdOverride?: string) => {
  try {
- const res = await api.get(`/api/procurement/suppliers`);
- setSuppliers(res.data);
+   const pid = plantIdOverride || activePlant?.id;
+   const res = await api.get(`/api/procurement/suppliers`, {
+     params: pid ? { plantId: pid } : {},
+   });
+   setSuppliers(Array.isArray(res.data) ? res.data : []);
  } catch (error) {
- console.error('Error fetching suppliers', error);
+   console.error('Error fetching suppliers', error);
  }
  };
 
@@ -581,13 +585,25 @@ export const ProcurementManagement = () => {
   e.preventDefault();
   if (!addSupplierModal.name) return;
   try {
-    const supplierPlantId = addSupplierModal.plantId || activePlant?.id || 'global';
-    await api.post('/api/procurement/suppliers', { name: addSupplierModal.name, contact: addSupplierModal.contact, firmNames: addSupplierModal.firmNames.split(',').map(s=>s.trim()).filter(Boolean), mandi: addSupplierModal.mandi, plantId: supplierPlantId });
+    const supplierPlantId = addSupplierModal.plantId || activePlant?.id;
+    if (!supplierPlantId) {
+      useUiStore.getState().addToast('Select a mill before adding Arthiya', 'error');
+      return;
+    }
+    await api.post('/api/procurement/suppliers', {
+      name: addSupplierModal.name,
+      contact: addSupplierModal.contact,
+      firmNames: addSupplierModal.firmNames.split(',').map((s) => s.trim()).filter(Boolean),
+      mandi: addSupplierModal.mandi,
+      plantId: supplierPlantId,
+    });
     setAddSupplierModal({ isOpen: false, name: '', firmNames: '', mandi: '', contact: '', plantId: '' });
-    fetchSuppliers();
-    } catch (error) {
-   console.error('Failed to add supplier', error);
-   }
+    fetchSuppliers(supplierPlantId);
+    useUiStore.getState().addToast('Arthiya added for this mill', 'success');
+  } catch (error: any) {
+    console.error('Failed to add supplier', error);
+    useUiStore.getState().addToast(error?.response?.data?.message || 'Failed to add Arthiya', 'error');
+  }
    };
   
     const handleToggleMandiStatus = async (m: any) => {
@@ -897,8 +913,23 @@ export const ProcurementManagement = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold flex items-center gap-2 text-[var(--text-main)]">
           <Users className="text-[#e67e00]" /> Arthiya Master
+          {activePlant && (
+            <span className="text-sm font-medium text-[var(--text-muted)]">({activePlant.name})</span>
+          )}
         </h2>
-        <button onClick={() => setAddSupplierModal({ isOpen: true, name: '', firmNames: '', mandi: '', contact: '', plantId: '' })} className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20">
+        <button
+          onClick={() =>
+            setAddSupplierModal({
+              isOpen: true,
+              name: '',
+              firmNames: '',
+              mandi: '',
+              contact: '',
+              plantId: activePlant?.id || '',
+            })
+          }
+          className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
+        >
           + Add Arthiya
         </button>
       </div>
@@ -908,6 +939,7 @@ export const ProcurementManagement = () => {
  <thead>
  <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left">
  <th className="p-3">Name</th>
+ <th className="p-3">Mill</th>
  <th className="p-3">Firm Names</th>
  <th className="p-3">Mandi</th>
  <th className="p-3">Contact</th>
@@ -918,6 +950,7 @@ export const ProcurementManagement = () => {
  {suppliers.map((s, i) => (
  <tr key={s.id} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)]">
  <td className="p-3 font-medium text-[var(--text-main)]">{s.name}</td>
+ <td className="p-3 text-[var(--text-main)]">{s.plant?.name || activePlant?.name || '—'}</td>
  <td className="p-3">{s.firmNames && s.firmNames.length > 0 ? s.firmNames.join(', ') : '-'}</td>
  <td className="p-3">{s.mandi || '-'}</td>
  <td className="p-3">{s.contact || '-'}</td>
@@ -928,7 +961,7 @@ export const ProcurementManagement = () => {
  ))}
  {suppliers.length === 0 && (
  <tr>
- <td colSpan={5} className="p-6 text-center text-[var(--text-muted-alt)]">No suppliers found.</td>
+ <td colSpan={6} className="p-6 text-center text-[var(--text-muted-alt)]">No Arthiya found for this mill. Add one for the selected mill.</td>
  </tr>
  )}
  </tbody>
@@ -982,12 +1015,16 @@ export const ProcurementManagement = () => {
         </div>
         {activePlant && (
           <button 
-            onClick={() => setPaddyPurchaseModal({
-              isOpen: true, id: '', plantId: activePlant?.id || '', supplierId: '', riceCategory: 'ANY',
+            onClick={() => {
+              const millId = activePlant?.id || '';
+              setPaddyPurchaseModal({
+              isOpen: true, id: '', plantId: millId, supplierId: '', riceCategory: 'ANY',
               date: new Date().toISOString().split('T')[0], 
               bolis: [{ moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }],
               govtRate: activePlant?.govtRate?.toString() || '', diff: '', payment: '', note: '', finalHisabAmt: ''
-            })}
+              });
+              if (millId) fetchSuppliers(millId);
+            }}
             className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
           >
             + New purchase
@@ -2756,23 +2793,41 @@ export const ProcurementManagement = () => {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Rice Mill</label>
-          <select value={paddyPurchaseModal.plantId} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, plantId: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required>
-            <option value="">Select Plant</option>
-            {plants.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          {isSupervisor || (activePlant && user?.role !== 'SUPER_ADMIN') ? (
+            <div className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] font-medium">
+              {activePlant?.name || 'Assigned mill'}
+              <input type="hidden" value={paddyPurchaseModal.plantId || activePlant?.id || ''} readOnly />
+            </div>
+          ) : (
+            <select
+              value={paddyPurchaseModal.plantId}
+              onChange={(e) => {
+                const plantId = e.target.value;
+                setPaddyPurchaseModal({ ...paddyPurchaseModal, plantId, supplierId: '' });
+                if (plantId) fetchSuppliers(plantId);
+              }}
+              className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
+              required
+            >
+              <option value="">Select Plant</option>
+              {plants.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div>
-          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Party - Supplier</label>
+          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Party - Arthiya</label>
           <Combobox
             name="supplierId"
             value={paddyPurchaseModal.supplierId}
-            onChange={(e: any) => setPaddyPurchaseModal({...paddyPurchaseModal, supplierId: e.target.value})}
+            onChange={(e: any) => setPaddyPurchaseModal({ ...paddyPurchaseModal, supplierId: e.target.value })}
             options={suppliers}
             valueKey="id"
-            placeholder="Select Supplier"
+            placeholder="Select Arthiya (this mill)"
             className="bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"
             required
           />
@@ -2926,12 +2981,28 @@ export const ProcurementManagement = () => {
     title="Add New Arthiya"
   >
     <form onSubmit={handleAddSupplier} className="space-y-4">
-      {!activePlant && user?.role === 'SUPER_ADMIN' && (
+      {activePlant && user?.role !== 'SUPER_ADMIN' ? (
+        <div>
+          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Mill</label>
+          <div className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] font-medium">
+            {activePlant.name}
+          </div>
+        </div>
+      ) : (
         <div>
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Select Mill</label>
-          <select value={addSupplierModal.plantId} onChange={e => setAddSupplierModal({...addSupplierModal, plantId: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required>
+          <select
+            value={addSupplierModal.plantId || activePlant?.id || ''}
+            onChange={(e) => setAddSupplierModal({ ...addSupplierModal, plantId: e.target.value })}
+            className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
+            required
+          >
             <option value="">Select Mill</option>
-            {plants.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {(plants.length ? plants : activePlant ? [activePlant] : []).map((p: any) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
           </select>
         </div>
       )}

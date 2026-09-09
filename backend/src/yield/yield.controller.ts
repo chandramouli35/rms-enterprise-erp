@@ -18,19 +18,19 @@ export class YieldController {
   constructor(private readonly yieldService: YieldService) {}
 
   @Post('calculator/save')
-  @RequirePermission('Yield', 'canAdd')
+  @RequirePermission('Yield Mgmt', 'canAdd')
   saveCalculatorData(@Body() data: any, @Query('plantId') plantId: string) {
     return this.yieldService.saveCalculatorData(plantId, data);
   }
 
   @Get('analytics')
-  @RequirePermission('Yield', 'canView')
+  @RequirePermission('Yield Mgmt', 'canView')
   getAnalytics(@Query('plantId') plantId: string) {
     return this.yieldService.getAnalytics(plantId);
   }
 
   @Get('historical')
-  @RequirePermission('Yield', 'canView')
+  @RequirePermission('Yield Mgmt', 'canView')
   getHistorical(
     @Query('plantId') plantId: string,
     @Query('dateFrom') dateFrom?: string,
@@ -41,7 +41,7 @@ export class YieldController {
   }
 
   @Get('stock-health')
-  @RequirePermission('Yield', 'canView')
+  @RequirePermission('Yield Mgmt', 'canView')
   getStockHealth(
     @Query('period') period?: string,
     @Query('dateFrom') dateFrom?: string,
@@ -52,7 +52,7 @@ export class YieldController {
   }
 
   @Put('stock-health/total-work')
-  @RequirePermission('Yield', 'canEdit')
+  @RequirePermission('Yield Mgmt', 'canEdit')
   setTotalWork(
     @Body() body: { plantId: string; totalWork: number },
     @Req() req: any,
@@ -64,7 +64,7 @@ export class YieldController {
 
   // Feedback 19 — Consignment Dispatch
   @Get('consignment-dispatch')
-  @RequirePermission('Yield', 'canView')
+  @RequirePermission('Yield Mgmt', 'canView')
   listConsignment(
     @Query('plantId') plantId: string,
     @Query('dateFrom') dateFrom?: string,
@@ -74,20 +74,20 @@ export class YieldController {
   }
 
   @Get('consignment-dispatch/gate-passes')
-  @RequirePermission('Yield', 'canView')
+  @RequirePermission('Yield Mgmt', 'canView')
   gatePassesForDate(@Query('plantId') plantId: string, @Query('date') date: string) {
     return this.yieldService.getGatePassesForConsignmentDate(plantId, date);
   }
 
   @Post('consignment-dispatch')
-  @RequirePermission('Yield', 'canAdd')
+  @RequirePermission('Yield Mgmt', 'canAdd')
   submitConsignment(@Body() body: any, @Query('plantId') plantId: string) {
     return this.yieldService.submitConsignmentDispatch(plantId || body.plantId, body);
   }
 
   // Feedback 17 — Rice / Paddy yield compare
   @Get('mill-compare')
-  @RequirePermission('Yield', 'canView')
+  @RequirePermission('Yield Mgmt', 'canView')
   millCompare(
     @Query('basis') basis: 'rice' | 'paddy' = 'rice',
     @Query('period') period?: string,
@@ -126,7 +126,7 @@ export class YieldController {
   }
 
   @Get('mill-compare/format1')
-  @RequirePermission('Yield', 'canView')
+  @RequirePermission('Yield Mgmt', 'canView')
   millCompareFormat1(
     @Query('basis') basis: 'rice' | 'paddy' = 'rice',
     @Query('period') period?: string,
@@ -148,7 +148,7 @@ export class YieldController {
   }
 
   @Get('mill-compare/format2')
-  @RequirePermission('Yield', 'canView')
+  @RequirePermission('Yield Mgmt', 'canView')
   millCompareFormat2(
     @Query('basis') basis: 'rice' | 'paddy' = 'rice',
     @Query('plantId') plantId?: string,
@@ -176,13 +176,13 @@ export class YieldController {
   }
 
   @Get('paddy-usage/preview')
-  @RequirePermission('Yield', 'canView')
+  @RequirePermission('Yield Mgmt', 'canView')
   paddyUsagePreview(@Query('plantId') plantId: string) {
     return this.yieldService.getPaddyUsagePreview(plantId);
   }
 
   @Post('paddy-usage')
-  @RequirePermission('Yield', 'canAdd')
+  @RequirePermission('Yield Mgmt', 'canAdd')
   submitPaddyUsage(@Body() body: any, @Query('plantId') plantId: string) {
     return this.yieldService.submitPaddyUsage(plantId || body.plantId, body);
   }

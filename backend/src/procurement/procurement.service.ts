@@ -505,25 +505,56 @@ export class ProcurementService {
     });
   }
 
-  async getSuppliers() {
+  async getSuppliers(plantId?: string) {
+    // Mill-scoped Arthiya: when plantId set, only that mill's suppliers
+    const where =
+      plantId && plantId !== 'global' && plantId !== 'all'
+        ? { plantId }
+        : undefined;
     return this.prisma.supplier.findMany({
-      orderBy: { name: 'asc' }
+      where,
+      include: { plant: { select: { id: true, name: true, code: true } } },
+      orderBy: { name: 'asc' },
     });
   }
 
-  async createSupplier(data: { name: string; contact?: string; email?: string; address?: string; firmNames?: string[]; mandi?: string; plantId?: string }) {
+  async createSupplier(data: {
+    name: string;
+    contact?: string;
+    email?: string;
+    address?: string;
+    firmNames?: string[];
+    mandi?: string;
+    plantId?: string;
+  }) {
     const { name, contact, email, address, firmNames, mandi, plantId } = data;
+    const cleanName = String(name || '').trim();
+    if (!cleanName) throw new BadRequestException('Arthiya name is required');
+    if (!plantId || plantId === 'global') {
+      throw new BadRequestException('Mill (plantId) is required — Arthiya is mill-scoped');
+    }
+
+    const existing = await this.prisma.supplier.findFirst({
+      where: { plantId, name: cleanName },
+    });
+    if (existing) {
+      throw new BadRequestException(
+        `Arthiya "${cleanName}" already exists for this mill. Same name is allowed in other mills as a separate entry.`,
+      );
+    }
+
     return this.prisma.supplier.create({
       data: {
-        name,
+        name: cleanName,
         contact,
         email,
         address,
         firmNames: firmNames || [],
         mandi,
-        status: 'Active',
-        ...(plantId ? { plantId } : {})
-      }
+        status: 'ACTIVE',
+        plantId,
+      },
+      include: { plant: { select: { id: true, name: true } } },
     });
   }
 

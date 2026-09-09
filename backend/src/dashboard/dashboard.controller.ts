@@ -2,17 +2,18 @@ import { Controller, Get, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { RequirePermission } from '../common/decorators/require-permission.decorator';
+import { RequirePermission, RequireAnyPermission } from '../common/decorators/require-permission.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('dashboard')
 export class DashboardController {
+  constructor(private readonly dashboardService: DashboardService) {}
+
   @Get('production-analysis')
+  @RequireAnyPermission(['Dashboard', 'Production'], 'canView')
   async getProductionAnalysisSummary(@Query('plantId') plantId?: string) {
     return this.dashboardService.getProductionAnalysisSummary(plantId);
   }
-
-  constructor(private readonly dashboardService: DashboardService) {}
 
   // The legacy endpoint to keep compatibility with old frontend (optional)
   @Get('summary')
@@ -66,6 +67,7 @@ export class DashboardController {
     return this.dashboardService.getTodaySummary(plantId);
   }
 
+  /** Bell icon — any logged-in user may load their own notifications. */
   @Get('notifications')
   listNotifications(@Query('role') role?: string, @Req() req?: any) {
     const userRole = role || req?.user?.role?.name || req?.user?.role;

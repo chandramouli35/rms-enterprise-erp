@@ -2,7 +2,17 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } f
 import { ProductsService } from './products.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { RequirePermission } from '../common/decorators/require-permission.decorator';
+import { RequirePermission, RequireAnyPermission } from '../common/decorators/require-permission.decorator';
+
+/** Modules that load product dropdowns / lists outside Product Management. */
+const PRODUCT_LOOKUP_MODULES = [
+  'Products',
+  'Production',
+  'Gate Pass',
+  'Yield Mgmt',
+  'Inventory',
+  'Transfer',
+];
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('api/products')
@@ -10,7 +20,7 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Get('units/list')
-  @RequirePermission('Products', 'canView')
+  @RequireAnyPermission(PRODUCT_LOOKUP_MODULES, 'canView')
   listUnits() {
     return this.productsService.listUnits();
   }
@@ -22,7 +32,7 @@ export class ProductsController {
   }
 
   @Get('for-selection')
-  @RequirePermission('Products', 'canView')
+  @RequireAnyPermission(PRODUCT_LOOKUP_MODULES, 'canView')
   findForSelection(@Query('plantId') plantId?: string) {
     return this.productsService.findForSelection(plantId);
   }
@@ -34,7 +44,7 @@ export class ProductsController {
   }
 
   @Get()
-  @RequirePermission('Products', 'canView')
+  @RequireAnyPermission(PRODUCT_LOOKUP_MODULES, 'canView')
   findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
     return this.productsService.findAll(page, limit);
   }

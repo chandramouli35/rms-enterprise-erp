@@ -95,7 +95,7 @@ export const ProductionManagement = () => {
   const fetchCurrentStock = async () => {
     if (!activePlant?.id) return;
     try {
-      const res = await api.get('/inventory/byproducts');
+      const res = await api.get('/api/inventory/byproducts');
       setCurrentStock(res.data);
     } catch (error) {
       console.error('Error fetching byproducts stock:', error);

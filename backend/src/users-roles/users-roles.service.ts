@@ -203,77 +203,184 @@ export class UsersRolesService {
     private readonly MODULE_STRUCTURE = [
     {
       name: 'Dashboard',
-      subModules: []
+      subModules: [],
     },
     {
       name: 'Procurement',
-      subModules: ['Supplier Master', 'Paddy Purchase & Quality', 'Paddy Inward', 'Inward List', 'Quality Inspection', 'Purchase Register']
-    },
-    {
-      name: 'Yield Mgmt',
-      subModules: ['Yield Calculator', 'Yield Analytics', 'Historical Reports']
+      subModules: [
+        'Supplier Master',
+        'Mandi Master',
+        'Paddy Purchase & Quality',
+        'Paddy Inward',
+        'Inward List',
+        'Stack to Hoodi',
+        'Global Settings (Govt Rate)',
+        'Reports',
+        'Quality Inspection',
+        'Purchase Register',
+      ],
     },
     {
       name: 'Production',
-      subModules: ['Batch Creation', 'Production Tracking']
+      subModules: [
+        'Batch Creation',
+        'Production Tracking',
+        'Daily Stock Report',
+        'Shift-Wise Report',
+        'Intermill History',
+        'Compare Reports',
+      ],
+    },
+    {
+      name: 'Yield Mgmt',
+      subModules: [
+        'Mill Yield Benchmarks',
+        'Yield from Rice',
+        'Yield from Paddy',
+        'Stock Health Report',
+        'Consignment Dispatch',
+        'Yield Calculator',
+        'Yield Analytics',
+        'Historical Reports',
+      ],
     },
     {
       name: 'Inventory',
-      subModules: ['Paddy Stock', 'Rice Stock', 'Bran Stock', 'Husk Stock', 'Finished Goods', 'Consumables Inventory']
+      subModules: [
+        'Paddy Stock',
+        'Rice Stock',
+        'Bran Stock',
+        'Husk Stock',
+        'Finished Goods',
+        'Consumables Inventory',
+      ],
     },
     {
       name: 'Transfer',
-      subModules: ['Transfer Request', 'Transfer Tracking', 'In Transit Stock']
-    },
-    {
-      name: 'Gate Pass',
-      subModules: ['Gate In', 'Gate Out', 'Report Summary', 'QR Barcode', 'Duplicate Prevention']
+      subModules: ['Transfer Request', 'Transfer Tracking', 'In Transit Stock'],
     },
     {
       name: 'Weighbridge',
-      subModules: ['Weighment', 'Device Config']
+      subModules: ['Capture', 'History', 'Settings'],
+    },
+    {
+      name: 'Gate Pass',
+      subModules: [
+        'Create Gate Pass',
+        'Report Summary',
+        'Transfer Entry Management',
+        'QR Barcode',
+        'Duplicate Prevention',
+      ],
+    },
+    {
+      name: 'Staff Management',
+      subModules: ['Staff List', 'Add Staff', 'Truck Management'],
+    },
+    {
+      name: 'Dryer Work',
+      subModules: ['GOYAL AGRO', 'RAJOA AGRO', 'BEAS AGRO'],
     },
     {
       name: 'Users and Roles',
-      subModules: ['Users', 'Roles', 'Permissions', 'Audit Access']
+      subModules: ['Users', 'Roles', 'Permissions', 'Audit Access'],
+    },
+    {
+      name: 'Products',
+      subModules: [],
+    },
+    {
+      name: 'Plants',
+      subModules: [],
     },
     {
       name: 'Settings',
-      subModules: ['Global Settings']
-    }
+      subModules: ['Global Settings'],
+    },
+    {
+      name: 'Finance',
+      subModules: [
+        'Deals / Soda Record',
+        'Sale',
+        'Purchase',
+        'Receivables',
+        'Payables',
+        'Payment Received',
+        'Payment Paid',
+      ],
+    },
+    // Milestone 4 remainder (Dispatch / Power / Backup) intentionally omitted until enabled in nav
   ];
+
+  /** Old DB moduleName → current MODULE_STRUCTURE name (no data loss on display) */
+  private readonly MODULE_ALIASES: Record<string, string[]> = {
+    'Yield Mgmt': ['Yield Mgmt', 'Yield'],
+    Transfer: ['Transfer', 'Dispatch'],
+    'Users and Roles': ['Users and Roles', 'Users', 'User Management'],
+    Plants: ['Plants'],
+    Products: ['Products'],
+  };
+
+  /** Old submodule labels → new nav labels (carry forward grants) */
+  private readonly SUBMODULE_ALIASES: Record<string, string[]> = {
+    'Create Gate Pass': ['Create Gate Pass', 'Gate In', 'Gate Out'],
+    Capture: ['Capture', 'Weighment'],
+    Settings: ['Settings', 'Device Config'],
+    History: ['History'],
+  };
+
+  private flagsFromPerm(row?: { canView?: boolean; canAdd?: boolean; canEdit?: boolean; canDelete?: boolean; canApprove?: boolean } | null) {
+    return {
+      view: !!row?.canView,
+      add: !!row?.canAdd,
+      edit: !!row?.canEdit,
+      delete: !!row?.canDelete,
+      approve: !!row?.canApprove,
+    };
+  }
 
   async getRolePermissions(roleId: string) {
     const existing = await this.prisma.modulePermission.findMany({
-      where: { roleId }
+      where: { roleId },
     });
 
-    return this.MODULE_STRUCTURE.map(mod => {
-      // Find parent permission
-      const parentPerm = existing.find(e => e.moduleName === mod.name && (!e.subModuleName || e.subModuleName === ''));
-      
+    const findParent = (modName: string) => {
+      const names = this.MODULE_ALIASES[modName] || [modName];
+      return existing.find(
+        (e) => names.includes(e.moduleName) && (!e.subModuleName || e.subModuleName === ''),
+      );
+    };
+
+    const findSub = (modName: string, subName: string) => {
+      const modNames = this.MODULE_ALIASES[modName] || [modName];
+      const subNames = this.SUBMODULE_ALIASES[subName] || [subName];
+      // Prefer exact match first
+      const exact = existing.find((e) => e.moduleName === modName && e.subModuleName === subName);
+      if (exact) return exact;
+      return existing.find(
+        (e) => modNames.includes(e.moduleName) && subNames.includes(e.subModuleName || ''),
+      );
+    };
+
+    return this.MODULE_STRUCTURE.map((mod) => {
+      const parentPerm = findParent(mod.name);
+      const parentFlags = this.flagsFromPerm(parentPerm);
+
       return {
         name: mod.name,
-        permissions: {
-          view: parentPerm?.canView || false,
-          add: parentPerm?.canAdd || false,
-          edit: parentPerm?.canEdit || false,
-          delete: parentPerm?.canDelete || false,
-          approve: parentPerm?.canApprove || false
-        },
-        subModules: mod.subModules.map(subName => {
-          const subPerm = existing.find(e => e.moduleName === mod.name && e.subModuleName === subName);
+        permissions: parentFlags,
+        subModules: mod.subModules.map((subName) => {
+          const subPerm = findSub(mod.name, subName);
+          const raw = this.flagsFromPerm(subPerm);
+          const hasAny = raw.view || raw.add || raw.edit || raw.delete || raw.approve;
+          // New/empty rows inherit parent so existing Yield/Gate access isn't blanked on UI
+          const subFlags =
+            subPerm && hasAny ? raw : parentFlags.view ? { ...parentFlags } : raw;
           return {
             name: subName,
-            permissions: {
-              view: subPerm?.canView || false,
-              add: subPerm?.canAdd || false,
-              edit: subPerm?.canEdit || false,
-              delete: subPerm?.canDelete || false,
-              approve: subPerm?.canApprove || false
-            }
+            permissions: subFlags,
           };
-        })
+        }),
       };
     });
   }

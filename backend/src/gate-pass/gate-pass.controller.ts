@@ -3,7 +3,7 @@ import { GatePassService } from './gate-pass.service';
 import { ProductsService } from '../products/products.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { RequirePermission } from '../common/decorators/require-permission.decorator';
+import { RequirePermission, RequireAnyPermission } from '../common/decorators/require-permission.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('api/gate-pass')
@@ -60,7 +60,7 @@ export class GatePassController {
   }
 
   @Get('scan/:qrCode')
-  @RequirePermission('Gate Pass', 'canView')
+  @RequireAnyPermission(['Gate Pass', 'Weighbridge', 'Transfer'], 'canView')
   getGatePassByQr(@Param('qrCode') qrCode: string) {
     return this.gatePassService.getGatePassByQr(qrCode);
   }
@@ -81,6 +81,13 @@ export class GatePassController {
   @RequirePermission('Gate Pass', 'canEdit')
   completeGatePass(@Param('id') id: string, @Body() data?: any) {
     return this.gatePassService.completeGatePass(id, data);
+  }
+
+  /** Feedback 28 — cancel/reverse GP so soda quota rolls back (status CANCELLED). */
+  @Post(':id/cancel')
+  @RequirePermission('Gate Pass', 'canEdit')
+  cancelGatePass(@Param('id') id: string, @Body() data?: { reason?: string }) {
+    return this.gatePassService.cancelGatePass(id, data?.reason);
   }
 
   @Post('report/finalize/:plantId')
@@ -118,7 +125,7 @@ export class GatePassController {
   }
 
   @Get('consignment/:gatePassId/:plantId')
-  @RequirePermission('Gate Pass', 'canView')
+  @RequireAnyPermission(['Gate Pass', 'Yield Mgmt', 'Transfer'], 'canView')
   getConsignmentSlipData(
     @Param('gatePassId') gatePassId: string,
     @Param('plantId') plantId: string

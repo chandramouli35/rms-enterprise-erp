@@ -12,13 +12,13 @@ export class TransferController {
   constructor(private readonly transferService: TransferService) {}
 
   @Get('metrics')
-  @RequirePermission('Dispatch', 'canView')
+  @RequirePermission('Transfer', 'canView')
   getMetrics(@Query('plantId') plantId: string) {
     return this.transferService.getMetrics(plantId);
   }
 
   @Get()
-  @RequirePermission('Dispatch', 'canView')
+  @RequirePermission('Transfer', 'canView')
   getAllTransfers(
     @Query('plantId') plantId: string,
     @Query('status') status?: string,
@@ -31,13 +31,13 @@ export class TransferController {
   }
 
   @Post()
-  @RequirePermission('Dispatch', 'canAdd')
+  @RequirePermission('Transfer', 'canAdd')
   createTransfer(@Body() createTransferDto: CreateTransferDto) {
     return this.transferService.createTransfer(createTransferDto);
   }
 
   @Patch(':id/status')
-  @RequirePermission('Dispatch', 'canEdit')
+  @RequirePermission('Transfer', 'canEdit')
   updateStatus(@Param('id') id: string, @Body() updateStatusDto: UpdateTransferStatusDto) {
     return this.transferService.updateStatus(id, updateStatusDto);
   }

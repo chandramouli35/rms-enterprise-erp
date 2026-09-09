@@ -1918,9 +1918,16 @@ export const GatePassManagement = () => {
   deliveryAtId: '',
   recipientPlantId: '',
   supervisorName: '',
-  actualDispatchPlantId: ''
+  actualDispatchPlantId: '',
+  // Feedback 28
+  financeSodaId: '',
+  financeSodaNA: false,
+  billNo: '',
+  billNoNA: false,
+  bagTypeGp: '',
 };
  const [formData, setFormData] = useState(defaultFormData);
+ const [financeSodaOptions, setFinanceSodaOptions] = useState<any[]>([]);
  
   // Auto-select first options for dynamic dropdowns if not already selected
   useEffect(() => {
@@ -1930,6 +1937,27 @@ export const GatePassManagement = () => {
       }
     }).catch(console.error);
   }, []);
+
+  // PDF: draft/plant or IN/OUT change dynamically updates soda visibility — clear stale selection
+  useEffect(() => {
+    setFormData((prev) =>
+      prev.financeSodaId || prev.financeSodaNA
+        ? { ...prev, financeSodaId: '', financeSodaNA: false }
+        : prev,
+    );
+  }, [formData.plantId, passCategory]);
+
+  useEffect(() => {
+    const pid = formData.plantId || activePlant?.id;
+    if (!pid || !passCategory) {
+      setFinanceSodaOptions([]);
+      return;
+    }
+    api
+      .get('/finance/sodas/available-for-gp', { params: { plantId: pid, passType: passCategory } })
+      .then((res) => setFinanceSodaOptions(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setFinanceSodaOptions([]));
+  }, [formData.plantId, activePlant?.id, passCategory]);
 
   useEffect(() => {
     if (activePlant) {
@@ -1959,6 +1987,8 @@ export const GatePassManagement = () => {
   const handleCategorySelect = (cat: 'INWARD' | 'OUTWARD') => {
     if (window.confirm(`You have selected Gate Pass ${cat === 'INWARD' ? 'In' : 'Out'} (Confirm) / Not`)) {
       setPassCategory(cat);
+      // Clear soda selection when IN/OUT changes (Sale vs Purchase filter)
+      setFormData((prev) => ({ ...prev, financeSodaId: '', financeSodaNA: false }));
     }
   };
 
@@ -2321,7 +2351,9 @@ export const GatePassManagement = () => {
 
     // Fetch suppliers independently so dropdown always populates even if analytics fail
     try {
-      const resSuppliers = await api.get(`/api/procurement/suppliers`);
+      const resSuppliers = await api.get(`/api/procurement/suppliers`, {
+        params: pid && pid !== 'global' ? { plantId: pid } : {},
+      });
       setSuppliers(resSuppliers.data);
     } catch (error) {
       console.error('Failed to fetch suppliers:', error);
@@ -2522,6 +2554,18 @@ export const GatePassManagement = () => {
     useUiStore.getState().addToast('Supervisor name is required for Transfer Entry.', 'error');
     return;
   }
+  if (!formData.billNoNA && !String(formData.billNo || '').trim()) {
+    useUiStore.getState().addToast('Bill No is required (or select Not Applicable).', 'error');
+    return;
+  }
+  if (!['PLASTIC', 'JUTE', 'NOT_APPLICABLE'].includes(String(formData.bagTypeGp || '').toUpperCase())) {
+    useUiStore.getState().addToast('Select Bag Type: Plastic, Jute, or Not Applicable.', 'error');
+    return;
+  }
+  if (!formData.financeSodaNA && !formData.financeSodaId) {
+    useUiStore.getState().addToast('Select Finance Soda No. or Not Applicable.', 'error');
+    return;
+  }
   try {
   const type = passCategory;
   
@@ -2555,6 +2599,11 @@ export const GatePassManagement = () => {
   recipientPlantId: formData.isTransfer ? formData.recipientPlantId : undefined,
   completedBySupervisor: formData.isTransfer ? formData.supervisorName : undefined,
   supervisorName: formData.isTransfer ? formData.supervisorName : undefined,
+  financeSodaId: formData.financeSodaNA ? undefined : formData.financeSodaId,
+  financeSodaNA: formData.financeSodaNA,
+  billNo: formData.billNoNA ? undefined : formData.billNo,
+  billNoNA: formData.billNoNA,
+  bagTypeGp: formData.bagTypeGp,
   items: formData.items
   });
 
@@ -3007,14 +3056,73 @@ export const GatePassManagement = () => {
     </div>
   )}
 
- <div className="grid grid-cols-2 gap-4">
+ <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
  <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">GST No.</label>
  <input type="text" name="gstNo" value={formData.gstNo} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" placeholder="Enter GST Number" />
  </div>
  <div>
- <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Sauda / Contract No.</label>
- <input type="text" name="sodaNo" value={formData.sodaNo} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
+ <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Finance Soda No. *</label>
+ <select
+   name="financeSodaId"
+   disabled={formData.financeSodaNA}
+   value={formData.financeSodaNA ? '' : formData.financeSodaId}
+   onChange={(e) => setFormData((prev) => ({ ...prev, financeSodaId: e.target.value, financeSodaNA: false }))}
+   className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"
+ >
+   <option value="">Select soda…</option>
+   {financeSodaOptions.map((o) => (
+     <option key={o.id} value={o.id}>{o.label}</option>
+   ))}
+ </select>
+ <label className="flex items-center gap-1.5 text-xs text-yellow-500/80 cursor-pointer mt-1">
+   <input
+     type="checkbox"
+     checked={formData.financeSodaNA}
+     onChange={(e) => setFormData((prev) => ({ ...prev, financeSodaNA: e.target.checked, financeSodaId: '' }))}
+     className="accent-yellow-500"
+   />
+   Not Applicable (notifies Admin if items present)
+ </label>
+ </div>
+ </div>
+
+ <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+ <div>
+ <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Bill No. *</label>
+ <input
+   type="text"
+   name="billNo"
+   disabled={formData.billNoNA}
+   value={formData.billNoNA ? '' : formData.billNo}
+   onChange={handleInputChange}
+   className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"
+   placeholder="Manual bill number"
+ />
+ <label className="flex items-center gap-1.5 text-xs text-yellow-500/80 cursor-pointer mt-1">
+   <input
+     type="checkbox"
+     checked={formData.billNoNA}
+     onChange={(e) => setFormData((prev) => ({ ...prev, billNoNA: e.target.checked, billNo: '' }))}
+     className="accent-yellow-500"
+   />
+   Not Applicable
+ </label>
+ </div>
+ <div>
+ <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Bag Type *</label>
+ <select
+   name="bagTypeGp"
+   value={formData.bagTypeGp}
+   onChange={handleInputChange}
+   className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"
+   required
+ >
+   <option value="">Select…</option>
+   <option value="PLASTIC">Plastic bag</option>
+   <option value="JUTE">Jute bag</option>
+   <option value="NOT_APPLICABLE">Not Applicable</option>
+ </select>
  </div>
  </div>
 
@@ -3150,6 +3258,24 @@ export const GatePassManagement = () => {
      title="Close with fingerprint"
    >
      Close
+   </button>
+ )}
+ {(row.status === 'ACTIVE' || row.status === 'COMPLETED') && (
+   <button
+     onClick={async () => {
+       if (!window.confirm('Cancel this Gate Pass? Soda quota will roll back.')) return;
+       try {
+         await api.post(`/api/gate-pass/${row.id}/cancel`, { reason: 'Cancelled from UI' });
+         useUiStore.getState().addToast('Gate Pass cancelled — soda quota updated', 'success');
+         fetchData();
+       } catch (e: any) {
+         useUiStore.getState().addToast(e?.response?.data?.message || 'Cancel failed', 'error');
+       }
+     }}
+     className="text-red-500/70 hover:text-red-400 text-[10px] font-bold uppercase"
+     title="Cancel / reverse (frees soda quota)"
+   >
+     Cancel
    </button>
  )}
  </div>
@@ -3663,12 +3789,13 @@ export const GatePassManagement = () => {
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Soda No.</th>
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Supervisor Sign</th>
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Note</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase text-center">Actions</th>
   </tr>
   </thead>
   <tbody>
   {recentEntries.length === 0 ? (
   <tr>
-  <td colSpan={14} className="py-8 text-center text-[var(--text-muted-alt)]">No records found</td>
+  <td colSpan={15} className="py-8 text-center text-[var(--text-muted-alt)]">No records found</td>
   </tr>
   ) : recentEntries.map((entry, idx) => (
   <tr key={entry.id} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)] transition-colors">
@@ -3705,6 +3832,27 @@ export const GatePassManagement = () => {
   <td className="py-3 text-sm font-medium text-[var(--text-main)]">{entry.completedBySupervisor || '-'}</td>
   <td className="py-3 text-sm text-[var(--text-muted-alt)] truncate max-w-[120px]" title={entry.isTransfer ? (entry.deliveryAtNote || entry.remarks || '') : (entry.remarks || '')}>
     {entry.isTransfer ? (entry.deliveryAtNote || entry.remarks || '-') : (entry.remarks || '-')}
+  </td>
+  <td className="py-3 text-center">
+    {(entry.status === 'ACTIVE' || entry.status === 'COMPLETED') && (
+      <button
+        type="button"
+        onClick={async () => {
+          if (!window.confirm('Cancel this Gate Pass? Soda quota will roll back.')) return;
+          try {
+            await api.post(`/api/gate-pass/${entry.id}/cancel`, { reason: 'Cancelled from report' });
+            useUiStore.getState().addToast('Gate Pass cancelled — soda quota updated', 'success');
+            fetchData();
+          } catch (e: any) {
+            useUiStore.getState().addToast(e?.response?.data?.message || 'Cancel failed', 'error');
+          }
+        }}
+        className="text-red-500/80 hover:text-red-400 text-[10px] font-bold uppercase"
+        title="Cancel / reverse (frees soda quota)"
+      >
+        Cancel
+      </button>
+    )}
   </td>
   </tr>
   ))}

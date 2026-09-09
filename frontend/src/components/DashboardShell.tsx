@@ -111,7 +111,9 @@ export const DashboardShell: React.FC = () => {
       { label: 'Inward List', tab: 'inward_register' },
       { label: 'Stack to Hoodi', tab: 'stack_to_hoodi' },
       { label: 'Global Settings (Govt Rate)', tab: 'global_settings' },
-      { label: 'Reports', tab: 'reports' }
+      { label: 'Reports', tab: 'reports' },
+      { label: 'Quality Inspection', tab: 'quality_inspection' },
+      { label: 'Purchase Register', tab: 'purchase_register' }
     ]},
  { label: 'Production', href: '/production', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
  { label: 'Batch Creation', tab: 'batch_creation' },
@@ -156,6 +158,15 @@ export const DashboardShell: React.FC = () => {
  { label: 'QR Barcode', tab: 'qr_barcode' },
  { label: 'Duplicate Prevention', tab: 'duplicate_prevention' }
  ]},
+ { label: 'Finance', href: '/finance', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
+ { label: 'Deals / Soda Record', tab: 'soda' },
+ { label: 'Sale', tab: 'sale' },
+ { label: 'Purchase', tab: 'purchase' },
+ { label: 'Receivables', tab: 'receivables' },
+ { label: 'Payables', tab: 'payables' },
+ { label: 'Payment Received', tab: 'payment_received' },
+ { label: 'Payment Paid', tab: 'payment_paid' }
+ ]},
 //   { label: 'Dispatch', href: '/dispatch', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
 //     { label: 'Dispatch Mgmt', tab: 'dispatch_mgmt' },
 //     { label: 'Vehicle Allocation', tab: 'vehicle_allocation' },
@@ -163,13 +174,6 @@ export const DashboardShell: React.FC = () => {
 //     { label: 'Inventory Deduction', tab: 'inventory_deduction' },
 //     { label: 'Finance Mgmt', tab: 'finance_management' },
 //     { label: 'Utility Mgmt', tab: 'utility_management' }
-//   ]},
-//   { label: 'Finance', href: '/finance', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
-//     { label: 'Purchase Ledger', tab: 'purchase' },
-//     { label: 'Sales / Dispatch Ledger', tab: 'sales' },
-//     { label: 'Expense Management', tab: 'expense' },
-//     { label: 'Cash Book', tab: 'cashbook' },
-//     { label: 'Dispatch Outstanding', tab: 'outstanding' }
 //   ]},
 //   { label: 'Power', href: '/power', icon: 'M13 10V3L4 14h7v7l9-11h-7z', roles: ['SUPER_ADMIN', 'PLANT_MANAGER'], subItems: [
 //     { label: 'Power Overview', tab: 'overview' },
@@ -224,67 +228,98 @@ export const DashboardShell: React.FC = () => {
 
   const hasPermission = (itemLabel: string, itemRoles: string[]) => {
     if (user?.role === 'SUPER_ADMIN') return true;
-    
-    const labelToModule: Record<string, string> = {
-      'Users and Roles': 'User Management',
-      'Transfer': 'Inventory',
-      'Plants': 'Settings',
-    };
-    
-    const moduleName = labelToModule[itemLabel] || itemLabel;
-    
+
+    // Nav label === MODULE_STRUCTURE name (no remaps that break RBAC)
+    const moduleName = itemLabel;
+
     if (user?.permissions && Array.isArray(user.permissions) && user.permissions.length > 0) {
       // Handle array of strings case
       if (typeof user.permissions[0] === 'string') {
         return user.permissions.some(p => p.toLowerCase() === moduleName.toLowerCase());
       }
-      
+
+      const aliases: Record<string, string[]> = {
+        'Yield Mgmt': ['Yield Mgmt', 'Yield'],
+        Transfer: ['Transfer', 'Dispatch'],
+        'Users and Roles': ['Users and Roles', 'Users', 'User Management'],
+        Plants: ['Plants'],
+      };
+      const accepted = (aliases[moduleName] || [moduleName]).map((n) => n.toLowerCase());
+
       const perm = user.permissions.find((p: any) => {
-        const pModName = p.moduleName || p.name || '';
-        return pModName.toLowerCase() === moduleName.toLowerCase();
+        const pModName = (p.moduleName || p.name || '').toLowerCase();
+        const isParent = !p.subModuleName || p.subModuleName === '';
+        return isParent && accepted.includes(pModName);
       });
-      
+
       if (perm) {
         const allowed = perm.canView === true || perm.view === true || (perm.permissions && perm.permissions.view === true) || String(perm.canView) === 'true' || String(perm.view) === 'true';
         return allowed;
       }
+
+      // Parent view implied if any submodule of this module is allowed
+      const anySub = user.permissions.some((p: any) => {
+        const pModName = (p.moduleName || p.name || '').toLowerCase();
+        if (!accepted.includes(pModName)) return false;
+        return p.canView === true || p.view === true || String(p.canView) === 'true';
+      });
+      if (anySub) return true;
     }
-    
+
     const fallback = itemRoles.includes(user?.role || '');
     return fallback;
   };
 
   const hasSubPermission = (parentModuleLabel: string, subModuleLabel: string) => {
-    if (subModuleLabel === 'Yield Calculator') return false;
     if (subModuleLabel === 'Global Settings (Govt Rate)' && user?.role !== 'SUPER_ADMIN') return false;
-    if (subModuleLabel === 'Reports') return true;
     if (user?.role === 'SUPER_ADMIN') return true;
-    const labelToModule: Record<string, string> = {
-      'Users and Roles': 'User Management',
-      'Transfer': 'Inventory',
-      'Plants': 'Settings',
+    const parentAliases: Record<string, string[]> = {
+      'Yield Mgmt': ['Yield Mgmt', 'Yield'],
+      Transfer: ['Transfer', 'Dispatch'],
+      'Users and Roles': ['Users and Roles', 'Users', 'User Management'],
+      'Gate Pass': ['Gate Pass'],
+      Weighbridge: ['Weighbridge'],
     };
-    const parentName = labelToModule[parentModuleLabel] || parentModuleLabel;
-    
+    const subAliases: Record<string, string[]> = {
+      'Create Gate Pass': ['Create Gate Pass', 'Gate In', 'Gate Out'],
+      Capture: ['Capture', 'Weighment'],
+      Settings: ['Settings', 'Device Config'],
+    };
+    const acceptedParents = (parentAliases[parentModuleLabel] || [parentModuleLabel]).map((n) =>
+      n.toLowerCase(),
+    );
+    const acceptedSubs = (subAliases[subModuleLabel] || [subModuleLabel]).map((n) => n.toLowerCase());
+
     if (user?.permissions && Array.isArray(user.permissions) && user.permissions.length > 0) {
-      if (typeof user.permissions[0] === 'string') return true;
-      
+      if (typeof user.permissions[0] === 'string') {
+        return acceptedParents.some((p) =>
+          user.permissions.some((perm: string) => String(perm).toLowerCase() === p),
+        );
+      }
+
       const perm = user.permissions.find((p: any) => {
-        const pModName = p.moduleName || p.name || '';
-        const pSubModName = p.subModuleName || '';
-        return pModName.toLowerCase() === parentName.toLowerCase() && pSubModName.toLowerCase() === subModuleLabel.toLowerCase();
+        const pModName = (p.moduleName || p.name || '').toLowerCase();
+        const pSubModName = (p.subModuleName || '').toLowerCase();
+        return acceptedParents.includes(pModName) && acceptedSubs.includes(pSubModName);
       });
-      
+
       if (perm) {
         return perm.canView === true || perm.view === true || (perm.permissions && perm.permissions.view === true) || String(perm.canView) === 'true' || String(perm.view) === 'true';
       }
-      
-      const hasAnySubmodulesForParent = user.permissions.some((p: any) => 
-        (p.moduleName || p.name || '').toLowerCase() === parentName.toLowerCase() && p.subModuleName
+
+      const hasAnySubmodulesForParent = user.permissions.some((p: any) =>
+        acceptedParents.includes((p.moduleName || p.name || '').toLowerCase()) && p.subModuleName
       );
       if (hasAnySubmodulesForParent) return false;
+
+      // Parent-only grant: if parent module has view and no submodule rows, allow all subs
+      const parentPerm = user.permissions.find((p: any) => {
+        const pModName = (p.moduleName || p.name || '').toLowerCase();
+        return acceptedParents.includes(pModName) && (!p.subModuleName || p.subModuleName === '');
+      });
+      if (parentPerm && (parentPerm.canView === true || parentPerm.view === true)) return true;
     }
-    
+
     return true;
   };
 

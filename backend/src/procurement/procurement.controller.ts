@@ -2,7 +2,7 @@ import { Controller, Post, Body, Get, Param, HttpException, HttpStatus, Put, Pat
 import { ProcurementService } from './procurement.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { RequirePermission } from '../common/decorators/require-permission.decorator';
+import { RequirePermission, RequireAnyPermission } from '../common/decorators/require-permission.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('api/procurement')
@@ -72,9 +72,9 @@ export class ProcurementController {
   }
 
   @Get('suppliers')
-  @RequirePermission('Procurement', 'canView')
-  getSuppliers() {
-    return this.procurementService.getSuppliers();
+  @RequireAnyPermission(['Procurement', 'Gate Pass'], 'canView')
+  getSuppliers(@Query('plantId') plantId?: string) {
+    return this.procurementService.getSuppliers(plantId);
   }
 
   @Post('suppliers')
@@ -106,7 +106,7 @@ export class ProcurementController {
   }
 
   @Get('soda-pending/:plantId')
-  @RequirePermission('Procurement', 'canView')
+  @RequireAnyPermission(['Procurement', 'Weighbridge'], 'canView')
   getSodaPending(
     @Param('plantId') plantId: string,
     @Query('dateFrom') dateFrom?: string,
@@ -154,7 +154,7 @@ export class ProcurementController {
   }
 
   @Get('reports/shortage-summary')
-  @RequirePermission('Procurement', 'canView')
+  @RequireAnyPermission(['Procurement', 'Dashboard'], 'canView')
   async getShortageSummaryReport(
     @Query('plantId') plantId: string,
     @Query('mandiId') mandiId?: string,
@@ -198,30 +198,35 @@ export class ProcurementController {
   }
 
   @Get('stack/layout')
+  @RequirePermission('Procurement', 'canView')
   async getStackLayout(@Query('plantId') plantId: string) {
     if (!plantId) throw new BadRequestException('plantId is required');
     return await this.procurementService.getStackLayout(plantId);
   }
 
   @Get('stack/active-trucks')
+  @RequirePermission('Procurement', 'canView')
   async getActiveUnloadingTrucks(@Query('plantId') plantId: string) {
     if (!plantId) throw new BadRequestException('plantId is required');
     return await this.procurementService.getActiveUnloadingTrucks(plantId);
   }
 
   @Get('stack/history')
+  @RequirePermission('Procurement', 'canView')
   async getStackHistory(@Query('plantId') plantId: string, @Query('stackNo') stackNo: string) {
     if (!plantId || !stackNo) throw new BadRequestException('plantId and stackNo required');
     return await this.procurementService.getStackHistory(plantId, stackNo);
   }
 
   @Patch('stack/:stackNo/complete')
+  @RequirePermission('Procurement', 'canEdit')
   async markStackComplete(@Param('stackNo') stackNo: string, @Body('plantId') plantId: string) {
     if (!plantId) throw new BadRequestException('plantId is required');
     return await this.procurementService.markStackComplete(plantId, stackNo);
   }
 
   @Post('stack/:stackNo/send-to-hoodi')
+  @RequirePermission('Procurement', 'canEdit')
   async sendStackToHoodi(@Param('stackNo') stackNo: string, @Body('plantId') plantId: string) {
     if (!plantId) throw new BadRequestException('plantId is required');
     return await this.procurementService.sendStackToHoodi(plantId, stackNo, 'system');

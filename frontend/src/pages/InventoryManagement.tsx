@@ -320,7 +320,7 @@ export const InventoryManagement = () => {
           </div>
           <button onClick={async () => {
             try {
-              const res = await api.get('/inventory', {
+              const res = await api.get('/api/inventory', {
                 params: {
                   itemType: activeTab,
                   godown: activeGodown === 'all' ? undefined : activeGodown,
@@ -351,7 +351,7 @@ export const InventoryManagement = () => {
           </button>
           <button onClick={async () => {
             try {
-              const res = await api.get('/inventory', {
+              const res = await api.get('/api/inventory', {
                 params: {
                   itemType: activeTab,
                   godown: activeGodown === 'all' ? undefined : activeGodown,

@@ -16,12 +16,9 @@ import { YieldManagement } from './pages/YieldManagement';
 import { InventoryManagement } from './pages/InventoryManagement';
 import { InterPlantTransfer } from './pages/InterPlantTransfer';
 import { ProductManagement } from './pages/ProductManagement';
-import { DispatchFinanceManagement } from './pages/DispatchFinanceManagement';
 import { FinanceManagement } from './pages/FinanceManagement';
-import { PowerManagement } from './pages/PowerManagement';
 import { StaffManagement } from './pages/StaffManagement';
 import DryerWork from './pages/DryerWork';
-import { BackupRestore } from './pages/BackupRestore';
 
 function App() {
   return (
@@ -45,12 +42,13 @@ function App() {
             <Route path="weighbridge" element={<WeighbridgeManagement />} />
             <Route path="gate-pass" element={<GatePassManagement />} />
             <Route path="products" element={<ProductManagement />} />
-            <Route path="dispatch" element={<DispatchFinanceManagement />} />
             <Route path="finance" element={<FinanceManagement />} />
-            <Route path="power" element={<PowerManagement />} />
+            {/* Milestone 4 remainder — redirect until enabled */}
+            <Route path="dispatch" element={<Navigate to="/dashboard" replace />} />
+            <Route path="power" element={<Navigate to="/dashboard" replace />} />
+            <Route path="backup" element={<Navigate to="/dashboard" replace />} />
             <Route path="staff" element={<StaffManagement />} />
             <Route path="dryer" element={<DryerWork />} />
-            <Route path="backup" element={<BackupRestore />} />
           </Route>
         </Route>
 

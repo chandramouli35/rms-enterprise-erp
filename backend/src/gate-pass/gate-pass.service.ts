@@ -1,10 +1,19 @@
-﻿import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, ConflictException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { FinanceSodaService } from '../finance/finance-soda.service';
+import { FinanceSalePurchaseService } from '../finance/finance-sale-purchase.service';
 
 @Injectable()
 export class GatePassService {
-  constructor(private prisma: PrismaService, private inventoryService: InventoryService) {}
+  constructor(
+    private prisma: PrismaService,
+    private inventoryService: InventoryService,
+    @Inject(forwardRef(() => FinanceSodaService))
+    private financeSodaService: FinanceSodaService,
+    @Inject(forwardRef(() => FinanceSalePurchaseService))
+    private salePurchaseService: FinanceSalePurchaseService,
+  ) {}
 
   async generateGatePass(data: any) {
     const { 
@@ -18,7 +27,9 @@ export class GatePassService {
       // New fields
       rstNo, gpStartDate, isCompleteDateNA, weighbridgeActive, mainBags, shortageBags, isDraft, items,
       // Transfer Entry fields
-      isTransfer, deliveryAtId, recipientPlantId
+      isTransfer, deliveryAtId, recipientPlantId,
+      // Feedback 28
+      financeSodaId, financeSodaNA, billNo, billNoNA, bagTypeGp,
     } = data;
     
     // Duplicate prevention for INWARD passes
@@ -127,7 +138,37 @@ export class GatePassService {
       deliveryAtName = deliverySupplier?.name || 'Unknown';
     }
 
-    const newPass = await this.prisma.gatePass.create({
+    // Feedback 28 — Bill No / Bag Type / Finance Soda
+    const billNA = billNoNA === true || billNoNA === 'true' || billNo === 'NOT_APPLICABLE';
+    if (!billNA && !String(billNo || '').trim()) {
+      throw new BadRequestException('Bill No is required (or select Not Applicable)');
+    }
+    const bag = String(bagTypeGp || '').toUpperCase();
+    if (!['PLASTIC', 'JUTE', 'NOT_APPLICABLE'].includes(bag)) {
+      throw new BadRequestException('Bag Type must be Plastic, Jute, or Not Applicable');
+    }
+
+    let resolvedFinanceSodaId: string | null = null;
+    const sodaNA = financeSodaNA === true || financeSodaNA === 'true' || financeSodaId === 'NOT_APPLICABLE';
+    if (!sodaNA && !financeSodaId) {
+      throw new BadRequestException('Select Finance Soda No. or Not Applicable');
+    }
+
+    // Resolve soda number label inside tx when linking; create GP under same lock to prevent over-quota
+    const newPass = await this.prisma.$transaction(async (tx) => {
+      let sodaNumberLabel: string | null = sodaNo || null;
+      if (!sodaNA && financeSodaId) {
+        const hit = await this.financeSodaService.assertSodaAssignable(
+          financeSodaId,
+          plantId,
+          passType,
+          tx,
+        );
+        resolvedFinanceSodaId = hit.id;
+        sodaNumberLabel = String(hit.sodaNumber);
+      }
+
+      return tx.gatePass.create({
       data: {
         plantId,
         passType,
@@ -148,7 +189,7 @@ export class GatePassService {
         // Feedback 21: Party Name = Recipient Mill; Note = Delivery At
         partyName: isTransfer ? transferRecipientName : partyName,
         ntWtParty: ntWtParty ? parseFloat(ntWtParty) : null,
-        sodaNo,
+        sodaNo: resolvedFinanceSodaId ? sodaNumberLabel : sodaNo,
         remarks: isTransfer ? `Delivery At: ${deliveryAtName}` : remarks,
         gstNo,
         biometricData: data.biometricData || null,
@@ -174,6 +215,10 @@ export class GatePassService {
         deliveryAtId: isTransfer ? (deliveryAtId || null) : null,
         gpSuffix: gpSuffix,
         actualDispatchPlantId: isTransfer ? plantId : null,
+        financeSodaId: resolvedFinanceSodaId,
+        billNo: billNA ? null : String(billNo).trim(),
+        billNoNA: billNA,
+        bagTypeGp: bag,
 
         // Items creation
         items: items && items.length > 0 ? {
@@ -194,6 +239,7 @@ export class GatePassService {
           }
         }
       }
+    });
     });
 
     // If this is a Transfer Entry, create a TransferTicket
@@ -239,6 +285,23 @@ export class GatePassService {
           role: 'SUPER_ADMIN',
         },
       });
+    }
+
+    // Feedback 28: operational GP without finance soda (N/A) → notify admin + that mill's supervisors
+    const hasOperationalItems =
+      (items && items.length > 0 && items.some((it: any) => String(it.itemName || '').trim())) ||
+      !!String(material || '').trim();
+    if (!isTransfer && sodaNA && hasOperationalItems) {
+      await this.financeSodaService.notifyMissingSoda(plantId, qrCode);
+    }
+
+    // Feedback 29: non-draft GP with soda → Sale/Purchase report line + Section H
+    if (!isDraft && resolvedFinanceSodaId) {
+      try {
+        await this.salePurchaseService.syncFromGatePass(newPass.id);
+      } catch (e) {
+        console.error('F29 sale/purchase sync failed', e);
+      }
     }
 
     return newPass;
@@ -455,6 +518,35 @@ export class GatePassService {
     throw new BadRequestException('Saved Gate Passes cannot be edited (including drafts and weighbridge data).');
   }
 
+  /**
+   * Feedback 28 — cancel/reverse a gate pass so soda delivered count rolls back
+   * (CANCELLED GPs are excluded from FinanceSoda quota / mill cells G,H,I).
+   */
+  async cancelGatePass(id: string, reason?: string) {
+    const pass = await this.prisma.gatePass.findUnique({ where: { id } });
+    if (!pass) throw new NotFoundException('Gate Pass not found');
+    if (pass.status === 'CANCELLED') throw new BadRequestException('Gate Pass already cancelled');
+
+    const updated = await this.prisma.gatePass.update({
+      where: { id },
+      data: {
+        status: 'CANCELLED',
+        remarks: reason
+          ? `${pass.remarks || ''}\n[CANCELLED] ${reason}`.trim()
+          : pass.remarks,
+      },
+    });
+
+    // F29: remove sale/purchase report row + roll back soda Section K
+    try {
+      await this.salePurchaseService.removeForGatePass(id);
+    } catch (e) {
+      console.error('F29 remove report line failed', e);
+    }
+
+    return updated;
+  }
+
   /** Resolve inventory qty for a GP item â€” Feedback 20: use total bags when bag-based */
   private resolveInventoryQuantity(
     pass: any,
@@ -553,6 +645,7 @@ export class GatePassService {
     });
     if (!pass) throw new NotFoundException('Gate Pass not found');
     if (pass.status === 'COMPLETED') throw new BadRequestException('Gate Pass already completed');
+    if (pass.status === 'CANCELLED') throw new BadRequestException('Gate Pass is cancelled');
 
     if (!completionData?.biometricData && !pass.biometricData) {
       throw new BadRequestException('Biometric authentication is strictly required to close the Gate Pass');
@@ -601,6 +694,15 @@ export class GatePassService {
       await this.applyGatePassInventory(pass, tx);
       return gpass;
     });
+
+    // F29: draft → submitted on complete → push report line if linked soda
+    if (pass.financeSodaId) {
+      try {
+        await this.salePurchaseService.syncFromGatePass(id);
+      } catch (e) {
+        console.error('F29 sale/purchase sync on complete failed', e);
+      }
+    }
 
     return updatedPass;
   }

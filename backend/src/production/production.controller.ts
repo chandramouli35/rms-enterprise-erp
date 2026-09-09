@@ -4,7 +4,7 @@ import { CreateBatchDto } from './dto/create-batch.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PlantContextGuard } from '../common/guards/plant-context.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { RequirePermission } from '../common/decorators/require-permission.decorator';
+import { RequirePermission, RequireAnyPermission } from '../common/decorators/require-permission.decorator';
 
 @UseGuards(JwtAuthGuard, PlantContextGuard, PermissionsGuard)
 @Controller('production')
@@ -18,7 +18,7 @@ export class ProductionController {
   }
 
   @Get('batches')
-  @RequirePermission('Production', 'canView')
+  @RequireAnyPermission(['Production', 'Yield Mgmt', 'Dashboard'], 'canView')
   getBatches(
     @Req() req: any,
     @Query('plantId') plantId: string,
@@ -32,7 +32,7 @@ export class ProductionController {
   }
 
   @Get('batches/:id')
-  @RequirePermission('Production', 'canView')
+  @RequireAnyPermission(['Production', 'Yield Mgmt'], 'canView')
   getBatchDetails(@Param('id') id: string) {
     return this.productionService.getBatchDetails(id);
   }
@@ -83,25 +83,25 @@ export class ProductionController {
   }
 
   @Get('mill-yield-benchmarks')
-  @RequirePermission('Yield', 'canView')
+  @RequirePermission('Yield Mgmt', 'canView')
   listMillYieldBenchmarks() {
     return this.productionService.listMillYieldBenchmarks();
   }
 
   @Post('mill-yield-benchmarks')
-  @RequirePermission('Yield', 'canEdit')
+  @RequirePermission('Yield Mgmt', 'canEdit')
   createMillYieldBenchmark(@Body() body: any) {
     return this.productionService.createMillYieldBenchmark(body);
   }
 
   @Put('mill-yield-benchmarks/:id')
-  @RequirePermission('Yield', 'canEdit')
+  @RequirePermission('Yield Mgmt', 'canEdit')
   updateMillYieldBenchmark(@Param('id') id: string, @Body() body: any) {
     return this.productionService.updateMillYieldBenchmark(id, body);
   }
 
   @Delete('mill-yield-benchmarks/:id')
-  @RequirePermission('Yield', 'canEdit')
+  @RequirePermission('Yield Mgmt', 'canEdit')
   softDeleteMillYieldBenchmark(@Param('id') id: string) {
     return this.productionService.softDeleteMillYieldBenchmark(id);
   }
