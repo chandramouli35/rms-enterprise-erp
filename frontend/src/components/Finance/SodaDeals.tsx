@@ -4,6 +4,7 @@ import { financeSodaApi } from '../../api/financeSoda';
 import { productsApi } from '../../api/products';
 import { useAuthStore } from '../../store/authStore';
 import { useUiStore } from '../../store/uiStore';
+import { hasFinancePermission } from '../../utils/financePermissions';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -11,6 +12,8 @@ export const SodaDeals: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const addToast = useUiStore((s) => s.addToast);
   const role = user?.role;
+  const canAddSoda = hasFinancePermission('Deals / Soda Record', 'canAdd');
+  const canEditSoda = hasFinancePermission('Deals / Soda Record', 'canEdit');
 
   const [reportType, setReportType] = useState<'SALE' | 'PURCHASE'>('SALE');
   const [plants, setPlants] = useState<any[]>([]);
@@ -230,13 +233,15 @@ export const SodaDeals: React.FC = () => {
           <h2 className="text-xl font-bold text-[var(--text-main)]">Deals / Soda Record</h2>
           <p className="text-sm text-[var(--text-muted)]">Sale &amp; Purchase soda orders with mill quota tracking</p>
         </div>
-        <button
-          type="button"
-          onClick={openAdd}
-          className="px-4 py-2 rounded-lg bg-amber-500 text-black font-semibold text-sm hover:bg-amber-400"
-        >
-          + Add Soda
-        </button>
+        {canAddSoda && (
+          <button
+            type="button"
+            onClick={openAdd}
+            className="px-4 py-2 rounded-lg bg-amber-500 text-black font-semibold text-sm hover:bg-amber-400"
+          >
+            + Add Soda
+          </button>
+        )}
       </div>
 
       <div className="flex gap-2">
@@ -333,7 +338,7 @@ export const SodaDeals: React.FC = () => {
                   {s.note || '—'}
                 </td>
                 <td className="px-2 py-2">
-                  {isAdmin && !s.isCompleted && (
+                  {isAdmin && canEditSoda && !s.isCompleted && (
                     <button
                       type="button"
                       className="text-amber-400 underline"

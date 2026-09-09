@@ -115,6 +115,7 @@ async function wipePreviousSeed() {
     await prisma.gatePassItem.deleteMany({ where: { gatePassId: { in: gpIds } } });
     await prisma.gatePass.deleteMany({ where: { id: { in: gpIds } } });
   }
+  await prisma.financeLedgerEntry.deleteMany({ where: { financeSodaId: { in: sodaIds } } });
   await prisma.financeSalePurchaseLine.deleteMany({ where: { financeSodaId: { in: sodaIds } } });
   await prisma.financePaymentStatusAudit.deleteMany({ where: { financeSodaId: { in: sodaIds } } });
   await prisma.financeSodaMill.deleteMany({ where: { sodaId: { in: sodaIds } } });
@@ -284,8 +285,67 @@ async function resyncSodaK(financeSodaId: string) {
   });
 }
 
+/** Feedback 31 — mirror Section Y into FinanceLedgerEntry for seeded lines */
+async function syncSeedLedger() {
+  const lines = await prisma.financeSalePurchaseLine.findMany({
+    where: { financeSoda: { note: { contains: SEED_TAG } } },
+    include: {
+      gatePass: true,
+      financeSoda: true,
+    },
+  });
+  let synced = 0;
+  for (const line of lines) {
+    const soda = line.financeSoda;
+    const gp = line.gatePass;
+    if (!soda || !gp) continue;
+    const bags = ((gp.mainBags || 0) + (gp.shortageBags || 0)) || gp.noOfBags || 0;
+    const bagType = String(gp.bagTypeGp || '').toUpperCase();
+    const bagConst = bagType === 'PLASTIC' ? 0.002 : bagType === 'JUTE' ? 0.01 : 0;
+    const tare = line.bagWeightConsideration ? bags * bagConst : 0;
+    const mill = Math.max(0, (gp.netWeight || 0) - tare);
+    const party = Math.max(0, (gp.ntWtParty || 0) - tare);
+    const lower = Math.min(mill, party);
+    const rateD = soda.isShift ? null : soda.rate;
+    let rateV = rateD;
+    if (line.oilResult != null && rateD != null) {
+      rateV = oilAfterCut(line.oilResult) * rateD;
+    }
+    const bill = rateV != null ? rateV * lower : 0;
+    const net = Math.round((bill - bill * ((line.cdPercent || 0) / 100)) * 1000) / 1000;
+    const isSale = line.reportType === 'SALE';
+    const sodaLabel = `${isSale ? 'SO' : 'PO'}-${String(soda.sodaNumber).padStart(2, '0')}`;
+    await prisma.financeLedgerEntry.upsert({
+      where: { salePurchaseLineId: line.id },
+      create: {
+        date: gp.gpStartDate || gp.createdAt || soda.date,
+        entryType: isSale ? 'SALE' : 'PURCHASE',
+        partyId: soda.partyId,
+        partyPlantId: soda.partyPlantId,
+        financeSodaId: soda.id,
+        salePurchaseLineId: line.id,
+        plantId: line.plantId,
+        narration: `Soda No. ${sodaLabel} · GP ${gp.qrCode}`,
+        debit: isSale ? net : 0,
+        credit: isSale ? 0 : net,
+      },
+      update: {
+        date: gp.gpStartDate || gp.createdAt || soda.date,
+        narration: `Soda No. ${sodaLabel} · GP ${gp.qrCode}`,
+        debit: isSale ? net : 0,
+        credit: isSale ? 0 : net,
+        partyId: soda.partyId,
+        partyPlantId: soda.partyPlantId,
+        plantId: line.plantId,
+      },
+    });
+    synced += 1;
+  }
+  console.log(`📒 F31 ledger synced for ${synced} report line(s)`);
+}
+
 async function main() {
-  console.log('🌱 Seeding Finance F28/F29 demo flow...\n');
+  console.log('🌱 Seeding Finance F28/F29/F31 demo flow...\n');
 
   await wipePreviousSeed();
 
@@ -506,9 +566,15 @@ async function main() {
   console.log(`  Purchase #${purchaseHusk.sodaNumber} Husk — 1/2 @ Goyal`);
   console.log(`  Purchase #${purchaseShift.sodaNumber} Rice Broken — Shift (open)`);
   console.log('');
+
+  await syncSeedLedger();
+
   console.log('SALE / PURCHASE REPORT');
   console.log('  Finance → Sale     → filter mill / All mills (3 Bran lines H=01..03)');
   console.log('  Finance → Purchase → Goyal (1 Husk line)');
+  console.log('');
+  console.log('LEDGER (F31)');
+  console.log('  Finance → Receivables / Payables / Payment Received / Payment Paid');
   console.log('');
   console.log('NEXT MANUAL STEP (dynamic flow)');
   console.log('  1. Finance → Deals / Soda → Add Soda (dropdowns populated)');

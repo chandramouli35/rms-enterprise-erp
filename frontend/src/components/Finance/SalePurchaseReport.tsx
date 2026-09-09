@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { oilResultAfterCut, salePurchaseApi } from '../../api/salePurchase';
 import { useAuthStore } from '../../store/authStore';
 import { useUiStore } from '../../store/uiStore';
+import { hasFinancePermission } from '../../utils/financePermissions';
 
 type ReportType = 'SALE' | 'PURCHASE';
 
@@ -17,6 +18,8 @@ export const SalePurchaseReport: React.FC<{ reportType: ReportType }> = ({ repor
   const user = useAuthStore((s) => s.user);
   const addToast = useUiStore((s) => s.addToast);
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const subLabel = reportType === 'SALE' ? 'Sale' : 'Purchase';
+  const canEditReport = isAdmin && hasFinancePermission(subLabel, 'canEdit');
 
   const [plants, setPlants] = useState<any[]>([]);
   const [plantId, setPlantId] = useState('');
@@ -52,9 +55,9 @@ export const SalePurchaseReport: React.FC<{ reportType: ReportType }> = ({ repor
     load();
   }, [load]);
 
-  // Near-real-time sync (PDF websocket deferred → poll)
+  // Near-real-time sync (PDF: websocket / no manual refresh → short poll)
   useEffect(() => {
-    const t = setInterval(() => load(), 8000);
+    const t = setInterval(() => load(), 3000);
     return () => clearInterval(t);
   }, [load]);
 
@@ -122,7 +125,7 @@ export const SalePurchaseReport: React.FC<{ reportType: ReportType }> = ({ repor
               ))}
             </select>
           </label>
-          {isAdmin && (
+          {canEditReport && (
             <>
               <button
                 type="button"
@@ -257,7 +260,7 @@ export const SalePurchaseReport: React.FC<{ reportType: ReportType }> = ({ repor
                   <td className="px-2 py-1.5 text-[var(--text-main)]">{r.bags}</td>
                   <td className="px-2 py-1.5 text-[var(--text-main)]">{r.bagType || '—'}</td>
                   <td className="px-2 py-1.5" title={r.bagWeightError || ''}>
-                    {isAdmin ? (
+                    {canEditReport ? (
                       <select
                         value={r.bagWeightConsideration ? 'YES' : 'NO'}
                         onChange={(e) =>
@@ -276,7 +279,7 @@ export const SalePurchaseReport: React.FC<{ reportType: ReportType }> = ({ repor
                     )}
                   </td>
                   <td className="px-2 py-1.5">
-                    {r.isRiceBran && isAdmin ? (
+                    {r.isRiceBran && canEditReport ? (
                       <input
                         type="number"
                         step="0.01"
@@ -334,7 +337,7 @@ export const SalePurchaseReport: React.FC<{ reportType: ReportType }> = ({ repor
                   </td>
                   <td className="px-2 py-1.5 text-[var(--text-main)]">{fmtMoney(r.billAmount)}</td>
                   <td className="px-2 py-1.5">
-                    {isAdmin ? (
+                    {canEditReport ? (
                       <input
                         type="number"
                         step="0.1"
@@ -350,7 +353,7 @@ export const SalePurchaseReport: React.FC<{ reportType: ReportType }> = ({ repor
                   </td>
                   <td className="px-2 py-1.5 font-semibold text-green-400">{fmtMoney(r.netPayment)}</td>
                   <td className="px-2 py-1.5">
-                    {isAdmin ? (
+                    {canEditReport ? (
                       <select
                         value={r.paymentStatus}
                         onChange={(e) => patchPay(r.id, e.target.value)}
@@ -369,7 +372,7 @@ export const SalePurchaseReport: React.FC<{ reportType: ReportType }> = ({ repor
                     )}
                   </td>
                   <td className="px-2 py-1.5">
-                    {isAdmin ? (
+                    {canEditReport ? (
                       <input
                         type="text"
                         defaultValue={r.note || ''}

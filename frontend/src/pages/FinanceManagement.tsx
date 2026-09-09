@@ -1,14 +1,11 @@
 import React, { useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Navigate } from 'react-router-dom';
 import { SodaDeals } from '../components/Finance/SodaDeals';
 import { SalePurchaseReport } from '../components/Finance/SalePurchaseReport';
-
-const STUBS: Record<string, { title: string; feedback: string }> = {
-  receivables: { title: 'Receivables', feedback: 'Feedback 31' },
-  payables: { title: 'Payables', feedback: 'Feedback 31' },
-  payment_received: { title: 'Payment Received', feedback: 'Feedback 31' },
-  payment_paid: { title: 'Payment Paid', feedback: 'Feedback 31' },
-};
+import { JunctionReport } from '../components/Finance/JunctionReport';
+import { ReceivablesPayables } from '../components/Finance/ReceivablesPayables';
+import { PaymentEntry } from '../components/Finance/PaymentEntry';
+import { FINANCE_TAB_SUBMODULE, hasFinancePermission } from '../utils/financePermissions';
 
 export const FinanceManagement: React.FC = () => {
   const [params, setParams] = useSearchParams();
@@ -20,22 +17,30 @@ export const FinanceManagement: React.FC = () => {
     }
   }, []);
 
-  const stub = STUBS[tab];
+  const sub = FINANCE_TAB_SUBMODULE[tab];
+  if (sub && !hasFinancePermission(sub, 'canView')) {
+    // Prefer first allowed Finance tab
+    const first = Object.entries(FINANCE_TAB_SUBMODULE).find(([, label]) =>
+      hasFinancePermission(label, 'canView'),
+    );
+    if (first) return <Navigate to={`/finance?tab=${first[0]}`} replace />;
+              return (
+      <div className="p-8 text-center text-sm text-[var(--text-muted)]">
+        You do not have permission to view this Finance section.
+    </div>
+  );
+  }
 
   return (
     <div className="p-2 md:p-4">
       {tab === 'soda' && <SodaDeals />}
       {tab === 'sale' && <SalePurchaseReport reportType="SALE" />}
       {tab === 'purchase' && <SalePurchaseReport reportType="PURCHASE" />}
-      {stub && (
-        <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-8 text-center max-w-xl mx-auto mt-8">
-          <h2 className="text-xl font-bold text-[var(--text-main)] mb-2">{stub.title}</h2>
-          <p className="text-[var(--text-muted)] text-sm">
-            This subsection is specified in <strong className="text-[var(--text-main)]">{stub.feedback}</strong>.
-            Navigation is enabled; full UI arrives with that feedback.
-          </p>
-        </div>
-      )}
+      {tab === 'junction' && <JunctionReport />}
+      {tab === 'receivables' && <ReceivablesPayables kind="RECEIVABLES" />}
+      {tab === 'payables' && <ReceivablesPayables kind="PAYABLES" />}
+      {tab === 'payment_received' && <PaymentEntry entryType="RECEIPT" />}
+      {tab === 'payment_paid' && <PaymentEntry entryType="PAYMENT" />}
     </div>
   );
 };

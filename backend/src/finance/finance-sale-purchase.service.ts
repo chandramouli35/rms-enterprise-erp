@@ -3,8 +3,11 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { FinanceLedgerService } from './finance-ledger.service';
 
 /** Feedback 29 bag tare constants (quintals per bag) */
 export const BAG_WEIGHT_PLASTIC_QTL = 0.002;
@@ -12,7 +15,11 @@ export const BAG_WEIGHT_JUTE_QTL = 0.01;
 
 @Injectable()
 export class FinanceSalePurchaseService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => FinanceLedgerService))
+    private ledger: FinanceLedgerService,
+  ) {}
 
   /** Section P: Oil Result After Cut */
   static oilResultAfterCut(oilResult: number | null | undefined): number | null {
@@ -92,6 +99,11 @@ export class FinanceSalePurchaseService {
     });
 
     await this.resyncSodaPaymentAmount(soda.id);
+    try {
+      await this.ledger.syncReportLine(line.id);
+    } catch {
+      /* ledger sync best-effort; report line remains source of truth */
+    }
     return line;
   }
 
@@ -100,6 +112,11 @@ export class FinanceSalePurchaseService {
       where: { gatePassId },
     });
     if (!existing) return null;
+    try {
+      await this.ledger.removeReportLine(existing.id);
+    } catch {
+      /* ignore */
+    }
     await this.prisma.financeSalePurchaseLine.delete({ where: { gatePassId } });
     await this.resyncSodaPaymentAmount(existing.financeSodaId);
     return existing;
@@ -375,6 +392,11 @@ export class FinanceSalePurchaseService {
     });
 
     await this.resyncSodaPaymentAmount(line.financeSodaId);
+    try {
+      await this.ledger.syncReportLine(id);
+    } catch {
+      /* ignore */
+    }
 
     const refreshed = await this.prisma.financeSalePurchaseLine.findUnique({
       where: { id },
@@ -466,6 +488,170 @@ export class FinanceSalePurchaseService {
       const line = await this.syncFromGatePass(gp.id);
       if (line) created += 1;
     }
-    return { scanned: gps.length, created };
+    const ledger = await this.ledger.backfillFromReportLines();
+    return { scanned: gps.length, created, ledger };
+  }
+
+  // ─── Feedback 30 — Junction Report ───────────────────────────────────────
+  private partyKeyOf(soda: { partyId?: string | null; partyPlantId?: string | null }) {
+    if (soda.partyId) return `party:${soda.partyId}`;
+    if (soda.partyPlantId) return `plant:${soda.partyPlantId}`;
+    return '';
+  }
+
+  private partyNameOf(soda: any) {
+    return soda.party?.name || soda.partyPlant?.name || '—';
+  }
+
+  /**
+   * Cross-mill Sale/Purchase junction: filter by party ↔ soda (linked),
+   * stitch all mill lines A–AA, soda-wise Total Receivables / Payables.
+   * PDF Table 01: sections ordered by soda no + serial; summary after each soda.
+   */
+  async junctionReport(
+    reportType: 'SALE' | 'PURCHASE',
+    filters?: { partyKey?: string; financeSodaId?: string },
+  ) {
+    const type = reportType === 'PURCHASE' ? 'PURCHASE' : 'SALE';
+    const partyKey = filters?.partyKey || '';
+    const financeSodaId = filters?.financeSodaId || '';
+    const summaryLabel = type === 'SALE' ? 'Total Receivables' : 'Total Payables';
+
+    const sodas = await this.prisma.financeSoda.findMany({
+      where: { sodaType: type },
+      include: {
+        item: { select: { id: true, name: true } },
+        party: { select: { id: true, name: true } },
+        partyPlant: { select: { id: true, name: true } },
+        salePurchaseLines: {
+          include: {
+            plant: { select: { id: true, name: true } },
+            gatePass: true,
+            financeSoda: {
+              include: {
+                item: { select: { id: true, name: true } },
+                party: { select: { id: true, name: true } },
+                partyPlant: { select: { id: true, name: true } },
+              },
+            },
+          },
+          orderBy: [{ serialNo: 'asc' }, { createdAt: 'asc' }],
+        },
+      },
+      orderBy: { sodaNumber: 'asc' },
+    });
+
+    // Full party list always (filter UI must stay switchable)
+    const partyMap = new Map<string, { key: string; name: string; sodaCount: number }>();
+    for (const s of sodas) {
+      const key = this.partyKeyOf(s);
+      if (!key) continue;
+      const name = this.partyNameOf(s);
+      const prev = partyMap.get(key);
+      if (prev) prev.sodaCount += 1;
+      else partyMap.set(key, { key, name, sodaCount: 1 });
+    }
+    const parties = [...partyMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+
+    const mapSodaOpt = (s: (typeof sodas)[0]) => ({
+      id: s.id,
+      sodaNumber: s.sodaNumber,
+      label: `${type === 'SALE' ? 'SO' : 'PO'}-${String(s.sodaNumber).padStart(2, '0')} · ${s.item?.name || ''} · ${this.partyNameOf(s)}`,
+      partyKey: this.partyKeyOf(s),
+      partyName: this.partyNameOf(s),
+      paymentStatus: s.paymentStatus,
+      itemName: s.item?.name || '',
+      lineCount: s.salePurchaseLines.length,
+    });
+
+    // Linked filters: Party narrows soda list; Soda implies its party’s sodas in the panel
+    let sodaOptions = sodas.map(mapSodaOpt);
+    let linkPartyKey = partyKey;
+    if (financeSodaId) {
+      const hit = sodas.find((s) => s.id === financeSodaId);
+      if (hit) {
+        const pk = this.partyKeyOf(hit);
+        if (!linkPartyKey) linkPartyKey = pk;
+      }
+    }
+    if (linkPartyKey) {
+      sodaOptions = sodaOptions.filter((o) => o.partyKey === linkPartyKey);
+    }
+
+    const hasFilter = !!(partyKey || financeSodaId);
+    let targetSodas = sodas;
+    if (partyKey) targetSodas = targetSodas.filter((s) => this.partyKeyOf(s) === partyKey);
+    if (financeSodaId) targetSodas = targetSodas.filter((s) => s.id === financeSodaId);
+    targetSodas = [...targetSodas].sort((a, b) => a.sodaNumber - b.sodaNumber);
+
+    const sections: {
+      financeSodaId: string;
+      sodaNumber: number;
+      partyName: string;
+      itemName: string;
+      paymentStatus: string;
+      totalNetPayment: number;
+      label: string;
+      rows: any[];
+    }[] = [];
+    const rows: any[] = [];
+    const summaries: {
+      financeSodaId: string;
+      sodaNumber: number;
+      partyName: string;
+      itemName: string;
+      paymentStatus: string;
+      totalNetPayment: number;
+      label: string;
+    }[] = [];
+
+    if (hasFilter) {
+      for (const s of targetSodas) {
+        const sectionRows: any[] = [];
+        let sodaTotal = 0;
+        const lines = [...s.salePurchaseLines].sort((a, b) => {
+          if ((a.serialNo || 0) !== (b.serialNo || 0)) return (a.serialNo || 0) - (b.serialNo || 0);
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        });
+        for (const line of lines) {
+          const shaped = this.shapeLine({
+            ...line,
+            financeSoda: line.financeSoda || s,
+            plant: line.plant,
+          });
+          sectionRows.push(shaped);
+          rows.push(shaped);
+          sodaTotal += shaped.netPayment || 0;
+        }
+        const totalNetPayment = FinanceSalePurchaseService.round3(sodaTotal);
+        const meta = {
+          financeSodaId: s.id,
+          sodaNumber: s.sodaNumber,
+          partyName: this.partyNameOf(s),
+          itemName: s.item?.name || '',
+          paymentStatus: s.paymentStatus,
+          totalNetPayment,
+          label: summaryLabel,
+        };
+        summaries.push(meta);
+        sections.push({ ...meta, rows: sectionRows });
+      }
+    }
+
+    const grandTotal = FinanceSalePurchaseService.round3(
+      summaries.reduce((sum, s) => sum + (s.totalNetPayment || 0), 0),
+    );
+
+    return {
+      reportType: type,
+      summaryLabel,
+      parties,
+      sodas: sodaOptions,
+      rows,
+      sections,
+      summaries,
+      grandTotal,
+      hasFilter,
+    };
   }
 }

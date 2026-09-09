@@ -42,6 +42,8 @@ model Plant {
   financeSodaMills        FinanceSodaMill[]
   financeSodasAsParty     FinanceSoda[]        @relation("SodaPartyPlant")
   financeSalePurchaseLines FinanceSalePurchaseLine[]
+  financeLedgerAsParty    FinanceLedgerEntry[] @relation("LedgerPartyPlant")
+  financeLedgerMills      FinanceLedgerEntry[] @relation("LedgerMill")
   systemUtility           SystemUtility?
   plantDowntimes          PlantDowntime[]
 
@@ -844,7 +846,8 @@ model FinanceParty {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sodas FinanceSoda[]
+  sodas   FinanceSoda[]
+  ledger  FinanceLedgerEntry[]
 
   @@index([name])
 }
@@ -877,6 +880,7 @@ model FinanceSoda {
   gatePasses GatePass[] @relation("FinanceSodaGatePasses")
   salePurchaseLines FinanceSalePurchaseLine[]
   paymentStatusAudits FinancePaymentStatusAudit[]
+  ledgerEntries FinanceLedgerEntry[]
 
   @@unique([sodaType, sodaNumber])
   @@index([sodaType])
@@ -921,6 +925,8 @@ model FinanceSalePurchaseLine {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  ledgerEntry FinanceLedgerEntry?
+
   @@unique([financeSodaId, serialNo])
   @@index([plantId, reportType])
   @@index([financeSodaId])
@@ -939,8 +945,40 @@ model FinancePaymentStatusAudit {
 }
 
 // -----------------------------------------------------------------------------
-// Finance Management — Ledger (Milestone 4 / Feedback 31)
+// Finance Management — Party Ledger (Feedback 31)
+// SALE → Debit (receivable) | PURCHASE → Credit (payable)
+// RECEIPT (Payment Received) → Credit | PAYMENT (Payment Paid) → Debit
 // -----------------------------------------------------------------------------
+model FinanceLedgerEntry {
+  id                 String   @id @default(uuid())
+  date               DateTime
+  entryType          String // SALE | PURCHASE | RECEIPT | PAYMENT
+  partyId            String?
+  party              FinanceParty? @relation(fields: [partyId], references: [id])
+  partyPlantId       String?
+  partyPlant         Plant?   @relation("LedgerPartyPlant", fields: [partyPlantId], references: [id])
+  financeSodaId      String?
+  financeSoda        FinanceSoda? @relation(fields: [financeSodaId], references: [id])
+  salePurchaseLineId String?  @unique
+  salePurchaseLine   FinanceSalePurchaseLine? @relation(fields: [salePurchaseLineId], references: [id], onDelete: Cascade)
+  plantId            String?
+  plant              Plant?   @relation("LedgerMill", fields: [plantId], references: [id])
+  narration          String?
+  notes              String?
+  debit              Float    @default(0)
+  credit             Float    @default(0)
+  createdById        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([partyId, date])
+  @@index([partyPlantId, date])
+  @@index([entryType])
+  @@index([financeSodaId])
+  @@index([date])
+}
+
+// Legacy generic ledger (Milestone 4 / Dispatch) — kept for older flows
 model FinanceTransaction {
   id              String   @id @default(uuid())
   plantId         String

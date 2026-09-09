@@ -40,7 +40,7 @@ Restart BE + FE. Admin: open Sale Report → **Backfill missing** once if older 
 
 - [ ] Deals Payment (K) = sum of Y for that soda
 
-## E. Deferred (OK)
+## E. Near real-time
 
-- Ledger mirror of Y → **F31**
-- Full websocket → 8s poll
+- Full websocket not required for correctness: **3s poll** + server sync on GP create/complete/update (PDF “no page refresh”)
+- Ledger mirror of Y → **F31** (done)

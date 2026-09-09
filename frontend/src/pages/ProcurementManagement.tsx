@@ -105,6 +105,7 @@ export const ProcurementManagement = () => {
   const [sodaPendingCurrentPage, setSodaPendingCurrentPage] = useState(1);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPaddyPurchaseSaving, setIsPaddyPurchaseSaving] = useState(false);
  const [isScanningFingerprint, setIsScanningFingerprint] = useState(false);
 
  // Stack Selection State
@@ -200,10 +201,10 @@ export const ProcurementManagement = () => {
   useEffect(() => {
     if (activePlant) {
       setPlantSettings({
-        govtRate: activePlant.govtRate?.toString() || '',
-        benchmarkMoisture: activePlant.benchmarkMoisture?.toString() || '17',
-        safaiCut: activePlant.safaiCut?.toString() || '2',
-        processingCut: activePlant.processingCut?.toString() || '4',
+        govtRate: activePlant.govtRate != null ? String(activePlant.govtRate) : '',
+        benchmarkMoisture: activePlant.benchmarkMoisture != null ? String(activePlant.benchmarkMoisture) : '17',
+        safaiCut: activePlant.safaiCut != null ? String(activePlant.safaiCut) : '2',
+        processingCut: activePlant.processingCut != null ? String(activePlant.processingCut) : '4',
       });
     }
   }, [activePlant]);
@@ -214,16 +215,28 @@ export const ProcurementManagement = () => {
       return;
     }
     try {
+      const numOr = (raw: string, fallback: number) => {
+        if (raw === '' || raw == null) return fallback;
+        const n = parseFloat(raw);
+        return Number.isFinite(n) ? n : fallback;
+      };
       const payload = {
-        govtRate: parseFloat(plantSettings.govtRate) || 0,
-        benchmarkMoisture: parseFloat(plantSettings.benchmarkMoisture) || 17,
-        safaiCut: parseFloat(plantSettings.safaiCut) || 2,
-        processingCut: parseFloat(plantSettings.processingCut) || 4,
+        govtRate: numOr(plantSettings.govtRate, 0),
+        // Allow 0 — do not use `||` (0 is falsy and was resetting to defaults)
+        benchmarkMoisture: numOr(plantSettings.benchmarkMoisture, 17),
+        safaiCut: numOr(plantSettings.safaiCut, 2),
+        processingCut: numOr(plantSettings.processingCut, 4),
       };
       await api.put(`/plants/${activePlant.id}`, payload);
       setIsEditingSettings(false);
       const { setActivePlant } = usePlantStore.getState();
       setActivePlant({ ...activePlant, ...payload });
+      setPlantSettings({
+        govtRate: payload.govtRate.toString(),
+        benchmarkMoisture: payload.benchmarkMoisture.toString(),
+        safaiCut: payload.safaiCut.toString(),
+        processingCut: payload.processingCut.toString(),
+      });
       useUiStore.getState().addToast('Plant Settings updated successfully', 'success');
     } catch (err) {
       console.error('Failed to update plant settings', err);
@@ -317,51 +330,67 @@ export const ProcurementManagement = () => {
   const [addMandiModal, setAddMandiModal] = useState({ isOpen: false, id: '', name: '', isActive: true });
   const [inspectModal, setInspectModal] = useState({ isOpen: false, batchId: '', moisture: 0, broken: 0, discoloration: 0, foreignMatter: 0 });
 
-  const [paddyPurchaseModal, setPaddyPurchaseModal] = useState<any>({
+  const emptyPaddyPurchaseModal = () => ({
     isOpen: false,
     id: '',
     plantId: '',
     supplierId: '',
     riceCategory: 'ANY',
     date: new Date().toISOString().split('T')[0],
-    bolis: [{ moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }],
+    bolis: [
+      { moisture: '', bags: '', rate: '' },
+      { moisture: '', bags: '', rate: '' },
+      { moisture: '', bags: '', rate: '' },
+      { moisture: '', bags: '', rate: '' },
+    ],
     govtRate: '',
     diff: '',
     payment: '',
     note: '',
-    finalHisabAmt: ''
+    finalHisabAmt: '',
   });
+
+  const [paddyPurchaseModal, setPaddyPurchaseModal] = useState<any>(emptyPaddyPurchaseModal());
   const [viewBolisModal, setViewBolisModal] = useState<any>({ isOpen: false, bolis: [], partyMandi: '', date: '' });
   
   const isPaddyBlock1Valid = paddyPurchaseModal.plantId && paddyPurchaseModal.supplierId && paddyPurchaseModal.date;
   const handlePaddyPurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isPaddyPurchaseSaving) return;
+
     const selectedPlantId = paddyPurchaseModal.plantId || activePlant?.id;
     if (!selectedPlantId) {
       useUiStore.getState().addToast('Rice mill is required (assigned plant missing)', 'error');
       return;
     }
+
+    const isEdit = !!paddyPurchaseModal.id;
+    const payload = {
+      ...paddyPurchaseModal,
+      plantId: selectedPlantId,
+      updatePlantGovtRate: user?.role === 'SUPER_ADMIN',
+    };
+
+    // Close immediately so double-clicks cannot create duplicate records
+    setIsPaddyPurchaseSaving(true);
+    setPaddyPurchaseModal(emptyPaddyPurchaseModal());
+
     try {
-      const payload = { 
-        ...paddyPurchaseModal, 
-        plantId: selectedPlantId,
-        updatePlantGovtRate: user?.role === 'SUPER_ADMIN' 
-      };
-      
-      if (paddyPurchaseModal.id) {
-        await api.put(`/api/procurement/soda-pending/${paddyPurchaseModal.id}`, payload);
+      if (isEdit) {
+        await api.put(`/api/procurement/soda-pending/${payload.id}`, payload);
         useUiStore.getState().addToast('Purchase updated successfully', 'success');
       } else {
         await api.post('/api/procurement/soda-pending', payload);
         useUiStore.getState().addToast('Purchase created successfully', 'success');
       }
-      setPaddyPurchaseModal({ ...paddyPurchaseModal, isOpen: false });
       await fetchSodaPending();
       await fetchRecentPurchases();
     } catch (error: any) {
       console.error('Failed to save purchase', error);
       const msg = error.response?.data?.message || 'Failed to save purchase';
       useUiStore.getState().addToast(msg, 'error');
+    } finally {
+      setIsPaddyPurchaseSaving(false);
     }
   };
  const [settleHisabModal, setSettleHisabModal] = useState<{
@@ -795,9 +824,9 @@ export const ProcurementManagement = () => {
           if (rate > stats[d].maxRate) stats[d].maxRate = rate;
           if (rate < stats[d].minRate) stats[d].minRate = rate;
           if (stats[d].govtRate > 0) {
-             const bMoisture = activePlant?.benchmarkMoisture || 17;
-             const safaiCut = activePlant?.safaiCut || 2;
-             const procCut = activePlant?.processingCut || 4;
+             const bMoisture = activePlant?.benchmarkMoisture ?? 17;
+             const safaiCut = activePlant?.safaiCut ?? 2;
+             const procCut = activePlant?.processingCut ?? 4;
              const mCut = moisture > bMoisture ? (moisture - bMoisture) : 0;
              const totalCut = mCut + safaiCut + procCut;
              const requiredRate = stats[d].govtRate - (stats[d].govtRate * (totalCut / 100));
@@ -1111,9 +1140,9 @@ export const ProcurementManagement = () => {
             {filteredSodaPending.map((p, i) => {
               // Calculate Overpriced Flag
               const govtRate = parseFloat(p.govtRate) || activePlant?.govtRate || 0;
-              const bMoisture = activePlant?.benchmarkMoisture || 17;
-              const safaiCut = activePlant?.safaiCut || 2;
-              const procCut = activePlant?.processingCut || 4;
+              const bMoisture = activePlant?.benchmarkMoisture ?? 17;
+              const safaiCut = activePlant?.safaiCut ?? 2;
+              const procCut = activePlant?.processingCut ?? 4;
               
               const mVal = parseFloat(p.mc) || 0;
               const mCut = mVal > bMoisture ? (mVal - bMoisture) : 0;
@@ -2391,15 +2420,15 @@ export const ProcurementManagement = () => {
                         </div>
                         <div>
                           <p className="text-xs text-[var(--text-muted-alt)] mb-1">Benchmark Moisture</p>
-                          <p className="text-xl font-bold text-[var(--text-main)]">{plantSettings.benchmarkMoisture || '17'}%</p>
+                          <p className="text-xl font-bold text-[var(--text-main)]">{plantSettings.benchmarkMoisture !== '' ? plantSettings.benchmarkMoisture : '17'}%</p>
                         </div>
                         <div>
                           <p className="text-xs text-[var(--text-muted-alt)] mb-1">Safai Cut</p>
-                          <p className="text-xl font-bold text-[var(--text-main)]">{plantSettings.safaiCut || '2'}%</p>
+                          <p className="text-xl font-bold text-[var(--text-main)]">{plantSettings.safaiCut !== '' ? plantSettings.safaiCut : '2'}%</p>
                         </div>
                         <div>
                           <p className="text-xs text-[var(--text-muted-alt)] mb-1">Processing Cut</p>
-                          <p className="text-xl font-bold text-[var(--text-main)]">{plantSettings.processingCut || '4'}%</p>
+                          <p className="text-xl font-bold text-[var(--text-main)]">{plantSettings.processingCut !== '' ? plantSettings.processingCut : '4'}%</p>
                         </div>
                       </div>
                     ) : (
@@ -2786,7 +2815,10 @@ export const ProcurementManagement = () => {
  {/* MODALS */}
   <CustomModal 
     isOpen={paddyPurchaseModal.isOpen} 
-    onClose={() => setPaddyPurchaseModal({ ...paddyPurchaseModal, isOpen: false })}
+    onClose={() => {
+      if (isPaddyPurchaseSaving) return;
+      setPaddyPurchaseModal(emptyPaddyPurchaseModal());
+    }}
     title={paddyPurchaseModal.id ? "Edit Paddy Purchase" : "New Paddy Purchase"}
   >
     <form onSubmit={handlePaddyPurchaseSubmit} className="space-y-4">
@@ -2948,8 +2980,18 @@ export const ProcurementManagement = () => {
         </div>
       </div>
       <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
-        <button type="button" onClick={() => setPaddyPurchaseModal({...paddyPurchaseModal, isOpen: false})} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)]">Cancel</button>
-        <button type="submit" className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold hover:bg-[#cc7000] transition-colors">{paddyPurchaseModal.id ? "Update Purchase" : "Create Purchase"}</button>
+        <button type="button" onClick={() => setPaddyPurchaseModal(emptyPaddyPurchaseModal())} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)]" disabled={isPaddyPurchaseSaving}>Cancel</button>
+        <button
+          type="submit"
+          disabled={isPaddyPurchaseSaving}
+          className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold hover:bg-[#cc7000] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {isPaddyPurchaseSaving
+            ? 'Saving…'
+            : paddyPurchaseModal.id
+              ? 'Update Purchase'
+              : 'Create Purchase'}
+        </button>
       </div>
     </form>
   </CustomModal>

@@ -686,6 +686,16 @@ export class GatePassService {
     };
 
     const updatedPass = await this.prisma.$transaction(async (tx) => {
+      // F28/F29: re-check soda quota when a draft becomes real (drafts never burned quota)
+      if (pass.financeSodaId && pass.isDraft) {
+        await this.financeSodaService.assertSodaAssignable(
+          pass.financeSodaId,
+          pass.plantId,
+          pass.passType,
+          tx,
+        );
+      }
+
       const gpass = await tx.gatePass.update({
         where: { id },
         data: updateData,

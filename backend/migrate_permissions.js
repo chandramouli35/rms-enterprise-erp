@@ -89,6 +89,7 @@ const MODULE_STRUCTURE = [
       'Deals / Soda Record',
       'Sale',
       'Purchase',
+      'Junction Report',
       'Receivables',
       'Payables',
       'Payment Received',

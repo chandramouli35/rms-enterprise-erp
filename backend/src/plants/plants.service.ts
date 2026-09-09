@@ -41,15 +41,36 @@ export class PlantsService {
   }
 
   async update(id: string, data: any) {
+    const numIfPresent = (v: unknown) => {
+      if (v === undefined || v === null || v === '') return undefined;
+      const n = typeof v === 'number' ? v : parseFloat(String(v));
+      return Number.isFinite(n) ? n : undefined;
+    };
+
     return this.prisma.plant.update({
       where: { id },
       data: {
         ...(data.name && { name: data.name }),
         ...(data.code && { code: data.code }),
         ...(data.location && { location: data.location }),
-        ...(data.standardBagWeight && { standardBagWeight: parseFloat(data.standardBagWeight) }),
-        ...(data.aClassBagWeight && { aClassBagWeight: parseFloat(data.aClassBagWeight) }),
-        ...(data.bClassBagWeight && { bClassBagWeight: parseFloat(data.bClassBagWeight) }),
+        ...(numIfPresent(data.standardBagWeight) !== undefined && {
+          standardBagWeight: numIfPresent(data.standardBagWeight),
+        }),
+        ...(numIfPresent(data.aClassBagWeight) !== undefined && {
+          aClassBagWeight: numIfPresent(data.aClassBagWeight),
+        }),
+        ...(numIfPresent(data.bClassBagWeight) !== undefined && {
+          bClassBagWeight: numIfPresent(data.bClassBagWeight),
+        }),
+        // Allow 0 — truthy checks would skip zeros
+        ...(numIfPresent(data.govtRate) !== undefined && { govtRate: numIfPresent(data.govtRate) }),
+        ...(numIfPresent(data.benchmarkMoisture) !== undefined && {
+          benchmarkMoisture: numIfPresent(data.benchmarkMoisture),
+        }),
+        ...(numIfPresent(data.safaiCut) !== undefined && { safaiCut: numIfPresent(data.safaiCut) }),
+        ...(numIfPresent(data.processingCut) !== undefined && {
+          processingCut: numIfPresent(data.processingCut),
+        }),
       },
     });
   }
