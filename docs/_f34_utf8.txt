@@ -1,0 +1,75 @@
+--- page 1 ---
+ Shortage report & Reporting Tasks 
+ ●  [ ] Make a daily consolidated report. 
+ ●  [ ] Auto update When daily report is submitted in evening. 
+ ●  [ ] Daily based reports. 
+ ●  [ ] Showing Till date Shortage balance of each artia in quintal and in bags. 
+ ●  [ ] Make this more presentable and also fetches data graph which mill shortages are 
+ increasing. 
+ Date 
+ Mill Name 
+ Goyal 
+ Agro 
+ Mill 
+ Name 
+ Beas 
+ Agro 
+ Mill 
+ Nam 
+ e 
+ Rajoa 
+ Agro 
+ S.No  .  Artia  Mandi 
+ Shortage 
+ in 
+ Quintals 
+ Shortage 
+ in Bags  S.No  .  Artia  Mandi 
+ Shortage 
+ in 
+ Quintals 
+ Shortage 
+ in Bags  S.No  .  Artia  Mandi 
+ Shortage in 
+ Quintals 
+ Shortage 
+ in Bags 
+ Total 
+ Total in 
+ Quintal  Total in Bags  Total 
+ Total in 
+ Quintal  Total in Bags  Total  Total in Quintal  Total in Bags 
+ ●  [ ] Add an "Auto Narration" option in the Shortage section. 
+ System Logic & Entry Adjustments 
+ ●  [ ] Add a narration explaining the reason for the entry specifying whether it is at last 
+ column of shortage report: 
+ ○  [ ] If weight shortage is received then narration: 
+ Weight Shortage 
+ ○  [ ] If less bags received at mill excluding shortage bags than the Agency GP Bags 
+ then narration: 
+ ……… Bags Shortage  (in dash section mention count) 
+--- page 2 ---
+ ○  [ ] If quality cut is imposed in terms of bags then narration shows: 
+ ……………….Bags Quality Cut  (in dash section mention count) 
+ ○  [ ]  If quality cut is imposed in terms of percentage then narration shows: 
+ ……………….% Quality Cut  (in dash section mention count) 
+ ○  [ ]  If shortage bags are received then narration shows: 
+ ………………. Bags Shortage Recieved  (in dash section mention  count) 
+ ○  [ ] If  "Excess Weight Received,  Inform Bauji  "  checkbox  is marked and shows 
+ narration: 
+ ‘Excess Weight Received’. 
+ ●  [ ]  If Shortage Bags are received  in Section 5: Ensure  the "Bags Details" that will be 
+ shown in the Artia Shortage Bags section reflect this, thereby reducing their shortage 
+ liability. 
+ Backend Calculation & Artia Shortage Logic 
+ ●  [ ]  If Excess Bags are received:  Ensure the backend  calculates the weight in quintals 
+ (e.g., 10 bags * 0.382 = 3.82 quintals). 
+ ●  Note: Even after receiving 10 bags in shortage, the mill can even then receive a weight 
+ shortage. This will create a double entry effect.Two entries with same credentials will be 
+ displayed in that respective artia. 
+ ●  [ ]  If Excess Bags are received, reduce the Artia  Shortage: 
+ ○  [ ] Automatically reduce the Artia Shortage by the calculated weight (e.g., by 3.82 
+ quintals) with the narration:  "10 Bags Shortage Received"  . 
+ ●  [ ]  If Weight Shortage is received for that same truck: 
+ ○  [ ] Add the shortage weight entry into the Artia Shortage record. 
+ ○  [ ] Include the narration:  "weight shortage"  using  the same credentials. 

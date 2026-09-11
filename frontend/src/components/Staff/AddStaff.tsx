@@ -5,7 +5,7 @@ import api from '../../api/axios';
 import { UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-type StaffCategory = 'DRIVER' | 'LABOUR' | 'PAHUNCH';
+type StaffCategory = 'DRIVER' | 'LABOUR' | 'PAHUNCH' | 'UNLOADER';
 
 export const AddStaff: React.FC = () => {
   const { activePlant } = usePlantStore();
@@ -68,7 +68,15 @@ export const AddStaff: React.FC = () => {
       } else if (category === 'PAHUNCH') {
         await api.post('/api/master-data/pahunch', {
           name: formData.name,
-          contact: formData.contact
+          contact: formData.contact || undefined
+        }, {
+          headers: { 'x-plant-id': activePlantId }
+        });
+      } else if (category === 'UNLOADER') {
+        await api.post('/api/master-data/staff', {
+          name: formData.name,
+          role: 'UNLOADER',
+          phone: formData.contact || undefined
         }, {
           headers: { 'x-plant-id': activePlantId }
         });
@@ -103,7 +111,7 @@ export const AddStaff: React.FC = () => {
           <section>
             <h2 className="text-lg font-semibold border-b border-[var(--border-subtle)] pb-2 mb-4">1. Select Category</h2>
             <div className="flex gap-4">
-              {['DRIVER', 'LABOUR', 'PAHUNCH'].map((cat) => (
+              {['DRIVER', 'LABOUR', 'PAHUNCH', 'UNLOADER'].map((cat) => (
                 <label key={cat} className={`flex-1 cursor-pointer rounded-lg border p-4 transition-all ${category === cat ? 'border-[#e67e00] bg-[#e67e00]/10' : 'border-[var(--border-subtle)] hover:border-[#e67e00]/50'}`}>
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-sm">{cat.charAt(0) + cat.slice(1).toLowerCase()}</span>
@@ -143,13 +151,12 @@ export const AddStaff: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Contact No. <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">Contact No. <span className="text-[var(--text-muted-alt)] text-xs">(optional)</span></label>
                 <input
                   type="text"
                   name="contact"
                   value={formData.contact}
                   onChange={handleInputChange}
-                  required
                   className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-[var(--text-main)] focus:border-blue-500 outline-none transition-colors"
                 />
               </div>
@@ -205,6 +212,10 @@ export const AddStaff: React.FC = () => {
 
             {category === 'PAHUNCH' && (
               <p className="text-sm text-[var(--text-muted)] italic">No additional information required for Pahunch contractors.</p>
+            )}
+
+            {category === 'UNLOADER' && (
+              <p className="text-sm text-[var(--text-muted)] italic">Contact number is optional for Unloaders. No other fields required.</p>
             )}
 
           </section>

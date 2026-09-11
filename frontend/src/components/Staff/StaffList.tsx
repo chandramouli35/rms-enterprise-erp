@@ -4,7 +4,7 @@ import { usePlantStore } from '../../store/plantStore';
 import api from '../../api/axios';
 import { Users, Trash2 } from 'lucide-react';
 
-type FilterType = 'ALL' | 'PAHUNCH' | 'LABOUR' | 'DRIVER';
+type FilterType = 'ALL' | 'PAHUNCH' | 'LABOUR' | 'DRIVER' | 'UNLOADER';
 
 export const StaffList: React.FC = () => {
   const { activePlant } = usePlantStore();
@@ -38,6 +38,19 @@ export const StaffList: React.FC = () => {
         combined = [...combined, ...data.map((d: any) => ({ ...d, _category: 'PAHUNCH' }))];
       }
 
+      if ((filter === 'ALL' || filter === 'UNLOADER') && (activePlantId || user?.role === 'SUPER_ADMIN')) {
+        const res = await api.get('/api/master-data/staff', { headers: reqHeaders });
+        const data = (res.data || []).filter((s: any) => /UNLOADER/i.test(s.role || ''));
+        combined = [
+          ...combined,
+          ...data.map((d: any) => ({
+            ...d,
+            _category: 'UNLOADER',
+            contact: d.phone || d.contact,
+          })),
+        ];
+      }
+
       // Sort by newest first
       combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setStaffList(combined);
@@ -55,7 +68,10 @@ export const StaffList: React.FC = () => {
   const handleDelete = async (id: string, category: string) => {
     if (!window.confirm('Are you sure you want to delete this staff member?')) return;
     try {
-      const endpoint = category === 'DRIVER' ? 'drivers' : category.toLowerCase();
+      const endpoint =
+        category === 'DRIVER' ? 'drivers' :
+        category === 'UNLOADER' ? 'staff' :
+        category.toLowerCase();
       await api.delete(`/api/master-data/${endpoint}/${id}`, {
         headers: { 'x-plant-id': activePlantId || '' }
       });
@@ -73,7 +89,7 @@ export const StaffList: React.FC = () => {
           <Users className="text-[#e67e00]" /> Staff List
         </h1>
         <div className="flex bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg p-1">
-          {['ALL', 'PAHUNCH', 'LABOUR', 'DRIVER'].map((f) => (
+          {['ALL', 'PAHUNCH', 'LABOUR', 'DRIVER', 'UNLOADER'].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f as FilterType)}
@@ -118,6 +134,7 @@ export const StaffList: React.FC = () => {
                     <span className={`px-2 py-1 rounded text-xs font-bold ${
                       staff._category === 'DRIVER' ? 'bg-blue-500/20 text-blue-400' :
                       staff._category === 'LABOUR' ? 'bg-purple-500/20 text-purple-400' :
+                      staff._category === 'UNLOADER' ? 'bg-orange-500/20 text-orange-400' :
                       'bg-green-500/20 text-green-400'
                     }`}>
                       {staff._category}
@@ -132,7 +149,7 @@ export const StaffList: React.FC = () => {
                         {staff.firmName && <span className="text-xs">Firm: {staff.firmName}</span>}
                       </div>
                     )}
-                    {staff._category === 'PAHUNCH' && '-'}
+                    {(staff._category === 'PAHUNCH' || staff._category === 'UNLOADER') && '-'}
                   </td>
                   <td className="p-4 text-sm text-[var(--text-muted)]">{new Date(staff.createdAt).toLocaleDateString()}</td>
                   <td className="p-4 text-sm text-right">

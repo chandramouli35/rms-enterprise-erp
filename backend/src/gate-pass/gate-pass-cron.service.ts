@@ -1,15 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { ProcurementService } from '../procurement/procurement.service';
 
 @Injectable()
 export class GatePassCronService {
   private readonly logger = new Logger(GatePassCronService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private procurementService: ProcurementService,
+  ) {}
 
-  // 1. Daily 7 PM Reminder: Schedule an automated reminder notification for supervisors
-  @Cron('0 19 * * *') // Every day at 7 PM
+  // 1. Daily 7 PM Reminder (Asia/Kolkata)
+  @Cron('0 19 * * *', { timeZone: 'Asia/Kolkata' })
   async handleDailyReminder() {
     this.logger.log('Sending daily 7 PM reminder to punch Gate Pass reports.');
     await this.prisma.notification.create({
@@ -20,6 +24,37 @@ export class GatePassCronService {
         role: 'SUPERVISOR'
       }
     });
+  }
+
+  // Feedback 34 — 7:05 PM auto-submit daily shortage consolidated snapshot (IST)
+  @Cron('5 19 * * *', { timeZone: 'Asia/Kolkata' })
+  async handleEveningShortageSnapshot() {
+    this.logger.log('Auto-submitting daily shortage consolidated report (Feedback 34).');
+    try {
+      const now = new Date();
+      const reportDate = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(now);
+      await this.procurementService.submitDailyShortageReport({
+        date: reportDate,
+        plantId: 'global',
+        submittedBy: 'SYSTEM_CRON',
+        source: 'CRON',
+      });
+      await this.prisma.notification.create({
+        data: {
+          title: 'Daily Shortage Report Auto-Updated',
+          message: `Evening shortage consolidated report for ${reportDate} was auto-submitted.`,
+          type: 'INFO',
+          role: 'SUPERVISOR',
+        },
+      });
+    } catch (e: any) {
+      this.logger.error(`Evening shortage snapshot failed: ${e?.message || e}`);
+    }
   }
 
   // 2. Escalation Alert (2 Days): If an active GP remains unclosed after 48 hours (2 days), send automated escalation reminders.

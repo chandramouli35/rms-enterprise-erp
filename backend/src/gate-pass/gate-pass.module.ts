@@ -6,9 +6,16 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { ProductsModule } from '../products/products.module';
 import { FinanceModule } from '../finance/finance.module';
+import { ProcurementModule } from '../procurement/procurement.module';
 
 @Module({
-  imports: [PrismaModule, InventoryModule, ProductsModule, forwardRef(() => FinanceModule)],
+  imports: [
+    PrismaModule,
+    InventoryModule,
+    ProductsModule,
+    forwardRef(() => FinanceModule),
+    ProcurementModule,
+  ],
   controllers: [GatePassController],
   providers: [GatePassService, GatePassCronService],
 })

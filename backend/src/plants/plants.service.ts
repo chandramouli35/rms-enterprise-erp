@@ -71,6 +71,9 @@ export class PlantsService {
         ...(numIfPresent(data.processingCut) !== undefined && {
           processingCut: numIfPresent(data.processingCut),
         }),
+        ...(data.allowManualDateTime !== undefined && {
+          allowManualDateTime: data.allowManualDateTime === true || data.allowManualDateTime === 'true',
+        }),
       },
     });
   }

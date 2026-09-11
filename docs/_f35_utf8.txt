@@ -1,0 +1,202 @@
+---PAGE 1---
+ Inward List Requirements 
+ ●  [ ] Create two inward lists: 
+ ○  [ ]  Govt Inward List:  As per Agency GP. 
+ ○  [ ]  Mill Inward List:  As per Actual Bags Received  . 
+ ●  [ ] Display a box on top showing 
+ "As per Agency GP" 
+ Govt Inward 
+ list  Total Bags 
+ S.No  .  Date  Agency GP  Truck No.  Mandi 
+ Party 
+ Name  Moisture  A class  B class 
+ Mill Net 
+ Weight 
+ ●  [ ] Here mill net weight will be calculated as = ( total Bags * 0.382 ) and alternately 
+ = ( total Bags * 0.381) 
+ ●  [ ] All data is fetched from Paddy Inward. 
+ "As per Mill Inward List" 
+ Mill  Inward  List  Mill Bags 
+ Shortage 
+ Bags 
+ Total 
+ Bags 
+ S.No  .  Date 
+ RST 
+ No. 
+ In 
+ time 
+ Out 
+ Time 
+ Mill 
+ GP 
+ Agency 
+ GP 
+ Truck 
+ No.  Mandi 
+ Party 
+ Name 
+ A 
+ class 
+ B 
+ class 
+ A 
+ class 
+ B 
+ class 
+ A 
+ class 
+ B 
+ class 
+ Mois 
+ ture 
+ Required 
+ Net 
+ Weight 
+ Mill Net 
+ Weight 
+ Surplus Plus 
+ / Minus 
+ ●  [ ] All data is fetched from Paddy Inward. 
+ ●  [ ] This will be mill wise reports. 
+ ●  [ ] Require supervisors to submit the both Agency wise and Mill wise inward list reports in 
+ the evening using fingerprint authentication. 
+ ○  [ ] Show a notification pop-up to supervisor for ‘Confirming that the manual entries 
+---PAGE 2---
+ completed  matches the digital entries of the day’. 
+ ○  [ ] Generate a cumulative list in descending order of GP, The actual sequence by 
+ which the trucks have been unloaded in the mill, displaying total bags at the end. 
+ ●  [ ] Add dynamic box indicators showing how many Gate Passes (GPs) are active. 
+ ●  [ ] Format date range filters for Mill-wise inward lists: 
+ ○  [ ] Print date-wise reports. 
+ ○  [ ] Ensure each date starts on a new page (do not run as a continuous list).The 
+ same report which is submitted in the evening. 
+ Mandi & Artia Wise Details 
+ ●  [ ] Add Mandi-wise and Artia-wise detail sections below the inward list (display as 
+ artia-wise cluster data). 
+ ●  [ ] Create two sub-sections under Mandi and Artia: 
+ ○  [ ]  Govt. Mandi and Artia List 
+ Artia 
+ Name 
+ Govt Mandi 
+ and Artia list  Total Bags 
+ S.No  .  Date  Agency GP  Truck No.  Party Name  Moisture  A class  B class 
+ Mill Net 
+ Weight 
+ ○  [ ]  The Data will be Artia wise. 
+ ○  [ ] All data is fetched from paddy inward. 
+ ○  [ ]  Mill Mandi and Artia List 
+ Artia 
+ Name 
+ Mill 
+ Mandi 
+ and 
+ Artia 
+ list  Mill Bags 
+ Shortage 
+ Bags  Total Bags 
+ S.No  .  Date 
+ RST 
+ No. 
+ Mill 
+ GP 
+ Agency 
+ GP 
+ Truck 
+ No. 
+ Party 
+ Name 
+ A 
+ class 
+ B 
+ class 
+ A 
+ class 
+ B 
+ class 
+ A 
+ class 
+ B 
+ class 
+ Moist 
+ ure 
+ Required Net 
+ Weight 
+ Mill Net 
+ Weight 
+ Surplus Plus 
+ / Minus 
+ ●  [ ] All data is fetched from paddy inward. 
+---PAGE 3---
+ ●  [ ] Configure Mandi Selection behavior: 
+ ○  [ ] Show all details in a consolidated Artia entry list From Latest to Oldest, After 
+ Finishing one artia then the other. 
+ ○  [ ] Print full Mandi pages including all Artias on print command. 
+ ●  [ ] Configure Artia Selection behavior: 
+ ○  [ ] Show data strictly related to the selected Artia from Latest to Oldest data of that 
+ season. 
+ Reporting & Dashboard Features 
+ ●  [ ] Auto-send a daily Paddy Summary report to the mill when the evening report is 
+ submitted. 
+ ○  [ ] Make visible under:  Daily Inward Summary of  Reports Section of Procurement  . 
+ ○  [ ] Make the Daily shortage report summary in Reports section of Procurement, with 
+ Artia-wise shortage report section. 
+ ●  [ ] Update Mandi Names automatically: 
+ ○  [ ] If no paddy lifting occurs at a Mandi, show balance as zero (0) in Today's section. 
+ ●  [ ] Display key metrics in front of Mandi Name: 
+ Date 
+ Mill 
+ Name 
+ Goyal 
+ Agro 
+ Mill 
+ Name 
+ Beas 
+ Agro 
+ Mill 
+ Name 
+ Rajoa 
+ Agro 
+ Mandi 
+ Opening 
+ Balance 
+ Today 
+ Arrival  Total  Mandi 
+ Opening 
+ Balance 
+ Today 
+ Arrival  Total  Mandi 
+ Opening 
+ Balance 
+ Today 
+ Arrival  Total 
+ M1  M1  M1 
+ M2  M2  M2 
+ M3  M3  M3 
+ Total 
+ Total Of 
+ opening 
+ Balance 
+ Total in 
+ Today 
+ Arrival  Total in Bags  Total 
+ Total Of 
+ opening 
+ Balance 
+ Total in 
+ Today Arrival  Total in Bags  Total 
+ Total Of 
+ opening 
+ Balance 
+ Total in 
+ Today Arrival  Total in Bags 
+ ●  [ ] Auto update the mandi name mill wise. 
+ ●  [ ] No one need to submit report it is auto generated and fetches data by itself. 
+ ●  [ ] All data is in terms of bags. 
+ ●  [ ] Pick up the closing balance of total paddy lifting of that mandi as the opening balance 
+ of today (whose gp have been completed). 
+ ●  [ ]  Today Arrival  section shows the today lifting off from that mandi (whose g[p have been 
+ completed). 
+ ●  [ ]  Total  shows the Opening balance and Today balance sum of that respective mandi. 
+ ●  [ ] Add a dashboard section displaying summary details across all mills, including dates 
+ and printable options. 

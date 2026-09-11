@@ -27,6 +27,15 @@ export class WeighbridgeController {
     return this.weighbridgeService.getHistory(plantId);
   }
 
+  @Get('latest/:plantId/:vehicleNo')
+  @RequirePermission('Weighbridge', 'canView')
+  getLatestForVehicle(
+    @Param('plantId') plantId: string,
+    @Param('vehicleNo') vehicleNo: string,
+  ) {
+    return this.weighbridgeService.getLatestForVehicle(plantId, vehicleNo);
+  }
+
   @Get('settings/:plantId')
   @RequirePermission('Weighbridge', 'canView')
   getSettings(@Param('plantId') plantId: string) {

@@ -1,0 +1,192 @@
+
+===== PAGE 1 =====
+
+ Paddy Inward Checklist 
+ -  [ ] Add an ON/OFF switch for Admin to allow updating the time and date automatically or 
+ manually for each mill separately/individually. 
+ -  [ ] Hide "Previous Truck Reading" and "KM Driven" fields. 
+ -  [ ] Display only "New Truck Reading" and a "Meter Not Working" option. 
+ -  [ ] Set default truck selection to none (currently defaults to Beas Agro PB07 34972). 
+ -  [ ] Set default Mandi Type Control option to empty (supervisor will then manually select 
+ the Control or Boli option). 
+ -  [ ] Set up auto date logic: 
+ o  [ ] Record "Time In" and date when draft is saved. 
+ o  [ ] Punch "Time Out" when the truck completes unloading and returns for final 
+ weight and supervisor marks his fingerprint for submitting. 
+ -  [ ] Adjust Pending Boli/Soda display logic: 
+ o  [ ] Not editable Pending bolis/soda for selected Arthia if "  Control  (Mandi Type)" is 
+ selected. 
+ o  [ ] Edit / type Pending bolis only if "Boli (Mandi Type)" is selected. 
+ -  [ ] Adjust Section 3 display fields for "Boli (Mandi Type)": 
+ o  [ ] Remove "Drop of Boli Rate" section option column when Boli type is selected. 
+ o  [ ] Remove requirement to tick box confirming Arthia entered required Boli records 
+ into system before issuing Gate Pass. 
+ -  [ ] Update Section 3 Vehicle Verification: 
+ o  [ ] Only Bhari (Truck) video option should be made visible with a tick box. 
+ o  [ ] Transfer the Khali video record to a new Vehicle Verification  with a tick box after 
+ section 8. 
+ o  [ ] Remove ‘Paddy Boli Record Done’ in Vehicle Verification. 
+ -  [ ] Update Section 4 Unloading Management: 
+ o  [ ] if  Allocation type  "Hoodi" is selected, then “Upload  at Hoodi Register" option 
+ cannot be marked as N/A by "Pahunch Person. 
+ o  [ ] Create  Unloader  Master in add staff. 
+ o  [ ] In Add staff section do not require contact no. 
+ -  [ ] Stack Drawing should belong to the current mill (Drawing already shared). 
+ -  [ ] Remove "Pahunch Person Name" in Section 4 (already included in Section 1). 
+ -  [ ] Configure 'Enter' key press functionality to move focus/cursor to the next column. 
+ Section 4: Unloading Management 
+ -  [ ] Introduce "Unloading Start Time" and make both Start Time and Finish Time manual 
+ input fields. 
+ -  [ ] Field Name Updates: 
+ o  [ ] Rename "Allocate Unloader" to  "Allocate Main Unloader"  . 
+ o  [ ] Rename "Stack No." to  "Main Stack No."  . 
+ o  [ ] Rename "Truck Unload Count Total" to  "Main Unloader  Truck Count"  . 
+
+===== PAGE 2 =====
+
+ -  [ ] Line Alignment & Layout: 
+ o  [ ] Align row elements in a single line: 
+ Allocate Main Unloader | Main Unloader Truck Count | Main Stack No.| Bags in Main Stack. 
+ ………………………….    ……………………………      ………………..     …………………. 
+ o  [ ] Align row 2 elements directly underneath: 
+ Part Unloader | Part Unloader Truck Count | Part Stack No. | Bags in Part Stack. 
+ ……………….       ……………………………      ………………..     …………………. 
+ o  [ ] Keep remaining elements unchanged. 
+ -  [ ] Section 4 Validation Rules: 
+ o  [ ] Hide "Unloading Start and Finish Verification" bar code during initial creation; 
+ reveal only during updates. 
+ o  [ ] Enforce a minimum duration of 30 minutes between "Unloading Start Time" and 
+ "Unloading Finish Time". 
+ -  [ ]  Side Transfer / Option Relocation:  Transfer the  option for "Bags Rec. Less Than 
+ Agency GP" to  Section 5 — Bags Details  . 
+ Pending Bolis Section 
+ -  [ ] Rename "Pending Bolis / Soda for Selected Arthia" to  "Pending Bolis (Selected 
+ Arthia)"  . 
+ -  [ ] Sorting & Formatting Rules: 
+ o  [ ] Structure display date-wise. 
+ o  [ ] Leave one empty row after a complete date section before starting the next date 
+ section. 
+ o  [ ] Order items chronologically: Latest Boli at the top, Old Boli at the bottom. 
+ -  [ ] Status & Tick Box Rules: 
+ o  [ ] Remove the concept of "Complete entire Soda"  (apply "Complete" only to 
+ Pending incomplete Bolis). 
+ o  ‘Complete’ can only marked in Pending boli section, and not from boli record 
+ section. 
+ -  [ ] Note Field & Auto-Fetch: 
+ o  [ ] Remove note  "Quia Sint nobis veri..."  in place  of the note in the Pending Bolis 
+ section. 
+ o  [ ] Auto-fetch the rate directly from the Soda Record / Boli Record (Paddy Purchase 
+ and Quality). 
+ System / Gate Pass (GP) Constraints 
+ -  [ ] Prevent repeat entry of the same truck number across all mills globally within a 2-hour 
+ window (e.g., if Truck A is bringing Paddy to Beas Agro and its Paddy Inward GP is cut, 
+ Calculate gross weight ,tare weight and net weight.) 
+ -  [ ] Enforce a minimum 2-hour gap for trucks re-entering for new trips: 
+ o  [ ] Check condition: If a truck is sent again for lifting goods/paddy from Mandi, verify 
+
+===== PAGE 3 =====
+
+ that a minimum 2-hour gap exists from when the previous GP of that truck number 
+ was completed ("Server Yes" status in Paddy Inward and GP In/Out completed). 
+ -  [ ] Block duplicate active truck usage across mills (Case 2): 
+ o  [ ] Restrict a truck number from being used by another mill for a new GP while its 
+ GP status is actively unloading in a mill globally. 
+ Section 5: Bag Calculations & Layout Updates 
+ -  [ ] Introduce a  "Total Bags"  column placed on the  extreme right side (next to "Shortage 
+ Received", in front of "Bags Received at Mill" and "Bags at Agency GP"). 
+ -  [ ] Total in front of  Bag received at mill.  Sum of  Actual total bags and Shortage bags 
+ (irrespective of Bag class A or B Class). 
+ -  [ ] Total in front of  Bags at Agency GP  .Sum of Agency  bags received (irrespective of Bag 
+ class A or B Class). 
+ Section 6: Weighbridge Integration & Weight Details 
+ -  [ ] Set up Weighbridge Integration to automatically capture and calculate: 
+ o  [ ]  Gross Weight  ,  Tare Weight  , and  Net Weight  (calculated  via machine number, 
+ with manual entry allowed). 
+ -  [ ] Received Bags excluding Shortage Bags is less than Agency Bags, e.g., 7 bags less 
+ received): 
+ o  [ ] In Shortage Record, state the count of  bags less  received (e.g., 7)  in the 
+ narration. 
+ o  [ ] Perform backend calculation: ( Bags Shortage * 0.382 ) 
+ (e.g., 7 * 0.382 = 2.674). 
+ o  [ ] Punch the calculated weight into the Shortage Record (e.g., 2.674 quintall). 
+ o  [ ] Add tick box option: "Bags received less than Agency GP,  Inform Bauji  ” (in 
+ Red colour): 
+ o  [ ] If this box is selected, that entry will not go to the shortage section. 
+ o  [ ] This option can only be selected if the Bags recieved at Mill (excluding 
+ shortage bags) are less than the Bags as per Agency. 
+ o  [ ] This is a flag entry and will be notified to the admin. 
+ o  [ ] In the Inward list, ensure "Actual Received Bags" are shown. 
+ o  [ ] Inward list of government bags ensure “Bags at agency GP” will be shown. 
+ Refer to  Govt. inward list feedback. 
+ o  [ ] Exception Rule: If "Net Weight Received" is less than the required weight, 
+ mark the weight shortage in Shortage—even if the special case tick box is 
+ enabled. 
+ Shortage & Excess Handling 
+ -  [ ] Support multiple shortage types in Inward Entry / Shortage Record: 
+ o  [ ] If more than one type of shortage is received (e.g., Quality Cut Shortage AND 
+ Weight Shortage), display them separately in the  Arthia-wise  Shortage Record  . 
+ -  [ ] Handling Excess Bags: 
+ o  [ ] If excess bags are received at the mill (excluding Shortage Received from 
+ Agency GP), do  not  consider them in Shortage & Recovery. 
+ -  [ ]  Add tick box option: “Excess Weight Recieved,  Inform Bauji”  (in Red colour): 
+
+===== PAGE 4 =====
+
+ o  [ ] If this box is selected, the excess weight (Required Net weight-Weight received 
+ at mill). 
+ o  There will be a backend calculation will happen 
+ -  Case 01: 
+ Artia has 10 quintal of shortage to pay, 
+ In this 500 bags are received and 10 shortage bags are received. 
+ Net weight at mill 196 quintal 
+ On the agency GP there is also 500 bags. 
+ Then the required weight will be 
+ (510 agency bags * 0.382 per bag wt. In quintal)=194.82 quintal 
+ Now 
+ Net weight difference = (Required Net weight-Weight received at mill) 
+ = 194.82 - 196 =  -1.18 Quintal 
+ ( This shortage finding calculation is already there in the system) 
+ This is the excess weight we have received. 
+ If the tick box of  ……  Excess Weight Recieved,  Inform  Bauji  is selected then 
+ this weight of ( -1.18 ) quintal will be reduced from artia shortage. 
+ This entry will be shown in shortage register of the respective artia . 
+ Artia shortage Balance = 10 - 1.18 = 8.82 quintal of shortage left. 
+ o  [ ] This is a flag entry and will be notified to the admin. 
+ o  [ ] This option can only be selected if excess weight is received. 
+ o  [ ] In Mill Inward List actual weight will be shown. 
+ o  [ ] Then the excess weight will be reduced from artia shortage balance. 
+ Draft Saving Prerequisites (Paddy Inward) 
+ -  [ ] Enforce required fields before allowing "Save as Draft": 
+ o  [ ] Complete  Section 1  ,  Section 2  , and  Section 3  . 
+ o  [ ] Select  Pahunch Person  . 
+ o  [ ] Enter  Gross Weight  of the truck. 
+ o  [ ] From where supervisor can select the Save as draft Inward GP to update their 
+ net weights, bags details after unloading of truck has happened.  Complete their 
+ Active Inward Gp. 
+ Validation & Anti-Duplication Rules 
+ -  [ ] Prevent duplicate entries for  Mandi Gate Pass  : 
+ o  [ ] Block bypass attempts using casing (small vs. capital letters). 
+ o  [ ] Block bypass attempts using special characters. 
+ o  [ ] Block bypass attempts using spaces alongside numbers or letters. 
+ Quality Cut & Shortage Updates Checklist 
+ -  [ ]  Quality Cut Field Labeling:  Replace the field  name 'Value' with 'Cut' in the Quality Cut 
+ section 4. 
+ -  [ ]  Quintal Conversion:  If a value is added in the  Quality Cut section, display the 
+ corresponding value in quintals (e.g., introduce a "Cut in quintal" field). 
+
+===== PAGE 5 =====
+
+ -  [ ]  Auto-Calculation Logic:  Set up auto-calculation when unit items (e.g., bags) are 
+ selected: 
+ o  Example: 5 bags selected auto-calculate at 0.382 quintals per bag 
+ (5 * 0.382 = 1.91 quintals). 
+ -  [ ]  Shortage Addition:  Automatically add the calculated  quintal figure to the Shortage 
+ section. 
+ -  [ ]  Narration Tracking:  In the Shortage Record, mark  the narration as "5 Bags Quality 
+ Cut" (or dynamic quantity based on input). 
+ -  [ ]  Percentage Cut Handling: 
+ o  If the cut is entered as a percentage (e.g., 2%), calculate the value as 2% of net 
+ weight. 
+ o  Display this calculated value under  "Cut in quintals"  . 
+ o  Ensure this figure appears in the Shortage Record, mark the narration as 
+ "2% Quality Cut" (or dynamic quantity based on input). 

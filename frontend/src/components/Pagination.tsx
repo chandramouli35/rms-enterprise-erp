@@ -6,6 +6,8 @@ interface PaginationProps {
   totalItems: number;
   itemsPerPage?: number;
   onPageChange: (page: number) => void;
+  pageSizeOptions?: number[];
+  onPageSizeChange?: (size: number) => void;
 }
 
 export const Pagination: React.FC<PaginationProps> = ({
@@ -13,8 +15,10 @@ export const Pagination: React.FC<PaginationProps> = ({
   totalItems,
   itemsPerPage = 10,
   onPageChange,
+  pageSizeOptions,
+  onPageSizeChange,
 }) => {
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
 
 
 
@@ -52,10 +56,28 @@ export const Pagination: React.FC<PaginationProps> = ({
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 px-6 border-t border-[var(--border-subtle)] bg-[var(--bg-base)]">
-      <div className="text-sm text-[var(--text-muted-alt)] font-medium">
-        Showing <span className="font-bold text-[var(--text-main)]">{startItem}</span> to{' '}
-        <span className="font-bold text-[var(--text-main)]">{endItem}</span> of{' '}
-        <span className="font-bold text-[var(--text-main)]">{totalItems}</span> entries
+      <div className="flex items-center gap-3 text-sm text-[var(--text-muted-alt)] font-medium">
+        <span>
+          Showing <span className="font-bold text-[var(--text-main)]">{startItem}</span> to{' '}
+          <span className="font-bold text-[var(--text-main)]">{endItem}</span> of{' '}
+          <span className="font-bold text-[var(--text-main)]">{totalItems}</span> entries
+        </span>
+        {pageSizeOptions && onPageSizeChange && (
+          <label className="flex items-center gap-2 text-xs">
+            Per page
+            <select
+              value={itemsPerPage}
+              onChange={(e) => onPageSizeChange(parseInt(e.target.value, 10))}
+              className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"
+            >
+              {pageSizeOptions.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       <div className="flex items-center gap-2">

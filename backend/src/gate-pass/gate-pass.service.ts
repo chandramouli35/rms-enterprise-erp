@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { FinanceSodaService } from '../finance/finance-soda.service';
 import { FinanceSalePurchaseService } from '../finance/finance-sale-purchase.service';
+import { ProcurementService } from '../procurement/procurement.service';
 
 @Injectable()
 export class GatePassService {
@@ -13,6 +14,7 @@ export class GatePassService {
     private financeSodaService: FinanceSodaService,
     @Inject(forwardRef(() => FinanceSalePurchaseService))
     private salePurchaseService: FinanceSalePurchaseService,
+    private procurementService: ProcurementService,
   ) {}
 
   async generateGatePass(data: any) {
@@ -732,8 +734,10 @@ export class GatePassService {
     const supervisorName = data.supervisorName || 'Authenticated Supervisor';
     const submittedAt = new Date();
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Local calendar day (Asia/Kolkata-safe) — do NOT use toISOString after setHours(0)
+    const now = new Date();
+    const reportDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
 
     const whereClause: any = {
       status: 'ACTIVE',
@@ -743,7 +747,7 @@ export class GatePassService {
       whereClause.plantId = plantId;
     }
 
-    // Close each ACTIVE pass properly (with inventory) â€” Feedback 12/20
+    // Close each ACTIVE pass properly (with inventory) — Feedback 12/20
     const activePasses = await this.prisma.gatePass.findMany({
       where: whereClause,
       select: { id: true, qrCode: true },
@@ -768,7 +772,7 @@ export class GatePassService {
     await this.prisma.notification.create({
       data: {
         title: 'Daily GP Report Finalized',
-        message: `GP Report for ${today.toDateString()} finalized by ${supervisorName} at ${submittedAt.toLocaleString()}. Fingerprint verified. Closed ${closed.length} active pass(es). Digital report confirmed to match manual records.`,
+        message: `GP Report for ${reportDate} finalized by ${supervisorName} at ${submittedAt.toLocaleString()}. Fingerprint verified. Closed ${closed.length} active pass(es). Digital report confirmed to match manual records.`,
         type: 'INFO',
         role: 'SUPER_ADMIN',
       },
@@ -776,11 +780,48 @@ export class GatePassService {
     await this.prisma.notification.create({
       data: {
         title: 'Daily GP Report Finalized',
-        message: `GP Report for ${today.toDateString()} finalized by ${supervisorName} at ${submittedAt.toLocaleString()}. Fingerprint verified. Digital report confirmed to match manual records.`,
+        message: `GP Report for ${reportDate} finalized by ${supervisorName} at ${submittedAt.toLocaleString()}. Fingerprint verified. Digital report confirmed to match manual records.`,
         type: 'INFO',
         role: 'SUPERVISOR',
       },
     });
+
+    // Feedback 34 — auto-update shortage daily report when evening GP report is submitted
+    // Always write the global snapshot so Daily Consolidated UI can consume it
+    let shortageSnapshot: any = null;
+    try {
+      shortageSnapshot = await this.procurementService.submitDailyShortageReport({
+        date: reportDate,
+        plantId: 'global',
+        submittedBy: supervisorName,
+        source: 'EVENING_GP_FINALIZE',
+      });
+      // Also store plant-scoped copy when finalizing a specific mill
+      if (plantId && plantId !== 'global') {
+        await this.procurementService.submitDailyShortageReport({
+          date: reportDate,
+          plantId,
+          submittedBy: supervisorName,
+          source: 'EVENING_GP_FINALIZE',
+        });
+      }
+    } catch (e) {
+      console.error('Feedback 34 shortage daily snapshot on GP finalize failed', e);
+    }
+
+    // Feedback 35 — auto daily inward summary when evening GP report is submitted
+    let inwardListSnapshot: any = null;
+    try {
+      inwardListSnapshot = await this.procurementService.submitEveningInwardLists({
+        plantId: plantId || 'global',
+        date: reportDate,
+        supervisorName,
+        biometricData: data.biometricData,
+        source: 'EVENING_GP_FINALIZE',
+      });
+    } catch (e) {
+      console.error('Feedback 35 inward list snapshot on GP finalize failed', e);
+    }
 
     return {
       message: 'Report successfully finalized.',
@@ -788,6 +829,8 @@ export class GatePassService {
       submittedAt: submittedAt.toISOString(),
       closedCount: closed.length,
       closedPasses: closed,
+      shortageSnapshot: shortageSnapshot?.message || null,
+      inwardListSnapshot: inwardListSnapshot?.message || null,
     };
   }
 

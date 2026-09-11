@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, HttpException, HttpStatus, Put, Patch, UseGuards, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, HttpException, HttpStatus, Put, Patch, UseGuards, Query, BadRequestException, Req } from '@nestjs/common';
 import { ProcurementService } from './procurement.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -105,6 +105,12 @@ export class ProcurementController {
     }
   }
 
+  @Get('soda-pending/detail/:id')
+  @RequirePermission('Procurement', 'canView')
+  getSodaPendingById(@Param('id') id: string) {
+    return this.procurementService.getSodaPendingById(id);
+  }
+
   @Get('soda-pending/:plantId')
   @RequireAnyPermission(['Procurement', 'Weighbridge'], 'canView')
   getSodaPending(
@@ -112,16 +118,51 @@ export class ProcurementController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Query('page') page?: string,
-    @Query('limit') limit?: string
+    @Query('limit') limit?: string,
+    @Query('supplierId') supplierId?: string,
+    @Query('mandi') mandi?: string,
   ) {
-    return this.procurementService.getSodaPending(plantId, dateFrom, dateTo, page, limit);
+    return this.procurementService.getSodaPending(plantId, dateFrom, dateTo, page, limit, supplierId, mandi);
+  }
+
+  @Get('boli-records/:plantId')
+  @RequirePermission('Procurement', 'canView')
+  getBoliRecords(
+    @Param('plantId') plantId: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('supplierId') supplierId?: string,
+    @Query('mandi') mandi?: string,
+  ) {
+    return this.procurementService.getBoliRecords(plantId, {
+      dateFrom,
+      dateTo,
+      page,
+      limit,
+      supplierId,
+      mandi,
+    });
+  }
+
+  @Get('bolis/open-for-final/:plantId')
+  @RequirePermission('Procurement', 'canView')
+  getOpenBolisForFinal(@Param('plantId') plantId: string) {
+    return this.procurementService.getOpenBolisForFinal(plantId);
+  }
+
+  @Get('supervisors/:plantId')
+  @RequirePermission('Procurement', 'canView')
+  getSupervisorsForPlant(@Param('plantId') plantId: string) {
+    return this.procurementService.getSupervisorsForPlant(plantId);
   }
 
   @Post('soda-pending')
   @RequirePermission('Procurement', 'canAdd')
-  async createSodaPending(@Body() data: any) {
+  async createSodaPending(@Body() data: any, @Req() req: any) {
     try {
-      return await this.procurementService.createSodaPending(data);
+      return await this.procurementService.createSodaPending(data, req.user);
     } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -129,9 +170,40 @@ export class ProcurementController {
 
   @Put('soda-pending/:id')
   @RequirePermission('Procurement', 'canEdit')
-  async updateSodaPending(@Param('id') id: string, @Body() data: any) {
+  async updateSodaPending(@Param('id') id: string, @Body() data: any, @Req() req: any) {
     try {
-      return await this.procurementService.updateSodaPending(id, data);
+      return await this.procurementService.updateSodaPending(id, data, req.user);
+    } catch (error: any) {
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Put('bolis/:id/final')
+  @RequirePermission('Procurement', 'canEdit')
+  async submitFinalBoli(@Param('id') id: string, @Body() data: any, @Req() req: any) {
+    try {
+      return await this.procurementService.submitFinalBoli(id, data, req.user);
+    } catch (error: any) {
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  /** Feedback 32 — Admin edit Payment / Note / Final Bags on Table 01 */
+  @Put('bolis/:id/admin-table01')
+  @RequirePermission('Procurement', 'canEdit')
+  async adminUpdateBoliRecord(@Param('id') id: string, @Body() data: any, @Req() req: any) {
+    try {
+      return await this.procurementService.adminUpdateBoliRecord(id, data, req.user);
+    } catch (error: any) {
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Put('bolis/:id/complete')
+  @RequirePermission('Procurement', 'canEdit')
+  async completeBoli(@Param('id') id: string, @Body() data: any, @Req() req: any) {
+    try {
+      return await this.procurementService.completeBoli(id, data, req.user);
     } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -139,9 +211,9 @@ export class ProcurementController {
 
   @Post('settle-hisab')
   @RequirePermission('Procurement', 'canEdit')
-  async settleHisab(@Body() data: any) {
+  async settleHisab(@Body() data: any, @Req() req: any) {
     try {
-      return await this.procurementService.settleHisab(data);
+      return await this.procurementService.settleHisab({ ...data, user: req.user, userId: req.user?.id || data.userId });
     } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -163,6 +235,110 @@ export class ProcurementController {
     @Query('dateTo') dateTo?: string,
   ) {
     return this.procurementService.getShortageSummaryReport(plantId, mandiId, supplierId, dateFrom, dateTo);
+  }
+
+  /** Feedback 34 — daily consolidated multi-mill shortage */
+  @Get('reports/shortage-daily')
+  @RequireAnyPermission(['Procurement', 'Dashboard'], 'canView')
+  async getDailyConsolidatedShortage(
+    @Query('date') date?: string,
+    @Query('live') live?: string,
+  ) {
+    return this.procurementService.getDailyConsolidatedShortage(date, live !== '1');
+  }
+
+  /** Feedback 34 — submit / freeze evening daily shortage report */
+  @Post('reports/shortage-daily/submit')
+  @RequireAnyPermission(['Procurement', 'Dashboard'], 'canEdit')
+  async submitDailyShortageReport(@Body() body: any) {
+    return this.procurementService.submitDailyShortageReport({
+      date: body?.date,
+      plantId: body?.plantId || 'global',
+      submittedBy: body?.submittedBy || body?.supervisorName,
+      source: body?.source || 'MANUAL',
+    });
+  }
+
+  /** Feedback 34 — till-date artia balances */
+  @Get('reports/shortage-artia-balances')
+  @RequireAnyPermission(['Procurement', 'Dashboard'], 'canView')
+  async getArtiaShortageBalances(@Query('asOf') asOf?: string) {
+    return this.procurementService.getArtiaShortageBalances(asOf);
+  }
+
+  /** Feedback 34 — mill shortage trend for graph */
+  @Get('reports/shortage-mill-trend')
+  @RequireAnyPermission(['Procurement', 'Dashboard'], 'canView')
+  async getMillShortageTrend(@Query('days') days?: string) {
+    return this.procurementService.getMillShortageTrend(days ? parseInt(days, 10) : 14);
+  }
+
+  /** Feedback 35 — dual Govt/Mill inward list report */
+  @Get('reports/inward-list')
+  @RequirePermission('Procurement', 'canView')
+  async getInwardListReport(
+    @Query('plantId') plantId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('mandi') mandi?: string,
+    @Query('supplierId') supplierId?: string,
+    @Query('bagWt') bagWt?: string,
+    @Query('date') date?: string,
+    @Query('snapshot') snapshot?: string,
+  ) {
+    return this.procurementService.getInwardListReport({
+      plantId: plantId || 'global',
+      dateFrom,
+      dateTo,
+      mandi,
+      supplierId,
+      bagWt: bagWt ? parseFloat(bagWt) : 0.382,
+      date,
+      preferSnapshot: snapshot === '1',
+    });
+  }
+
+  /** Feedback 35 — active GP count indicator */
+  @Get('reports/active-gps')
+  @RequirePermission('Procurement', 'canView')
+  async getActiveGatePassCount(@Query('plantId') plantId?: string) {
+    return this.procurementService.getActiveGatePassCount(plantId);
+  }
+
+  /** Feedback 35 — evening fingerprint submit of Govt + Mill inward lists */
+  @Post('reports/inward-list/submit')
+  @RequirePermission('Procurement', 'canEdit')
+  async submitEveningInwardLists(@Body() body: any, @Req() req: any) {
+    try {
+      return await this.procurementService.submitEveningInwardLists({
+        plantId: body?.plantId || 'global',
+        date: body?.date,
+        bagWt: body?.bagWt,
+        supervisorName: body?.supervisorName || body?.submittedBy,
+        biometricData: body?.biometricData,
+        source: body?.source || 'EVENING_SUBMIT',
+        user: req.user,
+      });
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Submit failed', HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  /** Feedback 35 — Daily Inward Summary (auto / from evening snapshot) */
+  @Get('reports/daily-inward-summary')
+  @RequirePermission('Procurement', 'canView')
+  async getDailyInwardSummary(
+    @Query('plantId') plantId?: string,
+    @Query('date') date?: string,
+  ) {
+    return this.procurementService.getDailyInwardSummary(plantId || 'global', date);
+  }
+
+  /** Feedback 35 — multi-mill mandi balance dashboard (bags, auto) */
+  @Get('reports/mandi-balance-dashboard')
+  @RequirePermission('Procurement', 'canView')
+  async getMandiBalanceDashboard(@Query('date') date?: string) {
+    return this.procurementService.getMandiBalanceDashboard(date);
   }
 
   @Patch('inward-details/:id/shortage-recovery')

@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, Package, ShieldCheck, FileText, Search, Plus, Calendar, ChevronDown, Download, Printer, Settings, Upload, Edit, Layers, ScanBarcode, X, AlertTriangle, Trash, ArrowUpRight, ArrowDownRight, Eye, CheckCircle2 } from 'lucide-react';
 import BoliCompletionTable from '../components/Procurement/BoliCompletionTable';
+import BoliRecordPanel from '../components/Procurement/BoliRecordPanel';
+import InwardListReport from '../components/Procurement/InwardListReport';
+import DailyInwardSummary from '../components/Procurement/DailyInwardSummary';
+import MandiBalanceDashboard from '../components/Procurement/MandiBalanceDashboard';
 import api from '../api/axios';
 import ShortageRecoveryReport from '../components/ShortageRecoveryReport';
 import StackToHoodiTransfer from '../components/StackToHoodiTransfer';
@@ -20,11 +24,13 @@ import Combobox from '../components/Combobox';
 
 export const ProcurementManagement = () => {
  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const activeTab = searchParams.get('tab') || 'supplier_master';
   const activePlant = usePlantStore(state => state.activePlant);
   const user = useAuthStore(state => state.user);
   const hasBackdatePermission = user?.role === 'SUPER_ADMIN' || (user?.backdatePermissionUntil && new Date(user.backdatePermissionUntil) > new Date());
   const hasManualWeighbridgePermission = user?.role === 'SUPER_ADMIN' || (user?.manualWeighbridgeUntil && new Date(user.manualWeighbridgeUntil) > new Date());
+  const canManualDateTime = hasBackdatePermission || !!activePlant?.allowManualDateTime;
   const isSupervisor = user?.role === 'SUPERVISOR';
   const [category, setCategory] = useState<'OPERATIONAL' | 'NON_OPERATIONAL'>('OPERATIONAL');
 
@@ -106,6 +112,7 @@ export const ProcurementManagement = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPaddyPurchaseSaving, setIsPaddyPurchaseSaving] = useState(false);
+  const paddyPurchaseSavingRef = useRef(false);
  const [isScanningFingerprint, setIsScanningFingerprint] = useState(false);
 
  // Stack Selection State
@@ -120,7 +127,13 @@ export const ProcurementManagement = () => {
       const fetchShortages = async () => {
         try {
           const res = await api.get(`/api/procurement/reports/shortage-summary?plantId=${activePlant.id}`);
-          const unrecovered = res.data.filter((r: any) => r.netShortageQtl > 0);
+          // Aggregate ledger lines per inward; count inwards with positive net balance
+          const byDetails: Record<string, number> = {};
+          (res.data || []).forEach((r: any) => {
+            const id = r.detailsId || r.id;
+            byDetails[id] = (byDetails[id] || 0) + (Number(r.netShortageQtl) || 0);
+          });
+          const unrecovered = Object.values(byDetails).filter((net) => net > 0.001);
           setUnrecoveredShortagesCount(unrecovered.length);
         } catch (error) {
           console.error("Failed to fetch shortage summary", error);
@@ -131,21 +144,24 @@ export const ProcurementManagement = () => {
   }, [isSupervisor, activePlant]);
 
   const defaultInwardFormData = {
+    id: '',
     gpNo: '', date: '', timeIn: '', timeOut: '', truckNo: '', mandiEgpNo: '', rstNo: '', mandiParchiNo: '', supplierId: '',
     mandi: '', pahunchPersonName: '',
-    mandiType: 'Control', boliRate: '', boliChecklist: false,
+    mandiType: '', boliRate: '', boliChecklist: false,
     moisture: '', safai: '', mandiIntimation: '', remarks: '',
     allocationType: '',
     origBagsRec: 0, origAClass: 0, origBClass: 0, origAClassAg: 0, origBClassAg: 0,
     shortageAClass: 0, shortageBClass: 0,
-    qualityCutType: '', qualityCutValue: 0, qualityCutReason: '',
+    qualityCutType: '', qualityCutValue: 0, qualityCutReason: '', qualityCutQtl: 0,
     agencyBagsRec: 0, agencyAClass: 0, agencyBClass: 0, agencyAClassAg: 0, agencyBClassAg: 0,
     netWtMill: 0, reqNetWt: 0, netWtParty: 0, netWtDiff: 0,
+    grossWeight: '', tareWeight: '', netWeightWb: '',
     shortageType: '', updateShortageReg: '', allocatedUnloader: '',
     unloaderTruckCount: 0,
     stackNo: '',
     hoodiUpload: '',
     allocateUnloader: '',
+    partUnloaderName: '', partUnloaderTruckCount: '', bagsInPartStack: '', partStackNo: '',
     driverName: '', mobileNumber: '',
     // Signatures
     driverSign: '',
@@ -154,37 +170,35 @@ export const ProcurementManagement = () => {
     // Biometric Data
     biometricData: '',
     bhariVideoUpload: '', khaliVideoUpload: '',
+    meterNotWorking: false,
+    informBaujiBagsLess: false,
+    informBaujiExcessWeight: false,
     
     // NEW FIELDS FROM FORM IMAGE
     previousTruckReading: '', newTruckReading: '', kmsDriven: '',
     partyName: '', paddyBoliRecord: 'Not applicable', mainUnloaderTruckCount: '',
     bagsInMainStack: '', secondPartStackNo: '', bagsInSecondPartStack: '',
-    unloaderName: '', unloadingEndTime: '',
+    unloaderName: '', unloadingEndTime: '', unloadingStartTime: '', unloadingFinishTime: '',
+    labour: '',
     cutToBeAddedInShortage: false, totalBagsReceived: '',
     bagsRecLessThanAgencyGp: false, plusWtConsiderInShortageRecovery: false,
-    unloaderSignAndStamp: false, pahunchPersonSignAndStamp: false
+    unloaderSignAndStamp: false, pahunchPersonSignAndStamp: false,
+    discrepancy: '',
+    autoNarration: true,
+    shortageNarration: '',
   };
 
   const [inwardFormData, setInwardFormData] = useState<any>(defaultInwardFormData);
   
-  // Auto-select first options for dynamic dropdowns if not already selected
+  // Auto-select first supplier if not already selected (do NOT auto-select truck)
   useEffect(() => {
     setInwardFormData((prev: any) => {
-      let updated = false;
-      const next = { ...prev };
-      
-      if (!next.truckNo && trucks.length > 0) {
-        next.truckNo = trucks[0].truckNumber;
-        updated = true;
+      if (!prev.supplierId && suppliers.length > 0) {
+        return { ...prev, supplierId: suppliers[0].id };
       }
-      if (!next.supplierId && suppliers.length > 0) {
-        next.supplierId = suppliers[0].id;
-        updated = true;
-      }
-      
-      return updated ? next : prev;
+      return prev;
     });
-  }, [trucks, suppliers, staff, labours]);
+  }, [suppliers]);
   
   // Track Boli bags input from supervisor
   const [boliInputs, setBoliInputs] = useState<Record<string, string>>({});
@@ -194,7 +208,8 @@ export const ProcurementManagement = () => {
     govtRate: '',
     benchmarkMoisture: '',
     safaiCut: '',
-    processingCut: ''
+    processingCut: '',
+    allowManualDateTime: false,
   });
   const [isEditingSettings, setIsEditingSettings] = useState<boolean>(false);
 
@@ -205,6 +220,7 @@ export const ProcurementManagement = () => {
         benchmarkMoisture: activePlant.benchmarkMoisture != null ? String(activePlant.benchmarkMoisture) : '17',
         safaiCut: activePlant.safaiCut != null ? String(activePlant.safaiCut) : '2',
         processingCut: activePlant.processingCut != null ? String(activePlant.processingCut) : '4',
+        allowManualDateTime: !!activePlant.allowManualDateTime,
       });
     }
   }, [activePlant]);
@@ -226,6 +242,7 @@ export const ProcurementManagement = () => {
         benchmarkMoisture: numOr(plantSettings.benchmarkMoisture, 17),
         safaiCut: numOr(plantSettings.safaiCut, 2),
         processingCut: numOr(plantSettings.processingCut, 4),
+        allowManualDateTime: !!plantSettings.allowManualDateTime,
       };
       await api.put(`/plants/${activePlant.id}`, payload);
       setIsEditingSettings(false);
@@ -236,6 +253,7 @@ export const ProcurementManagement = () => {
         benchmarkMoisture: payload.benchmarkMoisture.toString(),
         safaiCut: payload.safaiCut.toString(),
         processingCut: payload.processingCut.toString(),
+        allowManualDateTime: payload.allowManualDateTime,
       });
       useUiStore.getState().addToast('Plant Settings updated successfully', 'success');
     } catch (err) {
@@ -245,21 +263,47 @@ export const ProcurementManagement = () => {
   };
 
   useEffect(() => {
-    if (!hasBackdatePermission) {
+    if (!canManualDateTime) {
       const interval = setInterval(() => {
         const now = new Date();
         const dateStr = now.toISOString().split('T')[0];
         const timeStr = now.toTimeString().slice(0,5);
         setInwardFormData((prev: any) => ({
           ...prev,
-          date: dateStr,
+          // Feedback 33: auto date + Time In only; Time Out punches on final confirm
+          date: prev.date || dateStr,
           timeIn: prev.timeIn || timeStr,
-          timeOut: prev.timeOut || timeStr,
         }));
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [hasBackdatePermission]);
+  }, [canManualDateTime]);
+
+  // Gross / Tare → Net WB; sync to netWtMill when empty
+  useEffect(() => {
+    const g = parseFloat(inwardFormData.grossWeight);
+    const t = parseFloat(inwardFormData.tareWeight);
+    if (!Number.isFinite(g) || !Number.isFinite(t)) return;
+    const net = (g - t).toFixed(3);
+    setInwardFormData((prev: any) => {
+      const millEmpty = prev.netWtMill === '' || prev.netWtMill === null || prev.netWtMill === undefined || Number(prev.netWtMill) === 0;
+      if (prev.netWeightWb === net && !(millEmpty && String(prev.netWtMill) !== net)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        netWeightWb: net,
+        ...(millEmpty ? { netWtMill: net } : {}),
+      };
+    });
+  }, [inwardFormData.grossWeight, inwardFormData.tareWeight]);
+
+  // Hoodi allocation cannot be N.A.
+  useEffect(() => {
+    if (inwardFormData.allocationType === 'Hoodi' && inwardFormData.hoodiUpload === 'N.A.') {
+      setInwardFormData((prev: any) => ({ ...prev, hoodiUpload: '' }));
+    }
+  }, [inwardFormData.allocationType, inwardFormData.hoodiUpload]);
 
   useEffect(() => {
     // Auto calculate Required Net Wt and Shortage
@@ -267,49 +311,100 @@ export const ProcurementManagement = () => {
     const origB = parseFloat(inwardFormData.origBClass) || 0;
     const shortA = parseFloat(inwardFormData.shortageAClass) || 0;
     const shortB = parseFloat(inwardFormData.shortageBClass) || 0;
+    // Feedback 33 Case 01: Required = (Agency bags + Shortage bags) × std weight
+    const agencyA = parseFloat(inwardFormData.origAClassAg) || 0;
+    const agencyB = parseFloat(inwardFormData.origBClassAg) || 0;
     
-    // Fallback to activePlant or selected localPlant
     const selectedPlant = plants.find(p => p.id === (activePlant?.id ));
-    const stdWeightA = selectedPlant?.aClassBagWeight || 0.380;
-    const stdWeightB = selectedPlant?.bClassBagWeight || 0.385;
-
-    const totalA = origA + shortA;
-    const totalB = origB + shortB;
-    const reqA = totalA * stdWeightA;
-    const reqB = totalB * stdWeightB;
-    const req = (reqA + reqB).toFixed(3);
+    // Feedback 33 Case 01: Required = (Agency bags + Shortage bags) × 0.382 (plant standardBagWeight)
+    const bagWt = selectedPlant?.standardBagWeight || 0.382;
+    const agencyTotal = agencyA + agencyB;
+    const shortTotal = shortA + shortB;
+    const req = ((agencyTotal + shortTotal) * bagWt).toFixed(3);
     
     const actualWt = parseFloat(inwardFormData.netWtMill) || 0;
+    const netDiff = (parseFloat(req) - actualWt);
     
     const qualityCutType = inwardFormData.qualityCutType || 'NONE';
     const qualityCutValue = parseFloat(inwardFormData.qualityCutValue) || 0;
     let qualityCutQtl = 0;
     if (qualityCutType === 'BAGS') {
-      qualityCutQtl = qualityCutValue * 0.382;
+      qualityCutQtl = qualityCutValue * bagWt;
     } else if (qualityCutType === 'PERCENTAGE') {
       qualityCutQtl = (actualWt * qualityCutValue) / 100;
     }
     
-    const shortageQtl = (parseFloat(req) - actualWt + qualityCutQtl).toFixed(2);
-    
-    // Shortage Bags based on Qtl / 0.382
-    const shortageBags = (parseFloat(shortageQtl) / 0.382).toFixed(2);
+    const shortageQtlRaw = netDiff + qualityCutQtl;
+    // Feedback 34 — Section 5 shortage bags received reduce Artia liability
+    const shortageBagsRec =
+      (parseFloat(inwardFormData.shortageAClass) || 0) + (parseFloat(inwardFormData.shortageBClass) || 0);
+    const shortageBagsCredit = shortageBagsRec * bagWt;
+    const excessBaujiCredit =
+      inwardFormData.informBaujiExcessWeight && netDiff < 0 ? Math.abs(netDiff) : 0;
+    const recoveryPreview = shortageBagsCredit + excessBaujiCredit;
+    const netArtiaShortage = shortageQtlRaw - recoveryPreview;
+    const shortageQtl = Math.max(0, netArtiaShortage).toFixed(2);
+    const shortageBags = (parseFloat(shortageQtl) / bagWt).toFixed(2);
+
+    // Feedback 34 — Auto Narration preview (same formats as shortage report)
+    const narrations: string[] = [];
+    const agencyBags = agencyA + agencyB;
+    const millExcl = origA + origB;
+    const bagsLess = Math.max(0, agencyBags - millExcl);
+    if (qualityCutType === 'BAGS' && qualityCutValue > 0) {
+      narrations.push(`${qualityCutValue} Bags Quality Cut`);
+    } else if (qualityCutType === 'PERCENTAGE' && qualityCutValue > 0) {
+      narrations.push(`${qualityCutValue}% Quality Cut`);
+    }
+    if (bagsLess > 0 && !inwardFormData.informBaujiBagsLess) {
+      narrations.push(`${bagsLess} Bags Shortage`);
+    }
+    if (netDiff > 0) {
+      narrations.push('Weight Shortage');
+    }
+    if (shortageBagsRec > 0) {
+      narrations.push(`${shortageBagsRec} Bags Shortage Received`);
+    }
+    if (inwardFormData.informBaujiExcessWeight && netDiff < 0) {
+      narrations.push('Excess Weight Received');
+    }
+    const autoNarrationText = narrations.join('; ');
 
     setInwardFormData((prev: any) => ({ 
       ...prev, 
       reqNetWt: req,
-      actualShortageQtl: parseFloat(shortageQtl),
-      shortageQtl: parseFloat(shortageQtl) > 0 ? shortageQtl : '0.00',
-      shortageBags: parseFloat(shortageBags) > 0 ? shortageBags : '0.00'
+      netWtDiff: Number.isFinite(netDiff) ? netDiff.toFixed(3) : prev.netWtDiff,
+      qualityCutQtl,
+      actualShortageQtl: parseFloat(shortageQtlRaw.toFixed(2)),
+      shortageBagsCreditQtl: parseFloat(shortageBagsCredit.toFixed(3)),
+      artiaNetShortageQtl: parseFloat(netArtiaShortage.toFixed(2)),
+      shortageQtl: shortageQtl,
+      shortageBags: parseFloat(shortageBags) > 0 ? shortageBags : '0.00',
+      autoNarrationText,
+      ...(prev.autoNarration !== false ? { shortageNarration: autoNarrationText } : {}),
+      ...(netDiff >= 0 ? { informBaujiExcessWeight: false } : {}),
+      ...((origA + origB) >= (agencyA + agencyB) ? { informBaujiBagsLess: false, bagsRecLessThanAgencyGp: false } : {}),
     }));
-  }, [inwardFormData.origAClass, inwardFormData.origBClass, inwardFormData.shortageAClass, inwardFormData.shortageBClass, inwardFormData.netWtMill, inwardFormData.qualityCutType, inwardFormData.qualityCutValue, activePlant, plants]);
+  }, [inwardFormData.origAClass, inwardFormData.origBClass, inwardFormData.shortageAClass, inwardFormData.shortageBClass, inwardFormData.origAClassAg, inwardFormData.origBClassAg, inwardFormData.netWtMill, inwardFormData.qualityCutType, inwardFormData.qualityCutValue, inwardFormData.informBaujiExcessWeight, inwardFormData.informBaujiBagsLess, inwardFormData.autoNarration, activePlant, plants]);
  const [dhanakLots, setDhanakLots] = useState([{ id: 1, sNo: '', bags: 0, moisture: 0, bardanaClass: '' }]);
 
   const [inwardErrors, setInwardErrors] = useState<Record<string, string>>({});
 
   const handleInwardChange = (e: any) => {
     const { name, value, type, checked } = e.target;
-    setInwardFormData((prev: any) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    setInwardFormData((prev: any) => {
+      const next: any = { ...prev, [name]: type === 'checkbox' ? checked : value };
+      // Default Party Name from selected Artia when empty or still matching previous supplier
+      if (name === 'supplierId') {
+        const selected = suppliers.find((s: any) => s.id === value);
+        const prevSupplier = suppliers.find((s: any) => s.id === prev.supplierId);
+        if (selected && (!prev.partyName || prev.partyName === prevSupplier?.name)) {
+          next.partyName = selected.name || '';
+        }
+        if (selected?.mandi && !prev.mandi) next.mandi = selected.mandi;
+      }
+      return next;
+    });
     if (inwardErrors[name]) {
       setInwardErrors((prev) => ({ ...prev, [name]: '' }));
     }
@@ -348,48 +443,162 @@ export const ProcurementManagement = () => {
     payment: '',
     note: '',
     finalHisabAmt: '',
+    supervisorName: '',
+    supervisorUserId: '',
+    biometricData: '',
   });
 
   const [paddyPurchaseModal, setPaddyPurchaseModal] = useState<any>(emptyPaddyPurchaseModal());
   const [viewBolisModal, setViewBolisModal] = useState<any>({ isOpen: false, bolis: [], partyMandi: '', date: '' });
+  const [boliRecordRefreshKey, setBoliRecordRefreshKey] = useState(0);
+  const [plantSupervisors, setPlantSupervisors] = useState<any[]>([]);
   
   const isPaddyBlock1Valid = paddyPurchaseModal.plantId && paddyPurchaseModal.supplierId && paddyPurchaseModal.date;
+
+  const fetchPlantSupervisors = async (plantId?: string) => {
+    const pid = plantId || activePlant?.id;
+    if (!pid) return;
+    try {
+      const res = await api.get(`/api/procurement/supervisors/${pid}`);
+      setPlantSupervisors(Array.isArray(res.data) ? res.data : []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const openEstimatePurchase = () => {
+    const millId = activePlant?.id || '';
+    setPaddyPurchaseModal({
+      ...emptyPaddyPurchaseModal(),
+      isOpen: true,
+      plantId: millId,
+      govtRate: activePlant?.govtRate != null ? String(activePlant.govtRate) : '',
+      supervisorName: isSupervisor ? (user?.username || '') : '',
+    });
+    if (millId) {
+      fetchSuppliers(millId);
+      fetchPlantSupervisors(millId);
+    }
+  };
+
+  const openEditEstimate = async (row: any) => {
+    try {
+      const sodaId = row.sodaId || row.id;
+      const res = await api.get(`/api/procurement/soda-pending/detail/${sodaId}`);
+      const p = res.data;
+      const bolis =
+        p.bolis && p.bolis.length > 0
+          ? p.bolis.map((b: any) => ({
+              id: b.id,
+              boliNo: b.boliNo,
+              moisture: b.moisture ?? '',
+              bags: b.bags ?? '',
+              rate: b.rate ?? '',
+            }))
+          : [{ moisture: p.mc || '', bags: p.bags || '', rate: p.rate || '' }];
+      while (bolis.length < 4) bolis.push({ moisture: '', bags: '', rate: '' });
+      setPaddyPurchaseModal({
+        isOpen: true,
+        id: p.id,
+        plantId: p.plantId || activePlant?.id || '',
+        supplierId: p.supplierId,
+        riceCategory: p.riceCategory || 'ANY',
+        date: new Date(p.date).toISOString().split('T')[0],
+        bolis,
+        diff: p.diff || '',
+        payment: p.payment || '',
+        note: p.note || '',
+        finalHisabAmt: p.finalHisabAmt || '',
+        govtRate: p.govtRate != null ? String(p.govtRate) : '',
+        supervisorName: p.supervisorName || (isSupervisor ? user?.username : '') || '',
+        supervisorUserId: p.supervisorUserId || '',
+        biometricData: '',
+      });
+      fetchSuppliers(p.plantId || activePlant?.id);
+      fetchPlantSupervisors(p.plantId || activePlant?.id);
+    } catch (e: any) {
+      useUiStore.getState().addToast(e.response?.data?.message || 'Failed to load estimate', 'error');
+    }
+  };
+
   const handlePaddyPurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isPaddyPurchaseSaving) return;
+    if (paddyPurchaseSavingRef.current || isPaddyPurchaseSaving) return;
 
     const selectedPlantId = paddyPurchaseModal.plantId || activePlant?.id;
     if (!selectedPlantId) {
       useUiStore.getState().addToast('Rice mill is required (assigned plant missing)', 'error');
       return;
     }
+    if (!paddyPurchaseModal.supervisorName) {
+      useUiStore.getState().addToast('Supervisor Name is required', 'error');
+      return;
+    }
+    if (!paddyPurchaseModal.biometricData) {
+      useUiStore.getState().addToast('Fingerprint is required', 'error');
+      return;
+    }
+
+    // Skip completely empty rows; allow fewer than 4 filled
+    const filledBolis = (paddyPurchaseModal.bolis || []).filter(
+      (b: any) => String(b.moisture || '').trim() !== '' || String(b.bags || '').trim() !== '' || String(b.rate || '').trim() !== '',
+    );
+    if (filledBolis.length === 0) {
+      useUiStore.getState().addToast('Enter at least one Boli row', 'error');
+      return;
+    }
+    for (const b of filledBolis) {
+      if (b.bags !== '' && /[.]/.test(String(b.bags))) {
+        useUiStore.getState().addToast('Bags must be whole numbers (no decimals). Use 0 to cancel a boli.', 'error');
+        return;
+      }
+      if (b.rate !== '' && /[.]/.test(String(b.rate))) {
+        useUiStore.getState().addToast('Rate must be a whole number (no decimals)', 'error');
+        return;
+      }
+      const bags = parseInt(String(b.bags), 10);
+      if (!Number.isFinite(bags) || bags < 0 || bags > 999) {
+        useUiStore.getState().addToast('Bags must be 0–999', 'error');
+        return;
+      }
+      const mStr = String(b.moisture ?? '').trim();
+      if (mStr !== '' && !/^\d{1,2}(\.\d{1,2})?$/.test(mStr)) {
+        useUiStore.getState().addToast('Moisture must be max 2 digits with up to 2 decimals', 'error');
+        return;
+      }
+    }
+
+    // Feedback 32 — lock only after validation so early returns don't block future submits
+    paddyPurchaseSavingRef.current = true;
 
     const isEdit = !!paddyPurchaseModal.id;
     const payload = {
       ...paddyPurchaseModal,
+      bolis: filledBolis,
       plantId: selectedPlantId,
       updatePlantGovtRate: user?.role === 'SUPER_ADMIN',
     };
 
-    // Close immediately so double-clicks cannot create duplicate records
     setIsPaddyPurchaseSaving(true);
     setPaddyPurchaseModal(emptyPaddyPurchaseModal());
 
     try {
       if (isEdit) {
         await api.put(`/api/procurement/soda-pending/${payload.id}`, payload);
-        useUiStore.getState().addToast('Purchase updated successfully', 'success');
+        useUiStore.getState().addToast('Estimate Purchase updated', 'success');
       } else {
         await api.post('/api/procurement/soda-pending', payload);
-        useUiStore.getState().addToast('Purchase created successfully', 'success');
+        useUiStore.getState().addToast('Estimate Purchase created', 'success');
       }
       await fetchSodaPending();
       await fetchRecentPurchases();
+      setBoliRecordRefreshKey((k) => k + 1);
     } catch (error: any) {
       console.error('Failed to save purchase', error);
       const msg = error.response?.data?.message || 'Failed to save purchase';
       useUiStore.getState().addToast(msg, 'error');
     } finally {
+      paddyPurchaseSavingRef.current = false;
       setIsPaddyPurchaseSaving(false);
     }
   };
@@ -487,6 +696,97 @@ export const ProcurementManagement = () => {
     }
   };
 
+  const toTimeInput = (v: any) => {
+    if (!v) return '';
+    if (typeof v === 'string' && /^\d{1,2}:\d{2}/.test(v)) return v.slice(0, 5);
+    try {
+      const d = new Date(v);
+      if (!isNaN(d.getTime())) return d.toTimeString().slice(0, 5);
+    } catch { /* ignore */ }
+    return '';
+  };
+
+  /** Feedback 33 — reopen draft inward into the form for unload / confirm */
+  const handleContinueDraft = async (inward: any) => {
+    try {
+      const res = await api.get(`/api/procurement/inward-details/${inward.id}`);
+      const batch = res.data;
+      const d = batch.paddyInwardDetails || {};
+      const q = batch.quality || {};
+      setInwardFormData({
+        ...defaultInwardFormData,
+        id: batch.id,
+        gpNo: d.gpNo || '',
+        date: d.entryDate || (batch.createdAt ? new Date(batch.createdAt).toISOString().split('T')[0] : ''),
+        timeIn: d.timeIn || '',
+        timeOut: d.timeOut || '',
+        truckNo: d.truckNo || '',
+        mandiEgpNo: d.mandiEgNo || '',
+        rstNo: d.rstNo || '',
+        mandiParchiNo: d.mandiParchiNo || '',
+        supplierId: batch.supplierId || '',
+        partyName: d.partyName || batch.supplier?.name || '',
+        mandi: d.mandi || '',
+        pahunchPersonName: d.pahunchPersonName || '',
+        mandiType: d.mandiType || '',
+        boliRate: d.boliRate ?? '',
+        moisture: d.moisture ?? q.moisture ?? '',
+        safai: d.safaiType || '',
+        remarks: d.remarks || '',
+        discrepancy: d.discrepancy || '',
+        mandiIntimation: d.mandiQualityAlert ? 'Yes' : (d.intimationToMandi ? 'N.A.' : ''),
+        allocationType: d.allocationType || '',
+        hoodiUpload: d.isUploadedToHoodiRegister ? 'Yes' : (d.allocationType === 'Hoodi' ? '' : ''),
+        allocateUnloader: d.allocateUnloader || d.unloaderName || '',
+        mainUnloaderTruckCount: d.mainUnloaderTruckCount ?? '',
+        stackNo: d.stackNo || '',
+        bagsInMainStack: d.bagsInMainStack ?? '',
+        partUnloaderName: d.partUnloaderName || '',
+        partUnloaderTruckCount: d.partUnloaderTruckCount ?? '',
+        secondPartStackNo: d.secondPartStackNo || '',
+        bagsInSecondPartStack: d.bagsInSecondPartStack ?? '',
+        labour: d.labourType || '',
+        unloadingStartTime: toTimeInput(d.unloadingStartTime),
+        unloadingFinishTime: toTimeInput(d.unloadingEndTime),
+        origAClass: d.aClassReceived ?? 0,
+        origBClass: d.bClassReceived ?? 0,
+        shortageAClass: d.shortageAClass ?? 0,
+        shortageBClass: d.shortageBClass ?? 0,
+        origAClassAg: d.aClassGiven ?? 0,
+        origBClassAg: d.bClassGiven ?? 0,
+        qualityCutType: d.qualityCutType || '',
+        qualityCutValue: d.qualityCutValue ?? 0,
+        qualityCutReason: d.qualityCutReason || '',
+        qualityCutQtl: d.qualityCutQtl ?? 0,
+        grossWeight: d.grossWeight ?? '',
+        tareWeight: d.tareWeight ?? '',
+        netWeightWb: d.netWeightWb ?? '',
+        netWtMill: d.netWtAtMill ?? 0,
+        reqNetWt: d.requiredNetWt ?? 0,
+        netWtDiff: d.netWtDifference ?? 0,
+        netWtParty: d.netWtAtParty ?? 0,
+        driverName: d.driverName || '',
+        mobileNumber: d.driverMobileNumber || '',
+        bhariVideoUpload: d.bhariVideoUrl || '',
+        khaliVideoUpload: d.khaliVideoUrl || '',
+        meterNotWorking: !!d.meterNotWorking,
+        newTruckReading: d.newTruckReading ?? '',
+        informBaujiBagsLess: !!d.informBaujiBagsLess,
+        informBaujiExcessWeight: !!d.informBaujiExcessWeight,
+        bagsRecLessThanAgencyGp: !!d.bagsRecLessThanAgencyGp,
+        biometricData: batch.biometricData || '',
+        autoNarration: true,
+        shortageNarration: d.shortageNarration || '',
+      });
+      navigate('/procurement?tab=paddy_inward');
+      setViewInwardModal(null);
+      useUiStore.getState().addToast('Draft loaded — complete unload and confirm', 'success');
+    } catch (error) {
+      console.error('Failed to continue draft', error);
+      useUiStore.getState().addToast('Failed to load draft inward', 'error');
+    }
+  };
+
   const fetchInwardList = async () => {
     try {
       const pid = activePlant?.id  || 'global';
@@ -567,8 +867,11 @@ export const ProcurementManagement = () => {
  const params = new URLSearchParams();
  if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
  if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
+ if (listFilters.supplierId) params.append('supplierId', listFilters.supplierId);
+ if (listFilters.mandi) params.append('mandi', listFilters.mandi);
  params.append('page', sodaPendingCurrentPage.toString());
- params.append('limit', '10');
+ // Inward needs full pending list; purchase register still pages
+ params.append('limit', activeTab === 'paddy_inward' ? '1000' : '10');
  const res = await api.get(`/api/procurement/soda-pending/${pid}?${params.toString()}`);
  if (res.data && Array.isArray(res.data.data)) {
    setSodaPending(res.data.data);
@@ -690,32 +993,86 @@ export const ProcurementManagement = () => {
     setIsStackModalOpen(true);
   };
   const handleInwardSubmit = async (status: string = 'CONFIRMED') => {
-    // Validate mandatory fields
-    const requiredFields = [
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = now.toTimeString().slice(0, 5);
+
+    // Punch date / time defaults
+    let working = { ...inwardFormData };
+    let punched = false;
+    if (status === 'DRAFT') {
+      if (!working.date) { working.date = dateStr; punched = true; }
+      if (!working.timeIn) { working.timeIn = timeStr; punched = true; }
+    }
+    if (status === 'CONFIRMED') {
+      if (!working.timeOut) { working.timeOut = timeStr; punched = true; }
+    }
+    if (punched) {
+      setInwardFormData((prev: any) => ({
+        ...prev,
+        date: working.date,
+        timeIn: working.timeIn,
+        timeOut: working.timeOut,
+      }));
+    }
+
+    const draftRequired = [
+      'gpNo', 'date', 'timeIn', 'truckNo', 'newTruckReading', 'supplierId',
+      'mandiParchiNo', 'mandiEgpNo', 'mandiType', 'rstNo',
+      'moisture', 'safai', 'mandiIntimation', 'remarks', 'bhariVideoUpload', 'grossWeight',
+    ];
+    const confirmRequired = [
       'gpNo', 'date', 'timeIn', 'timeOut', 'truckNo',
-      'previousTruckReading', 'newTruckReading', 'kmsDriven', 'supplierId',
-      'mandiParchiNo', 'mandiEgpNo', 'rstNo', 'pahunchPersonName', 'moisture',
-      'safai', 'mandiIntimation', 'remarks', 'bhariVideoUpload', 'khaliVideoUpload', 
-      'paddyBoliRecord', 'allocationType', 'hoodiUpload',
-      'allocateUnloader', 'pahunchPerson', 'stackNo', 'mainUnloaderTruckCount',
+      'newTruckReading', 'supplierId',
+      'mandiParchiNo', 'mandiEgpNo', 'mandiType', 'rstNo',
+      'moisture', 'safai', 'mandiIntimation', 'remarks',
+      'bhariVideoUpload', 'khaliVideoUpload',
+      'allocationType', 'hoodiUpload',
+      'allocateUnloader', 'stackNo', 'mainUnloaderTruckCount',
       'bagsInMainStack', 'secondPartStackNo', 'bagsInSecondPartStack',
-      'unloaderName', 'unloadingEndTime', 'labour', 'startPin',
-      'unloadingStartTime', 'finishPin', 'unloadingFinishTime',
+      'labour', 'unloadingStartTime', 'unloadingFinishTime',
       'origAClass', 'origBClass', 'shortageAClass', 'shortageBClass',
       'origAClassAg', 'origBClassAg', 'netWtMill', 'netWtDiff', 'netWtParty',
-      'discrepancy', 'driverSign', 'unloaderSign', 'pahunchPersonSign'
+      'discrepancy', 'grossWeight', 'driverName', 'mobileNumber',
     ];
-    
+
+    const requiredFields = status === 'DRAFT' ? draftRequired : confirmRequired;
+
     let hasError = false;
     const newErrors: Record<string, string> = {};
-    
+
     requiredFields.forEach(field => {
-      // Exclude specific fields based on conditions if necessary, but here we assume all strictly required
-      if (!inwardFormData[field] && inwardFormData[field] !== 0) {
+      if (!working[field] && working[field] !== 0) {
         newErrors[field] = 'This field is mandatory';
         hasError = true;
       }
     });
+
+    // pahunchPerson OR pahunchPersonName
+    if (!(working.pahunchPerson || working.pahunchPersonName)) {
+      newErrors.pahunchPersonName = 'This field is mandatory';
+      hasError = true;
+    }
+
+    if (status === 'CONFIRMED') {
+      if (working.allocationType === 'Hoodi' && working.hoodiUpload !== 'Yes') {
+        newErrors.hoodiUpload = 'Hoodi upload must be Yes';
+        hasError = true;
+      }
+      // 30 min minimum unload gap
+      if (working.unloadingStartTime && working.unloadingFinishTime) {
+        const [sh, sm] = String(working.unloadingStartTime).split(':').map(Number);
+        const [fh, fm] = String(working.unloadingFinishTime).split(':').map(Number);
+        const startMins = sh * 60 + sm;
+        const finishMins = fh * 60 + fm;
+        let diff = finishMins - startMins;
+        if (diff < 0) diff += 24 * 60;
+        if (diff < 30) {
+          newErrors.unloadingFinishTime = 'Unloading must be at least 30 minutes';
+          hasError = true;
+        }
+      }
+    }
 
     if (hasError) {
       setInwardErrors(newErrors);
@@ -731,20 +1088,21 @@ export const ProcurementManagement = () => {
     try {
       setIsSubmitting(true);
       
-      const parsedOrigA = parseFloat(inwardFormData.origAClass as any) || 0;
-      const parsedOrigB = parseFloat(inwardFormData.origBClass as any) || 0;
-      const parsedShortageA = parseFloat(inwardFormData.shortageAClass as any) || 0;
-      const parsedShortageB = parseFloat(inwardFormData.shortageBClass as any) || 0;
+      const parsedOrigA = parseFloat(working.origAClass as any) || 0;
+      const parsedOrigB = parseFloat(working.origBClass as any) || 0;
+      const parsedShortageA = parseFloat(working.shortageAClass as any) || 0;
+      const parsedShortageB = parseFloat(working.shortageBClass as any) || 0;
       const computedBagsRecAtMill = parsedOrigA + parsedOrigB + parsedShortageA + parsedShortageB;
 
-      const parsedOrigAAg = parseFloat(inwardFormData.origAClassAg as any) || 0;
-      const parsedOrigBAg = parseFloat(inwardFormData.origBClassAg as any) || 0;
+      const parsedOrigAAg = parseFloat(working.origAClassAg as any) || 0;
+      const parsedOrigBAg = parseFloat(working.origBClassAg as any) || 0;
       const computedBagsAtAgencyGp = parsedOrigAAg + parsedOrigBAg;
 
       const payload = {
         ...formData,
-        ...inwardFormData,
-        shortageQtl: inwardFormData.actualShortageQtl,
+        ...working,
+        id: working.id || undefined,
+        shortageQtl: working.actualShortageQtl,
         bagsRecAtMill: computedBagsRecAtMill,
         bagsAtAgencyGp: computedBagsAtAgencyGp,
         boliInputs,
@@ -753,15 +1111,21 @@ export const ProcurementManagement = () => {
         status: status
       };
 
-      await api.post('/api/procurement/save-purchase', payload);
+      const res = await api.post('/api/procurement/save-purchase', payload);
       useUiStore.getState().addToast(`Paddy Inward Saved as ${status}`, 'success');
-      setInwardFormData({ ...defaultInwardFormData }); // clear all fields
-      setBoliInputs({}); // clear boli inputs
+      if (status === 'DRAFT') {
+        // Keep form open with id so supervisor can continue after unload
+        setInwardFormData({ ...working, id: res.data?.id || working.id });
+      } else {
+        setInwardFormData({ ...defaultInwardFormData });
+        setBoliInputs({});
+      }
       fetchSodaPending();
       fetchRecentPurchases();
-    } catch (error) {
+      fetchInwardList();
+    } catch (error: any) {
       console.error('Failed to save inward', error);
-      useUiStore.getState().addToast('Failed to save inward data.', 'error');
+      useUiStore.getState().addToast(error?.response?.data?.message || 'Failed to save inward data.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -999,231 +1363,18 @@ export const ProcurementManagement = () => {
  </div>
  )}
 
- {/* TAB 2: PADDY PURCHASE */}
+ {/* TAB 2: BOLI RECORD (Feedback 32) */}
   {activeTab === 'paddy_purchase' && (
-    <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
-      <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
-            <Package className="text-[#e67e00]" /> Paddy Purchase
-          </h2>
-          <button 
-            onClick={async () => {
-                try {
-                  const params = new URLSearchParams();
-                  if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
-                  if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
-                  if (listFilters.mandi) params.append('mandi', listFilters.mandi);
-                  if (listFilters.supplierId) params.append('supplierId', listFilters.supplierId);
-                  params.append('limit', '1000000');
-                  params.append('page', '1');
-                  const pid = activePlant?.id || 'global';
-                  
-                  const res = await api.get(`/api/procurement/soda-pending/${pid}?${params.toString()}`);
-                  const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
-                  
-                  const exportData = data.map((item: any) => ({
-                    "Party": item.partyMandi,
-                    "Date": item.date,
-                    "Bags": item.bags,
-                    "Rate": item.rate,
-                    "Diff": item.diff,
-                    "Payment": item.payment,
-                    "Note": item.note,
-                    "Final Amount": item.finalHisabAmt
-                  }));
-                  exportToExcel(exportData, `Paddy_Purchase_Full`);
-                } catch(error) {
-                  console.error('Failed to export all records', error);
-                }
-            }}
-            className="flex items-center gap-2 bg-[#107c41] text-white px-3 py-1.5 rounded hover:bg-[#1f8c51] transition-colors text-sm font-medium"
-          >
-            <Download size={16} /> Export All to Excel
-          </button>
-        </div>
-        {activePlant && (
-          <button 
-            onClick={() => {
-              const millId = activePlant?.id || '';
-              setPaddyPurchaseModal({
-              isOpen: true, id: '', plantId: millId, supplierId: '', riceCategory: 'ANY',
-              date: new Date().toISOString().split('T')[0], 
-              bolis: [{ moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }, { moisture: '', bags: '', rate: '' }],
-              govtRate: activePlant?.govtRate?.toString() || '', diff: '', payment: '', note: '', finalHisabAmt: ''
-              });
-              if (millId) fetchSuppliers(millId);
-            }}
-            className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
-          >
-            + New purchase
-          </button>
-        )}
-      </div>
-      <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
-        
-          <div className="flex flex-wrap items-end gap-4 mb-4">
-            <div>
-              <label className="block text-[var(--text-muted-alt)] text-xs mb-1">From Date</label>
-              <input type="date" value={listFilters.dateFrom} onChange={e => setListFilters(f => ({...f, dateFrom: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" />
-            </div>
-            <div>
-              <label className="block text-[var(--text-muted-alt)] text-xs mb-1">To Date</label>
-              <input type="date" value={listFilters.dateTo} onChange={e => setListFilters(f => ({...f, dateTo: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" />
-            </div>
-            <div>
-              <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi</label>
-              <select value={listFilters.mandi} onChange={e => setListFilters(f => ({...f, mandi: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm">
-                <option value="">Select Mandi</option>
-                {mandis.filter((m: any) => m.isActive).map((m: any) => (
-                  <option key={m.id} value={m.name}>{m.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Artia (Supplier)</label>
-              <Combobox
-                 name="supplierIdFilter"
-                 value={listFilters.supplierId}
-                 onChange={(e: any) => setListFilters(f => ({...f, supplierId: e.target.value}))}
-                 options={suppliers}
-                 valueKey="id"
-                 placeholder="All Artias"
-                 className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm"
-               />
-            </div>
-            <div className="flex items-end">
-              <button onClick={() => setListFilters({dateFrom: '', dateTo: '', mandi: '', supplierId: '', activeReportTab: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
-            </div>
-          </div>
-          
-          {/* Daily Stats Dashboard */}
-          {dailyStats.length > 0 && (
-            <div className="flex gap-4 overflow-x-auto pb-4 mb-4 hide-scrollbar">
-              {dailyStats.map((stat, idx) => (
-                <div key={idx} className="min-w-[200px] bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-xl p-3 shadow flex flex-col gap-1">
-                  <div className="text-xs font-bold text-[var(--text-muted-alt)]">{stat.date}</div>
-                  <div className="flex justify-between items-end mt-1">
-                    <span className="text-[10px] text-[var(--text-muted)]">Highest</span>
-                    <span className="text-sm font-bold text-red-400">₹{stat.maxRate}</span>
-                  </div>
-                  <div className="flex justify-between items-end">
-                    <span className="text-[10px] text-[var(--text-muted)]">Lowest</span>
-                    <span className="text-sm font-bold text-green-400">₹{stat.minRate}</span>
-                  </div>
-                  <div className="flex justify-between items-end mt-1 border-t border-[var(--border-subtle)] pt-1">
-                    <span className="text-[10px] text-[var(--text-muted)]">Overpriced Diff</span>
-                    <span className="text-sm font-bold text-[#e67e00]">₹{stat.overPricedValue.toLocaleString()}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          
-          <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
-          <thead>
-            <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)]">
-              <th className="p-3">Party - Supplier</th>
-              <th className="p-3">Date</th>
-              <th className="p-3">Mc</th>
-              <th className="p-3">Estimated Bags</th>
-              <th className="p-3">Final Bags</th>
-              <th className="p-3">Rate</th>
-              <th className="p-3">Diff</th>
-              <th className="p-3">Payment</th>
-              <th className="p-3">Note</th>
-              <th className="p-3">Final Hisab Amt</th>
-              <th className="p-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredSodaPending.map((p, i) => {
-              // Calculate Overpriced Flag
-              const govtRate = parseFloat(p.govtRate) || activePlant?.govtRate || 0;
-              const bMoisture = activePlant?.benchmarkMoisture ?? 17;
-              const safaiCut = activePlant?.safaiCut ?? 2;
-              const procCut = activePlant?.processingCut ?? 4;
-              
-              const mVal = parseFloat(p.mc) || 0;
-              const mCut = mVal > bMoisture ? (mVal - bMoisture) : 0;
-              const totalCut = mCut + safaiCut + procCut;
-              const requiredRate = govtRate > 0 ? (govtRate - (govtRate * (totalCut / 100))) : 0;
-              const actRate = parseFloat(p.rate) || 0;
-              const isOverpriced = govtRate > 0 && actRate > requiredRate;
-              
-              // Calculate Final Bags if bolis exist
-              const totalFinalBags = p.bolis?.reduce((acc: number, b: any) => acc + (parseFloat(b.bags) || 0), 0) || 0;
-
-              return (
-              <tr key={p.id} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)]">
-                  <td className="p-3 font-medium text-[var(--text-main)]">{p.partyMandi}</td>
-                  <td className="p-3">{new Date(p.date).toLocaleDateString()}</td>
-                  <td className="p-3">
-                    {p.bolis?.length ? <button onClick={() => setViewBolisModal({isOpen: true, soda: p, partyMandi: p.partyMandi, date: p.date})} className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded hover:bg-blue-500/30">View {p.bolis.length} Bolis</button> : p.mc || '-'}
-                  </td>
-                  <td className="p-3 font-bold text-[var(--text-muted)]">{p.bolis?.length ? '-' : p.bags || '-'}</td>
-                  <td className="p-3 font-bold text-[var(--text-main)]">{p.bolis?.length ? totalFinalBags : '-'}</td>
-                  <td className="p-3">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-[#e67e00]">{p.bolis?.length ? '-' : p.rate || '-'}</span>
-                      {!p.bolis?.length && govtRate > 0 && actRate > 0 && (
-                        isOverpriced 
-                          ? <span className="text-[10px] text-red-500 font-bold bg-red-500/10 px-1 py-0.5 rounded mt-0.5 inline-block w-max">OVERPRICED (Req: ₹{requiredRate.toFixed(2)})</span> 
-                          : <span className="text-[10px] text-green-500 font-bold bg-green-500/10 px-1 py-0.5 rounded mt-0.5 inline-block w-max">GOOD BUY</span>
-                      )}
-                    </div>
-                  </td>
-                <td className="p-3">
-                  {parseFloat(p.diff) > 0 ? (
-                    <span className="text-red-500 font-bold">₹{p.diff} (Pending)</span>
-                  ) : parseFloat(p.diff) < 0 ? (
-                    <span className="text-green-500 font-bold">₹{Math.abs(parseFloat(p.diff))} (Advance)</span>
-                  ) : (
-                    <span className="text-[var(--text-muted)]">₹0</span>
-                  )}
-                </td>
-                <td className="p-3 text-[var(--text-main)] font-bold">{p.payment || '0'}</td>
-                <td className="p-3">{p.note || '-'}</td>
-                <td className="p-3">
-                  {parseFloat(p.finalHisabAmt) > 0 ? (
-                    <span className="text-red-500 font-bold flex items-center gap-1"><ArrowUpRight size={14}/> ₹{p.finalHisabAmt}</span>
-                  ) : parseFloat(p.finalHisabAmt) < 0 ? (
-                    <span className="text-green-500 font-bold flex items-center gap-1"><ArrowDownRight size={14}/> ₹{Math.abs(parseFloat(p.finalHisabAmt))}</span>
-                  ) : (
-                    <span className="text-[var(--text-main)] font-bold">₹{p.finalHisabAmt || '0'}</span>
-                  )}
-                </td>
-                <td className="p-3 text-right">
-                  <button onClick={() => setPaddyPurchaseModal({
-                    isOpen: true, id: p.id, plantId: activePlant?.id || '', supplierId: p.supplierId, riceCategory: p.riceCategory || 'ANY',
-                    date: new Date(p.date).toISOString().split('T')[0], 
-                    bolis: p.bolis && p.bolis.length > 0 ? p.bolis : [{ moisture: p.mc || '', bags: p.bags || '', rate: p.rate || '' }],
-                    diff: p.diff || '', payment: p.payment || '', note: p.note || '', finalHisabAmt: p.finalHisabAmt || '',
-                    govtRate: p.govtRate || ''
-                  })} className="text-blue-400 hover:text-blue-300">
-                    <Edit className="w-4 h-4" />
-                  </button>
-                </td>
-              </tr>
-              );
-            })}
-            {filteredSodaPending.length === 0 && (
-              <tr>
-                <td colSpan={10} className="p-6 text-center text-[var(--text-muted-alt)]">No records found.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        <Pagination
-            currentPage={sodaPendingCurrentPage}
-            totalItems={sodaPendingTotalItems}
-            onPageChange={setSodaPendingCurrentPage}
-          />
-      </div>
-    </div>
+    <BoliRecordPanel
+      suppliers={suppliers}
+      fetchSuppliers={fetchSuppliers}
+      onOpenEstimate={openEstimatePurchase}
+      onEditEstimate={openEditEstimate}
+      refreshKey={boliRecordRefreshKey}
+    />
   )}
 
-  {/* View Bolis Modal */}
+{/* View Bolis Modal */}
   {viewBolisModal.isOpen && viewBolisModal.soda && (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-[var(--bg-panel)] rounded-xl w-full max-w-4xl shadow-2xl border border-[var(--border-subtle)] overflow-hidden">
@@ -1255,16 +1406,32 @@ export const ProcurementManagement = () => {
  {/* Top Toolbar */}
  <div className="flex items-center justify-between mb-4 border-b border-[var(--border-subtle-alt)] pb-3">
  <div className="flex items-center gap-3">
- <span className="text-[#e67e00] text-[10px] bg-[#e67e00]/10 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">BEAS AGRO</span>
+ <span className="text-[#e67e00] text-[10px] bg-[#e67e00]/10 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">{activePlant?.name || 'MILL'}</span>
  <h1 className="text-base font-bold text-[var(--text-muted)]">
  Paddy Inward (Goods Receipt)
  </h1>
+ {inwardFormData.id && (
+   <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-400">
+     Editing Draft
+   </span>
+ )}
  <p className="text-[var(--text-muted-alt)] text-xs border-l border-[var(--border-subtle)] pl-3 hidden sm:block">Procurement &gt; Paddy Inward</p>
  </div>
 
  </div>
 
- <div className="grid grid-cols-12 gap-6 flex-1">
+ <div className="grid grid-cols-12 gap-6 flex-1" onKeyDown={(e) => {
+   if (e.key !== 'Enter') return;
+   const target = e.target as HTMLElement;
+   if (target.tagName === 'TEXTAREA' || target.tagName === 'BUTTON') return;
+   e.preventDefault();
+   const root = e.currentTarget as HTMLElement;
+   const focusable = Array.from(root.querySelectorAll<HTMLElement>(
+     'input:not([disabled]):not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), select:not([disabled]), textarea:not([disabled])'
+   )).filter((el) => el.offsetParent !== null);
+   const idx = focusable.indexOf(target);
+   if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1].focus();
+ }}>
  {/* LEFT COLUMN */}
  <div className="col-span-12 xl:col-span-7 space-y-6">
  
@@ -1279,17 +1446,17 @@ export const ProcurementManagement = () => {
  </div>
  <div>
   <label className="block text-[var(--text-muted-alt)] text-[11px] mb-1 truncate">Date <span className="text-red-500">*</span></label>
-  <input type="date" name="date" value={inwardFormData.date} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
+  <input type="date" name="date" value={inwardFormData.date} onChange={handleInwardChange} disabled={!canManualDateTime} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${canManualDateTime ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
   {inwardErrors.date && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.date}</span>}
   </div>
   <div>
   <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Time In <span className="text-red-500">*</span></label>
-  <input type="time" name="timeIn" value={inwardFormData.timeIn} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
+  <input type="time" name="timeIn" value={inwardFormData.timeIn} onChange={handleInwardChange} disabled={!canManualDateTime} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${canManualDateTime ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
   {inwardErrors.timeIn && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.timeIn}</span>}
   </div>
   <div>
   <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Time Out <span className="text-red-500">*</span></label>
-  <input type="time" name="timeOut" value={inwardFormData.timeOut} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
+  <input type="time" name="timeOut" value={inwardFormData.timeOut} onChange={handleInwardChange} disabled={!canManualDateTime} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${canManualDateTime ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
   {inwardErrors.timeOut && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.timeOut}</span>}
   </div>
  <div>
@@ -1306,31 +1473,17 @@ export const ProcurementManagement = () => {
   {inwardErrors.truckNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.truckNo}</span>}
  </div>
   <div>
-  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Previous Truck Reading <span className="text-red-500">*</span></label>
-  <input type="number" name="previousTruckReading" value={inwardFormData.previousTruckReading} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
-  {inwardErrors.previousTruckReading && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.previousTruckReading}</span>}
-  </div>
-  <div>
-  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">New Truck Reading <span className="text-red-500">*</span></label>
-  <input type="number" name="newTruckReading" value={inwardFormData.newTruckReading} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
-  {inwardErrors.newTruckReading && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.newTruckReading}</span>}
-  </div>
-  <div>
   <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between">
-    <span>Kms Driven <span className="text-red-500">*</span></span>
+    <span>New Truck Reading <span className="text-red-500">*</span></span>
     <label className="flex items-center gap-1 text-[10px] text-red-400 cursor-pointer" title="Notify admin that meter is not working">
       <input type="checkbox" name="meterNotWorking" checked={inwardFormData.meterNotWorking || false} onChange={(e) => {
-        if(e.target.checked) {
-           setInwardFormData((p: any) => ({...p, meterNotWorking: true}));
-        } else {
-           setInwardFormData((p: any) => ({...p, meterNotWorking: false}));
-        }
+        setInwardFormData((p: any) => ({...p, meterNotWorking: e.target.checked}));
       }} className="accent-red-500" />
       Meter Not Working
     </label>
   </label>
-  <input type="number" name="kmsDriven" value={inwardFormData.kmsDriven} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
-  {inwardErrors.kmsDriven && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.kmsDriven}</span>}
+  <input type="number" name="newTruckReading" value={inwardFormData.newTruckReading} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
+  {inwardErrors.newTruckReading && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.newTruckReading}</span>}
   </div>
   <div>
   <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Party / Supplier Name <span className="text-red-500">*</span></label>
@@ -1345,6 +1498,17 @@ export const ProcurementManagement = () => {
    />
   {inwardErrors.supplierId && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.supplierId}</span>}
   </div>
+  <div>
+  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Party Name</label>
+  <input
+    type="text"
+    name="partyName"
+    value={inwardFormData.partyName}
+    onChange={handleInwardChange}
+    className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+    placeholder="Defaults to Artia / Supplier name"
+  />
+  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi Parchi No. <span className="text-red-500">*</span></label>
  <input type="text" name="mandiParchiNo" value={inwardFormData.mandiParchiNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="PRC-12345" />
@@ -1358,22 +1522,12 @@ export const ProcurementManagement = () => {
  <div>
 <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi Type <span className="text-red-500">*</span></label>
 <select name="mandiType" value={inwardFormData.mandiType} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
+  <option value="">Select Mandi Type</option>
   <option value="Control">Control</option>
   <option value="Boli">Boli</option>
 </select>
+{inwardErrors.mandiType && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.mandiType}</span>}
 </div>
-{inwardFormData.mandiType === 'Boli' && (
-  <div>
-    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Boli Rate (₹) <span className="text-red-500">*</span></label>
-    <input type="number" step="0.01" name="boliRate" value={inwardFormData.boliRate} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" required />
-  </div>
-)}
-{inwardFormData.mandiType === 'Boli' && (
-  <div className="flex items-start gap-2 pt-5">
-    <input type="checkbox" id="boliChecklist" name="boliChecklist" checked={inwardFormData.boliChecklist} onChange={handleInwardChange} className="mt-1" required />
-    <label htmlFor="boliChecklist" className="text-xs text-[var(--text-main)] leading-tight">Has the Artia entered the required Boli records into the system before issuing this Gate Pass? <span className="text-red-500">*</span></label>
-  </div>
-)}
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">RST No. <span className="text-red-500">*</span></label>
  <input type="text" name="rstNo" value={inwardFormData.rstNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="RST-7485963" />
@@ -1443,32 +1597,22 @@ export const ProcurementManagement = () => {
  </div>
  {inwardErrors.bhariVideoUpload && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.bhariVideoUpload}</span>}
  </div>
- <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Khali (Empty) Video Upload <span className="text-red-500">*</span></label>
- <div className="flex items-center gap-4 py-2">
- <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="checkbox" name="khaliVideoUpload" checked={inwardFormData.khaliVideoUpload === 'Yes'} onChange={(e) => handleInwardChange({ target: { name: 'khaliVideoUpload', value: e.target.checked ? 'Yes' : '' } } as any)} className="accent-blue-500" /> Yes Done</label>
  </div>
- {inwardErrors.khaliVideoUpload && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.khaliVideoUpload}</span>}
- </div>
- </div>
-  <div>
-  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Paddy Boli Record <span className="text-red-500">*</span></label>
-  <select name="paddyBoliRecord" value={inwardFormData.paddyBoliRecord} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
-  <option value="Done">Done</option>
-  <option value="Not applicable">Not applicable</option>
-  </select>
-  {inwardErrors.paddyBoliRecord && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.paddyBoliRecord}</span>}
-  </div>
  </div>
 
  {/* 4. Unloading Management */}
  <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">4. Unloading Management</div>
- <div className="p-4 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4 text-sm">
+ <div className="p-4 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 text-sm">
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Allocation Type <span className="text-red-500">*</span></label>
  <div className="flex items-center gap-2">
-   <select name="allocationType" value={inwardFormData.allocationType} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
+   <select name="allocationType" value={inwardFormData.allocationType} onChange={(e) => {
+     handleInwardChange(e);
+     if (e.target.value === 'Hoodi' && inwardFormData.hoodiUpload === 'N.A.') {
+       setInwardFormData((prev: any) => ({ ...prev, allocationType: 'Hoodi', hoodiUpload: '' }));
+     }
+   }} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]">
    <option value="" disabled>Select Allocation Type</option>
    <option value="Hoodi">Hoodi</option>
    <option value="Stacking">Stacking</option>
@@ -1485,85 +1629,98 @@ export const ProcurementManagement = () => {
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Upload @ Hoodi Reg. <span className="text-red-500">*</span></label>
  <div className="flex items-center gap-4 mt-2">
- <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="hoodiUpload" value="N.A." checked={inwardFormData.hoodiUpload === 'N.A.'} onChange={handleInwardChange} className="accent-blue-500" /> N.A.</label>
+ {inwardFormData.allocationType !== 'Hoodi' && (
+   <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="hoodiUpload" value="N.A." checked={inwardFormData.hoodiUpload === 'N.A.'} onChange={handleInwardChange} className="accent-blue-500" /> N.A.</label>
+ )}
  <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="radio" name="hoodiUpload" value="Yes" checked={inwardFormData.hoodiUpload === 'Yes'} onChange={handleInwardChange} className="accent-blue-500" /> Yes</label>
  </div>
  {inwardErrors.hoodiUpload && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.hoodiUpload}</span>}
  </div>
+
+ {/* Row 1: Main Unloader */}
+ <div className="col-span-1 sm:col-span-2 2xl:col-span-4 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Allocate Unloader <span className="text-red-500">*</span></label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Allocate Main Unloader <span className="text-red-500">*</span></label>
  <Combobox
     name="allocateUnloader"
     value={inwardFormData.allocateUnloader}
     onChange={(e: any) => {
       handleInwardChange(e);
-      if (e.target.value) {
-        setInwardFormData((prev: any) => ({...prev, unloaderTruckCount: Math.floor(Math.random() * 5) + 1}));
-      }
     }}
     onBlur={handleMasterDataBlur}
-    options={labours}
+    options={[
+      ...staff.filter((s: any) => /UNLOADER/i.test(s.role || '')),
+      ...labours,
+    ]}
     className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
     placeholder="Select or enter unloader"
   />
  {inwardErrors.allocateUnloader && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.allocateUnloader}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Pahunch Person Name <span className="text-red-500">*</span></label>
- <Combobox
-    name="pahunchPerson"
-    value={inwardFormData.pahunchPerson || ''}
-    onChange={handleInwardChange}
-    onBlur={handleMasterDataBlur}
-    options={pahunchs}
-    placeholder="Select or type Pahunch Person"
-    className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
-  />
- {inwardErrors.pahunchPerson && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.pahunchPerson}</span>}
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Main Unloader Truck Count <span className="text-red-500">*</span></label>
+ <input type="number" name="mainUnloaderTruckCount" value={inwardFormData.mainUnloaderTruckCount} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
+ {inwardErrors.mainUnloaderTruckCount && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.mainUnloaderTruckCount}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between"><span>Stack No. <span className="text-red-500">*</span></span> <ScanBarcode size={14} className="text-[#e67e00]" /></label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between"><span>Main Stack No. <span className="text-red-500">*</span></span> <ScanBarcode size={14} className="text-[#e67e00]" /></label>
  <div className="flex gap-2">
  <div className="relative flex-1">
- <input type="text" name="stackNo" value={inwardFormData.stackNo} onChange={handleInwardChange} className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 ${activePlant?.name?.toLowerCase().includes('beas') ? 'pl-8' : ''} text-[var(--text-main)] outline-none focus:border-[#e67e00]`} placeholder={activePlant?.name?.toLowerCase().includes('beas') ? "Scan stack barcode..." : "Enter Stack No."} />
- {activePlant?.name?.toLowerCase().includes('beas') && <ScanBarcode size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />}
+ <input type="text" name="stackNo" value={inwardFormData.stackNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 pl-8 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Scan / select stack..." />
+ <ScanBarcode size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
  </div>
- {activePlant?.name?.toLowerCase().includes('beas') && (
-   <button type="button" onClick={openStackModal} className="px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded text-[var(--text-main)] hover:bg-[var(--glass-bg)]" title="Select Manually">
+ <button type="button" onClick={openStackModal} className="px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded text-[var(--text-main)] hover:bg-[var(--glass-bg)]" title="Select stack drawing (current mill)">
    <Layers size={16} />
-   </button>
- )}
+ </button>
  </div>
  {inwardErrors.stackNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.stackNo}</span>}
- </div>
- <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Truck Unload Count (Today)</label>
- <input type="number" readOnly value={inwardFormData.unloaderTruckCount} className="w-full bg-blue-900/10 border border-blue-500/30 rounded px-3 py-2 text-blue-400 font-bold outline-none" />
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Bags in Main Stack <span className="text-red-500">*</span></label>
  <input type="number" name="bagsInMainStack" value={inwardFormData.bagsInMainStack} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
  {inwardErrors.bagsInMainStack && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.bagsInMainStack}</span>}
  </div>
+ </div>
+
+ {/* Row 2: Part Unloader */}
+ <div className="col-span-1 sm:col-span-2 2xl:col-span-4 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Second part Stack no. <span className="text-red-500">*</span></label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Part Unloader</label>
+ <Combobox
+    name="partUnloaderName"
+    value={inwardFormData.partUnloaderName || ''}
+    onChange={handleInwardChange}
+    onBlur={handleMasterDataBlur}
+    options={labours}
+    className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+    placeholder="Select or enter part unloader"
+  />
+ </div>
+ <div>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Part Unloader Truck Count</label>
+ <input type="number" name="partUnloaderTruckCount" value={inwardFormData.partUnloaderTruckCount} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
+ </div>
+ <div>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Part Stack No. <span className="text-red-500">*</span></label>
  <input type="text" name="secondPartStackNo" value={inwardFormData.secondPartStackNo} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Stack No." />
  {inwardErrors.secondPartStackNo && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.secondPartStackNo}</span>}
  </div>
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Bags in second part stack <span className="text-red-500">*</span></label>
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Bags in Part Stack <span className="text-red-500">*</span></label>
  <input type="number" name="bagsInSecondPartStack" value={inwardFormData.bagsInSecondPartStack} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="0" />
  {inwardErrors.bagsInSecondPartStack && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.bagsInSecondPartStack}</span>}
  </div>
+ </div>
+
  <div>
- <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Unloader Name <span className="text-red-500">*</span></label>
- <input type="text" name="unloaderName" value={inwardFormData.unloaderName} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" placeholder="Name" />
- {inwardErrors.unloaderName && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.unloaderName}</span>}
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Unloading Start Time <span className="text-red-500">*</span></label>
+ <input type="time" name="unloadingStartTime" value={inwardFormData.unloadingStartTime || ''} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" />
+ {inwardErrors.unloadingStartTime && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.unloadingStartTime}</span>}
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Unloading Finish Time <span className="text-red-500">*</span></label>
- <input type="time" name="unloadingEndTime" value={inwardFormData.unloadingEndTime} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" />
- {inwardErrors.unloadingEndTime && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.unloadingEndTime}</span>}
+ <input type="time" name="unloadingFinishTime" value={inwardFormData.unloadingFinishTime || ''} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" />
+ {inwardErrors.unloadingFinishTime && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.unloadingFinishTime}</span>}
  </div>
  <div>
  <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Labour Name <span className="text-red-500">*</span></label>
@@ -1578,8 +1735,10 @@ export const ProcurementManagement = () => {
   />
  {inwardErrors.labour && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.labour}</span>}
  </div>
- <div>
-  <div className="col-span-1 sm:col-span-2 bg-[#e67e00]/10 p-3 rounded-lg border border-[#e67e00]/30 grid grid-cols-1 md:grid-cols-2 gap-4">
+
+ {inwardFormData.id && (
+  <div className="col-span-1 sm:col-span-2 2xl:col-span-4">
+  <div className="bg-[#e67e00]/10 p-3 rounded-lg border border-[#e67e00]/30 grid grid-cols-1 md:grid-cols-2 gap-4">
     <div className="space-y-3">
       <div className="font-bold text-[#e67e00] text-xs">UNLOADING START VERIFICATION</div>
       <label className="flex items-center gap-2 text-sm text-[var(--text-main)]">
@@ -1587,19 +1746,8 @@ export const ProcurementManagement = () => {
         Loaded Truck Video Captured & Verified
       </label>
       <div>
-       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Supervisor PIN <span className="text-red-500">*</span></label>
-       <input type="password" name="startPin" placeholder="Supervisor PIN (1234)" value={inwardFormData.startPin} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-sm outline-none" />
-       {inwardErrors.startPin && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.startPin}</span>}
-       </div>
-       <div>
-       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Starts Time <span className="text-red-500">*</span></label>
-       <div className="flex gap-2">
-       <input type="time" name="unloadingStartTime" value={inwardFormData.unloadingStartTime} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`flex-1 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
-       {!hasBackdatePermission && (
-         <button type="button" disabled={!inwardFormData.loadedVideoVerified || inwardFormData.startPin !== '1234'} onClick={() => { setInwardFormData((prev: any) => ({...prev, unloadingStartTime: new Date().toTimeString().slice(0,5)})); setInwardErrors((prev: any) => ({...prev, unloadingStartTime: ''})) }} className="bg-[#e67e00] hover:bg-[#cc7000] disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 rounded text-xs font-bold transition-colors">NOW</button>
-       )}
-       </div>
-       {inwardErrors.unloadingStartTime && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.unloadingStartTime}</span>}
+       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Supervisor PIN</label>
+       <input type="password" name="startPin" placeholder="Supervisor PIN (1234)" value={inwardFormData.startPin || ''} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-sm outline-none" />
        </div>
     </div>
     
@@ -1610,29 +1758,20 @@ export const ProcurementManagement = () => {
         Empty Truck Video Captured & Verified
       </label>
       <div>
-       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Supervisor PIN <span className="text-red-500">*</span></label>
-       <input type="password" name="finishPin" placeholder="Supervisor PIN (1234)" value={inwardFormData.finishPin} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-sm outline-none" />
-       {inwardErrors.finishPin && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.finishPin}</span>}
-       </div>
-       <div>
-       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Finish Time <span className="text-red-500">*</span></label>
-       <div className="flex gap-2">
-       <input type="time" name="unloadingFinishTime" value={inwardFormData.unloadingFinishTime} onChange={handleInwardChange} disabled={!hasBackdatePermission} className={`flex-1 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] outline-none ${hasBackdatePermission ? 'focus:border-[#e67e00]' : 'opacity-70 cursor-not-allowed'}`} />
-       {!hasBackdatePermission && (
-         <button type="button" disabled={!inwardFormData.emptyVideoVerified || inwardFormData.finishPin !== '1234'} onClick={() => { setInwardFormData((prev: any) => ({...prev, unloadingFinishTime: new Date().toTimeString().slice(0,5)})); setInwardErrors((prev: any) => ({...prev, unloadingFinishTime: ''})) }} className="bg-[#e67e00] hover:bg-[#cc7000] disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 rounded text-xs font-bold transition-colors">NOW</button>
-       )}
-       </div>
-       {inwardErrors.unloadingFinishTime && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.unloadingFinishTime}</span>}
+       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Supervisor PIN</label>
+       <input type="password" name="finishPin" placeholder="Supervisor PIN (1234)" value={inwardFormData.finishPin || ''} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-sm outline-none" />
        </div>
     </div>
-  </div></div>
+  </div>
+  </div>
+ )}
  </div>
  </div>
 
  {/* Pending Bolis & Quality Cut (Supervisor Input) */}
    <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[#e67e00]/30 overflow-hidden mt-6">
      <div className="bg-[#e67e00]/10 px-4 py-2 border-b border-[#e67e00]/20 text-[#e67e00] font-bold text-sm flex items-center justify-between">
-       <span>Pending Bolis / Soda for Selected Arthiya</span>
+       <span>Pending Bolis (Selected Arthia)</span>
      </div>
      <div className="p-4">
         <BoliCompletionTable 
@@ -1641,6 +1780,7 @@ export const ProcurementManagement = () => {
           boliInputs={boliInputs} 
           setBoliInputs={setBoliInputs} 
           onSodaComplete={fetchSodaPending}
+          editable={inwardFormData.mandiType === 'Boli'}
         />
        </div>
        
@@ -1666,7 +1806,7 @@ export const ProcurementManagement = () => {
             </div>
             <div className="sm:col-span-3">
               <label className="block text-[var(--text-muted-alt)] text-[10px] mb-1">
-                Value {inwardFormData.qualityCutType === 'PERCENTAGE' ? '(%)' : inwardFormData.qualityCutType === 'BAGS' ? '(Bags)' : ''}
+                Cut {inwardFormData.qualityCutType === 'PERCENTAGE' ? '(%)' : inwardFormData.qualityCutType === 'BAGS' ? '(Bags)' : ''}
               </label>
               <div className="relative">
                 <input type="number" min="0" name="qualityCutValue" value={inwardFormData.qualityCutValue} onChange={handleInwardChange} disabled={inwardFormData.qualityCutType === 'NONE'} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)] outline-none disabled:opacity-50 pr-16" />
@@ -1681,19 +1821,17 @@ export const ProcurementManagement = () => {
                   </span>
                 )}
               </div>
+              {(inwardFormData.qualityCutType === 'BAGS' || inwardFormData.qualityCutType === 'PERCENTAGE') && (
+                <p className="text-[10px] text-orange-400 mt-1 font-medium">
+                  Cut in quintals: {(parseFloat(inwardFormData.qualityCutQtl) || 0).toFixed(2)} Qtl
+                </p>
+              )}
             </div>
             <div className="sm:col-span-4">
               <label className="block text-[var(--text-muted-alt)] text-[10px] mb-1">Reason</label>
               <input type="text" name="qualityCutReason" value={inwardFormData.qualityCutReason} onChange={handleInwardChange} disabled={inwardFormData.qualityCutType === 'NONE'} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)] outline-none disabled:opacity-50" placeholder="e.g. High Moisture" />
             </div>
           </div>
-          <div className="flex flex-wrap gap-4 mt-2">
-             <label className="flex items-center gap-2 text-xs text-[var(--text-main)] cursor-pointer">
-               <input type="checkbox" name="bagsRecLessThanAgencyGp" checked={inwardFormData.bagsRecLessThanAgencyGp || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, bagsRecLessThanAgencyGp: e.target.checked }))} className="accent-[#e67e00] w-4 h-4" />
-               Bags Rec. less than Agency GP: N/A
-             </label>
-          </div>
-
         </div>
       </div>
 
@@ -1713,6 +1851,7 @@ export const ProcurementManagement = () => {
  <th className="pb-2 font-medium w-1/3"></th>
  <th className="pb-2 font-medium text-center" colSpan={2}>Original Bardana</th>
  <th className="pb-2 font-medium text-center text-[#e67e00]" colSpan={2}>Shortage Received</th>
+ <th className="pb-2 font-medium text-center text-right">Total Bags</th>
  </tr>
  <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)]">
  <th className="pb-2 font-medium"></th>
@@ -1720,6 +1859,7 @@ export const ProcurementManagement = () => {
  <th className="pb-2 font-medium">B Class</th>
  <th className="pb-2 font-medium text-[#e67e00]">A Class</th>
  <th className="pb-2 font-medium text-[#e67e00]">B Class</th>
+ <th className="pb-2 font-medium text-right"></th>
  </tr>
  </thead>
  <tbody>
@@ -1741,6 +1881,9 @@ export const ProcurementManagement = () => {
   <input type="number" min="0" name="shortageBClass" value={inwardFormData.shortageBClass} onChange={handleInwardChange} className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]"  />
   {inwardErrors.shortageBClass && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.shortageBClass}</span>}
  </td>
+ <td className="py-3 text-right font-bold text-[var(--text-main)]">
+  {(parseFloat(inwardFormData.origAClass) || 0) + (parseFloat(inwardFormData.origBClass) || 0) + (parseFloat(inwardFormData.shortageAClass) || 0) + (parseFloat(inwardFormData.shortageBClass) || 0)}
+ </td>
  </tr>
  <tr>
  <td className="py-3 text-[var(--text-muted)] font-medium">Bags @ Agency GP</td>
@@ -1753,9 +1896,36 @@ export const ProcurementManagement = () => {
   {inwardErrors.origBClassAg && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.origBClassAg}</span>}
  </td>
  <td className="py-3 text-center text-gray-500" colSpan={2}>-</td>
+ <td className="py-3 text-right font-bold text-[var(--text-main)]">
+  {(parseFloat(inwardFormData.origAClassAg) || 0) + (parseFloat(inwardFormData.origBClassAg) || 0)}
+ </td>
  </tr>
  </tbody>
  </table>
+ {(() => {
+   const millExclShortage = (parseFloat(inwardFormData.origAClass) || 0) + (parseFloat(inwardFormData.origBClass) || 0);
+   const agencyBags = (parseFloat(inwardFormData.origAClassAg) || 0) + (parseFloat(inwardFormData.origBClassAg) || 0);
+   const bagsLessEnabled = millExclShortage < agencyBags;
+   return (
+     <div className="mt-3">
+       <label className={`flex items-center gap-2 text-xs font-medium ${bagsLessEnabled ? 'text-red-400 cursor-pointer' : 'text-[var(--text-muted)] opacity-60 cursor-not-allowed'}`}>
+         <input
+           type="checkbox"
+           name="informBaujiBagsLess"
+           disabled={!bagsLessEnabled}
+           checked={!!inwardFormData.informBaujiBagsLess || !!inwardFormData.bagsRecLessThanAgencyGp}
+           onChange={e => setInwardFormData((prev: any) => ({
+             ...prev,
+             informBaujiBagsLess: e.target.checked,
+             bagsRecLessThanAgencyGp: e.target.checked,
+           }))}
+           className="accent-red-500 w-4 h-4"
+         />
+         Inform Bauji — Bags Rec. less than Agency GP
+       </label>
+     </div>
+   );
+ })()}
  </div>
  </div>
 
@@ -1763,6 +1933,19 @@ export const ProcurementManagement = () => {
  <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden flex flex-col">
  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">6. Weight Details</div>
   <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 content-start">
+  <div>
+    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Gross Weight (Qtl) <span className="text-red-500">*</span></label>
+    <input type="number" min="0" step="0.001" name="grossWeight" value={inwardFormData.grossWeight} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" />
+    {inwardErrors.grossWeight && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.grossWeight}</span>}
+  </div>
+  <div>
+    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Tare Weight (Qtl)</label>
+    <input type="number" min="0" step="0.001" name="tareWeight" value={inwardFormData.tareWeight} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]" />
+  </div>
+  <div>
+    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Net Weight (WB) : (Qtl)</label>
+    <input type="number" name="netWeightWb" value={inwardFormData.netWeightWb} readOnly className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed" title="Gross − Tare" />
+  </div>
   <div>
     <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
       Required Nt Wt. : (Qtl)
@@ -1774,9 +1957,40 @@ export const ProcurementManagement = () => {
     <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex justify-between items-center">
       <span>Net Wt. at Mill : (Qtl) <span className="text-red-500">*</span></span>
       {!hasManualWeighbridgePermission && (
-        <button type="button" onClick={() => {
-          setInwardFormData((prev: any) => ({...prev, netWtMill: (Math.random() * (450 - 350) + 350).toFixed(2)}));
-          setInwardErrors((prev: any) => ({...prev, netWtMill: ''}));
+        <button type="button" onClick={async () => {
+          try {
+            if (!inwardFormData.truckNo) {
+              useUiStore.getState().addToast('Select truck number first', 'error');
+              return;
+            }
+            const pid = activePlant?.id || 'global';
+            const res = await api.get(`/api/weighbridge/latest/${pid}/${encodeURIComponent(inwardFormData.truckNo)}`);
+            const wb = res.data;
+            if (!wb) {
+              useUiStore.getState().addToast('No weighbridge reading found for this truck', 'error');
+              return;
+            }
+            setInwardFormData((prev: any) => ({
+              ...prev,
+              ...(wb.grossWeight != null ? { grossWeight: wb.grossWeight } : {}),
+              ...(wb.tareWeight != null ? { tareWeight: wb.tareWeight } : {}),
+              ...(wb.netWeight != null
+                ? { netWtMill: wb.netWeight, netWeightWb: wb.netWeight }
+                : wb.grossWeight != null && wb.tareWeight != null
+                  ? {
+                      netWtMill: (Number(wb.grossWeight) - Number(wb.tareWeight)).toFixed(3),
+                      netWeightWb: (Number(wb.grossWeight) - Number(wb.tareWeight)).toFixed(3),
+                    }
+                  : wb.grossWeight != null
+                    ? { grossWeight: wb.grossWeight }
+                    : {}),
+            }));
+            setInwardErrors((prev: any) => ({ ...prev, netWtMill: '', grossWeight: '' }));
+            useUiStore.getState().addToast(`Fetched from weighbridge (${wb.source || 'API'})`, 'success');
+          } catch (err) {
+            console.error(err);
+            useUiStore.getState().addToast('Failed to fetch weighbridge weight', 'error');
+          }
         }} className="text-[#e67e00] hover:text-white transition-colors flex items-center gap-1" title="Fetch from Weighbridge">
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
           Fetch
@@ -1788,7 +2002,7 @@ export const ProcurementManagement = () => {
   </div>
   <div>
     <label className="block text-[var(--text-main)] font-bold text-xs mb-1">Net Wt. Difference : (Qtl) <span className="text-red-500">*</span></label>
-    <input type="number" min="0" name="netWtDiff" value={inwardFormData.netWtDiff} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-blue-400 font-bold outline-none"  />
+    <input type="number" name="netWtDiff" value={inwardFormData.netWtDiff} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-blue-400 font-bold outline-none"  />
     {inwardErrors.netWtDiff && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.netWtDiff}</span>}
   </div>
   <div>
@@ -1796,20 +2010,19 @@ export const ProcurementManagement = () => {
     <input type="number" min="0" name="netWtParty" value={inwardFormData.netWtParty} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"  />
     {inwardErrors.netWtParty && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.netWtParty}</span>}
   </div>
-  {/*
-  <div className="sm:col-span-2 flex flex-wrap gap-4 mt-2">
-    <label className="flex items-center gap-2 text-xs text-[var(--text-main)] cursor-pointer">
-      <input type="checkbox" name="plusWeight" checked={inwardFormData.plusWeight || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, plusWeight: e.target.checked }))} className="accent-[#e67e00] w-4 h-4" />
-      + Weight
+  <div className="sm:col-span-2">
+    <label className={`flex items-center gap-2 text-xs font-medium ${parseFloat(inwardFormData.netWtDiff) < 0 ? 'text-red-400 cursor-pointer' : 'text-[var(--text-muted)] opacity-60 cursor-not-allowed'}`}>
+      <input
+        type="checkbox"
+        name="informBaujiExcessWeight"
+        disabled={!(parseFloat(inwardFormData.netWtDiff) < 0)}
+        checked={!!inwardFormData.informBaujiExcessWeight}
+        onChange={e => setInwardFormData((prev: any) => ({ ...prev, informBaujiExcessWeight: e.target.checked }))}
+        className="accent-red-500 w-4 h-4"
+      />
+      Excess Weight Received, Inform Bauji
     </label>
-    {inwardFormData.plusWeight && (
-      <label className="flex items-center gap-2 text-xs text-[var(--text-main)] cursor-pointer bg-red-900/20 px-2 py-1 rounded">
-        <input type="checkbox" name="baujiPermission" checked={inwardFormData.baujiPermission || false} onChange={e => setInwardFormData((prev: any) => ({ ...prev, baujiPermission: e.target.checked }))} className="accent-red-500 w-4 h-4" />
-        Bauji Permission Required
-      </label>
-    )}
   </div>
-  */}
   </div>
  </div>
  </div>
@@ -1896,7 +2109,12 @@ export const ProcurementManagement = () => {
   <div className="grid grid-cols-2 gap-4">
     <div>
       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Total shortage of Artia (Qtl)</label>
-      <input type="text" value={inwardFormData.shortageQtl || '0.00'} disabled className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed font-bold text-red-400" />
+      <input type="text" value={inwardFormData.artiaNetShortageQtl != null ? Number(inwardFormData.artiaNetShortageQtl).toFixed(2) : (inwardFormData.shortageQtl || '0.00')} disabled className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed font-bold text-red-400" />
+      {(parseFloat(inwardFormData.shortageBagsCreditQtl) || 0) > 0 && (
+        <span className="text-[10px] text-emerald-400 mt-1 block">
+          Includes −{Number(inwardFormData.shortageBagsCreditQtl).toFixed(2)} qtl for shortage bags received
+        </span>
+      )}
     </div>
     <div>
       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Total shortage of Artia (Bags)</label>
@@ -1904,26 +2122,67 @@ export const ProcurementManagement = () => {
     </div>
   </div>
 
+  {/* Feedback 34 — Auto Narration option in Shortage section */}
+  <div className="col-span-2 mt-2 p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]">
+    <label className="flex items-center gap-2 text-sm font-semibold text-[var(--text-main)] cursor-pointer">
+      <input
+        type="checkbox"
+        name="autoNarration"
+        checked={inwardFormData.autoNarration !== false}
+        onChange={(e) =>
+          setInwardFormData((prev: any) => ({
+            ...prev,
+            autoNarration: e.target.checked,
+            ...(e.target.checked ? { shortageNarration: prev.autoNarrationText || prev.shortageNarration || '' } : {}),
+          }))
+        }
+        className="accent-[#e67e00] w-4 h-4"
+      />
+      Auto Narration
+    </label>
+    <p className="text-[10px] text-[var(--text-muted-alt)] mt-1 mb-2">
+      When ON, narration is built automatically for the shortage report (Weight Shortage, Bags Shortage, Quality Cut, Shortage Received, Excess Weight Received).
+    </p>
+    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Narration (appears as last column in Shortage Report)</label>
+    <textarea
+      name="shortageNarration"
+      value={inwardFormData.shortageNarration || ''}
+      onChange={handleInwardChange}
+      disabled={inwardFormData.autoNarration !== false}
+      rows={2}
+      className={`w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm outline-none focus:border-[#e67e00] ${
+        inwardFormData.autoNarration !== false ? 'opacity-70 cursor-not-allowed' : ''
+      }`}
+      placeholder="Auto narration will appear here"
+    />
+  </div>
+
   {inwardFormData.actualShortageQtl < 0 && (
     <div className="col-span-2 mt-4 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
       <div className="flex items-center gap-2 text-emerald-500 font-bold mb-3">
         <CheckCircle2 size={18} />
-        <span>Auto-Update: Plus Weight (Excess) Detected</span>
+        <span>Plus Weight (Excess) Detected</span>
       </div>
       <p className="text-xs text-[var(--text-muted)] mb-3">
-        The excess weight received has been automatically applied as a Shortage Recovery against the Artia.
+        {inwardFormData.informBaujiExcessWeight
+          ? 'Inform Bauji is checked — this excess will be applied as Shortage Recovery against the Artia.'
+          : 'Tick “Excess Weight Received, Inform Bauji” in Weight Details to apply this excess as Shortage Recovery. Excess bags alone are not added to shortage.'}
       </p>
       
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-[var(--bg-panel)] p-3 rounded border border-[var(--border-subtle)]">
-          <label className="block text-[10px] text-[var(--text-muted-alt)] uppercase tracking-wider mb-1">Artia Net Recovery (Qtl)</label>
-          <div className="text-emerald-400 font-mono font-bold text-lg">
+          <label className="block text-[10px] text-[var(--text-muted-alt)] uppercase tracking-wider mb-1">
+            {inwardFormData.informBaujiExcessWeight ? 'Artia Net Recovery (Qtl)' : 'Excess Weight (Qtl)'}
+          </label>
+          <div className={`font-mono font-bold text-lg ${inwardFormData.informBaujiExcessWeight ? 'text-emerald-400' : 'text-[var(--text-muted)]'}`}>
             {Math.abs(inwardFormData.actualShortageQtl).toFixed(2)} Qtl
           </div>
         </div>
         <div className="bg-[var(--bg-panel)] p-3 rounded border border-[var(--border-subtle)]">
-          <label className="block text-[10px] text-[var(--text-muted-alt)] uppercase tracking-wider mb-1">Artia Net Recovery (Bags)</label>
-          <div className="text-emerald-400 font-mono font-bold text-lg">
+          <label className="block text-[10px] text-[var(--text-muted-alt)] uppercase tracking-wider mb-1">
+            {inwardFormData.informBaujiExcessWeight ? 'Artia Net Recovery (Bags)' : 'Excess (Bags)'}
+          </label>
+          <div className={`font-mono font-bold text-lg ${inwardFormData.informBaujiExcessWeight ? 'text-emerald-400' : 'text-[var(--text-muted)]'}`}>
             {(Math.abs(inwardFormData.actualShortageQtl) / 0.382).toFixed(2)} Bags
           </div>
         </div>
@@ -1936,6 +2195,18 @@ export const ProcurementManagement = () => {
     <textarea name="discrepancy" value={inwardFormData.discrepancy} onChange={handleInwardChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none" rows={2}></textarea>
     {inwardErrors.discrepancy && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.discrepancy}</span>}
   </div>
+ </div>
+ </div>
+
+ {/* Vehicle Verification (Empty) — Feedback 33: after Section 8 */}
+ <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
+ <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">Vehicle Verification (Empty)</div>
+ <div className="p-4 text-sm">
+ <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Khali (Empty) Video Upload <span className="text-red-500">*</span></label>
+ <div className="flex items-center gap-4 py-2">
+ <label className="flex items-center gap-1 text-[var(--text-main)]"><input type="checkbox" name="khaliVideoUpload" checked={inwardFormData.khaliVideoUpload === 'Yes'} onChange={(e) => handleInwardChange({ target: { name: 'khaliVideoUpload', value: e.target.checked ? 'Yes' : '' } } as any)} className="accent-blue-500" /> Yes Done</label>
+ </div>
+ {inwardErrors.khaliVideoUpload && <span className="text-red-500 text-[10px] mt-1 block">{inwardErrors.khaliVideoUpload}</span>}
  </div>
  </div>
 
@@ -2062,31 +2333,13 @@ export const ProcurementManagement = () => {
  <div className="mt-6 pt-4 border-t border-[var(--border-subtle)] flex justify-end gap-3 shrink-0">
  <button type="button" onClick={() => setInwardFormData(defaultInwardFormData)} className="px-6 py-2.5 border border-[var(--border-subtle)] rounded-lg text-[var(--text-main)] font-bold hover:bg-[var(--glass-bg)]">Cancel</button>
  <button 
-   onClick={() => {
-     if (inwardFormData.bhariVideoUpload !== 'Yes') {
-       alert("Please upload the Bhari (Loaded) video first before transferring the vehicle for unloading.");
-       return;
-     }
-     if (!inwardFormData.biometricData) {
-       alert("Supervisor Biometric Verification is required.");
-       return;
-     }
-     if (inwardFormData.shortageRecoveryOpt === 'Yes' && !inwardFormData.headBiometricData) {
-       alert("Head Supervisor Biometric Verification is required for Shortage Recovery.");
-       return;
-     }
-     handleInwardSubmit('DRAFT');
-   }}
+   onClick={() => handleInwardSubmit('DRAFT')}
    disabled={isSubmitting}
    className="px-6 py-2.5 bg-[var(--bg-panel)] border border-blue-500/30 text-blue-400 rounded-lg font-bold hover:bg-blue-900/20 disabled:opacity-50">
    {isSubmitting ? 'Saving...' : 'Save Draft'}
  </button>
  <button 
  onClick={() => {
-   if (inwardFormData.bhariVideoUpload !== 'Yes' || inwardFormData.khaliVideoUpload !== 'Yes') {
-     alert("Both Bhari (Loaded) and Khali (Empty) videos must be uploaded (Yes) to Save and Confirm.");
-     return;
-   }
    if (!inwardFormData.biometricData) {
      alert("Supervisor Biometric Verification is required.");
      return;
@@ -2114,161 +2367,18 @@ export const ProcurementManagement = () => {
       </div>
     )}
 
-   {/* TAB: INWARD REGISTER */}
+   {/* TAB: INWARD REGISTER — Feedback 35 dual Govt/Mill lists */}
    {activeTab === 'inward_register' && (
-      <div className="flex-1 overflow-auto bg-[var(--bg-panel)] p-6 rounded-xl border border-[var(--border-subtle)] flex flex-col h-full shadow-2xl">
-        <div className="flex items-center justify-between mb-4 border-b border-[var(--border-subtle-alt)] pb-3">
-          <div className="flex items-center gap-3">
-            <span className="text-[#e67e00] text-[10px] bg-[#e67e00]/10 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">BEAS AGRO</span>
-            <h1 className="text-base font-bold text-[var(--text-muted)]">Inward List</h1>
-            <p className="text-[var(--text-muted-alt)] text-xs border-l border-[var(--border-subtle)] pl-3 hidden sm:block">Procurement &gt; Inward List</p>
-          </div>
-          <button 
-              onClick={async () => {
-                try {
-                  const params = new URLSearchParams();
-                  if (listFilters.dateFrom) params.append('dateFrom', listFilters.dateFrom);
-                  if (listFilters.dateTo) params.append('dateTo', listFilters.dateTo);
-                  if (listFilters.mandi) params.append('mandi', listFilters.mandi);
-                  if (listFilters.supplierId) params.append('supplierId', listFilters.supplierId);
-                  params.append('limit', '1000000');
-                  params.append('page', '1');
-                  const pid = activePlant?.id || 'global';
-                  
-                  const res = await api.get(`/api/procurement/inwards/${pid}?${params.toString()}`);
-                  const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
-                  
-                  const exportData = data.map((item: any) => ({
-                    "Purchase No": item.purchaseNo,
-                    "Date": item.date,
-                    "GP No": item.gpNo,
-                    "Supplier": item.supplier,
-                    "Mandi EG No": item.mandiEgNo,
-                    "Vehicle No": item.vehicleNo,
-                    "Gross Wt": item.grossWt,
-                    "Tare Wt": item.tareWt,
-                    "Net Wt": item.netWt
-                  }));
-                  exportToExcel(exportData, 'Inward_List_Full.xlsx');
-                } catch (error) {
-                  console.error('Failed to export all records', error);
-                }
-              }}
-              className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2 transition-colors shadow-sm"
-            >
-              <Download size={16} /> Export to Excel
-            </button>
-        </div>
-
-        <div className="flex flex-wrap items-end gap-4 mb-4">
-          <div>
-            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">From Date</label>
-            <input type="date" value={listFilters.dateFrom} onChange={e => setListFilters(f => ({...f, dateFrom: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" />
-          </div>
-          <div>
-            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">To Date</label>
-            <input type="date" value={listFilters.dateTo} onChange={e => setListFilters(f => ({...f, dateTo: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm" />
-          </div>
-          <div>
-            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi</label>
-            <select value={listFilters.mandi} onChange={e => setListFilters(f => ({...f, mandi: e.target.value}))} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm">
-              <option value="">Select Mandi</option>
-              {mandis.filter((m: any) => m.isActive).map((m: any) => (
-                <option key={m.id} value={m.name}>{m.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Artia (Supplier)</label>
-            <Combobox
-               name="supplierIdFilter"
-               value={listFilters.supplierId}
-               onChange={(e: any) => setListFilters(f => ({...f, supplierId: e.target.value}))}
-               options={suppliers}
-               valueKey="id"
-               placeholder="All Artias"
-               className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm"
-             />
-          </div>
-          <div className="flex items-end">
-            <button onClick={() => setListFilters({dateFrom: '', dateTo: '', mandi: '', supplierId: '', activeReportTab: ''})} className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm hover:bg-[var(--bg-panel)]">Clear</button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-auto">
-          <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
-            <thead>
-              <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)] text-xs">
-                {!listFilters.supplierId && <th className="p-3 whitespace-nowrap">S.No</th>}
-                <th className="p-3 whitespace-nowrap">Date</th>
-                <th className="p-3 whitespace-nowrap">RST No</th>
-                {!listFilters.supplierId && <th className="p-3 whitespace-nowrap">In Time</th>}
-                {!listFilters.supplierId && <th className="p-3 whitespace-nowrap">Out Time</th>}
-                <th className="p-3 whitespace-nowrap">Mill G.P. No.</th>
-                <th className="p-3 whitespace-nowrap">Agency G.P. No.</th>
-                <th className="p-3 whitespace-nowrap">Truck No</th>
-                {!listFilters.supplierId && <th className="p-3 whitespace-nowrap">Mandi</th>}
-                {!listFilters.supplierId && <th className="p-3 whitespace-nowrap">Party Name</th>}
-                <th className="p-3 whitespace-nowrap text-center">Bardana A/B</th>
-                <th className="p-3 whitespace-nowrap text-center">Bag's A | B</th>
-                <th className="p-3 whitespace-nowrap text-right text-[#e67e00]">Total A+B</th>
-                <th className="p-3 whitespace-nowrap text-right">M/c</th>
-                <th className="p-3 text-right whitespace-nowrap">Required Net Wt</th>
-                <th className="p-3 text-right whitespace-nowrap">Mill Net Wt</th>
-                <th className="p-3 text-right whitespace-nowrap">Surplus +/-</th>
-                <th className="p-3 whitespace-nowrap">Received</th>
-                <th className="p-3 whitespace-nowrap text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inwardList.map((p, i) => (
-                <tr key={i} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)] whitespace-nowrap">
-                  {!listFilters.supplierId && <td className="p-3 text-[var(--text-muted-alt)]">{i + 1}</td>}
-                  <td className="p-3">{p.date || (p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '-')}</td>
-                  <td className="p-3 text-xs">{p.rstNo || '-'}</td>
-                  {!listFilters.supplierId && <td className="p-3">{p.weighbridge?.grossTime ? new Date(p.weighbridge.grossTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</td>}
-                  {!listFilters.supplierId && <td className="p-3">{p.weighbridge?.tareTime ? new Date(p.weighbridge.tareTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</td>}
-                  <td className="p-3 font-mono text-xs text-[var(--text-main)] font-bold">{p.gpNo || p.purchaseNo || '-'}</td>
-                  <td className="p-3 text-xs">{p.mandiEgNo || p.mandiParchiNo || '-'}</td>
-                  <td className="p-3">{p.vehicleNo || p.weighbridge?.vehicleNo || '-'}</td>
-                  {!listFilters.supplierId && <td className="p-3">{p.mandi || '-'}</td>}
-                  {!listFilters.supplierId && <td className="p-3 text-[var(--text-main)] font-bold">{p.partyName || p.supplier || p.supplierDetails?.name || '-'}</td>}
-                  <td className="p-3 text-center text-[var(--text-muted-alt)]">{p.originalBardanaClass || '-'} / {p.agencyGpBardanaClass || '-'}</td>
-                  <td className="p-3 text-center text-[var(--text-muted-alt)]">{p.aClassReceived || p.origAClass || '0'} | {p.bClassReceived || p.origBClass || '0'}</td>
-                  <td className="p-3 text-right font-bold text-[#e67e00]">{(parseFloat(p.aClassReceived || p.origAClass || 0) + parseFloat(p.bClassReceived || p.origBClass || 0)) || p.bagsRecAtMill || p.bags || p.totalBags || '-'}</td>
-                  <td className="p-3 text-right">{p.moisture || p.quality?.moisture || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.requiredNetWt || '-'}</td>
-                  <td className="p-3 text-right font-bold text-[var(--text-main)]">{p.netWtMill || p.netWt || p.weighbridge?.netWeight || '-'}</td>
-                  <td className="p-3 text-right text-[var(--text-muted-alt)]">{p.netWtDifference || '-'}</td>
-                  <td className="p-3 text-[var(--text-muted-alt)]">{p.remarks || '-'}</td>
-                  <td className="p-3 text-center">
-                    <button onClick={() => handleViewInward(p)} className="text-blue-500 hover:text-blue-400 p-1" title="View Full Details">
-                      <Eye size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {inwardList.length === 0 && (
-                <tr>
-                  <td colSpan={listFilters.supplierId ? 14 : 19} className="p-6 text-center text-[var(--text-muted-alt)]">No inward records found.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-          <Pagination
-            currentPage={inwardCurrentPage}
-            totalItems={inwardTotalItems}
-            onPageChange={setInwardCurrentPage}
-            itemsPerPage={10}
-          />
-        </div>
-
-        
-        {/* Full Details Modal */}
+      <>
+        <InwardListReport
+          activePlant={activePlant}
+          suppliers={suppliers}
+          onView={handleViewInward}
+          onContinueDraft={handleContinueDraft}
+        />
         {viewInwardModal && (
           <CustomModal isOpen={!!viewInwardModal} onClose={() => setViewInwardModal(null)} title="Full Inward Details">
             <div className="space-y-6 max-h-[75vh] overflow-y-auto px-2">
-              
               <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
                 <h3 className="text-sm font-bold text-[#e67e00] mb-4 pb-2 border-b border-[var(--border-subtle)] uppercase tracking-wider">Basic Information</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
@@ -2279,99 +2389,23 @@ export const ProcurementManagement = () => {
                   <div><p className="text-[var(--text-muted-alt)] text-xs">Mandi EG No</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.mandiEgNo || '-'}</p></div>
                   <div><p className="text-[var(--text-muted-alt)] text-xs">Mandi</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.mandi || '-'}</p></div>
                   <div><p className="text-[var(--text-muted-alt)] text-xs">Vehicle / Truck No</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.weighbridge?.vehicleNo || viewInwardModal.paddyInwardDetails?.truckNo || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Purchase Type</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.purchaseType || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Category</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.category || '-'}</p></div>
                 </div>
               </div>
-
-              <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
-                <h3 className="text-sm font-bold text-[#e67e00] mb-4 pb-2 border-b border-[var(--border-subtle)] uppercase tracking-wider">Transport & Validation</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Driver Name</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.driverName || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Driver Mobile</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.mobileNumber || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Prev Reading</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.previousTruckReading || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">New Reading</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.newTruckReading || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">KMS Driven</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.kmsDriven || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Bhari Video</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.bhariVideoUpload || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Khali Video</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.khaliVideoUpload || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Boli Record</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.paddyBoliRecord || '-'}</p></div>
-                </div>
-              </div>
-
-              <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
-                <h3 className="text-sm font-bold text-[#e67e00] mb-4 pb-2 border-b border-[var(--border-subtle)] uppercase tracking-wider">Weight & Bags Details</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Gross Wt</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.weighbridge?.grossWeight || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Tare Wt</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.weighbridge?.tareWeight || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Net Wt</p><p className="font-bold text-green-500">{viewInwardModal.netWeight || viewInwardModal.paddyInwardDetails?.netWtAtMill || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Net Wt at Party</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.netWtAtParty || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Required Net Wt</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.requiredNetWt || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Difference</p><p className="font-bold text-red-500">{viewInwardModal.paddyInwardDetails?.netWtDifference || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Bags Rec at Mill</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.bagsRecAtMill || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Bags at Agency GP</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.bagsAtAgencyGp || '-'}</p></div>
-                </div>
-              </div>
-
-              <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
-                <h3 className="text-sm font-bold text-[#e67e00] mb-4 pb-2 border-b border-[var(--border-subtle)] uppercase tracking-wider">Unloading & Labor Details</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Allocation Type</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.allocationType || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Stack No</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.stackNo || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Safai Type</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.safaiType || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Labour Type</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.labourType || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Allocated Unloader</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.allocateUnloader || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Unloader Name</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.unloaderName || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Gaddi Count</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.gaddiCount || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Main Gaddi Count</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.mainUnloaderTruckCount || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Bags Main Stack</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.bagsInMainStack || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">2nd Stack No</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.secondPartStackNo || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Bags 2nd Stack</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.bagsInSecondPartStack || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Start Time</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.unloadingStartTime ? new Date(viewInwardModal.paddyInwardDetails.unloadingStartTime).toLocaleTimeString() : '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">End Time</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.unloadingEndTime ? new Date(viewInwardModal.paddyInwardDetails.unloadingEndTime).toLocaleTimeString() : '-'}</p></div>
-                </div>
-              </div>
-
-              <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
-                <h3 className="text-sm font-bold text-[#e67e00] mb-4 pb-2 border-b border-[var(--border-subtle)] uppercase tracking-wider">Quality, Bardana & Shortage</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Moisture</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.quality?.moisture || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Broken</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.quality?.broken || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Discoloration</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.quality?.discoloration || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Foreign Matter</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.quality?.foreignMatter || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Quality Cut</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.qualityCutValue || '0'} ({viewInwardModal.paddyInwardDetails?.qualityCutType || 'NONE'})</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Cut Reason</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.qualityCutReason || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Orig Bardana</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.originalBardanaClass || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Agency Bardana</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.agencyGpBardanaClass || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Shortage Type</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.shortageType || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Shortage A-Class</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.shortageAClass || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Shortage B-Class</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.shortageBClass || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Total Bags Rec</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.totalBagsReceived || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Arhtia Shortage Bal</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.balanceShortageArhtia || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Add Cut in Shortage</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.cutToBeAddedInShortage ? 'Yes' : 'No'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Rec &lt; Agency Gp</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.bagsRecLessThanAgencyGp ? 'Yes' : 'No'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">+Wt Consider Shortage</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.plusWtConsiderInShortageRecovery ? 'Yes' : 'No'}</p></div>
-                </div>
-              </div>
-
-              <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
-                <h3 className="text-sm font-bold text-[#e67e00] mb-4 pb-2 border-b border-[var(--border-subtle)] uppercase tracking-wider">Signatures & Verification</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-4 gap-x-6">
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Driver Sign</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.driverSign || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Unloader Sign</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.unloaderSign || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Pahunch Person Sign</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.pahunchPersonSign || '-'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Unloader Stamp/Sign</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.unloaderSignAndStamp ? 'Yes' : 'No'}</p></div>
-                  <div><p className="text-[var(--text-muted-alt)] text-xs">Pahunch Stamp/Sign</p><p className="font-bold text-[var(--text-main)]">{viewInwardModal.paddyInwardDetails?.pahunchPersonSignAndStamp ? 'Yes' : 'No'}</p></div>
-                </div>
-              </div>
-
             </div>
-            <div className="mt-6 flex justify-end">
+            <div className="mt-6 flex justify-end gap-2">
+              {viewInwardModal.status === 'DRAFT' && (
+                <button
+                  onClick={() => handleContinueDraft(viewInwardModal)}
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold shadow-lg"
+                >
+                  Continue Draft
+                </button>
+              )}
               <button onClick={() => setViewInwardModal(null)} className="px-5 py-2.5 bg-[#e67e00] hover:bg-[#cc7000] text-white rounded-lg font-bold shadow-lg">Close</button>
             </div>
           </CustomModal>
         )}
-
-      </div>
+      </>
    )}
 
 {/* TAB: PLANT SETTINGS (GOVT RATE) */}
@@ -2430,6 +2464,10 @@ export const ProcurementManagement = () => {
                           <p className="text-xs text-[var(--text-muted-alt)] mb-1">Processing Cut</p>
                           <p className="text-xl font-bold text-[var(--text-main)]">{plantSettings.processingCut !== '' ? plantSettings.processingCut : '4'}%</p>
                         </div>
+                        <div>
+                          <p className="text-xs text-[var(--text-muted-alt)] mb-1">Allow manual Date/Time (this mill)</p>
+                          <p className="text-xl font-bold text-[var(--text-main)]">{plantSettings.allowManualDateTime ? 'ON' : 'OFF'}</p>
+                        </div>
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2448,6 +2486,17 @@ export const ProcurementManagement = () => {
                         <div>
                           <label className="text-xs text-[var(--text-muted-alt)] mb-1 block">Processing Cut (%)</label>
                           <input type="number" min="0" step="0.1" value={plantSettings.processingCut} onChange={(e) => setPlantSettings({...plantSettings, processingCut: e.target.value})} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-amber-500" />
+                        </div>
+                        <div className="col-span-1 sm:col-span-2 lg:col-span-4">
+                          <label className="flex items-center gap-2 text-sm text-[var(--text-main)] cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={!!plantSettings.allowManualDateTime}
+                              onChange={(e) => setPlantSettings({ ...plantSettings, allowManualDateTime: e.target.checked })}
+                              className="accent-amber-500 w-4 h-4"
+                            />
+                            Allow manual Date/Time (this mill)
+                          </label>
                         </div>
                         <div className="col-span-1 sm:col-span-2 lg:col-span-4 flex justify-end gap-3 mt-2">
                           <button onClick={() => setIsEditingSettings(false)} className="bg-[var(--bg-panel)] hover:bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-[var(--text-main)] px-4 py-2 rounded-lg font-bold text-sm transition-all">Cancel</button>
@@ -2631,6 +2680,7 @@ export const ProcurementManagement = () => {
  <td className="p-3 text-[var(--text-muted-alt)]">{p.note}</td>
  <td className="p-3 text-right font-bold text-[#e67e00]">{p.finalHisabAmt}</td>
  <td className="p-3 text-center">
+ {(user?.role === 'SUPER_ADMIN' || user?.role === 'PLANT_MANAGER') ? (
  <button 
  onClick={() => setSettleHisabModal({ 
  isOpen: true, 
@@ -2643,6 +2693,9 @@ export const ProcurementManagement = () => {
  >
  Settle
  </button>
+ ) : (
+ <span className="text-[10px] text-[var(--text-muted-alt)]" title="Hisab from Final Bags (Table 01)">View only</span>
+ )}
  </td>
  </tr>
  ))}
@@ -2699,7 +2752,7 @@ export const ProcurementManagement = () => {
      
      {/* Reports Inner Navigation */}
      <div className="flex border-b border-[var(--border-subtle)] mb-6">
-       {['shortage_recovery', 'hoodi_report', 'paddy_stack', 'stack_layout'].map((reportTab) => (
+       {['shortage_recovery', 'daily_inward_summary', 'mandi_balance', 'hoodi_report', 'paddy_stack', 'stack_layout'].map((reportTab) => (
           <button 
             key={reportTab}
             onClick={() => setListFilters(prev => ({ ...prev, activeReportTab: reportTab }))}
@@ -2730,6 +2783,10 @@ export const ProcurementManagement = () => {
            </div>
         ) : listFilters.activeReportTab === 'shortage_recovery' ? (
             <ShortageRecoveryReport activePlant={activePlant} />
+         ) : listFilters.activeReportTab === 'daily_inward_summary' ? (
+            <DailyInwardSummary activePlant={activePlant} />
+         ) : listFilters.activeReportTab === 'mandi_balance' ? (
+            <MandiBalanceDashboard />
          ) : listFilters.activeReportTab === 'hoodi_report' ? (
             <DailyHoodiReport />
          ) : listFilters.activeReportTab === 'stack_layout' ? (
@@ -2819,7 +2876,7 @@ export const ProcurementManagement = () => {
       if (isPaddyPurchaseSaving) return;
       setPaddyPurchaseModal(emptyPaddyPurchaseModal());
     }}
-    title={paddyPurchaseModal.id ? "Edit Paddy Purchase" : "New Paddy Purchase"}
+    title={paddyPurchaseModal.id ? "Edit Estimate Purchase" : "Add Estimate Purchase"}
   >
     <form onSubmit={handlePaddyPurchaseSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
@@ -2836,7 +2893,10 @@ export const ProcurementManagement = () => {
               onChange={(e) => {
                 const plantId = e.target.value;
                 setPaddyPurchaseModal({ ...paddyPurchaseModal, plantId, supplierId: '' });
-                if (plantId) fetchSuppliers(plantId);
+                if (plantId) {
+                  fetchSuppliers(plantId);
+                  fetchPlantSupervisors(plantId);
+                }
               }}
               className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
               required
@@ -2868,34 +2928,60 @@ export const ProcurementManagement = () => {
           <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Date</label>
           <input type="date" value={paddyPurchaseModal.date} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, date: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" required />
         </div>
+        <div>
+          <label className="block text-sm text-[var(--text-muted-alt)] mb-1">Supervisor Name</label>
+          <select
+            value={paddyPurchaseModal.supervisorName || ''}
+            onChange={(e) => {
+              const name = e.target.value;
+              const match = plantSupervisors.find((s) => s.username === name);
+              setPaddyPurchaseModal({
+                ...paddyPurchaseModal,
+                supervisorName: name,
+                supervisorUserId: match?.id || '',
+              });
+            }}
+            className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
+            required
+          >
+            <option value="">Select Supervisor</option>
+            {isSupervisor ? (
+              user?.username ? <option value={user.username}>{user.username}</option> : null
+            ) : (
+              plantSupervisors.map((s) => (
+                <option key={s.id} value={s.username}>{s.username}</option>
+              ))
+            )}
+          </select>
+        </div>
         <div className={`col-span-2 border border-[var(--border-subtle)] rounded p-4 space-y-4 transition-opacity duration-300 ${!isPaddyBlock1Valid ? 'opacity-40 pointer-events-none' : ''}`}>
           <div className="flex justify-between items-center mb-2">
-            <h3 className="text-sm font-bold text-[var(--text-main)]">Boli Details (Rate, Moisture, Bags)</h3>
+            <h3 className="text-sm font-bold text-[var(--text-main)]">Boli Details (leave unused rows empty; use 0 bags to cancel)</h3>
           </div>
           {paddyPurchaseModal.bolis.map((boli: any, index: number) => (
             <div key={index} className="grid grid-cols-3 gap-2 items-end">
               <div>
                 <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Moisture (Mc)</label>
-                <input type="number" min="0" step="0.01" value={boli.moisture} onChange={e => {
+                <input type="number" min="0" max="99.99" step="0.01" value={boli.moisture} onChange={e => {
                   const newBolis = [...paddyPurchaseModal.bolis];
                   newBolis[index].moisture = e.target.value;
                   setPaddyPurchaseModal({...paddyPurchaseModal, bolis: newBolis});
                 }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm" />
               </div>
               <div>
-                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Bags</label>
-                <input type="number" min="0" value={boli.bags} onChange={e => {
+                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Bags (0=cancel)</label>
+                <input type="number" min="0" max="999" step="1" value={boli.bags} onChange={e => {
                   const newBolis = [...paddyPurchaseModal.bolis];
                   newBolis[index].bags = e.target.value;
                   const totalBags = newBolis.reduce((s, b) => s + (parseFloat(b.bags) || 0), 0);
                   const finalAmt = (totalBags * 0.375 * (parseFloat(paddyPurchaseModal.diff) || 0)).toFixed(2);
                   setPaddyPurchaseModal({...paddyPurchaseModal, bolis: newBolis, finalHisabAmt: finalAmt});
-                }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm" required />
+                }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm" />
               </div>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Rate (Boli)</label>
-                  <input type="number" min="0" step="0.01" value={boli.rate} onChange={e => {
+                  <input type="number" min="0" step="1" value={boli.rate} onChange={e => {
                     const newBolis = [...paddyPurchaseModal.bolis];
                     newBolis[index].rate = e.target.value;
                     const r = parseFloat(e.target.value) || 0;
@@ -2910,7 +2996,7 @@ export const ProcurementManagement = () => {
                     const finalAmt = (totalBags * 0.375 * (parseFloat(diff) || 0)).toFixed(2);
                     
                     setPaddyPurchaseModal({...paddyPurchaseModal, bolis: newBolis, diff, finalHisabAmt: finalAmt});
-                  }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm" required />
+                  }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm" />
                 </div>
                 {paddyPurchaseModal.bolis.length > 1 && (
                   <button type="button" onClick={() => {
@@ -2966,9 +3052,9 @@ export const ProcurementManagement = () => {
               <input type="number" min="0" step="0.01" value={paddyPurchaseModal.finalHisabAmt} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, finalHisabAmt: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
               {paddyPurchaseModal.bolis.length > 0 && paddyPurchaseModal.diff && (
                 <div className="mt-2 text-xs text-[var(--text-muted)] bg-blue-900/10 p-2 rounded border border-blue-900/20 text-blue-400">
-                  <span className="font-semibold block mb-1">Calculation Breakdown:</span>
-                  (Bags &times; 0.375) &times; Diff<br/>
-                  ({paddyPurchaseModal.bolis.reduce((s: number, b: any) => s + (parseFloat(b.bags) || 0), 0)} &times; 0.375) &times; {paddyPurchaseModal.diff} = <span className="font-bold">{(paddyPurchaseModal.bolis.reduce((s: number, b: any) => s + (parseFloat(b.bags) || 0), 0) * 0.375 * parseFloat(paddyPurchaseModal.diff)).toFixed(2)}</span>
+                  <span className="font-semibold block mb-1">Payment note (Feedback 32):</span>
+                  Payment &amp; Final Hisab use <b>Final Bags</b> after Add Final Boli:<br/>
+                  (Govt − Boli Rate) × (Final Bags × 0.375). Estimate bags are not used for Payment.
                 </div>
               )}
             </div>
@@ -2979,7 +3065,31 @@ export const ProcurementManagement = () => {
           <input type="text" value={paddyPurchaseModal.note} onChange={e => setPaddyPurchaseModal({...paddyPurchaseModal, note: e.target.value})} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
         </div>
       </div>
-      <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
+      <div className="flex flex-wrap justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
+        <button
+          type="button"
+          disabled={isPaddyPurchaseSaving || isScanningFingerprint}
+          onClick={async () => {
+            setIsScanningFingerprint(true);
+            try {
+              const xml = await biometricService.captureFingerprint();
+              setPaddyPurchaseModal((prev: any) => ({ ...prev, biometricData: xml }));
+              useUiStore.getState().addToast('Fingerprint captured', 'success');
+            } catch (err: any) {
+              if (user?.role === 'SUPER_ADMIN' || user?.role === 'PLANT_MANAGER') {
+                setPaddyPurchaseModal((prev: any) => ({ ...prev, biometricData: 'ADMIN_BYPASS' }));
+                useUiStore.getState().addToast('Admin bypass fingerprint (scanner unavailable)', 'success');
+              } else {
+                useUiStore.getState().addToast(err.message || 'Fingerprint capture failed', 'error');
+              }
+            } finally {
+              setIsScanningFingerprint(false);
+            }
+          }}
+          className="px-4 py-2 border border-[var(--border-subtle)] rounded text-sm text-[var(--text-main)] disabled:opacity-50"
+        >
+          {isScanningFingerprint ? 'Scanning…' : paddyPurchaseModal.biometricData ? 'Fingerprint ✓' : 'Scan Fingerprint'}
+        </button>
         <button type="button" onClick={() => setPaddyPurchaseModal(emptyPaddyPurchaseModal())} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)]" disabled={isPaddyPurchaseSaving}>Cancel</button>
         <button
           type="submit"
@@ -2989,8 +3099,8 @@ export const ProcurementManagement = () => {
           {isPaddyPurchaseSaving
             ? 'Saving…'
             : paddyPurchaseModal.id
-              ? 'Update Purchase'
-              : 'Create Purchase'}
+              ? 'Update with Fingerprint'
+              : 'Submit with Fingerprint'}
         </button>
       </div>
     </form>
@@ -3153,6 +3263,8 @@ export const ProcurementManagement = () => {
     }} 
     occupiedStacks={occupiedStacks}
     currentMoisture={parseFloat(inwardFormData.moisture) || 0}
+    plantName={activePlant?.name || ''}
+    plantId={activePlant?.id || ''}
   />
     </div>
   );

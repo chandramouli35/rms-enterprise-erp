@@ -9,6 +9,7 @@ interface Plant {
   benchmarkMoisture?: number;
   safaiCut?: number;
   processingCut?: number;
+  allowManualDateTime?: boolean;
 }
 
 interface PlantState {
