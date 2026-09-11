@@ -44,7 +44,7 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
   const [activeGpsLive, setActiveGpsLive] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
-  const [supervisorName, setSupervisorName] = useState(user?.name || '');
+  const [supervisorName, setSupervisorName] = useState(user?.username || '');
   const [biometricData, setBiometricData] = useState('');
   const [manualMatchConfirmed, setManualMatchConfirmed] = useState(false);
   const [scanning, setScanning] = useState(false);

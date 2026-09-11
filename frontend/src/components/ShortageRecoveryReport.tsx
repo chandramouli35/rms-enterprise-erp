@@ -56,7 +56,7 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
       await api.post('/api/procurement/reports/shortage-daily/submit', {
         date: filters.reportDate,
         plantId: 'global',
-        submittedBy: user?.username || user?.name || 'Supervisor',
+        submittedBy: user?.username || 'Supervisor',
         source: 'MANUAL',
       });
       await fetchDaily();
