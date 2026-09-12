@@ -11,6 +11,7 @@ import {
   getUnitLabel,
 } from '../constants/quantityUnits';
 import type { QuantityUnit } from '../constants/quantityUnits';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 
 const emptyForm = {
   id: '',
@@ -32,6 +33,7 @@ export const ProductManagement = () => {
   const [newUnitForm, setNewUnitForm] = useState({ code: '', label: '', description: '' });
   const [isEditing, setIsEditing] = useState(false);
   const [search, setSearch] = useState('');
+  const saveLock = useSubmitLock();
 
   const fetchUnits = async () => {
     try {
@@ -68,6 +70,7 @@ export const ProductManagement = () => {
       return;
     }
 
+    await saveLock.wrapSubmit(async () => {
     try {
       const payload = {
         name: formData.name.trim(),
@@ -88,6 +91,7 @@ export const ProductManagement = () => {
       console.error(err);
       alert(err?.response?.data?.message || 'Error saving product');
     }
+    });
   };
 
   const handleCreateUnit = async () => {
@@ -329,9 +333,10 @@ export const ProductManagement = () => {
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black rounded-lg font-bold text-sm shadow-lg shadow-amber-500/20 transition-colors"
+                disabled={saveLock.pending}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black rounded-lg font-bold text-sm shadow-lg shadow-amber-500/20 transition-colors disabled:opacity-50"
               >
-                Save Product
+                {saveLock.pending ? 'Saving...' : 'Save Product'}
               </button>
             </div>
           </div>

@@ -96,6 +96,7 @@ export const PaymentEntry: React.FC<{ entryType: EntryType }> = ({ entryType }) 
       addToast('Enter a valid amount', 'error');
       return;
     }
+    if (saving) return;
     setSaving(true);
     try {
       await financeLedgerApi.createPayment({

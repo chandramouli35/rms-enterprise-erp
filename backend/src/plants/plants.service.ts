@@ -71,8 +71,17 @@ export class PlantsService {
         ...(numIfPresent(data.processingCut) !== undefined && {
           processingCut: numIfPresent(data.processingCut),
         }),
-        ...(data.allowManualDateTime !== undefined && {
-          allowManualDateTime: data.allowManualDateTime === true || data.allowManualDateTime === 'true',
+        ...(data.allowManualDateTimePaddyInward !== undefined && {
+          allowManualDateTimePaddyInward:
+            data.allowManualDateTimePaddyInward === true || data.allowManualDateTimePaddyInward === 'true',
+        }),
+        ...(data.allowManualDateTimeGateIn !== undefined && {
+          allowManualDateTimeGateIn:
+            data.allowManualDateTimeGateIn === true || data.allowManualDateTimeGateIn === 'true',
+        }),
+        ...(data.allowManualDateTimeGateOut !== undefined && {
+          allowManualDateTimeGateOut:
+            data.allowManualDateTimeGateOut === true || data.allowManualDateTimeGateOut === 'true',
         }),
       },
     });

@@ -5,6 +5,7 @@ import { productsApi } from '../../api/products';
 import { useAuthStore } from '../../store/authStore';
 import { useUiStore } from '../../store/uiStore';
 import { hasFinancePermission } from '../../utils/financePermissions';
+import { useSubmitLock } from '../../hooks/useSubmitLock';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -50,6 +51,8 @@ export const SodaDeals: React.FC = () => {
   });
 
   const isAdmin = role === 'SUPER_ADMIN' || role === 'ADMIN';
+  const submitLock = useSubmitLock();
+  const editLock = useSubmitLock();
 
   const load = async () => {
     setLoading(true);
@@ -160,39 +163,43 @@ export const SodaDeals: React.FC = () => {
       return;
     }
     setConfirmOpen(false);
-    try {
-      await financeSodaApi.create({
-        date: form.date,
-        sodaType: form.sodaType,
-        millIds: form.millIds,
-        itemId: form.itemId,
-        partyId: form.partyKind === 'PARTY' ? form.partyId : undefined,
-        partyPlantId: form.partyKind === 'PLANT' ? form.partyPlantId : undefined,
-        isShift: form.isShift,
-        rate: form.isShift ? undefined : form.rate,
-        quantity: form.quantity,
-        note: form.note,
-      });
-      addToast('Soda saved', 'success');
-      setShowForm(false);
-      setReportType(form.sodaType);
-      await load();
-    } catch (e: any) {
-      addToast(e?.response?.data?.message || 'Save failed', 'error');
-      // keep form open with values (cancel of confirm already kept form)
-    }
+    await submitLock.wrapSubmit(async () => {
+      try {
+        await financeSodaApi.create({
+          date: form.date,
+          sodaType: form.sodaType,
+          millIds: form.millIds,
+          itemId: form.itemId,
+          partyId: form.partyKind === 'PARTY' ? form.partyId : undefined,
+          partyPlantId: form.partyKind === 'PLANT' ? form.partyPlantId : undefined,
+          isShift: form.isShift,
+          rate: form.isShift ? undefined : form.rate,
+          quantity: form.quantity,
+          note: form.note,
+        });
+        addToast('Soda saved', 'success');
+        setShowForm(false);
+        setReportType(form.sodaType);
+        await load();
+      } catch (e: any) {
+        addToast(e?.response?.data?.message || 'Save failed', 'error');
+        // keep form open with values (cancel of confirm already kept form)
+      }
+    });
   };
 
   const saveEdit = async () => {
     if (!editRow) return;
-    try {
-      await financeSodaApi.update(editRow.id, { quantity: editRow.quantity, note: editRow.note });
-      addToast('Soda updated', 'success');
-      setEditRow(null);
-      await load();
-    } catch (e: any) {
-      addToast(e?.response?.data?.message || 'Update failed', 'error');
-    }
+    await editLock.wrapSubmit(async () => {
+      try {
+        await financeSodaApi.update(editRow.id, { quantity: editRow.quantity, note: editRow.note });
+        addToast('Soda updated', 'success');
+        setEditRow(null);
+        await load();
+      } catch (e: any) {
+        addToast(e?.response?.data?.message || 'Update failed', 'error');
+      }
+    });
   };
 
   const setPayStatus = async (id: string, paymentStatus: string) => {
@@ -773,8 +780,8 @@ export const SodaDeals: React.FC = () => {
               >
                 Cancel
               </button>
-              <button type="button" className="px-4 py-2 rounded bg-amber-500 text-black font-semibold text-sm" onClick={submit}>
-                Save
+              <button type="button" disabled={submitLock.pending} className="px-4 py-2 rounded bg-amber-500 text-black font-semibold text-sm disabled:opacity-50" onClick={submit}>
+                {submitLock.pending ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>
@@ -807,8 +814,8 @@ export const SodaDeals: React.FC = () => {
               <button type="button" onClick={() => setEditRow(null)} className="text-sm text-[var(--text-muted)]">
                 Cancel
               </button>
-              <button type="button" onClick={saveEdit} className="px-3 py-1.5 rounded bg-amber-500 text-black text-sm font-semibold">
-                Save
+              <button type="button" onClick={saveEdit} disabled={editLock.pending} className="px-3 py-1.5 rounded bg-amber-500 text-black text-sm font-semibold disabled:opacity-50">
+                {editLock.pending ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

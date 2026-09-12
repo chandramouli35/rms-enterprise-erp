@@ -39,6 +39,25 @@ export class ProcurementService {
       }
     }
 
+    // Auto Update OFF: GP Complete Date & Time Out cannot be before Date & Time In;
+    // also enforce minimum 30-minute gap (GP In → GP Out)
+    if (data.status === 'CONFIRMED' || (data.gpCompleteDate && data.timeOut && data.date && data.timeIn)) {
+      const inMs = this.combineDateTimeMs(data.date || data.entryDate, data.timeIn);
+      const outMs = this.combineDateTimeMs(data.gpCompleteDate || data.date || data.entryDate, data.timeOut);
+      if (inMs != null && outMs != null) {
+        if (outMs < inMs) {
+          throw new BadRequestException(
+            'GP Complete Date & Time Out cannot be prior to Date & Time In.',
+          );
+        }
+        if ((outMs - inMs) / (60 * 1000) < 30) {
+          throw new BadRequestException(
+            'Minimum 30-minute gap required between Date & Time In and GP Complete / Time Out.',
+          );
+        }
+      }
+    }
+
     // Feedback 33 — global truck rules:
     // 1) Block if any ACTIVE/DRAFT/PENDING unload exists globally (no time limit) — including new drafts
     // 2) On confirm: also require 2h gap from last CONFIRMED/COMPLETED updatedAt
@@ -218,27 +237,27 @@ export class ProcurementService {
           },
         });
       } else {
-        // 1. Create ProcurementBatch
+      // 1. Create ProcurementBatch
         batch = await tx.procurementBatch.create({
-          data: {
-            plantId,
-            supplierId: supplierId || null,
-            gatePassId: gatePassId || null,
-            weighbridgeId: weighbridgeId || null,
-            netWeight: parsedNetWeight,
-            category: category || 'OPERATIONAL',
-            purchaseType: purchaseType || 'PADDY_NORMAL',
-            baseRate: parsedRate,
-            finalRate: finalRate,
-            amount: baseAmount,
+        data: {
+          plantId,
+          supplierId: supplierId || null,
+          gatePassId: gatePassId || null,
+          weighbridgeId: weighbridgeId || null,
+          netWeight: parsedNetWeight,
+          category: category || 'OPERATIONAL',
+          purchaseType: purchaseType || 'PADDY_NORMAL',
+          baseRate: parsedRate,
+          finalRate: finalRate,
+          amount: baseAmount,
             deductions: parsedRate - finalRate,
-            netAmount: totalAmount,
-            biometricData: biometricData || null,
+          netAmount: totalAmount,
+          biometricData: biometricData || null,
             status: data.status === 'DRAFT' ? 'DRAFT' : data.status === 'CONFIRMED' ? 'CONFIRMED' : 'PENDING',
-            paddyInwardDetails: {
-              create: {
-                mandiType: mandiType || null,
-                boliRate: boliRate ? parseFloat(boliRate) : null,
+          paddyInwardDetails: {
+            create: {
+              mandiType: mandiType || null,
+              boliRate: boliRate ? parseFloat(boliRate) : null,
                 boliChecklist: false,
               },
             },
@@ -259,17 +278,17 @@ export class ProcurementService {
           },
         });
       } else {
-        await tx.qualityInspection.create({
-          data: {
-            procurementBatchId: batch.id,
-            moisture: parseFloat(moisture) || 0,
-            broken: parseFloat(broken) || 0,
-            discoloration: parseFloat(discoloration) || 0,
-            foreignMatter: parseFloat(foreignMatter) || 0,
-            status: 'PENDING',
+      await tx.qualityInspection.create({
+        data: {
+          procurementBatchId: batch.id,
+          moisture: parseFloat(moisture) || 0,
+          broken: parseFloat(broken) || 0,
+          discoloration: parseFloat(discoloration) || 0,
+          foreignMatter: parseFloat(foreignMatter) || 0,
+          status: 'PENDING',
             inspectedBy: inspectedBy || null,
           },
-        });
+      });
       }
 
       // 3a. Update PaddyStack if Stacking
@@ -321,17 +340,17 @@ export class ProcurementService {
 
       // 3. Update Inventory (skip draft; only once when confirming)
       if (data.status !== 'DRAFT' && (!data.id || wasDraft)) {
-        await this.inventoryService.adjustStock({
-          plantId,
-          itemType: 'PADDY',
-          quantityChange: parsedNetWeight,
-          transactionType: 'IN',
-          referenceId: batch.id,
-          remarks: `Purchase entry ${batch.id.substring(0, 8)}`,
+      await this.inventoryService.adjustStock({
+        plantId,
+        itemType: 'PADDY',
+        quantityChange: parsedNetWeight,
+        transactionType: 'IN',
+        referenceId: batch.id,
+        remarks: `Purchase entry ${batch.id.substring(0, 8)}`,
           godown: godown || data.stackNo || 'Main Yard',
-          category: category || 'OPERATIONAL',
-          stockValueChange: totalAmount
-        });
+        category: category || 'OPERATIONAL',
+        stockValueChange: totalAmount
+      });
       }
 
       // 4. Shortage composition (Feedback 33 + 34 ledger / narrations)
@@ -602,6 +621,20 @@ export class ProcurementService {
           timeIn: data.timeIn || null,
           timeOut: data.timeOut || null,
           entryDate: data.date || data.entryDate || null,
+          gpCompleteDate: data.gpCompleteDate || null,
+          entryCompletionAt: data.entryCompletionAt || null,
+          entryMadeByName:
+            data.entryMadeByName ||
+            data.user?.username ||
+            data.user?.name ||
+            data.user?.email ||
+            null,
+          entryMadeByUserId: data.userId || data.user?.id || null,
+          isBackdated: this.computeIsBackdated(
+            data.date || data.entryDate,
+            data.timeIn,
+            data.entryCompletionAt,
+          ),
           bhariVideoUrl: data.bhariVideoUpload || data.bhariVideoUrl || null,
           khaliVideoUrl: data.khaliVideoUpload || data.khaliVideoUrl || null,
           unloadingStartTime: (() => {
@@ -635,6 +668,34 @@ export class ProcurementService {
         await this.notifyAdmin(tx, data.userId, action, details, batch.id, plantId);
       }
 
+      // Audit trail: routine + backdated inward entries on supervisor fingerprint / confirm
+      if (data.status !== 'DRAFT' && (data.biometricData || data.entryCompletionAt)) {
+        const isBackdated = this.computeIsBackdated(
+          data.date || data.entryDate,
+          data.timeIn,
+          data.entryCompletionAt,
+        );
+        const who =
+          data.entryMadeByName ||
+          data.user?.username ||
+          data.user?.name ||
+          data.user?.email ||
+          data.userId ||
+          'Unknown';
+        const whenIso = data.entryCompletionAt || new Date().toISOString();
+        await this.notifyAdmin(
+          tx,
+          data.userId,
+          isBackdated ? 'PADDY_INWARD_BACKDATED_ENTRY' : 'PADDY_INWARD_ENTRY_AUDIT',
+          `${isBackdated ? 'BACKDATED' : 'ROUTINE'} inward entry by ${who} at ${whenIso}. ` +
+            `Recorded In: ${data.date || '-'} ${data.timeIn || '-'}; ` +
+            `GP Complete: ${data.gpCompleteDate || '-'} ${data.timeOut || '-'}; ` +
+            `Truck: ${data.truckNo || '-'}; GP: ${data.gpNo || '-'}`,
+          batch.id,
+          plantId,
+        );
+      }
+
       // 5. Apply boli receive bags ONLY on confirm (not draft) — prevents double-count
       if (
         data.status !== 'DRAFT' &&
@@ -656,32 +717,32 @@ export class ProcurementService {
         }
       }
 
-      // 7. Notification for Quality Cut > 1%
-      if (data.qualityCutType === 'PERCENTAGE' && parseFloat(data.qualityCutValue) > 1) {
-        await tx.systemAuditLog.create({
-          data: {
-            action: 'MANDI_QUALITY_NOTIFICATION',
-            module: 'PROCUREMENT',
-            entityId: batch.id,
-            details: `Quality cut of ${data.qualityCutValue}% exceeded 1% for Mandi ${data.mandi || data.mandiEgpNo}. Please review.`,
-            userId: 'SYSTEM',
-            plantId: plantId
-          }
-        });
+      // 7. Notification for Quality Cut > 1% (skip on draft; never use fake SYSTEM userId — FK)
+      if (
+        data.status !== 'DRAFT' &&
+        data.qualityCutType === 'PERCENTAGE' &&
+        parseFloat(data.qualityCutValue) > 1
+      ) {
+        await this.notifyAdmin(
+          tx,
+          data.userId,
+          'MANDI_QUALITY_NOTIFICATION',
+          `Quality cut of ${data.qualityCutValue}% exceeded 1% for Mandi ${data.mandi || data.mandiEgpNo}. Please review.`,
+          batch.id,
+          plantId,
+        );
       }
 
-      // 8. Notification for Bags Received
-      if (data.bagsRecAtMill && parseFloat(data.bagsRecAtMill) > 0) {
-        await tx.systemAuditLog.create({
-          data: {
-            action: 'BAGS_RECEIVED_NOTIFICATION',
-            module: 'PROCUREMENT',
-            entityId: batch.id,
-            details: `Paddy Inward (GP No: ${data.gpNo || '-'}): Received a total of ${data.bagsRecAtMill} bags at the mill.`,
-            userId: 'SYSTEM',
-            plantId: plantId
-          }
-        });
+      // 8. Notification for Bags Received (confirm only — draft bags are incomplete)
+      if (data.status !== 'DRAFT' && data.bagsRecAtMill && parseFloat(data.bagsRecAtMill) > 0) {
+        await this.notifyAdmin(
+          tx,
+          data.userId,
+          'BAGS_RECEIVED_NOTIFICATION',
+          `Paddy Inward (GP No: ${data.gpNo || '-'}): Received a total of ${data.bagsRecAtMill} bags at the mill.`,
+          batch.id,
+          plantId,
+        );
       }
 
       // 9. Integration with Hoodi (only on confirm)
@@ -710,6 +771,61 @@ export class ProcurementService {
     });
   }
 
+
+  /** Lightweight draft list for Paddy Inward “Saved Drafts” table */
+  async getDraftInwards(plantId: string) {
+    const where: any = {
+      status: { in: ['DRAFT', 'PENDING'] },
+      paddyInwardDetails: { isNot: null },
+    };
+    if (plantId && plantId !== 'global') where.plantId = plantId;
+
+    const batches = await this.prisma.procurementBatch.findMany({
+      where,
+      include: {
+        supplier: true,
+        paddyInwardDetails: true,
+        weighbridge: true,
+        quality: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+    });
+
+    return batches.map((b) => {
+      const d = b.paddyInwardDetails || ({} as any);
+      const aRec = Number(d.aClassReceived || 0);
+      const bRec = Number(d.bClassReceived || 0);
+      const aGiven = Number(d.aClassGiven || 0);
+      const bGiven = Number(d.bClassGiven || 0);
+      return {
+        id: b.id,
+        status: b.status,
+        date: (d.entryDate || b.createdAt?.toISOString?.()?.slice(0, 10) || '').toString().slice(0, 10),
+        timeIn: d.timeIn || null,
+        timeOut: d.timeOut || null,
+        gpCompleteDate: d.gpCompleteDate || null,
+        entryCompletionAt: d.entryCompletionAt || null,
+        entryMadeByName: d.entryMadeByName || null,
+        isBackdated: !!d.isBackdated,
+        truckNo: d.truckNo || b.weighbridge?.vehicleNo || '-',
+        millGp: d.gpNo || '-',
+        agencyGp: d.mandiEgNo || '-',
+        mandiParchiNo: d.mandiParchiNo || '-',
+        rstNo: d.rstNo || '-',
+        mandi: d.mandi || '-',
+        mandiType: d.mandiType || '-',
+        partyName: d.partyName || b.supplier?.name || 'Walk-in',
+        artiaName: b.supplier?.name || 'Walk-in',
+        pahunchPersonName: d.pahunchPersonName || '-',
+        moisture: d.moisture ?? b.quality?.moisture ?? null,
+        grossWeight: d.grossWeight ?? null,
+        millBags: aRec + bRec,
+        agencyBags: aGiven + bGiven || Number(d.bagsAtAgencyGp || 0),
+        updatedAt: b.updatedAt,
+      };
+    });
+  }
 
   async getInwards(plantId: string, dateFrom?: string, dateTo?: string, mandi?: string, supplierId?: string, page?: string, limit?: string) {
     const whereClause: any = plantId === 'global' ? {} : { plantId };
@@ -819,7 +935,7 @@ export class ProcurementService {
     const limitNum = parseInt(limit || '10', 10);
     const skip = (pageNum - 1) * limitNum;
 
-    const [total, batches] = await this.prisma.$transaction([
+    const [total, batches] = await Promise.all([
       this.prisma.procurementBatch.count({ where: whereClause }),
       this.prisma.procurementBatch.findMany({
         where: whereClause,
@@ -1128,6 +1244,30 @@ export class ProcurementService {
   // Feedback 32 — Boli Record helpers
   // ---------------------------------------------------------------------------
 
+  /** Combine YYYY-MM-DD + HH:mm into epoch ms (local). */
+  private combineDateTimeMs(date?: string | null, time?: string | null): number | null {
+    if (!date) return null;
+    const d = String(date).slice(0, 10);
+    const t = String(time || '00:00').slice(0, 5);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+    const ms = new Date(`${d}T${t}:00`).getTime();
+    return Number.isFinite(ms) ? ms : null;
+  }
+
+  /** Backdated when recorded Date & Time In is before the calendar day the entry was actually made. */
+  private computeIsBackdated(
+    entryDate?: string | null,
+    timeIn?: string | null,
+    entryCompletionAt?: string | null,
+  ): boolean {
+    const inMs = this.combineDateTimeMs(entryDate, timeIn || '00:00');
+    if (inMs == null) return false;
+    const made = entryCompletionAt ? new Date(entryCompletionAt) : new Date();
+    if (!Number.isFinite(made.getTime())) return false;
+    const madeDayStart = new Date(made.getFullYear(), made.getMonth(), made.getDate()).getTime();
+    return inMs < madeDayStart;
+  }
+
   private calcBoliPayment(govtRate: number, boliRate: number, finalBags: number | null | undefined) {
     if (finalBags == null || !Number.isFinite(finalBags)) return 0;
     const diff = (govtRate || 0) - (boliRate || 0);
@@ -1145,6 +1285,32 @@ export class ProcurementService {
     return `${code}-B${String(seq).padStart(4, '0')}`;
   }
 
+  /** Older Estimate rows may have null boliNo — assign mill-wise series once */
+  private async backfillMissingBoliNos(plantId?: string) {
+    const where: any = {
+      OR: [{ boliNo: null }, { boliNo: '' }],
+    };
+    if (plantId && plantId !== 'global') {
+      where.sodaPending = { plantId };
+    }
+    const missing = await this.prisma.paddyBoli.findMany({
+      where,
+      include: { sodaPending: { select: { plantId: true } } },
+      orderBy: { createdAt: 'asc' },
+      take: 500,
+    });
+    if (missing.length === 0) return;
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const b of missing) {
+        const pid = b.sodaPending?.plantId;
+        if (!pid) continue;
+        const boliNo = await this.nextBoliNo(tx, pid);
+        await tx.paddyBoli.update({ where: { id: b.id }, data: { boliNo } });
+      }
+    });
+  }
+
   private async notifyAdmin(tx: any, userId: string | undefined, action: string, details: string, entityId?: string, plantId?: string) {
     const db = tx || this.prisma;
     if (userId) {
@@ -1160,6 +1326,10 @@ export class ProcurementService {
           },
         });
       } catch { /* audit optional if userId invalid */ }
+    }
+    // Fingerprint entry audits are log-only (no admin bell spam)
+    if (action === 'PADDY_INWARD_ENTRY_AUDIT' || action === 'PADDY_INWARD_BACKDATED_ENTRY') {
+      return;
     }
     // Feedback 32/33 — real Admin bell notifications (not audit-only)
     const title =
@@ -1281,6 +1451,8 @@ export class ProcurementService {
       limit?: string;
     } = {},
   ) {
+    await this.backfillMissingBoliNos(plantId);
+
     const whereSoda: any = plantId === 'global' ? {} : { plantId };
     if (opts.supplierId) whereSoda.supplierId = opts.supplierId;
     if (opts.dateFrom || opts.dateTo) {
@@ -1350,11 +1522,14 @@ export class ProcurementService {
     }
 
     const pageNum = parseInt(opts.page || '1', 10);
-    const limitNum = parseInt(opts.limit || '10', 10);
+    // Feedback 32 — when Artia filter set, show ALL that Artia's bolis (no page hide)
+    const limitNum = opts.supplierId
+      ? Math.max(rows.length, parseInt(opts.limit || '10', 10))
+      : parseInt(opts.limit || '10', 10);
     const total = rows.length;
-    const start = (pageNum - 1) * limitNum;
-    const data = rows.slice(start, start + limitNum);
-    return { data, total };
+    const start = opts.supplierId ? 0 : (pageNum - 1) * limitNum;
+    const data = opts.supplierId ? rows : rows.slice(start, start + limitNum);
+    return { data, total, pageSize: limitNum, unpaginated: !!opts.supplierId };
   }
 
   async getSupervisorsForPlant(plantId: string) {
@@ -1372,6 +1547,8 @@ export class ProcurementService {
 
   /** Open bolis eligible for Add Final Boli (estimate done, finalBags not set, not cancelled) */
   async getOpenBolisForFinal(plantId: string) {
+    await this.backfillMissingBoliNos(plantId);
+
     const bolis = await this.prisma.paddyBoli.findMany({
       where: {
         finalBags: null,
@@ -1635,11 +1812,14 @@ export class ProcurementService {
     supplierId?: string,
     mandi?: string,
   ) {
+    // Feedback 32 — ensure legacy bolis without numbers get mill-wise Boli No.
+    await this.backfillMissingBoliNos(plantId);
+
     const whereClause: any = plantId === 'global' ? {} : { plantId };
 
     if (supplierId) whereClause.supplierId = supplierId;
     if (mandi) whereClause.supplier = { mandi: { equals: mandi, mode: 'insensitive' } };
-
+    
     if (dateFrom || dateTo) {
       whereClause.date = {};
       if (dateFrom) whereClause.date.gte = new Date(dateFrom);
@@ -1674,20 +1854,20 @@ export class ProcurementService {
         isCancelled: b.isCancelled || b.bags === 0,
       }));
       return {
-        id: p.id,
-        supplierId: p.supplierId,
-        partyMandi: p.supplier.name,
+      id: p.id,
+      supplierId: p.supplierId,
+      partyMandi: p.supplier.name,
         mandi: p.supplier.mandi || '',
-        date: p.date,
-        mc: p.moisture,
-        bags: p.bags,
-        rate: p.rate,
+      date: p.date,
+      mc: p.moisture,
+      bags: p.bags,
+      rate: p.rate,
         govtRate: p.govtRate,
         bolis,
-        diff: p.diff,
-        payment: p.payment,
-        note: p.note,
-        finalHisabAmt: p.finalHisabAmt,
+      diff: p.diff,
+      payment: p.payment,
+      note: p.note,
+      finalHisabAmt: p.finalHisabAmt,
         riceCategory: p.riceCategory,
         sodaCompleted: p.sodaCompleted,
         isCompleted: p.sodaCompleted,
@@ -1696,7 +1876,7 @@ export class ProcurementService {
         dailyUpdateCount: p.dailyUpdateCount,
       };
     });
-
+    
     return { data: mappedData, total };
   }
 
@@ -1798,19 +1978,19 @@ export class ProcurementService {
       }
 
       const pending = await tx.paddySodaPending.create({
-        data: {
-          plantId: data.plantId,
-          supplierId: data.supplierId,
-          date: data.date ? new Date(data.date) : new Date(),
-          moisture: avgMoisture,
-          bags: totalBags,
-          rate: avgRate,
-          govtRate: parseFloat(data.govtRate) || 0,
-          diff: parseFloat(data.diff) || 0,
+      data: {
+        plantId: data.plantId,
+        supplierId: data.supplierId,
+        date: data.date ? new Date(data.date) : new Date(),
+        moisture: avgMoisture,
+        bags: totalBags,
+        rate: avgRate,
+        govtRate: parseFloat(data.govtRate) || 0,
+        diff: parseFloat(data.diff) || 0,
           payment: 0,
           finalHisabAmt: 0,
-          note: data.note || '',
-          riceCategory: data.riceCategory || 'ANY',
+        note: data.note || '',
+        riceCategory: data.riceCategory || 'ANY',
           supervisorName: data.supervisorName,
           supervisorUserId: data.supervisorUserId || user?.id || null,
           biometricData: data.biometricData,
@@ -2021,16 +2201,16 @@ export class ProcurementService {
       const sodaPayment = upserted.reduce((sum, b) => sum + (b.payment || 0), 0);
 
       return tx.paddySodaPending.update({
-        where: { id },
-        data: {
+      where: { id },
+      data: {
           plantId: data.plantId || existing.plantId,
           supplierId: data.supplierId || existing.supplierId,
-          date: data.date ? new Date(data.date) : undefined,
-          moisture: avgMoisture,
-          bags: totalBags,
-          rate: avgRate,
+        date: data.date ? new Date(data.date) : undefined,
+        moisture: avgMoisture,
+        bags: totalBags,
+        rate: avgRate,
           govtRate,
-          diff: parseFloat(data.diff) || 0,
+        diff: parseFloat(data.diff) || 0,
           payment: sodaPayment,
           finalHisabAmt: sodaPayment,
           note: data.note ?? existing.note,
@@ -2084,9 +2264,9 @@ export class ProcurementService {
         });
       }
 
-      return updated;
-    });
-  }
+        return updated;
+      });
+    }
 
   async getPaddyStockReport(plantId: string) {
     const inwards = await this.prisma.procurementBatch.findMany({
@@ -2180,7 +2360,7 @@ export class ProcurementService {
       if (mandiId) where.supplier.mandi = mandiId;
       if (supplierId) where.supplier.id = supplierId;
     }
-
+    
     if (dateFrom && dateTo) {
       where.createdAt = { gte: new Date(dateFrom), lte: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) };
     } else if (dateFrom) {
@@ -2202,7 +2382,7 @@ export class ProcurementService {
 
     const bagWtDefault = 0.382;
     const reportData: any[] = [];
-
+    
     const explodeLedger = (r: any) => {
       const details = r.paddyInwardDetails;
       if (!details) return;
@@ -2311,7 +2491,7 @@ export class ProcurementService {
       ledger.forEach((entry, idx) => {
         const amountQtl = Number(entry.amountQtl) || 0;
         const signed = entry.direction === 'CREDIT' ? -amountQtl : amountQtl;
-        reportData.push({
+      reportData.push({
           id: `${details.id}:${entry.type || idx}`,
           ...base,
           entryType: entry.type,
@@ -2331,8 +2511,8 @@ export class ProcurementService {
           netShortageBags: parseFloat((signed / bagWt).toFixed(2)),
           informBaujiBagsLess: !!details.informBaujiBagsLess,
           informBaujiExcessWeight: !!details.informBaujiExcessWeight,
-        });
       });
+    });
     };
 
     records.forEach(explodeLedger);
@@ -2841,9 +3021,14 @@ export class ProcurementService {
       rstNo: d.rstNo || '-',
       timeIn: d.timeIn || null,
       timeOut: d.timeOut || null,
+      gpCompleteDate: d.gpCompleteDate || null,
+      entryCompletionAt: d.entryCompletionAt || null,
+      entryMadeByName: d.entryMadeByName || null,
+      isBackdated: !!d.isBackdated,
       millGp: d.gpNo || '-',
       agencyGp: d.mandiEgNo || d.mandiParchiNo || '-',
       truckNo: d.truckNo || b.weighbridge?.vehicleNo || '-',
+      grossWeight: d.grossWeight ?? null,
       mandi: d.mandi || '-',
       partyName: d.partyName || b.supplier?.name || 'Walk-in',
       artiaId: b.supplierId || null,
@@ -3054,6 +3239,9 @@ export class ProcurementService {
           agencyBags: r.agencyBags,
           id: r.id,
           status: r.status,
+          isBackdated: r.isBackdated,
+          entryMadeByName: r.entryMadeByName,
+          entryCompletionAt: r.entryCompletionAt,
         })),
       },
       mill: {
@@ -3076,13 +3264,30 @@ export class ProcurementService {
   }
 
   async getActiveGatePassCount(plantId?: string) {
-    return {
-      count: await this.prisma.gatePass.count({
+    // Feedback 35 — Active GPs for Paddy Inward = open inward batches (not GatePass table alone)
+    const whereBatch: any = {
+      status: { in: ['DRAFT', 'PENDING', 'ACTIVE', 'UNLOADING'] },
+      paddyInwardDetails: { isNot: null },
+    };
+    if (plantId && plantId !== 'global') whereBatch.plantId = plantId;
+
+    const inwardActive = await this.prisma.procurementBatch.count({ where: whereBatch });
+
+    let gatePassActive = 0;
+    try {
+      gatePassActive = await this.prisma.gatePass.count({
         where: {
           status: 'ACTIVE',
           ...(plantId && plantId !== 'global' ? { plantId } : {}),
         },
-      }),
+      });
+    } catch { /* ignore */ }
+
+    // Prefer inward active count (ops reality); fall back to max so neither source hides activity
+    return {
+      count: Math.max(inwardActive, gatePassActive),
+      inwardActive,
+      gatePassActive,
     };
   }
 
@@ -3312,10 +3517,13 @@ export class ProcurementService {
       },
     });
 
-    // Prefer completed GPs only (Feedback 35 — whose GP have been completed)
+    // Feedback 35 — completed lifting = confirmed/completed Paddy Inward
+    // (Paddy Inward does not always create GatePass rows; use batch status + entry/timeOut)
     const isCompletedLift = (b: any) => {
+      if (!['CONFIRMED', 'COMPLETED'].includes(b.status)) return false;
       const gp = b.gatePass;
-      return !!(gp && (gp.status === 'CLOSED' || gp.status === 'COMPLETED'));
+      if (gp && (gp.status === 'ACTIVE' || gp.status === 'OPEN')) return false;
+      return true;
     };
 
     const mills = [
@@ -3352,14 +3560,25 @@ export class ProcurementService {
       );
     };
 
-    /** Feedback 35 — bucket by GP completion time (gpCompleteDate), else GP updatedAt when CLOSED/COMPLETED, else batch createdAt */
+    /** Feedback 35 — bucket by inward completion (entryDate+timeOut, else batch updatedAt/createdAt) */
     const liftCompletedAt = (b: any): Date => {
       const gp = b.gatePass;
       if (gp?.gpCompleteDate) return new Date(gp.gpCompleteDate);
       if (gp && (gp.status === 'CLOSED' || gp.status === 'COMPLETED') && gp.updatedAt) {
         return new Date(gp.updatedAt);
       }
-      return new Date(b.createdAt);
+      const d = b.paddyInwardDetails || {};
+      const day = (d.entryDate || '').toString().slice(0, 10);
+      const tod = (d.timeOut || d.timeIn || '').toString().slice(0, 5);
+      if (day && tod) {
+        const parsed = new Date(`${day}T${tod}:00`);
+        if (!Number.isNaN(parsed.getTime())) return parsed;
+      }
+      if (day) {
+        const parsed = new Date(`${day}T12:00:00`);
+        if (!Number.isNaN(parsed.getTime())) return parsed;
+      }
+      return new Date(b.updatedAt || b.createdAt);
     };
 
     const columns = millCols.map((m) => {

@@ -5,6 +5,7 @@ import { useIntermillStore } from '../store/intermillStore';
 import { useAuthStore } from '../store/authStore';
 import api from '../api/axios';
 import { getUnitLabel } from '../constants/quantityUnits';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 
 export const IntermillProcessing = () => {
   const activePlant = usePlantStore(state => state.activePlant);
@@ -26,6 +27,7 @@ export const IntermillProcessing = () => {
   // Output State
   const [selectedOutputs, setSelectedOutputs] = useState<Record<string, boolean>>({});
   const [outputQuantities, setOutputQuantities] = useState<Record<string, string>>({});
+  const submitLock = useSubmitLock();
 
   useEffect(() => {
     fetchBatches();
@@ -59,6 +61,7 @@ export const IntermillProcessing = () => {
       
     if (outputs.length === 0) return alert('Please select at least one output');
 
+    await submitLock.wrapSubmit(async () => {
     try {
       await createBatch({
         batchNo: `IB-${Date.now()}`,
@@ -84,6 +87,7 @@ export const IntermillProcessing = () => {
     } catch (error) {
       alert('Error creating batch');
     }
+    });
   };
 
   return (
@@ -238,7 +242,7 @@ export const IntermillProcessing = () => {
 
             <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)]">
               <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-[var(--text-muted)] hover:text-[var(--text-main)]">Cancel</button>
-              <button onClick={handleSubmit} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-lg">Create Batch</button>
+              <button onClick={handleSubmit} disabled={submitLock.pending} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-lg disabled:opacity-50">{submitLock.pending ? 'Submitting...' : 'Create Batch'}</button>
             </div>
           </div>
         </div>

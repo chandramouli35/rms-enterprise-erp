@@ -11,9 +11,13 @@ export class ProcurementController {
 
   @Post('save-purchase')
   @RequirePermission('Procurement', 'canAdd')
-  async savePurchase(@Body() data: any) {
+  async savePurchase(@Body() data: any, @Req() req: any) {
     try {
-      return await this.procurementService.savePurchase(data);
+      return await this.procurementService.savePurchase({
+        ...data,
+        userId: req.user?.id || data.userId,
+        user: req.user,
+      });
     } catch (error: any) {
       console.error(error);
       throw new HttpException(`Failed to save: ${error.message || error}`, HttpStatus.BAD_REQUEST);
@@ -25,6 +29,12 @@ export class ProcurementController {
   @RequirePermission('Procurement', 'canView')
   async getInwardDetails(@Param('id') id: string) {
     return this.procurementService.getInwardDetails(id);
+  }
+
+  @Get('drafts/:plantId')
+  @RequirePermission('Procurement', 'canView')
+  getDraftInwards(@Param('plantId') plantId: string) {
+    return this.procurementService.getDraftInwards(plantId);
   }
 
   @Get('inwards/:plantId')

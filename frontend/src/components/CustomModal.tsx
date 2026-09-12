@@ -7,9 +7,11 @@ interface CustomModalProps {
  title: string;
  children: React.ReactNode;
  footer?: React.ReactNode;
+ /** Tailwind max-width class, default max-w-md */
+ maxWidthClass?: string;
 }
 
-export const CustomModal: React.FC<CustomModalProps> = ({ isOpen, onClose, title, children, footer }) => {
+export const CustomModal: React.FC<CustomModalProps> = ({ isOpen, onClose, title, children, footer, maxWidthClass = 'max-w-md' }) => {
  const [show, setShow] = useState(false);
 
  useEffect(() => {
@@ -37,7 +39,7 @@ export const CustomModal: React.FC<CustomModalProps> = ({ isOpen, onClose, title
  
  {/* Modal Box */}
  <div 
- className={`relative w-full max-w-md max-h-[95vh] flex flex-col bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-300 ${isOpen ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
+ className={`relative w-full ${maxWidthClass} max-h-[95vh] mx-4 flex flex-col bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-300 ${isOpen ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'}`}
  >
  {/* Header */}
  <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] shrink-0">

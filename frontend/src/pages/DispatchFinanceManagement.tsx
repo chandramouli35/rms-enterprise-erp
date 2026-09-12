@@ -4,6 +4,7 @@ import { Truck, CheckCircle2, Factory, TrendingUp, TrendingDown, Eye, Plus, Scal
 import { useAuthStore } from '../store/authStore';
 import { usePlantStore } from '../store/plantStore';
 import { dispatchFinanceApi } from '../api/dispatchFinance';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 
 export function DispatchFinanceManagement() {
   const { user } = useAuthStore();
@@ -32,6 +33,10 @@ export function DispatchFinanceManagement() {
 
   const [weightVerifications, setWeightVerifications] = useState([]);
   const [inventoryDeductions, setInventoryDeductions] = useState([]);
+
+  const createDispatchLock = useSubmitLock();
+  const generateGatePassLock = useSubmitLock();
+  const submitWeightLock = useSubmitLock();
 
   const refreshData = () => {
     const targetPlantId = activePlant ? activePlant.id : 'all';
@@ -73,15 +78,17 @@ export function DispatchFinanceManagement() {
       alert('You cannot create a dispatch in Consolidated view. Please select a specific plant first.');
       return;
     }
-    try {
-      await dispatchFinanceApi.createDispatch(activePlant.id, dispatchForm);
-      setIsDispatchModalOpen(false);
-      setDispatchForm({ partyName: '', item: 'PADDY', quantity: '', date: '' });
-      refreshData();
-    } catch (err: any) {
-      console.error('Failed to create dispatch', err);
-      alert('Failed to create dispatch: ' + (err.response?.data?.message || err.message));
-    }
+    await createDispatchLock.wrapSubmit(async () => {
+      try {
+        await dispatchFinanceApi.createDispatch(activePlant.id, dispatchForm);
+        setIsDispatchModalOpen(false);
+        setDispatchForm({ partyName: '', item: 'PADDY', quantity: '', date: '' });
+        refreshData();
+      } catch (err: any) {
+        console.error('Failed to create dispatch', err);
+        alert('Failed to create dispatch: ' + (err.response?.data?.message || err.message));
+      }
+    });
   };
 
   const handleGenerateGatePass = async (e: React.FormEvent) => {
@@ -90,15 +97,17 @@ export function DispatchFinanceManagement() {
       alert('You cannot generate a gate pass in Consolidated view. Please select a specific plant first.');
       return;
     }
-    try {
-      await dispatchFinanceApi.generateGatePass(activePlant.id, gatePassForm);
-      setIsGatePassModalOpen(false);
-      setGatePassForm({ dispatchId: '', vehicleNo: '', driverName: '', contactNo: '' });
-      refreshData();
-    } catch (err: any) {
-      console.error('Failed to generate gate pass', err);
-      alert('Failed to generate gate pass: ' + (err.response?.data?.message || err.message));
-    }
+    await generateGatePassLock.wrapSubmit(async () => {
+      try {
+        await dispatchFinanceApi.generateGatePass(activePlant.id, gatePassForm);
+        setIsGatePassModalOpen(false);
+        setGatePassForm({ dispatchId: '', vehicleNo: '', driverName: '', contactNo: '' });
+        refreshData();
+      } catch (err: any) {
+        console.error('Failed to generate gate pass', err);
+        alert('Failed to generate gate pass: ' + (err.response?.data?.message || err.message));
+      }
+    });
   };
 
   const handleReadWeighbridge = async () => {
@@ -131,21 +140,23 @@ export function DispatchFinanceManagement() {
   const handleSubmitWeight = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activePlant) return;
-    try {
-      await dispatchFinanceApi.createWeightEntry(activePlant.id, {
-        transactionId: selectedWeightTx.id,
-        tareWeight: parseFloat(weightForm.tareWeight),
-        grossWeight: parseFloat(weightForm.grossWeight),
-        netWeight: parseFloat(weightForm.netWeight)
-      });
-      setIsWeightModalOpen(false);
-      setWeightForm({ tareWeight: '', grossWeight: '', netWeight: '' });
-      setSelectedWeightTx(null);
-      refreshData();
-    } catch (err: any) {
-      console.error('Failed to submit weight', err);
-      alert('Failed to submit weight: ' + (err.response?.data?.message || err.message));
-    }
+    await submitWeightLock.wrapSubmit(async () => {
+      try {
+        await dispatchFinanceApi.createWeightEntry(activePlant.id, {
+          transactionId: selectedWeightTx.id,
+          tareWeight: parseFloat(weightForm.tareWeight),
+          grossWeight: parseFloat(weightForm.grossWeight),
+          netWeight: parseFloat(weightForm.netWeight)
+        });
+        setIsWeightModalOpen(false);
+        setWeightForm({ tareWeight: '', grossWeight: '', netWeight: '' });
+        setSelectedWeightTx(null);
+        refreshData();
+      } catch (err: any) {
+        console.error('Failed to submit weight', err);
+        alert('Failed to submit weight: ' + (err.response?.data?.message || err.message));
+      }
+    });
   };
 
   useEffect(() => {
@@ -650,8 +661,8 @@ export function DispatchFinanceManagement() {
                 <button type="button" onClick={() => setIsDispatchModalOpen(false)} className="px-4 py-2 text-[var(--text-muted)] hover:text-white transition-colors">
                   Cancel
                 </button>
-                <button type="submit" className="px-6 py-2 bg-amber-500 hover:bg-amber-600 text-black font-semibold rounded-lg transition-colors">
-                  Create Dispatch
+                <button type="submit" disabled={createDispatchLock.pending} className="px-6 py-2 bg-amber-500 hover:bg-amber-600 text-black font-semibold rounded-lg transition-colors disabled:opacity-50">
+                  {createDispatchLock.pending ? 'Creating...' : 'Create Dispatch'}
                 </button>
               </div>
             </form>
@@ -726,8 +737,8 @@ export function DispatchFinanceManagement() {
                 <button type="button" onClick={() => setIsGatePassModalOpen(false)} className="px-4 py-2 text-[var(--text-muted)] hover:text-white transition-colors">
                   Cancel
                 </button>
-                <button type="submit" className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-black font-semibold rounded-lg transition-colors">
-                  Generate Pass
+                <button type="submit" disabled={generateGatePassLock.pending} className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-black font-semibold rounded-lg transition-colors disabled:opacity-50">
+                  {generateGatePassLock.pending ? 'Generating...' : 'Generate Pass'}
                 </button>
               </div>
             </form>
@@ -865,8 +876,8 @@ export function DispatchFinanceManagement() {
                 <button type="button" onClick={() => setIsWeightModalOpen(false)} className="px-4 py-2 text-[var(--text-muted)] hover:text-white transition-colors">
                   Cancel
                 </button>
-                <button type="submit" disabled={!weightForm.tareWeight || !weightForm.grossWeight} className="px-6 py-2 bg-blue-600 disabled:opacity-50 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors">
-                  Finalize Record
+                <button type="submit" disabled={!weightForm.tareWeight || !weightForm.grossWeight || submitWeightLock.pending} className="px-6 py-2 bg-blue-600 disabled:opacity-50 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors">
+                  {submitWeightLock.pending ? 'Submitting...' : 'Finalize Record'}
                 </button>
               </div>
             </form>

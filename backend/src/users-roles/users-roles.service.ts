@@ -210,7 +210,7 @@ export class UsersRolesService {
       subModules: [
         'Supplier Master',
         'Mandi Master',
-        'Paddy Purchase & Quality',
+        'Boli Record',
         'Paddy Inward',
         'Inward List',
         'Stack to Hoodi',
@@ -328,6 +328,9 @@ export class UsersRolesService {
     Capture: ['Capture', 'Weighment'],
     Settings: ['Settings', 'Device Config'],
     History: ['History'],
+    // F32 rename: nav/Permissions UI use Boli Record; DB may still store old label
+    'Boli Record': ['Boli Record', 'Paddy Purchase & Quality'],
+    'Paddy Purchase & Quality': ['Paddy Purchase & Quality', 'Boli Record'],
   };
 
   private flagsFromPerm(row?: { canView?: boolean; canAdd?: boolean; canEdit?: boolean; canDelete?: boolean; canApprove?: boolean } | null) {

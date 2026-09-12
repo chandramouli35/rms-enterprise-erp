@@ -34,6 +34,10 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
 
   const [mode, setMode] = useState<ListMode>('mill');
   const [bagWt, setBagWt] = useState(0.382);
+  const [supervisorDetail, setSupervisorDetail] = useState<{
+    name: string;
+    at: string | null;
+  } | null>(null);
   const [filters, setFilters] = useState({
     dateFrom: todayStr(),
     dateTo: todayStr(),
@@ -197,6 +201,7 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
           Date: r.date,
           'RST No': r.rstNo,
           'In Time': r.timeIn,
+          'GP Complete Date': r.gpCompleteDate,
           'Out Time': r.timeOut,
           'Mill GP': r.millGp,
           'Agency GP': r.agencyGp,
@@ -339,8 +344,12 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
                   millNetWeight: r.govtMillNetWt,
                   id: r.id,
                   status: r.status,
+                  isBackdated: r.isBackdated,
+                  entryMadeByName: r.entryMadeByName,
+                  entryCompletionAt: r.entryCompletionAt,
                 }))}
                 compact
+                onSupervisorClick={(name, at) => setSupervisorDetail({ name, at })}
               />
             </div>
             <div>
@@ -348,7 +357,11 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
                 Mill Mandi & Artia List — Mill {cluster.totals.millBags} · Shortage{' '}
                 {cluster.totals.shortageBags} · Total {cluster.totals.totalBags}
               </h4>
-              <MillTable rows={cluster.rows.map((r: any, i: number) => ({ sno: i + 1, ...r }))} compact />
+              <MillTable
+                rows={cluster.rows.map((r: any, i: number) => ({ sno: i + 1, ...r }))}
+                compact
+                onSupervisorClick={(name, at) => setSupervisorDetail({ name, at })}
+              />
             </div>
           </div>
         </div>
@@ -357,7 +370,7 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
   );
 
   return (
-    <div className="flex-1 overflow-auto bg-[var(--bg-panel)] p-6 rounded-xl border border-[var(--border-subtle)] flex flex-col h-full shadow-2xl inward-list-print-root">
+    <div className="w-full bg-[var(--bg-panel)] p-6 rounded-xl border border-[var(--border-subtle)] shadow-2xl inward-list-print-root">
       <style>{`
         @media print {
           body * { visibility: hidden !important; }
@@ -379,6 +392,12 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
           <h1 className="text-base font-bold text-[var(--text-muted)]">Inward List</h1>
           <span className="ml-2 text-xs font-bold px-2.5 py-1 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
             Active GPs: {activeGpsLive ?? report?.activeGps ?? '—'}
+          </span>
+          <span
+            className="text-[10px] px-2 py-0.5 rounded bg-violet-500/20 text-violet-200 border border-violet-500/30"
+            title="Rows with a violet background are backdated entries"
+          >
+            Violet row = backdated
           </span>
           {report?.fromSnapshot && (
             <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400">
@@ -521,15 +540,19 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
 
       {loading && <p className="text-sm text-[var(--text-muted-alt)] mb-2 no-print">Loading…</p>}
 
-      {/* Main list (screen) */}
-      <div className="flex-1 overflow-auto screen-only">
+      {/* Main list (screen) — page scroll only, no nested vertical scroll */}
+      <div className="screen-only">
         {mode === 'govt' ? (
-          <GovtTable rows={report?.govt?.rows || []} />
+          <GovtTable
+            rows={report?.govt?.rows || []}
+            onSupervisorClick={(name, at) => setSupervisorDetail({ name, at })}
+          />
         ) : (
           <MillTable
             rows={[...(report?.mill?.rows || []), ...(report?.mill?.draftRows || [])]}
             onView={onView}
             onContinueDraft={onContinueDraft}
+            onSupervisorClick={(name, at) => setSupervisorDetail({ name, at })}
           />
         )}
 
@@ -572,10 +595,17 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
                   aClass: r.aClassAgency,
                   bClass: r.bClassAgency,
                   millNetWeight: r.govtMillNetWt,
+                  isBackdated: r.isBackdated,
+                  entryMadeByName: r.entryMadeByName,
+                  entryCompletionAt: r.entryCompletionAt,
                 }))}
+                onSupervisorClick={(name, at) => setSupervisorDetail({ name, at })}
               />
             ) : (
-              <MillTable rows={g.rows.map((r: any, i: number) => ({ sno: i + 1, ...r }))} />
+              <MillTable
+                rows={g.rows.map((r: any, i: number) => ({ sno: i + 1, ...r }))}
+                onSupervisorClick={(name, at) => setSupervisorDetail({ name, at })}
+              />
             )}
             <p className="mt-2 text-sm font-bold">
               Day totals — Agency: {g.totals.agencyBags} · Mill: {g.totals.millBags} · Shortage:{' '}
@@ -661,38 +691,123 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
           </div>
         </div>
       </CustomModal>
+
+      <CustomModal
+        isOpen={!!supervisorDetail}
+        onClose={() => setSupervisorDetail(null)}
+        title="Fingerprint Submission"
+      >
+        <div className="p-2 space-y-3 text-sm">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted-alt)] mb-0.5">
+              Supervisor
+            </div>
+            <div className="font-bold text-[var(--text-main)]">
+              {supervisorDetail?.name || '-'}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted-alt)] mb-0.5">
+              Date &amp; Time of Fingerprint / Thumb Entry
+            </div>
+            <div className="font-medium text-[var(--text-main)]">
+              {supervisorDetail?.at
+                ? new Date(supervisorDetail.at).toLocaleString()
+                : 'Not recorded'}
+            </div>
+          </div>
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => setSupervisorDetail(null)}
+              className="px-4 py-2 border border-[var(--border-subtle)] rounded-lg text-sm"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </CustomModal>
     </div>
   );
 }
 
-function GovtTable({ rows, compact }: { rows: any[]; compact?: boolean }) {
+function SupervisorCell({
+  name,
+  at,
+  onClick,
+}: {
+  name?: string | null;
+  at?: string | null;
+  onClick?: (name: string, at: string | null) => void;
+}) {
+  if (!name) return <span className="text-[var(--text-muted-alt)]">-</span>;
+  if (!onClick) return <span>{name}</span>;
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(name, at || null)}
+      className="text-blue-400 hover:text-blue-300 underline underline-offset-2 font-medium text-left"
+      title="View fingerprint submission time"
+    >
+      {name}
+    </button>
+  );
+}
+
+function GovtTable({
+  rows,
+  compact,
+  onSupervisorClick,
+}: {
+  rows: any[];
+  compact?: boolean;
+  onSupervisorClick?: (name: string, at: string | null) => void;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className={`w-full border-collapse text-[var(--text-muted)] ${compact ? 'text-xs' : 'text-sm'}`}>
         <thead>
-          <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)] text-[10px]">
-            <th className="p-2">S.No</th>
-            <th className="p-2">Date</th>
-            <th className="p-2">Agency GP</th>
-            <th className="p-2">Truck No.</th>
-            <th className="p-2">Mandi</th>
-            <th className="p-2">Party Name</th>
-            <th className="p-2 text-right">Moisture</th>
-            <th className="p-2 text-right">A Class</th>
-            <th className="p-2 text-right">B Class</th>
-            <th className="p-2 text-right">Bags at Agency GP</th>
-            <th className="p-2 text-right">Mill Net Weight</th>
+          <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)] text-xs font-semibold tracking-wide">
+            <th className="p-2.5">S.No</th>
+            <th className="p-2.5">Date</th>
+            <th className="p-2.5">Agency GP</th>
+            <th className="p-2.5">Truck No.</th>
+            <th className="p-2.5">Mandi</th>
+            <th className="p-2.5">Party Name</th>
+            <th className="p-2.5">Supervisor</th>
+            <th className="p-2.5 text-right">Moisture</th>
+            <th className="p-2.5 text-right">A Class</th>
+            <th className="p-2.5 text-right">B Class</th>
+            <th className="p-2.5 text-right">Bags at Agency GP</th>
+            <th className="p-2.5 text-right">Mill Net Weight</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={r.id || i} className="border-b border-[var(--border-subtle-alt)]">
+            <tr
+              key={r.id || i}
+              className={`border-b border-[var(--border-subtle-alt)] ${
+                r.isBackdated ? 'bg-violet-500/20 text-violet-100' : ''
+              }`}
+              title={
+                r.isBackdated
+                  ? `Backdated entry${r.entryMadeByName ? ` by ${r.entryMadeByName}` : ''}${r.entryCompletionAt ? ` at ${r.entryCompletionAt}` : ''}`
+                  : undefined
+              }
+            >
               <td className="p-2">{r.sno ?? i + 1}</td>
               <td className="p-2">{r.date}</td>
               <td className="p-2 font-mono text-xs">{r.agencyGp}</td>
               <td className="p-2">{r.truckNo}</td>
               <td className="p-2">{r.mandi}</td>
               <td className="p-2 font-bold text-[var(--text-main)]">{r.partyName}</td>
+              <td className="p-2">
+                <SupervisorCell
+                  name={r.entryMadeByName}
+                  at={r.entryCompletionAt}
+                  onClick={onSupervisorClick}
+                />
+              </td>
               <td className="p-2 text-right">{r.moisture ?? '-'}</td>
               <td className="p-2 text-right">{r.aClass}</td>
               <td className="p-2 text-right">{r.bClass}</td>
@@ -704,7 +819,7 @@ function GovtTable({ rows, compact }: { rows: any[]; compact?: boolean }) {
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={11} className="p-6 text-center text-[var(--text-muted-alt)]">
+              <td colSpan={12} className="p-6 text-center text-[var(--text-muted-alt)]">
                 No govt inward rows.
               </td>
             </tr>
@@ -720,61 +835,83 @@ function MillTable({
   compact,
   onView,
   onContinueDraft,
+  onSupervisorClick,
 }: {
   rows: any[];
   compact?: boolean;
   onView?: (row: any) => void;
   onContinueDraft?: (row: any) => void;
+  onSupervisorClick?: (name: string, at: string | null) => void;
 }) {
   return (
     <div className="overflow-x-auto">
       <table className={`w-full border-collapse text-[var(--text-muted)] ${compact ? 'text-xs' : 'text-sm'}`}>
         <thead>
-          <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)] text-[10px]">
-            <th className="p-2" rowSpan={2}>S.No</th>
-            <th className="p-2" rowSpan={2}>Date</th>
-            <th className="p-2" rowSpan={2}>RST No.</th>
-            <th className="p-2" rowSpan={2}>In Time</th>
-            <th className="p-2" rowSpan={2}>Out Time</th>
-            <th className="p-2" rowSpan={2}>Mill GP</th>
-            <th className="p-2" rowSpan={2}>Agency GP</th>
-            <th className="p-2" rowSpan={2}>Truck No.</th>
-            <th className="p-2" rowSpan={2}>Mandi</th>
-            <th className="p-2" rowSpan={2}>Party Name</th>
-            <th className="p-1 text-center border-l border-[var(--border-subtle)]" colSpan={2}>Mill</th>
-            <th className="p-1 text-center text-amber-400" colSpan={2}>Shortage</th>
-            <th className="p-1 text-center text-[#e67e00]" colSpan={2}>Total</th>
-            <th className="p-2" rowSpan={2}>Moisture</th>
-            <th className="p-2 text-right" rowSpan={2}>Required Net Weight</th>
-            <th className="p-2 text-right" rowSpan={2}>Mill Net Weight</th>
-            <th className="p-2 text-right" rowSpan={2}>Surplus Plus / Minus</th>
-            <th className="p-2 text-right" rowSpan={2} title="Actual Received = mill A+B excl shortage">Actual Rec. Bags</th>
-            <th className="p-2 text-right" rowSpan={2}>Bags at Agency GP</th>
-            <th className="p-2 no-print" rowSpan={2}>Status</th>
-            {(onView || onContinueDraft) && <th className="p-2 text-center no-print" rowSpan={2}>Action</th>}
+          <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)] text-xs font-semibold tracking-wide">
+            <th className="p-2.5" rowSpan={2}>S.No</th>
+            <th className="p-2.5" rowSpan={2}>Date</th>
+            <th className="p-2.5" rowSpan={2}>RST No.</th>
+            <th className="p-2.5" rowSpan={2}>In Time</th>
+            <th className="p-2.5" rowSpan={2}>GP Complete Date</th>
+            <th className="p-2.5" rowSpan={2}>Out Time</th>
+            <th className="p-2.5" rowSpan={2}>Mill GP</th>
+            <th className="p-2.5" rowSpan={2}>Agency GP</th>
+            <th className="p-2.5" rowSpan={2}>Truck No.</th>
+            <th className="p-2.5" rowSpan={2}>Mandi</th>
+            <th className="p-2.5" rowSpan={2}>Party Name</th>
+            <th className="p-2.5" rowSpan={2}>Supervisor</th>
+            <th className="p-2 text-center border-l border-[var(--border-subtle)]" colSpan={2}>Mill</th>
+            <th className="p-2 text-center text-amber-400" colSpan={2}>Shortage</th>
+            <th className="p-2 text-center text-[#e67e00]" colSpan={2}>Total</th>
+            <th className="p-2.5" rowSpan={2}>Moisture</th>
+            <th className="p-2.5 text-right" rowSpan={2}>Required Net Weight</th>
+            <th className="p-2.5 text-right" rowSpan={2}>Mill Net Weight</th>
+            <th className="p-2.5 text-right" rowSpan={2}>Surplus Plus / Minus</th>
+            <th className="p-2.5 text-right" rowSpan={2} title="Actual Received = mill A+B excl shortage">Actual Rec. Bags</th>
+            <th className="p-2.5 text-right" rowSpan={2}>Bags at Agency GP</th>
+            <th className="p-2.5 no-print" rowSpan={2}>Status</th>
+            {(onView || onContinueDraft) && <th className="p-2.5 text-center no-print" rowSpan={2}>Action</th>}
           </tr>
-          <tr className="border-b border-[var(--border-subtle)] text-[9px] text-[var(--text-muted-alt)] bg-[var(--bg-base)]">
-            <th className="p-1 text-right border-l border-[var(--border-subtle)]">A</th>
-            <th className="p-1 text-right">B</th>
-            <th className="p-1 text-right text-amber-400">A</th>
-            <th className="p-1 text-right text-amber-400">B</th>
-            <th className="p-1 text-right text-[#e67e00]">A</th>
-            <th className="p-1 text-right text-[#e67e00]">B</th>
+          <tr className="border-b border-[var(--border-subtle)] text-xs font-semibold text-[var(--text-muted-alt)] bg-[var(--bg-base)]">
+            <th className="p-2 text-right border-l border-[var(--border-subtle)]">A</th>
+            <th className="p-2 text-right">B</th>
+            <th className="p-2 text-right text-amber-400">A</th>
+            <th className="p-2 text-right text-amber-400">B</th>
+            <th className="p-2 text-right text-[#e67e00]">A</th>
+            <th className="p-2 text-right text-[#e67e00]">B</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={r.id || i} className="border-b border-[var(--border-subtle-alt)] whitespace-nowrap">
+            <tr
+              key={r.id || i}
+              className={`border-b border-[var(--border-subtle-alt)] whitespace-nowrap ${
+                r.isBackdated ? 'bg-violet-500/20 text-violet-100' : ''
+              }`}
+              title={
+                r.isBackdated
+                  ? `Backdated entry${r.entryMadeByName ? ` by ${r.entryMadeByName}` : ''}${r.entryCompletionAt ? ` at ${r.entryCompletionAt}` : ''}`
+                  : undefined
+              }
+            >
               <td className="p-2">{r.sno ?? i + 1}</td>
               <td className="p-2">{r.date}</td>
               <td className="p-2 text-xs">{r.rstNo}</td>
               <td className="p-2">{r.timeIn || '-'}</td>
+              <td className="p-2 whitespace-nowrap">{r.gpCompleteDate || '-'}</td>
               <td className="p-2">{r.timeOut || '-'}</td>
               <td className="p-2 font-mono text-xs font-bold text-[var(--text-main)]">{r.millGp}</td>
               <td className="p-2 text-xs">{r.agencyGp}</td>
               <td className="p-2">{r.truckNo}</td>
               <td className="p-2">{r.mandi}</td>
               <td className="p-2 font-bold text-[var(--text-main)]">{r.partyName}</td>
+              <td className="p-2">
+                <SupervisorCell
+                  name={r.entryMadeByName}
+                  at={r.entryCompletionAt}
+                  onClick={onSupervisorClick}
+                />
+              </td>
               <td className="p-2 text-right border-l border-[var(--border-subtle)]">{r.aClassMill}</td>
               <td className="p-2 text-right">{r.bClassMill}</td>
               <td className="p-2 text-right text-amber-400">{r.aClassShortage}</td>
@@ -820,7 +957,7 @@ function MillTable({
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={24} className="p-6 text-center text-[var(--text-muted-alt)]">
+              <td colSpan={26} className="p-6 text-center text-[var(--text-muted-alt)]">
                 No mill inward rows.
               </td>
             </tr>

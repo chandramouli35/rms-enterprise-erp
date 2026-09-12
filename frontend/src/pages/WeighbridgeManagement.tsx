@@ -9,6 +9,7 @@ import { usePlantStore } from '../store/plantStore';
 import api from '../api/axios';
 import { CustomModal } from '../components/CustomModal';
 import Combobox from '../components/Combobox';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 
 export const WeighbridgeManagement = () => {
  const [searchParams] = useSearchParams();
@@ -246,6 +247,7 @@ export const WeighbridgeManagement = () => {
  autoTare: false
  });
  const [isSavingSettings, setIsSavingSettings] = useState(false);
+ const saveTransactionLock = useSubmitLock();
  const [testSuccess, setTestSuccess] = useState(false);
 
   useEffect(() => {
@@ -337,6 +339,7 @@ export const WeighbridgeManagement = () => {
  setModalConfig({ isOpen: true, title: 'Error', content: 'No weight data or plant context found. Please ensure a plant is selected and weight is captured.' });
  return;
  }
+ await saveTransactionLock.wrapSubmit(async () => {
  try {
  await api.post(`/api/weighbridge/save-transaction`, {
  plantId,
@@ -363,6 +366,7 @@ export const WeighbridgeManagement = () => {
  console.error('Failed to save transaction', error);
  setModalConfig({ isOpen: true, title: 'Error', content: error.response?.data?.message || 'Failed to save transaction.' });
  }
+ });
  };
 
  const handleReset = () => {
@@ -627,8 +631,8 @@ export const WeighbridgeManagement = () => {
  <button onClick={handleReset} className="flex-1 border border-[var(--border-subtle)] hover:border-[var(--border-subtle)] hover:bg-[var(--glass-bg)] text-[var(--text-muted)] px-3 py-2 rounded-lg font-medium transition-colors text-sm">
  Reset
  </button>
- <button onClick={handleSaveTransaction} className="flex-[2] bg-blue-600 hover:bg-blue-500 text-[var(--text-main)] px-3 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-blue-600/20 text-sm flex items-center justify-center gap-2">
- <Save size={16} /> Save Transaction
+ <button onClick={handleSaveTransaction} disabled={saveTransactionLock.pending} className="flex-[2] bg-blue-600 hover:bg-blue-500 text-[var(--text-main)] px-3 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-blue-600/20 text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+ <Save size={16} /> {saveTransactionLock.pending ? 'Saving...' : 'Save Transaction'}
  </button>
  </div>
  </div>

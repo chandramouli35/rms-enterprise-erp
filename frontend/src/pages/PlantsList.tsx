@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../api/axios';
 import Pagination from '../components/Pagination';
 import { Edit2, Trash2 } from 'lucide-react';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 
 export const PlantsList: React.FC = () => {
   const [plants, setPlants] = useState<any[]>([]);
@@ -12,6 +13,7 @@ export const PlantsList: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', location: '', code: '', aClassBagWeight: '0.380', bClassBagWeight: '0.385' });
+  const saveLock = useSubmitLock();
 
   useEffect(() => {
     fetchPlants();
@@ -52,6 +54,7 @@ export const PlantsList: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    await saveLock.wrapSubmit(async () => {
     try {
       if (isEditing && editId) {
         await api.put(`/plants/${editId}`, formData);
@@ -64,6 +67,7 @@ export const PlantsList: React.FC = () => {
       console.error('Failed to save plant', err);
       alert('Failed to save plant');
     }
+    });
   };
 
   const handleDelete = async (id: string) => {
@@ -163,8 +167,8 @@ export const PlantsList: React.FC = () => {
               </div>
               <div className="flex justify-end gap-3 mt-6">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
-                <button type="submit" className="bg-amber-600 hover:bg-amber-500 text-[var(--text-main)] px-4 py-2 rounded-lg font-medium transition-colors">
-                  {isEditing ? 'Update Plant' : 'Register Plant'}
+                <button type="submit" disabled={saveLock.pending} className="bg-amber-600 hover:bg-amber-500 text-[var(--text-main)] px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50">
+                  {saveLock.pending ? 'Saving...' : (isEditing ? 'Update Plant' : 'Register Plant')}
                 </button>
               </div>
             </form>

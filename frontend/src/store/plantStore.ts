@@ -9,6 +9,10 @@ interface Plant {
   benchmarkMoisture?: number;
   safaiCut?: number;
   processingCut?: number;
+  allowManualDateTimePaddyInward?: boolean;
+  allowManualDateTimeGateIn?: boolean;
+  allowManualDateTimeGateOut?: boolean;
+  /** @deprecated use form-specific flags */
   allowManualDateTime?: boolean;
 }
 

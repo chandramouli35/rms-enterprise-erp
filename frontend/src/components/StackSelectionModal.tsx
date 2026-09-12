@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
 import { CustomModal } from './CustomModal';
 import api from '../api/axios';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 
 interface StackData {
   moisture: number;
@@ -37,6 +38,8 @@ export default function StackSelectionModal({
   const [initForm, setInitForm] = useState({ moistureRange: 'Medium', bagType: 'NEW' });
   const [confirmStack, setConfirmStack] = useState<{ stack: string; warning: string; type: string; bags: number } | null>(null);
   const [layoutStacks, setLayoutStacks] = useState<string[]>([]);
+  const initLock = useSubmitLock();
+  const confirmLock = useSubmitLock();
 
   const isBeas = /beas/i.test(plantName || '');
 
@@ -97,19 +100,21 @@ export default function StackSelectionModal({
     }
   };
 
-  const handleConfirmAssignment = () => {
-    if (confirmStack) {
+  const handleConfirmAssignment = async () => {
+    if (!confirmStack) return;
+    await confirmLock.wrapSubmit(async () => {
       onSelect(confirmStack.stack, confirmStack.type);
       setConfirmStack(null);
-    }
+    });
   };
 
-  const handleInitSubmit = (e: React.FormEvent) => {
+  const handleInitSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (initStack) {
+    if (!initStack) return;
+    await initLock.wrapSubmit(async () => {
       onSelect(initStack, initForm.bagType);
       setInitStack(null);
-    }
+    });
   };
 
   const generateMainStacks = () => {
@@ -285,8 +290,8 @@ export default function StackSelectionModal({
             <button type="button" onClick={() => setInitStack(null)} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">
               Cancel
             </button>
-            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition-colors shadow-lg">
-              Confirm & Start Stack
+            <button type="submit" disabled={initLock.pending} className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50">
+              {initLock.pending ? 'Starting…' : 'Confirm & Start Stack'}
             </button>
           </div>
         </form>
@@ -312,8 +317,8 @@ export default function StackSelectionModal({
               <button type="button" onClick={() => setConfirmStack(null)} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">
                 Cancel
               </button>
-              <button type="button" onClick={handleConfirmAssignment} className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition-colors shadow-lg">
-                Confirm Assignment
+              <button type="button" onClick={handleConfirmAssignment} disabled={confirmLock.pending} className="px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-50">
+                {confirmLock.pending ? 'Confirming…' : 'Confirm Assignment'}
               </button>
             </div>
           </div>

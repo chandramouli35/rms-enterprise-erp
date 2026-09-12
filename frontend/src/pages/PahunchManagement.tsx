@@ -4,6 +4,7 @@ import { Users, Plus, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { usePlantStore } from '../store/plantStore';
 import Pagination from '../components/Pagination';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 
 export default function PahunchManagement() {
   const user = useAuthStore(state => state.user);
@@ -17,6 +18,7 @@ export default function PahunchManagement() {
   
   // Modal state
   const [addModal, setAddModal] = useState({ isOpen: false, name: '', contact: '' });
+  const addPahunchLock = useSubmitLock();
 
   const fetchPahunchs = async () => {
     setIsLoading(true);
@@ -39,6 +41,7 @@ export default function PahunchManagement() {
 
   const handleAddPahunch = async (e: React.FormEvent) => {
     e.preventDefault();
+    await addPahunchLock.wrapSubmit(async () => {
     try {
       await api.post('/api/master-data/pahunch', {
         name: addModal.name,
@@ -52,6 +55,7 @@ export default function PahunchManagement() {
       console.error(err);
       alert('Failed to add Pahunch contractor');
     }
+    });
   };
 
   const handleDelete = async (id: string) => {
@@ -158,7 +162,7 @@ export default function PahunchManagement() {
               </div>
               <div className="flex gap-3 justify-end mt-6">
                 <button type="button" onClick={() => setAddModal({...addModal, isOpen: false})} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold shadow hover:bg-[#cc7000] transition-colors">Submit</button>
+                <button type="submit" disabled={addPahunchLock.pending} className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold shadow hover:bg-[#cc7000] transition-colors disabled:opacity-50">{addPahunchLock.pending ? 'Submitting...' : 'Submit'}</button>
               </div>
             </form>
           </div>

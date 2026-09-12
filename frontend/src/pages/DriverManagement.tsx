@@ -3,6 +3,7 @@ import api from '../api/axios';
 import { Truck, Plus, Trash2, Edit2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { usePlantStore } from '../store/plantStore';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 
 export default function DriverManagement() {
   const user = useAuthStore(state => state.user);
@@ -14,6 +15,8 @@ export default function DriverManagement() {
   
   const [addModal, setAddModal] = useState({ isOpen: false, name: '', phone: '', age: '' });
   const [editModal, setEditModal] = useState({ isOpen: false, id: '', name: '', phone: '', age: '' });
+  const addDriverLock = useSubmitLock();
+  const editDriverLock = useSubmitLock();
 
   const fetchDrivers = async () => {
     setIsLoading(true);
@@ -57,6 +60,7 @@ export default function DriverManagement() {
   const handleAddDriver = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm(addModal.name, addModal.phone, addModal.age)) return;
+    await addDriverLock.wrapSubmit(async () => {
     try {
       await api.post('/api/master-data/drivers', {
         name: addModal.name,
@@ -71,11 +75,13 @@ export default function DriverManagement() {
       console.error(err);
       alert('Failed to add driver');
     }
+    });
   };
 
   const handleEditDriver = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm(editModal.name, editModal.phone, editModal.age)) return;
+    await editDriverLock.wrapSubmit(async () => {
     try {
       await api.put(`/api/master-data/drivers/${editModal.id}`, {
         name: editModal.name,
@@ -90,6 +96,7 @@ export default function DriverManagement() {
       console.error(err);
       alert('Failed to update driver');
     }
+    });
   };
 
   const handleDelete = async (id: string) => {
@@ -187,7 +194,7 @@ export default function DriverManagement() {
               </div>
               <div className="flex justify-end gap-3 mt-6">
                 <button type="button" onClick={() => setAddModal({ ...addModal, isOpen: false })} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
-                <button type="submit" className="bg-amber-600 hover:bg-amber-500 text-[var(--text-main)] px-4 py-2 rounded-lg font-medium transition-colors">Add Driver</button>
+                <button type="submit" disabled={addDriverLock.pending} className="bg-amber-600 hover:bg-amber-500 text-[var(--text-main)] px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50">{addDriverLock.pending ? 'Saving...' : 'Add Driver'}</button>
               </div>
             </form>
           </div>
@@ -213,7 +220,7 @@ export default function DriverManagement() {
               </div>
               <div className="flex justify-end gap-3 mt-6">
                 <button type="button" onClick={() => setEditModal({ ...editModal, isOpen: false })} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
-                <button type="submit" className="bg-amber-600 hover:bg-amber-500 text-[var(--text-main)] px-4 py-2 rounded-lg font-medium transition-colors">Save</button>
+                <button type="submit" disabled={editDriverLock.pending} className="bg-amber-600 hover:bg-amber-500 text-[var(--text-main)] px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50">{editDriverLock.pending ? 'Saving...' : 'Save'}</button>
               </div>
             </form>
           </div>

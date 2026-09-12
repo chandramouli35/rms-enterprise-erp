@@ -24,8 +24,12 @@ model Plant {
   processingCut     Float? @default(4.0)
   /// Mill-wise chronological Boli No. sequence (Feedback 32)
   nextBoliSeq       Int    @default(1)
-  /// Feedback 33 — Admin ON: supervisors may edit date/time manually for this mill
-  allowManualDateTime Boolean @default(false)
+  /// Admin ON: supervisors may edit date/time manually on Paddy Inward
+  allowManualDateTimePaddyInward Boolean @default(false)
+  /// Admin ON: supervisors may edit date/time manually on Gate In
+  allowManualDateTimeGateIn      Boolean @default(false)
+  /// Admin ON: supervisors may edit date/time manually on Gate Out
+  allowManualDateTimeGateOut     Boolean @default(false)
 
   // Relations
   users                   UserPlantAccess[]
@@ -403,6 +407,15 @@ model PaddyInwardDetails {
   timeIn                           String?
   timeOut                          String?
   entryDate                        String? // YYYY-MM-DD
+  /// GP Complete Date (YYYY-MM-DD) — with Time Out below Shortage Management
+  gpCompleteDate                   String?
+  /// Entry Completion Date & Time (ISO) — separate from GP Complete; set on supervisor fingerprint at tare/confirm
+  entryCompletionAt                String?
+  /// Who submitted (fingerprint / confirm) — audit trail
+  entryMadeByName                  String?
+  entryMadeByUserId                String?
+  /// True when recorded Date & Time In is before the day the entry was actually made
+  isBackdated                      Boolean? @default(false)
   remarks                          String?
   discrepancy                      String?
 

@@ -9,12 +9,14 @@ import { usePlantStore } from '../store/plantStore';
 import { useUiStore } from '../store/uiStore';
 import { exportToPDF, exportToExcel } from '../utils/exportUtils';
 import Pagination from '../components/Pagination';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 
 export const InterPlantTransfer = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'transfer_request';
   const activePlant = usePlantStore((state) => state.activePlant);
   const [loading, setLoading] = useState(false);
+  const submitRequestLock = useSubmitLock();
   const [transfers, setTransfers] = useState<any[]>([]);
   const [transfersCurrentPage, setTransfersCurrentPage] = useState(1);
   const [transfersTotalItems, setTransfersTotalItems] = useState(0);
@@ -115,6 +117,8 @@ export const InterPlantTransfer = () => {
   };
 
   const handleSubmitRequest = async () => {
+    if (loading || submitRequestLock.pending) return;
+    await submitRequestLock.wrapSubmit(async () => {
     try {
       setLoading(true);
       await api.post('/transfer', {
@@ -143,6 +147,7 @@ export const InterPlantTransfer = () => {
     } finally {
       setLoading(false);
     }
+    });
   };
 
   const updateStatus = async (id: string, status: string) => {
@@ -719,8 +724,8 @@ export const InterPlantTransfer = () => {
 
             <div className="p-6 border-t border-[var(--border-subtle)] flex justify-end gap-3 shrink-0 bg-[var(--bg-base)]">
               <button onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded-lg font-bold text-sm transition-colors border border-[var(--border-subtle)]">Cancel</button>
-              <button onClick={handleSubmitRequest} disabled={loading || !formData.fromPlantId || !formData.toPlantId || !formData.quantity} className="px-6 py-2.5 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded-lg font-bold text-sm transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50">
-                {loading ? 'Submitting...' : 'Submit Request'}
+              <button onClick={handleSubmitRequest} disabled={loading || submitRequestLock.pending || !formData.fromPlantId || !formData.toPlantId || !formData.quantity} className="px-6 py-2.5 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded-lg font-bold text-sm transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50">
+                {(loading || submitRequestLock.pending) ? 'Submitting...' : 'Submit Request'}
               </button>
             </div>
 

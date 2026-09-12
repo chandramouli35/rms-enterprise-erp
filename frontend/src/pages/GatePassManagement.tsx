@@ -1758,6 +1758,7 @@ import api from '../api/axios';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { QRCodeCanvas } from 'qrcode.react';
 import { usePlantStore } from '../store/plantStore';
+import { useAuthStore } from '../store/authStore';
 import { CustomModal } from '../components/CustomModal';
 import { useUiStore } from '../store/uiStore';
 import Pagination from '../components/Pagination';
@@ -1767,6 +1768,7 @@ import { productsApi } from '../api/products';
 import { DEFAULT_QUANTITY_UNITS, getUnitLabel, productFormatToUnit, getGatePassUnitOptions } from '../constants/quantityUnits';
 import type { QuantityUnit } from '../constants/quantityUnits';
 import { biometricService } from '../services/biometricService';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 
 import toast from 'react-hot-toast';
 
@@ -1843,18 +1845,49 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
   return qrText.trim();
 };
 
-export const GatePassManagement = () => {
+ export const GatePassManagement = () => {
  const [searchParams, setSearchParams] = useSearchParams();
- const activeTab = searchParams.get('tab') || 'gate_in';
+  const activeTab = searchParams.get('tab') || 'gate_in';
  const activePlant = usePlantStore(state => state.activePlant);
+ const setActivePlant = usePlantStore(state => state.setActivePlant);
+ const user = useAuthStore(state => state.user);
+ const hasBackdatePermission = user?.role === 'SUPER_ADMIN' || (user?.backdatePermissionUntil && new Date(user.backdatePermissionUntil) > new Date());
+ const generatePassLock = useSubmitLock();
+ const confirmTransferLock = useSubmitLock();
+ const finalizeReportLock = useSubmitLock();
+ const closePassLock = useSubmitLock();
   const [passCategory, setPassCategory] = useState<'INWARD' | 'OUTWARD' | null>(null);
+  /** Mill-wise only — same as Paddy Inward (no SUPER_ADMIN unlock) */
+  const plantAllowsManualGate =
+    passCategory === 'OUTWARD'
+      ? !!activePlant?.allowManualDateTimeGateOut
+      : !!activePlant?.allowManualDateTimeGateIn;
+  const autoUpdateDateTime = !plantAllowsManualGate;
+  const canManualGateDateTime = plantAllowsManualGate;
+  const localDateTimeValue = () => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+      .toISOString()
+      .substring(0, 16);
+  };
   const [tableFilter, setTableFilter] = useState<'INWARD' | 'OUTWARD' | 'ACTIVE'>('INWARD');
   const [reportStatus, setReportStatus] = useState<'COMPLETED' | 'ACTIVE'>('COMPLETED');
   const [reportDateFrom, setReportDateFrom] = useState('');
   const [reportDateTo, setReportDateTo] = useState('');
   const [closeModalOpen, setCloseModalOpen] = useState(false);
   const [closePassId, setClosePassId] = useState<string | null>(null);
-  const [closeForm, setCloseForm] = useState({ supervisorName: '', biometricData: '', isCompleteDateNA: false });
+  const [closePassStartDate, setClosePassStartDate] = useState<string | null>(null);
+  const [closePassType, setClosePassType] = useState<'INWARD' | 'OUTWARD' | null>(null);
+  const [closeForm, setCloseForm] = useState({
+    supervisorName: '',
+    biometricData: '',
+    isCompleteDateNA: false,
+    gpCompleteDate: localDateTimeValue(),
+  });
+  const closePassAutoUpdate =
+    closePassType === 'OUTWARD'
+      ? !activePlant?.allowManualDateTimeGateOut
+      : !activePlant?.allowManualDateTimeGateIn;
   const [lastFinalizeInfo, setLastFinalizeInfo] = useState<{ supervisorName: string; submittedAt: string } | null>(null);
   const [suggestedSeq, setSuggestedSeq] = useState<{ nextSeq: number; nextRst: number } | null>(null);
  const [trucks, setTrucks] = useState<any[]>([]);
@@ -1875,11 +1908,33 @@ export const GatePassManagement = () => {
  duplicatesBlocked: 0,
  activeGatePass: 0
  });
+
+  // Refresh plant flags so Auto Update / Allow manual Date/Time is current
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get('/plants');
+        if (cancelled || !Array.isArray(res.data)) return;
+        setPlants(res.data);
+        if (activePlant?.id) {
+          const fresh = res.data.find((p: any) => p.id === activePlant.id);
+          if (fresh) setActivePlant(fresh);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activePlant?.id]);
  
  // Form State
  const defaultFormData = {
   plantId: activePlant?.id || '',
-  entryDateTime: new Date().toISOString().substring(0, 16),
+  entryDateTime: localDateTimeValue(),
+  gpCompleteDateTime: '',
   passNo: '',
   previousTruckReading: '',
   newTruckReading: '',
@@ -1904,7 +1959,7 @@ export const GatePassManagement = () => {
  sodaNo: '',
  remarks: '',
  scanQr: '',
- mandiType: 'Control',
+ mandiType: '',
  boliRate: '',
  boliChecklist: false,
   isCompleteDateNA: false,
@@ -1992,6 +2047,20 @@ export const GatePassManagement = () => {
     }
   };
 
+  // Auto Update Date & Time: punch Entry only (GP Complete stamps on close / fingerprint)
+  useEffect(() => {
+    if (!autoUpdateDateTime) return;
+    const tick = () => {
+      const local = localDateTimeValue();
+      setFormData((prev) => ({
+        ...prev,
+        entryDateTime: local,
+      }));
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [autoUpdateDateTime, passCategory]);
 
   const [reportFinalizeModalOpen, setReportFinalizeModalOpen] = useState(false);
   const [reportFinalizeForm, setReportFinalizeForm] = useState({
@@ -2057,6 +2126,7 @@ export const GatePassManagement = () => {
      useUiStore.getState().addToast('Switch to the Recipient Mill plant context before confirming.', 'error');
      return;
    }
+   await confirmTransferLock.wrapSubmit(async () => {
    try {
      await api.post(`/api/gate-pass/transfer/${selectedTicket.id}/confirm`, {
        recipientPlantId: selectedTicket.recipientPlantId || confirmForm.recipientPlantId,
@@ -2076,6 +2146,7 @@ export const GatePassManagement = () => {
      console.error('Failed to confirm transfer:', error);
      useUiStore.getState().addToast(error?.response?.data?.message || 'Failed to confirm transfer.', 'error');
    }
+   });
  };
 
  const handlePrintConsignment = async (gpOutId: string) => {
@@ -2250,12 +2321,27 @@ export const GatePassManagement = () => {
       const res = await api.get(`/api/gate-pass/recent/${pid}?limit=1000000&status=all`);
       const allEntries = res.data.data || [];
       if (allEntries.length === 0) return;
-      const headers = ['S.No.', 'Type', 'Empty Video Time', 'Loaded Video Time', 'GP No', 'Truck No', 'Party', 'Item', 'Quantity', 'Net Weight at Mill', 'Net Weight at Party', 'Soda No.', 'Supervisor Sign', 'Note'];
-      const rows = allEntries.map((entry: any, idx: number) => [
+      const headers = ['S.No.', 'Type', 'Empty Video Time', 'Loaded Video Time', 'Time In', 'GP Complete Date', 'Time Out', 'GP No', 'Truck No', 'Party', 'Item', 'Quantity', 'Net Weight at Mill', 'Net Weight at Party', 'Soda No.', 'Supervisor Sign', 'Note'];
+      const rows = allEntries.map((entry: any, idx: number) => {
+        const start = entry.gpStartDate ? new Date(entry.gpStartDate) : null;
+        const complete = entry.gpCompleteDate ? new Date(entry.gpCompleteDate) : null;
+        const timeIn = start && Number.isFinite(start.getTime())
+          ? start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : '';
+        const gpCompleteDateStr = complete && Number.isFinite(complete.getTime())
+          ? complete.toLocaleDateString()
+          : (entry.isCompleteDateNA ? 'N/A' : '');
+        const timeOut = complete && Number.isFinite(complete.getTime())
+          ? complete.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : (entry.isCompleteDateNA ? 'N/A' : '');
+        return [
       idx + 1,
       entry.passType,
       entry.emptyVideoTime || '',
       entry.loadedVideoTime || '',
+      timeIn,
+      gpCompleteDateStr,
+      timeOut,
       entry.qrCode,
       entry.vehicleNo,
       entry.supplier?.name || '',
@@ -2268,7 +2354,8 @@ export const GatePassManagement = () => {
       entry.sodaNo || '',
       entry.completedBySupervisor || '',
       entry.remarks || ''
-      ]);
+      ];
+      });
       const csvContent = headers.join(',') + '\n' + rows.map((r: any) => r.map((v: any) => `"${v}"`).join(',')).join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
@@ -2409,6 +2496,7 @@ export const GatePassManagement = () => {
       toast.error('Biometric signature is required.');
       return;
     }
+    await finalizeReportLock.wrapSubmit(async () => {
     try {
       const pid = activePlant?.id || 'global';
       const res = await api.post(`/api/gate-pass/report/finalize/${pid}`, reportFinalizeForm);
@@ -2427,6 +2515,7 @@ export const GatePassManagement = () => {
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to finalize report');
     }
+    });
   };
 
   const handleCloseGatePass = async (e: React.FormEvent) => {
@@ -2436,16 +2525,54 @@ export const GatePassManagement = () => {
       toast.error('Fingerprint / biometric is required to close the Gate Pass.');
       return;
     }
+    if (!closeForm.isCompleteDateNA && closePassStartDate) {
+      const completeAt =
+        closeForm.gpCompleteDate ||
+        (closePassAutoUpdate ? localDateTimeValue() : '');
+      if (!completeAt) {
+        toast.error('GP Complete Date & Time is required (or mark Not Applicable).');
+        return;
+      }
+      const inMs = new Date(closePassStartDate).getTime();
+      const outMs = new Date(completeAt).getTime();
+      if (Number.isFinite(inMs) && Number.isFinite(outMs)) {
+        if (outMs < inMs) {
+          toast.error('GP Complete cannot be prior to GP In (Entry).');
+          return;
+        }
+        if ((outMs - inMs) / 60000 < 30) {
+          toast.error('Minimum 30-minute gap required between GP In and GP Out.');
+          return;
+        }
+      }
+    }
+    await closePassLock.wrapSubmit(async () => {
     try {
-      await api.post(`/api/gate-pass/${closePassId}/complete`, closeForm);
+      const stampedComplete =
+        closeForm.isCompleteDateNA
+          ? null
+          : closeForm.gpCompleteDate ||
+            (closePassAutoUpdate ? localDateTimeValue() : closeForm.gpCompleteDate);
+      await api.post(`/api/gate-pass/${closePassId}/complete`, {
+        ...closeForm,
+        gpCompleteDate: stampedComplete,
+      });
       toast.success('Gate Pass closed successfully.');
       setCloseModalOpen(false);
       setClosePassId(null);
-      setCloseForm({ supervisorName: '', biometricData: '', isCompleteDateNA: false });
+      setClosePassStartDate(null);
+      setClosePassType(null);
+      setCloseForm({
+        supervisorName: '',
+        biometricData: '',
+        isCompleteDateNA: false,
+        gpCompleteDate: localDateTimeValue(),
+      });
       fetchData();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to close Gate Pass');
     }
+    });
   };
 
   const handleMasterDataBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
@@ -2566,6 +2693,21 @@ export const GatePassManagement = () => {
     useUiStore.getState().addToast('Select Finance Soda No. or Not Applicable.', 'error');
     return;
   }
+  if (!formData.isCompleteDateNA && !autoUpdateDateTime && formData.entryDateTime && formData.gpCompleteDateTime) {
+    const inMs = new Date(formData.entryDateTime).getTime();
+    const outMs = new Date(formData.gpCompleteDateTime).getTime();
+    if (Number.isFinite(inMs) && Number.isFinite(outMs)) {
+      if (outMs < inMs) {
+        useUiStore.getState().addToast('GP Complete cannot be prior to Entry Date & Time.', 'error');
+        return;
+      }
+      if ((outMs - inMs) / 60000 < 30) {
+        useUiStore.getState().addToast('Minimum 30-minute gap required between GP In and GP Out.', 'error');
+        return;
+      }
+    }
+  }
+  await generatePassLock.wrapSubmit(async () => {
   try {
   const type = passCategory;
   
@@ -2580,14 +2722,19 @@ export const GatePassManagement = () => {
   ...formData,
   passType: type,
   gpStartDate: formData.entryDateTime || new Date().toISOString(),
+  gpCompleteDate:
+    formData.isCompleteDateNA || autoUpdateDateTime
+      ? null
+      : (formData.gpCompleteDateTime || null),
   grossWeight: formData.weighbridgeActive && formData.grossWeight ? parseFloat(formData.grossWeight as any) : null,
   tareWeight: formData.weighbridgeActive && formData.tareWeight ? parseFloat(formData.tareWeight as any) : null,
   netWeight: formData.weighbridgeActive && formData.netWeight ? parseFloat(formData.netWeight as any) : null,
   ntWtParty: formData.weighbridgeActive && formData.ntWtParty ? parseFloat(formData.ntWtParty as any) : null,
   noOfBags: computedNoOfBags,
   mandiType: formData.purpose === 'Paddy Purchase' ? formData.mandiType : undefined,
-  boliRate: formData.purpose === 'Paddy Purchase' && formData.mandiType === 'Boli' ? parseFloat(formData.boliRate as any) : undefined,
-  boliChecklist: formData.purpose === 'Paddy Purchase' && formData.mandiType === 'Boli' ? formData.boliChecklist : undefined,
+  // Feedback 33 — Boli Rate / Artia checklist removed from GP when Mandi Type = Boli
+  boliRate: undefined,
+  boliChecklist: undefined,
   rstNo: formData.rstNo,
   isCompleteDateNA: formData.isCompleteDateNA,
   weighbridgeActive: formData.weighbridgeActive,
@@ -2636,6 +2783,7 @@ export const GatePassManagement = () => {
  }
  console.error('Error generating pass', error);
  }
+ });
  };
 
  const activeCount = analytics.activeGatePass || 0;
@@ -2770,11 +2918,75 @@ export const GatePassManagement = () => {
   )}
 
  <form onSubmit={handleGeneratePass} className={`space-y-4 transition-opacity duration-300 ${!passCategory ? 'opacity-40 pointer-events-none' : ''}`}>
+  <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+    <span
+      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+        autoUpdateDateTime
+          ? 'bg-emerald-500/20 text-emerald-400'
+          : 'bg-amber-500/20 text-amber-400'
+      }`}
+    >
+      Auto Update Date &amp; Time: {autoUpdateDateTime ? 'ON' : 'OFF'}
+    </span>
+    {!autoUpdateDateTime && (
+      <span className="text-[10px] text-[var(--text-muted-alt)]">
+        Manual entry enabled for this mill / backdate permission
+      </span>
+    )}
+  </div>
   <div className="grid grid-cols-2 gap-4">
   {/* Removed Plant Dropdown per requirement (Default to Supervisor Mill) */}
   <div>
- <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Entry Date & Time (Auto Punch) <span className="text-red-500">*</span></label>
- <input type="datetime-local" name="entryDateTime" value={formData.entryDateTime} readOnly className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none cursor-default" required />
+ <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">
+   Entry Date &amp; Time {autoUpdateDateTime && '(Auto)'} <span className="text-red-500">*</span>
+ </label>
+ <input
+   type="datetime-local"
+   name="entryDateTime"
+   value={formData.entryDateTime}
+   onChange={handleInputChange}
+   readOnly={autoUpdateDateTime}
+   className={`w-full border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none ${
+     !autoUpdateDateTime
+       ? 'bg-[var(--glass-bg)] focus:border-blue-500'
+       : 'bg-[var(--bg-panel-hover)] cursor-default opacity-80'
+   }`}
+   required
+ />
+ </div>
+ <div>
+ <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">
+   GP Complete Date &amp; Time {autoUpdateDateTime && !formData.isCompleteDateNA && '(on close)'}
+ </label>
+ <input
+   type="datetime-local"
+   name="gpCompleteDateTime"
+   value={formData.isCompleteDateNA || autoUpdateDateTime ? '' : formData.gpCompleteDateTime}
+   onChange={handleInputChange}
+   readOnly={autoUpdateDateTime || formData.isCompleteDateNA}
+   disabled={formData.isCompleteDateNA || autoUpdateDateTime}
+   placeholder={autoUpdateDateTime ? 'Stamped when GP is closed' : undefined}
+   className={`w-full border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none ${
+     !autoUpdateDateTime && !formData.isCompleteDateNA
+       ? 'bg-[var(--glass-bg)] focus:border-blue-500'
+       : 'bg-[var(--bg-panel-hover)] cursor-default opacity-80'
+   }`}
+ />
+ {autoUpdateDateTime && !formData.isCompleteDateNA && (
+   <p className="text-[10px] text-[var(--text-muted-alt)] mt-1">
+     Auto Update ON — GP Complete stamps when supervisor closes with fingerprint.
+   </p>
+ )}
+ <label className="flex items-center gap-1.5 text-[10px] text-yellow-500/80 cursor-pointer mt-1.5 w-max">
+   <input
+     type="checkbox"
+     name="isCompleteDateNA"
+     checked={formData.isCompleteDateNA}
+     onChange={(e) => setFormData(prev => ({...prev, isCompleteDateNA: e.target.checked}))}
+     className="accent-yellow-500"
+   />
+   Not Applicable
+ </label>
  </div>
  <div>
  <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">GP No. (Optional Override)</label>
@@ -2998,23 +3210,13 @@ export const GatePassManagement = () => {
        <div>
          <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Mandi Type <span className="text-red-500">*</span></label>
          <select name="mandiType" value={formData.mandiType} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none appearance-none">
+           <option value="">Select Mandi Type</option>
            <option value="Control">Control</option>
            <option value="Boli">Boli</option>
          </select>
        </div>
-       {formData.mandiType === 'Boli' && (
-         <div>
-           <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Boli Rate (₹) <span className="text-red-500">*</span></label>
-           <input type="number" step="0.01" name="boliRate" value={formData.boliRate} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" required />
-         </div>
-       )}
      </div>
-     {formData.mandiType === 'Boli' && (
-       <div className="flex items-start gap-2 pt-2 border-t border-[var(--border-subtle)]">
-         <input type="checkbox" id="boliChecklist" name="boliChecklist" checked={formData.boliChecklist} onChange={handleInputChange} className="mt-1" required />
-         <label htmlFor="boliChecklist" className="text-sm text-[var(--text-main)]">Has the Artia entered the required Boli records into the system before issuing this Gate Pass? <span className="text-red-500">*</span></label>
-       </div>
-     )}
+     {/* Feedback 33 — when Boli: no Drop of Boli Rate, no Artia checklist before GP */}
    </div>
  )}
 
@@ -3136,11 +3338,6 @@ export const GatePassManagement = () => {
   <input type="time" name="loadedVideoTime" value={formData.loadedVideoTime} onChange={handleInputChange} className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-2 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none" />
   </div>
   </div>
-  <div className="mt-1">
-    <label className="flex items-center gap-1.5 text-xs text-yellow-500/80 cursor-pointer w-max">
-      <input type="checkbox" name="isCompleteDateNA" checked={formData.isCompleteDateNA} onChange={(e) => setFormData(prev => ({...prev, isCompleteDateNA: e.target.checked}))} className="accent-yellow-500" /> GP Complete Date &amp; Time — Not Applicable
-    </label>
-  </div>
  </div>
 
  <div className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] p-3 rounded-lg">
@@ -3206,8 +3403,8 @@ export const GatePassManagement = () => {
  <button type="button" onClick={handleReset} className="px-6 py-2.5 rounded-lg border border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--glass-bg)] font-medium text-sm transition">
  Reset
  </button>
- <button type="submit" className="flex-1 bg-[#e67e00] hover:bg-[#d67500] text-black font-bold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2">
- <CheckCircle2 size={18} /> {formData.isDraft ? 'Save Draft' : `Generate Gate ${passCategory === 'INWARD' ? 'In' : 'Out'} Pass`}
+ <button type="submit" disabled={generatePassLock.pending} className="flex-1 bg-[#e67e00] hover:bg-[#d67500] text-black font-bold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+ <CheckCircle2 size={18} /> {generatePassLock.pending ? 'Saving…' : (formData.isDraft ? 'Save Draft' : `Generate Gate ${passCategory === 'INWARD' ? 'In' : 'Out'} Pass`)}
  </button>
  </div>
  </form>
@@ -3253,7 +3450,18 @@ export const GatePassManagement = () => {
  <button onClick={() => handleViewPass(row.qrCode)} className="text-blue-500/50 group-hover:text-blue-500 transition" title="View"><Eye size={14} /></button>
  {row.status === 'ACTIVE' && (
    <button
-     onClick={() => { setClosePassId(row.id); setCloseModalOpen(true); }}
+     onClick={() => {
+       setClosePassId(row.id);
+       setClosePassStartDate(row.gpStartDate || row.createdAt || null);
+       setClosePassType(row.passType === 'OUTWARD' ? 'OUTWARD' : 'INWARD');
+       setCloseForm({
+         supervisorName: '',
+         biometricData: '',
+         isCompleteDateNA: !!row.isCompleteDateNA,
+         gpCompleteDate: localDateTimeValue(),
+       });
+       setCloseModalOpen(true);
+     }}
      className="text-green-500/70 hover:text-green-400 text-[10px] font-bold uppercase"
      title="Close with fingerprint"
    >
@@ -3614,9 +3822,9 @@ export const GatePassManagement = () => {
            <button onClick={() => setConfirmModalOpen(false)} className="px-4 py-2 bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg text-sm font-medium hover:bg-[var(--glass-bg-hover)] transition">Cancel</button>
            <button
              onClick={handleConfirmTransfer}
-             disabled={!confirmForm.supervisorName || !confirmForm.recipientPlantId || !confirmForm.biometricData}
+             disabled={confirmTransferLock.pending || !confirmForm.supervisorName || !confirmForm.recipientPlantId || !confirmForm.biometricData}
              className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-green-500/20"
-           >Confirm & Generate GPs</button>
+           >{confirmTransferLock.pending ? 'Confirming…' : 'Confirm & Generate GPs'}</button>
          </div>
        </>
      )}
@@ -3723,6 +3931,12 @@ export const GatePassManagement = () => {
     {reportStatus === 'ACTIVE' && <span className="ml-2 text-sm font-medium text-blue-400">(Active GPs)</span>}
   </h2>
   <div className="flex items-center gap-2 flex-wrap">
+    <span
+      className="text-[10px] px-2 py-0.5 rounded bg-violet-500/20 text-violet-200 border border-violet-500/30"
+      title="Rows with a violet background are backdated entries"
+    >
+      Violet row = backdated
+    </span>
     <button onClick={() => { setReportStatus('COMPLETED'); setCurrentPage(1); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${reportStatus === 'COMPLETED' ? 'bg-amber-500/20 border-amber-500/40 text-amber-400' : 'border-[var(--border-subtle)] text-[var(--text-muted)]'}`}>Completed</button>
     <button onClick={() => { setReportStatus('ACTIVE'); setCurrentPage(1); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${reportStatus === 'ACTIVE' ? 'bg-blue-500/20 border-blue-500/40 text-blue-400' : 'border-[var(--border-subtle)] text-[var(--text-muted)]'}`}>Active</button>
     <input type="date" value={reportDateFrom} onChange={(e) => setReportDateFrom(e.target.value)} className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-2 py-1.5 text-xs text-[var(--text-main)]" title="From date" />
@@ -3779,6 +3993,9 @@ export const GatePassManagement = () => {
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Type</th>
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Empty Video</th>
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Loaded Video</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Time In</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">GP Complete Date</th>
+  <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Time Out</th>
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">GP No.</th>
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Truck No.</th>
   <th className="pb-3 text-xs font-medium text-[var(--text-muted-alt)] uppercase">Party</th>
@@ -3795,10 +4012,41 @@ export const GatePassManagement = () => {
   <tbody>
   {recentEntries.length === 0 ? (
   <tr>
-  <td colSpan={15} className="py-8 text-center text-[var(--text-muted-alt)]">No records found</td>
+  <td colSpan={18} className="py-8 text-center text-[var(--text-muted-alt)]">No records found</td>
   </tr>
-  ) : recentEntries.map((entry, idx) => (
-  <tr key={entry.id} className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)] transition-colors">
+  ) : recentEntries.map((entry, idx) => {
+  const start = entry.gpStartDate ? new Date(entry.gpStartDate) : null;
+  const complete = entry.gpCompleteDate ? new Date(entry.gpCompleteDate) : null;
+  const made = entry.createdAt ? new Date(entry.createdAt) : null;
+  const isBackdated =
+    !!start &&
+    !!made &&
+    Number.isFinite(start.getTime()) &&
+    Number.isFinite(made.getTime()) &&
+    new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime() <
+      new Date(made.getFullYear(), made.getMonth(), made.getDate()).getTime();
+  const timeIn =
+    start && Number.isFinite(start.getTime())
+      ? start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '-';
+  const gpCompleteDateStr = entry.isCompleteDateNA
+    ? 'N/A'
+    : complete && Number.isFinite(complete.getTime())
+      ? complete.toLocaleDateString()
+      : '-';
+  const timeOut = entry.isCompleteDateNA
+    ? 'N/A'
+    : complete && Number.isFinite(complete.getTime())
+      ? complete.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '-';
+  return (
+  <tr
+    key={entry.id}
+    className={`border-b border-[var(--border-subtle-alt)] transition-colors ${
+      isBackdated ? 'bg-violet-500/20 text-violet-100' : 'hover:bg-[var(--glass-bg)]'
+    }`}
+    title={isBackdated ? 'Backdated gate pass entry' : undefined}
+  >
   <td className="py-3 text-sm">{idx + 1}</td>
   <td className="py-3 text-sm">
   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${entry.passType === 'INWARD' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
@@ -3807,6 +4055,9 @@ export const GatePassManagement = () => {
   </td>
   <td className="py-3 text-[11px] text-[var(--text-muted-alt)]">{entry.emptyVideoTime || '-'}</td>
   <td className="py-3 text-[11px] text-[var(--text-muted-alt)]">{entry.loadedVideoTime || '-'}</td>
+  <td className="py-3 text-[11px] text-[var(--text-main)]">{timeIn}</td>
+  <td className="py-3 text-[11px] text-[var(--text-main)] whitespace-nowrap">{gpCompleteDateStr}</td>
+  <td className="py-3 text-[11px] text-[var(--text-main)]">{timeOut}</td>
   <td className="py-3 text-sm font-medium">
     {entry.qrCode}{entry.gpSuffix ? <span className="text-purple-400 font-bold"> {entry.gpSuffix}</span> : ''}
   </td>
@@ -3855,7 +4106,8 @@ export const GatePassManagement = () => {
     )}
   </td>
   </tr>
-  ))}
+  );
+  })}
   </tbody>
   </table>
   
@@ -4164,7 +4416,7 @@ export const GatePassManagement = () => {
 
       <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)]">
         <button type="button" onClick={() => setReportFinalizeModalOpen(false)} className="px-4 py-2 bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg text-sm font-medium hover:bg-[var(--glass-bg-hover)] transition">Cancel</button>
-        <button type="submit" disabled={!reportFinalizeForm.manualMatchConfirmed || !reportFinalizeForm.biometricData} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-blue-500/20">Finalize & Sign</button>
+        <button type="submit" disabled={finalizeReportLock.pending || !reportFinalizeForm.manualMatchConfirmed || !reportFinalizeForm.biometricData} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-blue-500/20">{finalizeReportLock.pending ? 'Finalizing…' : 'Finalize & Sign'}</button>
       </div>
     </form>
   </CustomModal>
@@ -4178,7 +4430,18 @@ export const GatePassManagement = () => {
 
   <CustomModal isOpen={closeModalOpen} onClose={() => setCloseModalOpen(false)} title="Close Gate Pass (Fingerprint Required)">
     <form onSubmit={handleCloseGatePass} className="space-y-4 p-1">
-      <p className="text-sm text-[var(--text-muted-alt)]">Closing a Gate Pass updates inventory and records the supervisor biometric signature.</p>
+      <p className="text-sm text-[var(--text-muted-alt)]">Closing a Gate Pass updates inventory and records the supervisor biometric signature. Minimum 30 minutes required between GP In and GP Out.</p>
+      <div className="flex items-center gap-2">
+        <span
+          className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+            closePassAutoUpdate
+              ? 'bg-emerald-500/20 text-emerald-400'
+              : 'bg-amber-500/20 text-amber-400'
+          }`}
+        >
+          Auto Update Date &amp; Time: {closePassAutoUpdate ? 'ON' : 'OFF'}
+        </span>
+      </div>
       <div>
         <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Supervisor Name</label>
         <input
@@ -4188,6 +4451,19 @@ export const GatePassManagement = () => {
           onChange={(e) => setCloseForm(prev => ({ ...prev, supervisorName: e.target.value }))}
           className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-main)] outline-none"
           placeholder="Enter supervisor name"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">
+          GP Complete Date &amp; Time {closePassAutoUpdate && '(stamps on fingerprint)'}
+        </label>
+        <input
+          type="datetime-local"
+          value={closeForm.gpCompleteDate}
+          onChange={(e) => setCloseForm(prev => ({ ...prev, gpCompleteDate: e.target.value }))}
+          disabled={closeForm.isCompleteDateNA || closePassAutoUpdate}
+          readOnly={closePassAutoUpdate}
+          className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-main)] outline-none disabled:opacity-50"
         />
       </div>
       <div>
@@ -4206,8 +4482,16 @@ export const GatePassManagement = () => {
             onClick={async () => {
               try {
                 const xml = await biometricService.captureFingerprint();
-                setCloseForm(prev => ({ ...prev, biometricData: xml }));
-                toast.success('Fingerprint captured');
+                setCloseForm(prev => ({
+                  ...prev,
+                  biometricData: xml,
+                  ...(!prev.isCompleteDateNA ? { gpCompleteDate: localDateTimeValue() } : {}),
+                }));
+                toast.success(
+                  closePassAutoUpdate
+                    ? 'Fingerprint captured — GP Complete stamped'
+                    : 'Fingerprint captured',
+                );
               } catch (err: any) {
                 toast.error(err?.message || 'Fingerprint capture failed');
               }
@@ -4224,7 +4508,7 @@ export const GatePassManagement = () => {
       </label>
       <div className="flex justify-end gap-3 pt-2">
         <button type="button" onClick={() => setCloseModalOpen(false)} className="px-4 py-2 border border-[var(--border-subtle)] rounded-lg text-sm">Cancel</button>
-        <button type="submit" className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium">Close &amp; Sign</button>
+        <button type="submit" disabled={closePassLock.pending || !closeForm.biometricData} className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium">{closePassLock.pending ? 'Closing…' : 'Close & Sign'}</button>
       </div>
     </form>
   </CustomModal>

@@ -20,7 +20,7 @@ const MODULE_STRUCTURE = [
     subModules: [
       'Supplier Master',
       'Mandi Master',
-      'Paddy Purchase & Quality',
+      'Boli Record',
       'Paddy Inward',
       'Inward List',
       'Stack to Hoodi',

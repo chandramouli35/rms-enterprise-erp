@@ -5,6 +5,7 @@ import { usePlantStore } from '../../store/plantStore';
 import { biometricService } from '../../services/biometricService';
 import { toast } from 'react-hot-toast';
 import { exportToExcel } from '../../utils/exportUtils';
+import { useSubmitLock } from '../../hooks/useSubmitLock';
 
 const emptyForm = {
   id: '',
@@ -43,6 +44,7 @@ export const ConsignmentDispatchReport: React.FC<{ promptOpen?: boolean; onPromp
   const [loading, setLoading] = useState(false);
   const [gpReminder, setGpReminder] = useState(false);
   const modalOnly = !!promptOpen;
+  const submitLock = useSubmitLock();
 
   const plantId = activePlant?.id || '';
 
@@ -115,6 +117,7 @@ export const ConsignmentDispatchReport: React.FC<{ promptOpen?: boolean; onPromp
       toast.error('Fingerprint required');
       return;
     }
+    await submitLock.wrapSubmit(async () => {
     try {
       await api.post(
         '/yield/consignment-dispatch',
@@ -141,6 +144,7 @@ export const ConsignmentDispatchReport: React.FC<{ promptOpen?: boolean; onPromp
     } catch (e: any) {
       toast.error(e?.response?.data?.message || 'Submit failed');
     }
+    });
   };
 
   const openFill = (row?: any) => {
@@ -390,8 +394,8 @@ export const ConsignmentDispatchReport: React.FC<{ promptOpen?: boolean; onPromp
           >
             Cancel
           </button>
-          <button onClick={submit} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">
-            Submit with Fingerprint
+          <button onClick={submit} disabled={submitLock.pending} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+            {submitLock.pending ? 'Submitting...' : 'Submit with Fingerprint'}
           </button>
         </div>
       </div>

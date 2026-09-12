@@ -4,6 +4,7 @@ import { Users, Plus, Trash2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { usePlantStore } from '../store/plantStore';
 import Pagination from '../components/Pagination';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 
 export default function LabourManagement() {
   const user = useAuthStore(state => state.user);
@@ -18,6 +19,7 @@ export default function LabourManagement() {
   
   // Modal state
   const [addModal, setAddModal] = useState({ isOpen: false, name: '', type: '', contact: '', firmName: '' });
+  const addLabourLock = useSubmitLock();
 
   const fetchLabours = async () => {
     setIsLoading(true);
@@ -50,6 +52,7 @@ export default function LabourManagement() {
 
   const handleAddLabour = async (e: React.FormEvent) => {
     e.preventDefault();
+    await addLabourLock.wrapSubmit(async () => {
     try {
       await api.post('/api/master-data/labour', {
         name: addModal.name,
@@ -65,6 +68,7 @@ export default function LabourManagement() {
       console.error(err);
       alert('Failed to add labour contractor');
     }
+    });
   };
 
   const handleDelete = async (id: string) => {
@@ -198,7 +202,7 @@ export default function LabourManagement() {
               </div>
               <div className="flex gap-3 justify-end mt-6">
                 <button type="button" onClick={() => setAddModal({...addModal, isOpen: false})} className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold shadow hover:bg-[#cc7000] transition-colors">Submit</button>
+                <button type="submit" disabled={addLabourLock.pending} className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold shadow hover:bg-[#cc7000] transition-colors disabled:opacity-50">{addLabourLock.pending ? 'Submitting...' : 'Submit'}</button>
               </div>
             </form>
           </div>

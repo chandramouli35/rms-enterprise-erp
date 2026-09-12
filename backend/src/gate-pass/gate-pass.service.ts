@@ -17,8 +17,26 @@ export class GatePassService {
     private procurementService: ProcurementService,
   ) {}
 
+  /** Enforce minimum 30 minutes between GP In (start) and GP Out (complete). */
+  private assertMinGpInOutGap(start: Date | string, end: Date | string) {
+    const s = new Date(start).getTime();
+    const e = new Date(end).getTime();
+    if (!Number.isFinite(s) || !Number.isFinite(e)) {
+      throw new BadRequestException('Invalid GP In / GP Out date-time.');
+    }
+    if (e < s) {
+      throw new BadRequestException('GP Out (Complete) cannot be prior to GP In (Entry).');
+    }
+    const gapMins = (e - s) / (60 * 1000);
+    if (gapMins < 30) {
+      throw new BadRequestException(
+        'Minimum 30-minute gap required between GP In and GP Out.',
+      );
+    }
+  }
+
   async generateGatePass(data: any) {
-    const { 
+    const {
       plantId, passType, vehicleNo, vehicleType, purpose, 
       supplierId, driverName, contactNo, 
       challanNo, grossWeight, tareWeight, netWeight,
@@ -27,35 +45,98 @@ export class GatePassService {
       // Legacy fields
       material, noOfBags,
       // New fields
-      rstNo, gpStartDate, isCompleteDateNA, weighbridgeActive, mainBags, shortageBags, isDraft, items,
+      rstNo, gpStartDate, gpCompleteDate, isCompleteDateNA, weighbridgeActive, mainBags, shortageBags, isDraft, items,
       // Transfer Entry fields
       isTransfer, deliveryAtId, recipientPlantId,
       // Feedback 28
       financeSodaId, financeSodaNA, billNo, billNoNA, bagTypeGp,
     } = data;
-    
-    // Duplicate prevention for INWARD passes
-    if (passType === 'INWARD') {
-      const existingActivePass = await this.prisma.gatePass.findFirst({
-        where: {
-          plantId,
-          vehicleNo,
-          passType: 'INWARD',
-          status: 'ACTIVE'
-        }
-      });
 
-      if (existingActivePass) {
-        // Log the duplicate attempt
+    // Min 30-minute gap between GP In (start) and GP Out (complete) when complete is set
+    if (!isCompleteDateNA && gpStartDate && gpCompleteDate) {
+      this.assertMinGpInOutGap(gpStartDate, gpCompleteDate);
+    }
+    
+    // Feedback 33 — global truck constraints (all mills):
+    // 1) No new GP while truck has ACTIVE GP anywhere
+    // 2) No new GP while truck is DRAFT/PENDING/ACTIVE/UNLOADING on Paddy Inward anywhere
+    // 3) Min 2-hour gap after last completed GP or completed Paddy Inward trip
+    const truckKey = String(vehicleNo || '').trim();
+    if (truckKey) {
+      const activeGp = await this.prisma.gatePass.findFirst({
+        where: {
+          vehicleNo: { equals: truckKey, mode: 'insensitive' },
+          status: 'ACTIVE',
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (activeGp) {
         await this.prisma.duplicateGatePassLog.create({
           data: {
-            plantId,
-            vehicleNo,
-            attemptedType: 'INWARD',
-            reason: 'Vehicle already has an active INWARD pass'
-          }
+            plantId: plantId || activeGp.plantId,
+            vehicleNo: truckKey,
+            attemptedType: passType || 'INWARD',
+            reason: `Vehicle already has an active GP (${activeGp.qrCode || activeGp.id}) at plant ${activeGp.plantId}`,
+          },
         });
-        throw new ConflictException(`Vehicle ${vehicleNo} already has an active INWARD pass in the campus.`);
+        throw new ConflictException(
+          `Truck ${truckKey} already has an active Gate Pass globally. Complete that trip before cutting a new GP.`,
+        );
+      }
+
+      const activeInward = await this.prisma.paddyInwardDetails.findFirst({
+        where: {
+          truckNo: { equals: truckKey, mode: 'insensitive' },
+          procurementBatch: {
+            status: { in: ['DRAFT', 'PENDING', 'ACTIVE', 'UNLOADING'] },
+          },
+        },
+        include: { procurementBatch: { select: { status: true, plantId: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (activeInward) {
+        throw new ConflictException(
+          `Truck ${truckKey} is actively unloading (status ${activeInward.procurementBatch?.status}) at another/same mill. Finish that inward first.`,
+        );
+      }
+
+      const twoHoursMs = 2 * 60 * 60 * 1000;
+      const lastCompletedGp = await this.prisma.gatePass.findFirst({
+        where: {
+          vehicleNo: { equals: truckKey, mode: 'insensitive' },
+          status: 'COMPLETED',
+        },
+        orderBy: { updatedAt: 'desc' },
+      });
+      if (lastCompletedGp) {
+        const completedAt = lastCompletedGp.updatedAt || lastCompletedGp.createdAt;
+        if (Date.now() - new Date(completedAt).getTime() < twoHoursMs) {
+          throw new BadRequestException(
+            `Truck ${truckKey} completed a Gate Pass less than 2 hours ago. Minimum 2-hour gap required before a new trip.`,
+          );
+        }
+      }
+
+      const lastCompletedInward = await this.prisma.paddyInwardDetails.findFirst({
+        where: {
+          truckNo: { equals: truckKey, mode: 'insensitive' },
+          procurementBatch: {
+            status: { in: ['CONFIRMED', 'COMPLETED'] },
+          },
+        },
+        include: { procurementBatch: { select: { updatedAt: true } } },
+        orderBy: { updatedAt: 'desc' },
+      });
+      if (lastCompletedInward) {
+        const completedAt =
+          lastCompletedInward.procurementBatch?.updatedAt ||
+          lastCompletedInward.updatedAt ||
+          lastCompletedInward.createdAt;
+        if (Date.now() - new Date(completedAt).getTime() < twoHoursMs) {
+          throw new BadRequestException(
+            `Truck ${truckKey} completed a Paddy Inward trip less than 2 hours ago. Minimum 2-hour gap required before a new trip.`,
+          );
+        }
       }
     }
     
@@ -208,6 +289,8 @@ export class GatePassService {
         // New Fields mapping
         rstNo: rstNo || null,
         gpStartDate: gpStartDate ? new Date(gpStartDate) : new Date(),
+        gpCompleteDate:
+          !isCompleteDateNA && gpCompleteDate ? new Date(gpCompleteDate) : null,
         isCompleteDateNA: isCompleteDateNA === true,
         weighbridgeActive: weighbridgeActive === true,
         mainBags: mainBags ? parseInt(mainBags) : 0,
@@ -322,7 +405,7 @@ export class GatePassService {
     if (type !== 'ALL') {
       whereClause.passType = type;
     }
-
+    
     if (status && status !== 'all') {
       whereClause.status = status;
     }
@@ -641,7 +724,7 @@ export class GatePassService {
   }
 
   async completeGatePass(id: string, completionData?: any) {
-    const pass = await this.prisma.gatePass.findUnique({
+    const pass = await this.prisma.gatePass.findUnique({ 
       where: { id },
       include: { items: true },
     });
@@ -673,9 +756,13 @@ export class GatePassService {
     let gpCompleteDate: Date | null = null;
     const isCompleteDateNA = completionData?.isCompleteDateNA ?? pass.isCompleteDateNA;
     if (completionData?.gpCompleteDate) {
-      gpCompleteDate = new Date(completionData.gpCompleteDate);
+        gpCompleteDate = new Date(completionData.gpCompleteDate);
     } else if (!isCompleteDateNA) {
       gpCompleteDate = new Date();
+    }
+
+    if (!isCompleteDateNA && pass.gpStartDate && gpCompleteDate) {
+      this.assertMinGpInOutGap(pass.gpStartDate, gpCompleteDate);
     }
 
     const updateData: any = {
@@ -757,7 +844,7 @@ export class GatePassService {
     for (const p of activePasses) {
       try {
         await this.completeGatePass(p.id, {
-          biometricData: data.biometricData,
+        biometricData: data.biometricData,
           supervisorName,
           isCompleteDateNA: false,
           gpCompleteDate: submittedAt.toISOString(),
@@ -852,7 +939,7 @@ export class GatePassService {
 
     // Match generateGatePass chronology (global unique qrCode series)
     const allPasses = await this.prisma.gatePass.findMany({
-      where: {
+      where: { 
         passType,
         qrCode: { startsWith: `${prefix}-${year}-` },
       },

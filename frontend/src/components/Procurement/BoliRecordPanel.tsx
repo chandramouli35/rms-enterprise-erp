@@ -10,6 +10,7 @@ import Pagination from '../Pagination';
 import Combobox from '../Combobox';
 import { CustomModal } from '../CustomModal';
 import { exportToExcel } from '../../utils/exportUtils';
+import { useSubmitLock } from '../../hooks/useSubmitLock';
 
 type Props = {
   suppliers: any[];
@@ -236,6 +237,7 @@ export default function BoliRecordPanel({
     note: string;
     finalBags: string;
   }>({ isOpen: false, row: null, payment: '', note: '', finalBags: '' });
+  const adminEditLock = useSubmitLock();
 
   const openAdminEdit = (row: any) => {
     setAdminEdit({
@@ -250,6 +252,7 @@ export default function BoliRecordPanel({
   const saveAdminEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminEdit.row?.boliId) return;
+    await adminEditLock.wrapSubmit(async () => {
     try {
       await api.put(`/api/procurement/bolis/${adminEdit.row.boliId}/admin-table01`, {
         payment: adminEdit.payment === '' ? undefined : parseFloat(adminEdit.payment),
@@ -262,6 +265,7 @@ export default function BoliRecordPanel({
     } catch (err: any) {
       useUiStore.getState().addToast(err.response?.data?.message || 'Admin update failed', 'error');
     }
+    });
   };
 
   const seasonStartStr = () => {
@@ -396,6 +400,9 @@ export default function BoliRecordPanel({
                       }
                     : {}),
                 }));
+                // Feedback 32 — show all bolis for selected Artia (no page hide)
+                if (supplierId) setPageSize(100000);
+                else setPageSize(50);
               }}
               options={suppliers}
               valueKey="id"
@@ -593,17 +600,23 @@ export default function BoliRecordPanel({
           </table>
         </div>
 
-        <Pagination
-          currentPage={page}
-          totalItems={total}
-          itemsPerPage={pageSize}
-          onPageChange={setPage}
-          pageSizeOptions={[10, 50, 100]}
-          onPageSizeChange={(n) => {
-            setPageSize(n);
-            setPage(1);
-          }}
-        />
+        {!filters.supplierId ? (
+          <Pagination
+            currentPage={page}
+            totalItems={total}
+            itemsPerPage={pageSize}
+            onPageChange={setPage}
+            pageSizeOptions={[10, 50, 100]}
+            onPageSizeChange={(n) => {
+              setPageSize(n);
+              setPage(1);
+            }}
+          />
+        ) : (
+          <p className="text-xs text-[var(--text-muted-alt)] py-2">
+            Showing all {total} boli(s) for selected Artia (no pagination).
+          </p>
+        )}
 
         {/* Add Final Boli */}
         <div className="border border-[var(--border-subtle)] rounded-xl overflow-hidden bg-[var(--bg-panel-alt)]">
@@ -810,8 +823,8 @@ export default function BoliRecordPanel({
               >
                 Cancel
               </button>
-              <button type="submit" className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold">
-                Save
+              <button type="submit" disabled={adminEditLock.pending} className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold disabled:opacity-50">
+                {adminEditLock.pending ? 'Saving...' : 'Save'}
               </button>
             </div>
           </form>

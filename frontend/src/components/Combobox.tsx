@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Search } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 interface ComboboxProps {
   value: string;
@@ -29,11 +29,31 @@ export default function Combobox({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const getOptionLabel = (opt: any) => {
+    return opt.name || opt.truckNumber || opt.id || String(opt);
+  };
+
+  const findOptionByValue = (val: string) => {
+    if (!valueKey || val == null || val === '') return undefined;
+    return options.find((opt) => String(opt[valueKey]) === String(val));
+  };
+
+  // Resolve stored value (often an id) to a human-readable label
   useEffect(() => {
+    if (!value) {
+      setInputValue('');
+      return;
+    }
     if (valueKey) {
-      const selectedOpt = options.find(opt => opt[valueKey] === value);
+      const selectedOpt = findOptionByValue(value);
       if (selectedOpt) {
         setInputValue(getOptionLabel(selectedOpt));
+        return;
+      }
+      // Options not loaded yet / id not in list — never flash raw UUID in the input
+      const looksLikeId = /^[0-9a-f-]{8,}$/i.test(String(value));
+      if (looksLikeId) {
+        setInputValue('');
         return;
       }
     }
@@ -50,37 +70,43 @@ export default function Combobox({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const getOptionLabel = (opt: any) => {
-    return opt.name || opt.truckNumber || opt.id || String(opt);
-  };
-
-  const filteredOptions = options.filter(opt => 
-    getOptionLabel(opt).toLowerCase().includes(inputValue.toLowerCase())
+  const filteredOptions = options.filter((opt) =>
+    getOptionLabel(opt).toLowerCase().includes(inputValue.toLowerCase()),
   );
 
   const createSyntheticEvent = (val: string) => {
     return {
-      target: { name, value: val }
+      target: { name, value: val },
     } as React.ChangeEvent<HTMLInputElement>;
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
-    onChange(e as any); // Pass standard event
     setIsOpen(true);
+    // When emitting ids via valueKey, only update local search text while typing —
+    // do not overwrite the stored id with typed characters (causes UUID/name glitches).
+    if (!valueKey) {
+      onChange(e as any);
+    }
   };
 
   const handleOptionClick = (opt: any) => {
     const label = getOptionLabel(opt);
     setInputValue(label);
     const emitVal = valueKey ? opt[valueKey] : label;
-    onChange(createSyntheticEvent(emitVal) as any);
+    onChange(createSyntheticEvent(String(emitVal ?? '')) as any);
     setIsOpen(false);
   };
 
   const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    // Restore label from selected id if user typed a search query then left
+    if (valueKey && value) {
+      const selectedOpt = findOptionByValue(value);
+      if (selectedOpt) {
+        setInputValue(getOptionLabel(selectedOpt));
+      }
+    }
     if (onBlur) {
-      // Small delay to allow click on option to register before blur fires
       setTimeout(() => {
         onBlur(e);
       }, 150);
@@ -132,7 +158,7 @@ export default function Combobox({
             ))
           ) : (
             <li className="px-3 py-2 text-[var(--text-muted-alt)] italic">
-              Press enter or click outside to add "{inputValue}"
+              {valueKey ? 'No matching suppliers' : `Press enter or click outside to add "${inputValue}"`}
             </li>
           )}
         </ul>

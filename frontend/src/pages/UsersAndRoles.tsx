@@ -11,6 +11,7 @@ import {
  Filter, Edit2, Trash2, ChevronDown, ChevronRight, Check,
  UserCheck, UserX, Calendar, Clock, X, Eye, EyeOff
 } from 'lucide-react';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 
 export const UsersAndRoles: React.FC = () => {
  const location = useLocation();
@@ -50,6 +51,12 @@ export const UsersAndRoles: React.FC = () => {
   
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [isEditPlantDropdownOpen, setIsEditPlantDropdownOpen] = useState(false);
+
+  const permissionsLock = useSubmitLock();
+  const addUserLock = useSubmitLock();
+  const addRoleLock = useSubmitLock();
+  const editUserLock = useSubmitLock();
+  const deleteUserLock = useSubmitLock();
 
   const toggleModule = (moduleName: string) => {
     const next = new Set(expandedModules);
@@ -149,16 +156,19 @@ export const UsersAndRoles: React.FC = () => {
 
  const savePermissions = async () => {
  if(!selectedRole) return;
+ await permissionsLock.wrapSubmit(async () => {
  try {
  await api.post(`/users-roles/roles/${selectedRole.id}/permissions`, { permissions });
  setModalConfig({ isOpen: true, title: 'Success', content: 'Permissions saved successfully!' });
  } catch (err) {
  console.error('Failed to save permissions', err);
  }
+ });
  };
 
  const handleAddUser = async (e: React.FormEvent) => {
  e.preventDefault();
+ await addUserLock.wrapSubmit(async () => {
  try {
  await api.post('/users-roles/create', newUserForm);
  setIsAddUserModalOpen(false);
@@ -169,10 +179,12 @@ export const UsersAndRoles: React.FC = () => {
  console.error('Failed to create user', err);
  setModalConfig({ isOpen: true, title: 'Error', content: 'Failed to create user. Please try again.' });
  }
+ });
  };
 
  const handleAddRole = async (e: React.FormEvent) => {
  e.preventDefault();
+ await addRoleLock.wrapSubmit(async () => {
  try {
  await api.post('/users-roles/roles', newRoleForm);
  setIsAddRoleModalOpen(false);
@@ -187,6 +199,7 @@ export const UsersAndRoles: React.FC = () => {
  console.error('Failed to create role', err);
  setModalConfig({ isOpen: true, title: 'Error', content: 'Failed to create role. Please try again.' });
  }
+ });
  };
 
   const handleEditUserClick = (user: any) => {
@@ -212,6 +225,7 @@ export const UsersAndRoles: React.FC = () => {
     }
   }
 
+  await editUserLock.wrapSubmit(async () => {
   try {
   await api.patch(`/users-roles/users/${editUserForm.id}`, editUserForm);
   setIsEditUserModalOpen(false);
@@ -221,10 +235,12 @@ export const UsersAndRoles: React.FC = () => {
   console.error('Failed to update user', err);
   setModalConfig({ isOpen: true, title: 'Error', content: err.response?.data?.message || 'Failed to update user. Please try again.' });
   }
+  });
   };
 
  const handleDeleteUser = async (id: string) => {
  if(!window.confirm('Are you sure you want to delete this user?')) return;
+ await deleteUserLock.wrapSubmit(async () => {
  try {
  await api.delete(`/users-roles/users/${id}`);
  setModalConfig({ isOpen: true, title: 'Success', content: 'User deleted successfully!' });
@@ -233,6 +249,7 @@ export const UsersAndRoles: React.FC = () => {
  console.error('Failed to delete user', err);
  setModalConfig({ isOpen: true, title: 'Error', content: 'Failed to delete user. Please try again.' });
  }
+ });
  };
 
     const getNotApplicableActions = (moduleName: string) => {
@@ -468,8 +485,8 @@ export const UsersAndRoles: React.FC = () => {
  className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 shadow-sm"
  />
  </div>
- <button onClick={savePermissions} className="bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2">
- <Check size={16} /> Save Changes
+ <button onClick={savePermissions} disabled={permissionsLock.pending} className="bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50">
+ <Check size={16} /> {permissionsLock.pending ? 'Saving...' : 'Save Changes'}
  </button>
  </div>
  </div>
@@ -715,7 +732,7 @@ export const UsersAndRoles: React.FC = () => {
  </div>
  <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3 rounded-b-2xl">
  <button onClick={() => setIsAddUserModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
- <button form="realAddUserForm" type="submit" className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">Create User</button>
+ <button form="realAddUserForm" type="submit" disabled={addUserLock.pending} className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">{addUserLock.pending ? 'Creating...' : 'Create User'}</button>
  </div>
  </div>
  </div>
@@ -833,7 +850,7 @@ export const UsersAndRoles: React.FC = () => {
  </div>
  <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3 rounded-b-2xl">
  <button onClick={() => setIsEditUserModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
- <button form="realEditUserForm" type="submit" className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">Save Changes</button>
+ <button form="realEditUserForm" type="submit" disabled={editUserLock.pending} className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">{editUserLock.pending ? 'Saving...' : 'Save Changes'}</button>
  </div>
  </div>
  </div>
@@ -863,7 +880,7 @@ export const UsersAndRoles: React.FC = () => {
  </div>
  <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3 rounded-b-2xl">
  <button onClick={() => setIsAddRoleModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
- <button form="addRoleForm" type="submit" className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">Create Role</button>
+ <button form="addRoleForm" type="submit" disabled={addRoleLock.pending} className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">{addRoleLock.pending ? 'Creating...' : 'Create Role'}</button>
  </div>
  </div>
  </div>

@@ -141,6 +141,7 @@ export const ProductionManagement = () => {
   };
 
   const handleSaveAnalysis = async () => {
+    if (loading) return;
     if (!selectedBatchId) {
       setNotification({ message: 'Please select a batch first', type: 'error' });
       return;
@@ -169,6 +170,7 @@ export const ProductionManagement = () => {
   };
 
   const handleSubmitBatch = async () => {
+    if (loading) return;
     if (!selectedBatchId) {
       setNotification({ message: 'Please select a batch first', type: 'error' });
       return;
@@ -306,6 +308,7 @@ export const ProductionManagement = () => {
  }, [notification]);
 
  const handleCreateBatch = async () => {
+ if (loading) return;
  if (!activePlant?.id) return;
  try {
  setLoading(true);
@@ -377,6 +380,7 @@ export const ProductionManagement = () => {
  };
 
   const handleCreateIntermillBatch = async () => {
+    if (loading) return;
     if (!activePlant?.id) return;
     
     if (!intermillData.rawMaterialId || !intermillData.inputBags) {

@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { usePlantStore } from '../store/plantStore';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useSubmitLock } from '../hooks/useSubmitLock';
 
 const API_URL = import.meta.env.VITE_RMS_BACKEND_URL || 'http://localhost:3000';
 
@@ -10,7 +11,7 @@ export const Login: React.FC = () => {
  const [username, setUsername] = useState('');
  const [password, setPassword] = useState('');
  const [error, setError] = useState('');
- const [loading, setLoading] = useState(false);
+ const loginLock = useSubmitLock();
  const [showPassword, setShowPassword] = useState(false); 
  const [rememberMe, setRememberMe] = useState(false);
  
@@ -25,8 +26,7 @@ export const Login: React.FC = () => {
  const handleLogin = async (e: React.FormEvent) => {
  e.preventDefault();
  setError('');
- setLoading(true);
-
+ await loginLock.wrapSubmit(async () => {
  try {
  const res = await axios.post(`${API_URL}/auth/login`, { username, password, rememberMe });
  const { user, accessToken } = res.data;
@@ -43,9 +43,8 @@ export const Login: React.FC = () => {
  
  } catch (err: any) {
  setError(err.response?.data?.message || err.message || 'Login failed');
- } finally {
- setLoading(false);
  }
+ });
  };
 
  return (
@@ -188,11 +187,11 @@ export const Login: React.FC = () => {
 
  <button
  type="submit"
- disabled={loading}
- className="w-full py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-black font-bold rounded-lg shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 mt-2"
+ disabled={loginLock.pending}
+ className="w-full py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-black font-bold rounded-lg shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
  >
- {loading ? 'Logging in...' : 'LOGIN'}
- {!loading && <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>}
+ {loginLock.pending ? 'Logging in...' : 'LOGIN'}
+ {!loginLock.pending && <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>}
  </button>
  
  <div className="relative flex items-center justify-center py-1.5">

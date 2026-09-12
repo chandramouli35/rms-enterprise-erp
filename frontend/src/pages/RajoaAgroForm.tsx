@@ -83,6 +83,7 @@ export default function RajoaAgroForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     if (!activePlantId) return alert('Select a plant first');
     setIsLoading(true);
     

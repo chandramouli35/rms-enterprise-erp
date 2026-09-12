@@ -4,6 +4,7 @@ import { usePlantStore } from '../../store/plantStore';
 import api from '../../api/axios';
 import { UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useSubmitLock } from '../../hooks/useSubmitLock';
 
 type StaffCategory = 'DRIVER' | 'LABOUR' | 'PAHUNCH' | 'UNLOADER';
 
@@ -13,8 +14,8 @@ export const AddStaff: React.FC = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const [category, setCategory] = useState<StaffCategory>('DRIVER');
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const submitLock = useSubmitLock();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -41,8 +42,7 @@ export const AddStaff: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
-
+    await submitLock.wrapSubmit(async () => {
     try {
       if (category === 'DRIVER') {
         const ageVal = formData.age ? parseInt(formData.age) : undefined;
@@ -87,9 +87,8 @@ export const AddStaff: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to add staff member.');
-    } finally {
-      setIsLoading(false);
     }
+    });
   };
 
   return (
@@ -223,10 +222,10 @@ export const AddStaff: React.FC = () => {
           <div className="flex justify-end mt-8">
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={submitLock.pending}
               className="px-6 py-2 bg-[#e67e00] hover:bg-[#cc7000] text-black font-semibold rounded-lg shadow transition-colors disabled:opacity-50"
             >
-              {isLoading ? 'Adding...' : 'Add Staff'}
+              {submitLock.pending ? 'Adding...' : 'Add Staff'}
             </button>
           </div>
         </form>

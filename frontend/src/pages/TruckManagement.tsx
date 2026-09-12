@@ -47,6 +47,7 @@ export default function TruckManagement() {
 
   const handleAddTruck = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setIsSubmitting(true);
     try {
       const formData = new FormData();

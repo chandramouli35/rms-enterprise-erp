@@ -85,12 +85,12 @@ export class YieldService {
     });
 
     if (!yieldReports.length) {
-      return {
-        bestPlant: '-',
-        highestYield: 0,
-        lowestYield: 0,
-        averageYield: 0,
-        predictedYield: 0,
+      return { 
+        bestPlant: '-', 
+        highestYield: 0, 
+        lowestYield: 0, 
+        averageYield: 0, 
+        predictedYield: 0, 
         latestBatch: null,
         batchStart: null,
         batchEnd: null,
@@ -108,7 +108,7 @@ export class YieldService {
     let sum = 0;
     let highest = 0;
     let lowest = 100;
-
+    
     yieldReports.forEach((r) => {
       if (r.overallRecovery > highest) highest = r.overallRecovery;
       if (r.overallRecovery < lowest) lowest = r.overallRecovery;
@@ -135,13 +135,13 @@ export class YieldService {
       batchLoss: ((latest.lossPercent / 100) * latest.batch.paddyUsedQty).toFixed(3),
       batchRecovery: latest.overallRecovery.toFixed(2),
       batchTarget: latest.yieldTarget?.toFixed(2) || '65.00',
-      batchAchievement: latest.yieldTarget
-        ? ((latest.overallRecovery / latest.yieldTarget) * 100).toFixed(2)
+      batchAchievement: latest.yieldTarget 
+        ? ((latest.overallRecovery / latest.yieldTarget) * 100).toFixed(2) 
         : '100.00',
       chartData: yieldReports
         .map((r) => ({
-          name: r.batch.batchNo,
-          yield: r.overallRecovery,
+        name: r.batch.batchNo,
+        yield: r.overallRecovery,
           date: r.createdAt,
         }))
         .reverse()
