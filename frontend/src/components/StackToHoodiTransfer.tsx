@@ -46,8 +46,11 @@ export default function StackToHoodiTransfer() {
           <div className="p-1.5 bg-orange-500/10 rounded-lg text-[#e67e00]">
             <ArrowRightLeft size={20} />
           </div>
-          Transfer Stack to Hoodi (Moisture Drying)
+          4. Stack to Hoodi Transfer
         </h2>
+        <p className="text-[10px] text-[var(--text-muted-alt)] mt-1 ml-10">
+          Below Boli Record in Procurement nav (running section S.No. 3 → 4)
+        </p>
       </div>
 
       <div className="p-6">

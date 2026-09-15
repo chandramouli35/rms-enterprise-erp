@@ -144,9 +144,10 @@ export const DashboardShell: React.FC = () => {
         { label: "Supplier Master", tab: "supplier_master" },
         { label: "Mandi Master", tab: "mandi_master" },
         { label: "Boli Record", tab: "paddy_purchase" },
+        { label: "Stack to Hoodi", tab: "stack_to_hoodi" },
         { label: "Paddy Inward", tab: "paddy_inward" },
         { label: "Inward List", tab: "inward_register" },
-        { label: "Stack to Hoodi", tab: "stack_to_hoodi" },
+        { label: "Loader & Unloader", tab: "loader_unloader" },
         { label: "Global Settings (Govt Rate)", tab: "global_settings" },
         { label: "Reports", tab: "reports" },
         { label: "Quality Inspection", tab: "quality_inspection" },
@@ -425,6 +426,11 @@ export const DashboardShell: React.FC = () => {
       // F32: sidebar label renamed; role grants may still use old submodule name
       "Boli Record": ["Boli Record", "Paddy Purchase & Quality"],
       "Paddy Purchase & Quality": ["Paddy Purchase & Quality", "Boli Record"],
+      "Stack to Hoodi": ["Stack to Hoodi", "Stack to Hoodi Transfer"],
+      "Global Settings (Govt Rate)": [
+        "Global Settings (Govt Rate)",
+        "Global Settings",
+      ],
     };
     const acceptedParents = (
       parentAliases[parentModuleLabel] || [parentModuleLabel]

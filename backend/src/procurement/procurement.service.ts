@@ -58,9 +58,7 @@ export class ProcurementService {
       }
     }
 
-    // Feedback 33 — global truck rules:
-    // 1) Block if any ACTIVE/DRAFT/PENDING unload exists globally (no time limit) — including new drafts
-    // 2) On confirm: also require 2h gap from last CONFIRMED/COMPLETED updatedAt
+    // Feedback 33 — vehicle duplicate while processing (Hold still blocks same truck plate)
     const truckNo = String(data.truckNo || '').trim().toUpperCase();
     if (truckNo) {
       const activeElsewhere = await this.prisma.paddyInwardDetails.findFirst({
@@ -77,8 +75,11 @@ export class ProcurementService {
         orderBy: { createdAt: 'desc' },
       });
       if (activeElsewhere) {
+        const held = !!(activeElsewhere as any).isHold;
         throw new BadRequestException(
-          `Truck ${truckNo} is actively unloading (status ${activeElsewhere.procurementBatch?.status}) at another/same mill. Finish that GP first.`,
+          held
+            ? `Truck ${truckNo} is on Hold (Pending Draft). Resume that entry from Drafts — duplicate vehicle entry blocked.`
+            : `Truck ${truckNo} is actively unloading (status ${activeElsewhere.procurementBatch?.status}) at another/same mill. Finish that GP first.`,
         );
       }
 
@@ -105,17 +106,136 @@ export class ProcurementService {
       }
     }
 
-    // Feedback 33 — 30 min min unload duration
+    // Feedback 39 — Hold: force draft + require reason; lock unloader once held
+    // Completing from Drafts with Confirm must still allow status CONFIRMED while isHold stays as audit.
+    const placingHold = !!data.isHold;
+    if (placingHold) {
+      const reason = String(data.holdReason || '').trim();
+      if (!reason) {
+        throw new BadRequestException('Hold reason is required when Hold is selected');
+      }
+      if (data.status !== 'CONFIRMED') {
+        data.status = 'DRAFT';
+      }
+      if (!data.heldAt) data.heldAt = new Date().toISOString();
+    }
+
+    if (data.id) {
+      const existingHold = await this.prisma.paddyInwardDetails.findUnique({
+        where: { procurementBatchId: data.id },
+        select: {
+          isHold: true,
+          holdReason: true,
+          allocateUnloader: true,
+          unloaderName: true,
+          partUnloaderName: true,
+        },
+      });
+      if (existingHold?.isHold) {
+        // Hold is permanent (no deselection); must complete from Drafts
+        data.isHold = true;
+        if (!String(data.holdReason || '').trim()) {
+          data.holdReason = existingHold.holdReason || data.holdReason;
+        }
+        const prevMain = String(
+          existingHold.allocateUnloader || existingHold.unloaderName || '',
+        ).trim();
+        const nextMain = String(
+          data.allocateUnloader || data.unloaderName || '',
+        ).trim();
+        // Unloader cannot be changed or cleared once Hold is marked
+        if (prevMain && prevMain.toLowerCase() !== nextMain.toLowerCase()) {
+          throw new BadRequestException(
+            'Unloader cannot be changed once Hold is marked. Complete this entry from Draft Entries.',
+          );
+        }
+        // Keep locked values even if client omits them
+        if (prevMain) {
+          data.allocateUnloader = existingHold.allocateUnloader || existingHold.unloaderName;
+          data.unloaderName = data.allocateUnloader;
+        }
+        const prevPart = String(existingHold.partUnloaderName || '').trim();
+        const nextPart = String(data.partUnloaderName || '').trim();
+        if (prevPart && prevPart.toLowerCase() !== nextPart.toLowerCase()) {
+          throw new BadRequestException(
+            'Part Unloader cannot be changed once Hold is marked. Complete this entry from Draft Entries.',
+          );
+        }
+        if (prevPart) {
+          data.partUnloaderName = existingHold.partUnloaderName;
+        }
+      }
+    }
+
+    // Feedback 39 — while actively unloading (not on Hold), unloader cannot take another truck
+    if (!placingHold) {
+      const mainName = String(data.allocateUnloader || data.unloaderName || '').trim();
+      const partName = String(data.partUnloaderName || '').trim();
+      const thisStarting =
+        !!data.unloadingStartTime &&
+        !(data.unloadingFinishTime || data.unloadingEndTime);
+      const checkBusy = async (name: string, kind: 'main' | 'part') => {
+        if (!name) return;
+        const busy = await this.prisma.paddyInwardDetails.findFirst({
+          where: {
+            isHold: false,
+            unloadingStartTime: { not: null },
+            unloadingEndTime: null,
+            ...(data.id ? { procurementBatchId: { not: data.id } } : {}),
+            procurementBatch: {
+              status: { in: ['DRAFT', 'PENDING', 'ACTIVE', 'UNLOADING'] },
+              ...(plantId && plantId !== 'global' ? { plantId } : {}),
+            },
+            OR:
+              kind === 'main'
+                ? [
+                    { allocateUnloader: { equals: name, mode: 'insensitive' } },
+                    { unloaderName: { equals: name, mode: 'insensitive' } },
+                  ]
+                : [{ partUnloaderName: { equals: name, mode: 'insensitive' } }],
+          },
+        });
+        if (busy) {
+          throw new BadRequestException(
+            `${kind === 'main' ? 'Unloader' : 'Part Unloader'} "${name}" is already unloading truck ${busy.truckNo || '-'}. Put that truck on Hold or finish unload before starting another.`,
+          );
+        }
+      };
+      // Enforce when this entry is (or becomes) an active unload / confirm
+      if (thisStarting || data.status === 'CONFIRMED') {
+        await checkBusy(mainName, 'main');
+        await checkBusy(partName, 'part');
+      }
+    }
+
+    // Feedback 39 — In → Unload Start → Unload Finish → Out (+ min gaps)
+    // Runs on confirm, or whenever all four times are present.
+    if (
+      data.status === 'CONFIRMED' ||
+      (data.timeIn &&
+        data.unloadingStartTime &&
+        (data.unloadingFinishTime || data.unloadingEndTime) &&
+        data.timeOut)
+    ) {
+      this.assertF39UnloadTimeSequence(data);
+    }
+
+    // Feedback 33 — 30 min min unload duration (covered by F39; keep as fast-fail for HH:mm-only)
     if (data.unloadingStartTime && (data.unloadingFinishTime || data.unloadingEndTime)) {
+      // F39 assert above is authoritative when dates resolve; HH:mm-only fallback:
       const start = String(data.unloadingStartTime);
       const end = String(data.unloadingFinishTime || data.unloadingEndTime);
-      const [sh, sm] = start.split(':').map(Number);
-      const [eh, em] = end.split(':').map(Number);
-      if ([sh, sm, eh, em].every((n) => Number.isFinite(n))) {
-        let diff = eh * 60 + em - (sh * 60 + sm);
-        if (diff < 0) diff += 24 * 60;
-        if (diff < 30) {
-          throw new BadRequestException('Unloading Finish Time must be at least 30 minutes after Start Time');
+      if (!start.includes('T') && !end.includes('T')) {
+        const [sh, sm] = start.split(':').map(Number);
+        const [eh, em] = end.split(':').map(Number);
+        if ([sh, sm, eh, em].every((n) => Number.isFinite(n))) {
+          let diff = eh * 60 + em - (sh * 60 + sm);
+          if (diff < 0) diff += 24 * 60;
+          if (diff < 30) {
+            throw new BadRequestException(
+              'Unloading Finish Time must be at least 30 minutes after Start Time',
+            );
+          }
         }
       }
     }
@@ -198,6 +318,57 @@ export class ProcurementService {
           }
         }
       }
+    }
+
+    // Independent daily unloader truck series (main vs part are separate).
+    // Feedback 39 — Serial Number & Unloader Count Tracking:
+    // Credit / generate serial ONLY when Net Weight Paddy Inward is submitted (CONFIRMED).
+    // Do NOT assign during draft / Hold / active unloading.
+    if (data.status === 'CONFIRMED' && plantId) {
+      const mainName = String(data.allocateUnloader || data.unloaderName || '').trim();
+      if (!mainName) {
+        throw new BadRequestException(
+          'Allocate Main Unloader is required to link this truck entry',
+        );
+      }
+      const partStackNo = String(data.secondPartStackNo || data.partStackNo || '').trim();
+      const partBagsRaw = data.bagsInSecondPartStack ?? data.bagsInPartStack;
+      const hasPartStack =
+        !!partStackNo ||
+        (partBagsRaw != null && partBagsRaw !== '' && Number(partBagsRaw) > 0);
+      const partName = String(data.partUnloaderName || '').trim();
+      if (hasPartStack && !partName) {
+        throw new BadRequestException(
+          'Part Unloader (Unloader 2) is required when part stack bags are recorded',
+        );
+      }
+
+      const seriesDay = this.plantDayKey(data.date || data.entryDate);
+      if (mainName) {
+        const main = await this.getNextUnloaderTruckCount(
+          plantId,
+          mainName,
+          'main',
+          seriesDay,
+          data.id,
+        );
+        data.mainUnloaderTruckCount = main.nextCount;
+      }
+      if (partName) {
+        const part = await this.getNextUnloaderTruckCount(
+          plantId,
+          partName,
+          'part',
+          seriesDay,
+          data.id,
+        );
+        data.partUnloaderTruckCount = part.nextCount;
+      }
+    } else {
+      // Strip any client preview serials while unloading / draft / Hold
+      data.mainUnloaderTruckCount = null;
+      data.partUnloaderTruckCount = null;
+      data.unloaderTruckCount = null;
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -354,7 +525,16 @@ export class ProcurementService {
       }
 
       // 4. Shortage composition (Feedback 33 + 34 ledger / narrations)
-      const bagWt = parseFloat(data.standardBagWeight) || 0.382;
+      const plantRow = plantId
+        ? await this.prisma.plant.findUnique({
+            where: { id: plantId },
+            select: { standardBagWeight: true },
+          })
+        : null;
+      const bagWt =
+        parseFloat(data.standardBagWeight) ||
+        Number(plantRow?.standardBagWeight) ||
+        0.382;
       const qualityCutType = data.qualityCutType || 'NONE';
       const qualityCutValue = parseFloat(data.qualityCutValue) || 0;
       let qualityCutQtl = parseFloat(data.qualityCutQtl) || 0;
@@ -597,19 +777,36 @@ export class ProcurementService {
               : data.grossWeight != null && data.tareWeight != null
                 ? parseFloat(data.grossWeight) - parseFloat(data.tareWeight)
                 : null,
-          mainUnloaderTruckCount: data.mainUnloaderTruckCount || data.unloaderTruckCount
-            ? parseFloat(data.mainUnloaderTruckCount || data.unloaderTruckCount)
-            : null,
-          bagsInMainStack: data.bagsInMainStack ? parseFloat(data.bagsInMainStack) : null,
+          mainUnloaderTruckCount:
+            data.status === 'CONFIRMED'
+              ? data.mainUnloaderTruckCount != null &&
+                data.mainUnloaderTruckCount !== ''
+                ? parseFloat(data.mainUnloaderTruckCount)
+                : data.unloaderTruckCount != null &&
+                    data.unloaderTruckCount !== ''
+                  ? parseFloat(data.unloaderTruckCount)
+                  : null
+              : null, // F39 — never credit serial during draft / active unload
+          bagsInMainStack:
+            data.bagsInMainStack != null && data.bagsInMainStack !== ''
+              ? parseFloat(data.bagsInMainStack)
+              : null,
           secondPartStackNo: data.secondPartStackNo || data.partStackNo || null,
-          bagsInSecondPartStack: data.bagsInSecondPartStack || data.bagsInPartStack
-            ? parseFloat(data.bagsInSecondPartStack || data.bagsInPartStack)
-            : null,
+          bagsInSecondPartStack:
+            data.bagsInSecondPartStack != null && data.bagsInSecondPartStack !== ''
+              ? parseFloat(data.bagsInSecondPartStack)
+              : data.bagsInPartStack != null && data.bagsInPartStack !== ''
+                ? parseFloat(data.bagsInPartStack)
+                : null,
           unloaderName: data.allocateUnloader || data.unloaderName || null,
           partUnloaderName: data.partUnloaderName || null,
-          partUnloaderTruckCount: data.partUnloaderTruckCount
-            ? parseFloat(data.partUnloaderTruckCount)
-            : null,
+          partUnloaderTruckCount:
+            data.status === 'CONFIRMED'
+              ? data.partUnloaderTruckCount != null &&
+                data.partUnloaderTruckCount !== ''
+                ? parseFloat(data.partUnloaderTruckCount)
+                : null
+              : null, // F39 — credit only after Net Weight / Confirm
           meterNotWorking: !!data.meterNotWorking,
           newTruckReading: data.newTruckReading != null ? parseFloat(data.newTruckReading) : null,
           moisture: parsedMoisture,
@@ -657,6 +854,17 @@ export class ProcurementService {
             }
             return new Date(t);
           })(),
+          isHold: !!data.isHold,
+          holdReason: data.isHold
+            ? String(data.holdReason || '').trim() || null
+            : data.holdReason != null
+              ? String(data.holdReason).trim() || null
+              : null,
+          heldAt: data.isHold
+            ? data.heldAt
+              ? new Date(data.heldAt)
+              : new Date()
+            : null,
         },
       });
 
@@ -822,6 +1030,10 @@ export class ProcurementService {
         grossWeight: d.grossWeight ?? null,
         millBags: aRec + bRec,
         agencyBags: aGiven + bGiven || Number(d.bagsAtAgencyGp || 0),
+        isHold: !!d.isHold,
+        holdReason: d.holdReason || null,
+        heldAt: d.heldAt || null,
+        allocateUnloader: d.allocateUnloader || d.unloaderName || null,
         updatedAt: b.updatedAt,
       };
     });
@@ -1244,14 +1456,80 @@ export class ProcurementService {
   // Feedback 32 — Boli Record helpers
   // ---------------------------------------------------------------------------
 
-  /** Combine YYYY-MM-DD + HH:mm into epoch ms (local). */
+  /** Combine YYYY-MM-DD + HH:mm into epoch ms (local). Also accepts ISO datetime in `time`. */
   private combineDateTimeMs(date?: string | null, time?: string | null): number | null {
+    if (time) {
+      const raw = String(time).trim();
+      if (raw.includes('T') || /^\d{4}-\d{2}-\d{2}/.test(raw)) {
+        const ms = new Date(raw).getTime();
+        if (Number.isFinite(ms)) return ms;
+      }
+    }
     if (!date) return null;
     const d = String(date).slice(0, 10);
     const t = String(time || '00:00').slice(0, 5);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
     const ms = new Date(`${d}T${t}:00`).getTime();
     return Number.isFinite(ms) ? ms : null;
+  }
+
+  /**
+   * Feedback 39 — chronological unload sequence + min gaps:
+   * In → Unload Start (≥5m) → Unload Finish (≥30m) → Out / Net Weight (≥5m).
+   * Finish must not be before In or Start. No QR/phone linkage.
+   */
+  private assertF39UnloadTimeSequence(data: any) {
+    const entryDate = data.date || data.entryDate;
+    const outDate = data.gpCompleteDate || entryDate;
+    const finishRaw = data.unloadingFinishTime || data.unloadingEndTime;
+
+    const inMs = this.combineDateTimeMs(entryDate, data.timeIn);
+    const startMs = this.combineDateTimeMs(entryDate, data.unloadingStartTime);
+    const finishMs = this.combineDateTimeMs(entryDate, finishRaw);
+    const outMs = this.combineDateTimeMs(outDate, data.timeOut);
+
+    if (inMs == null || startMs == null || finishMs == null || outMs == null) {
+      // Required fields enforced elsewhere on CONFIRM; skip if incomplete draft
+      return;
+    }
+
+    if (finishMs < inMs) {
+      throw new BadRequestException(
+        'Unloader Finish Time cannot be before Paddy Inward (In Time).',
+      );
+    }
+    if (finishMs < startMs) {
+      throw new BadRequestException(
+        'Unloader Finish Time cannot be before Unload Start Time.',
+      );
+    }
+    if (startMs < inMs) {
+      throw new BadRequestException(
+        'Unload Start Time cannot be before Paddy Inward (In Time).',
+      );
+    }
+    if (outMs < finishMs) {
+      throw new BadRequestException(
+        'Out Time (Net Weight) cannot be before Unloader Finish Time.',
+      );
+    }
+
+    const gap = (a: number, b: number) => (b - a) / (60 * 1000);
+    if (gap(inMs, startMs) < 5) {
+      throw new BadRequestException(
+        'Minimum 5 minutes required between Paddy Inward (In Time) and Unload Start.',
+      );
+    }
+    if (gap(startMs, finishMs) < 30) {
+      throw new BadRequestException(
+        'Minimum 30 minutes required between Unload Start and Unload Finish.',
+      );
+    }
+    if (gap(finishMs, outMs) < 5) {
+      throw new BadRequestException(
+        'Minimum 5 minutes required between Unload Finish and Out Time (Net Weight).',
+      );
+    }
   }
 
   /** Backdated when recorded Date & Time In is before the calendar day the entry was actually made. */
@@ -1541,8 +1819,71 @@ export class ProcurementService {
     });
     return access
       .map((a) => a.user)
-      .filter((u) => u?.isActive && /SUPERVISOR/i.test(u.role?.name || ''))
+      .filter((u) => u?.isActive && !u.deletedAt && /SUPERVISOR/i.test(u.role?.name || ''))
       .map((u) => ({ id: u.id, username: u.username, role: u.role.name }));
+  }
+
+  /**
+   * Names for Paddy Inward Allocate Unloader dropdown.
+   * Merges Staff (UNLOADER), Labour, and active plant users so newly added people appear.
+   */
+  async getUnloadersForPlant(plantId: string) {
+    if (!plantId || plantId === 'global') return [];
+
+    const [staffRows, labourRows, access] = await Promise.all([
+      this.prisma.staffMaster.findMany({
+        where: { plantId },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.labourMaster.findMany({
+        where: { plantId, isActive: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.userPlantAccess.findMany({
+        where: { plantId },
+        include: { user: { include: { role: true } } },
+      }),
+    ]);
+
+    const byName = new Map<string, { id: string; name: string; source: string }>();
+
+    const add = (id: string, name: string, source: string) => {
+      const label = String(name || '').trim();
+      if (!label) return;
+      const key = label.toLowerCase();
+      if (byName.has(key)) return;
+      byName.set(key, { id, name: label, source });
+    };
+
+    // Prefer explicit UNLOADER staff first
+    for (const s of staffRows) {
+      if (/UNLOADER/i.test(s.role || '')) {
+        add(s.id, s.name, 'staff');
+      }
+    }
+    // Other staff (in case role not set to UNLOADER)
+    for (const s of staffRows) {
+      if (!/UNLOADER/i.test(s.role || '')) {
+        add(s.id, s.name, 'staff');
+      }
+    }
+    for (const l of labourRows) {
+      add(l.id, l.name, 'labour');
+    }
+    for (const a of access) {
+      const u = a.user;
+      if (!u || !u.isActive || u.deletedAt) continue;
+      // Skip pure admins from unloader list unless they are the only option
+      const role = u.role?.name || '';
+      if (/SUPER_ADMIN|ADMINISTRATOR|^ADMIN$/i.test(role.replace(/[\s-]+/g, '_'))) {
+        continue;
+      }
+      add(u.id, u.username, 'user');
+    }
+
+    return Array.from(byName.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    );
   }
 
   /** Open bolis eligible for Add Final Boli (estimate done, finalBags not set, not cancelled) */
@@ -1574,7 +1915,119 @@ export class ProcurementService {
       sodaId: b.sodaPendingId,
       date: b.sodaPending.date,
       govtRate: b.sodaPending.govtRate,
+      cancelCount: b.sodaPending.cancelCount || 0,
     }));
+  }
+
+  /**
+   * Cancel one Boli from Final Boli section (supervisors allowed).
+   * Estimate Purchase must not use bags=0 for supervisor cancel — use this instead.
+   */
+  async cancelBoli(boliId: string, user?: any) {
+    const boli = await this.prisma.paddyBoli.findUnique({
+      where: { id: boliId },
+      include: { sodaPending: { include: { supplier: true } } },
+    });
+    if (!boli) throw new BadRequestException('Boli not found');
+    if (boli.isCompleted) throw new BadRequestException('Completed boli cannot be cancelled');
+    if (boli.isCancelled || boli.bags === 0) {
+      throw new BadRequestException('Boli is already cancelled');
+    }
+    if (boli.finalBags != null) {
+      throw new BadRequestException('Final Bags already submitted — ask Admin to cancel');
+    }
+
+    const soda = boli.sodaPending;
+    const prevCancel = soda.cancelCount || 0;
+    if (prevCancel >= 3) {
+      await this.notifyAdmin(
+        this.prisma,
+        user?.id,
+        'BOLI_CANCEL_LIMIT',
+        `Further boli cancel attempted after max 3 for ${soda.supplier?.name || 'Artia'}. Admin review required.`,
+        soda.id,
+        soda.plantId,
+      );
+      throw new BadRequestException(
+        'Max 3 boli cancellations reached. Message sent to Admin for further cancels.',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.paddyBoli.update({
+        where: { id: boliId },
+        data: { isCancelled: true, bags: 0 },
+      });
+      const newCount = prevCancel + 1;
+      await tx.paddySodaPending.update({
+        where: { id: soda.id },
+        data: { cancelCount: newCount },
+      });
+      await this.notifyAdmin(
+        tx as any,
+        user?.id,
+        'BOLI_CANCEL_FINAL',
+        `Boli ${boli.boliNo} cancelled from Final Boli by ${user?.username || user?.role || 'user'} (${soda.supplier?.name || ''})`,
+        soda.id,
+        soda.plantId,
+      );
+      return { ok: true, boliId, cancelCount: newCount };
+    });
+  }
+
+  /** Cancel all open (non-completed) bolis under a soda — Final Boli section */
+  async cancelSoda(sodaId: string, user?: any) {
+    const soda = await this.prisma.paddySodaPending.findUnique({
+      where: { id: sodaId },
+      include: { bolis: true, supplier: true },
+    });
+    if (!soda) throw new BadRequestException('Soda / Estimate not found');
+
+    const cancellable = soda.bolis.filter(
+      (b) => !b.isCompleted && !b.isCancelled && b.bags > 0 && b.finalBags == null,
+    );
+    if (cancellable.length === 0) {
+      throw new BadRequestException('No open bolis left to cancel on this soda');
+    }
+
+    const prevCancel = soda.cancelCount || 0;
+    const wouldBe = prevCancel + cancellable.length;
+    if (prevCancel >= 3 || wouldBe > 3) {
+      await this.notifyAdmin(
+        this.prisma,
+        user?.id,
+        'BOLI_CANCEL_LIMIT',
+        `Soda cancel blocked (would exceed max 3) for ${soda.supplier?.name || 'Artia'}.`,
+        soda.id,
+        soda.plantId,
+      );
+      throw new BadRequestException(
+        'Cancelling this soda would exceed max 3 boli cancellations. Cancel bolis one-by-one or contact Admin.',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      for (const b of cancellable) {
+        await tx.paddyBoli.update({
+          where: { id: b.id },
+          data: { isCancelled: true, bags: 0 },
+        });
+      }
+      const newCount = prevCancel + cancellable.length;
+      await tx.paddySodaPending.update({
+        where: { id: sodaId },
+        data: { cancelCount: newCount },
+      });
+      await this.notifyAdmin(
+        tx as any,
+        user?.id,
+        'SODA_CANCEL_FINAL',
+        `Entire soda cancelled (${cancellable.length} boli) from Final Boli by ${user?.username || 'user'} — ${soda.supplier?.name || ''}`,
+        soda.id,
+        soda.plantId,
+      );
+      return { ok: true, sodaId, cancelled: cancellable.length, cancelCount: newCount };
+    });
   }
 
   async submitFinalBoli(boliId: string, data: any, user?: any) {
@@ -1933,6 +2386,12 @@ export class ProcurementService {
     }
 
     const cancelCount = bolisData.filter((b: any) => b.bags === 0).length;
+    // Supervisors cancel only from Final Boli — not via bags=0 on Estimate Purchase
+    if (cancelCount > 0 && !this.isAdminRole(user)) {
+      throw new BadRequestException(
+        'Supervisors cannot cancel boli in Estimate Purchase. Use Cancel in Add Final Boli instead.',
+      );
+    }
     if (cancelCount > 3) {
       await this.notifyAdmin(
         this.prisma,
@@ -2101,6 +2560,12 @@ export class ProcurementService {
 
     const prevCancel = existing.cancelCount || 0;
     const newCancelCount = bolisData.filter((b: any) => b.bags === 0).length;
+    // Supervisors cancel only from Final Boli — not via bags=0 on Estimate Purchase
+    if (newCancelCount > prevCancel && !this.isAdminRole(user)) {
+      throw new BadRequestException(
+        'Supervisors cannot cancel boli in Estimate Purchase. Use Cancel in Add Final Boli instead.',
+      );
+    }
     if (newCancelCount > 3 || (newCancelCount > prevCancel && prevCancel >= 3)) {
       await this.notifyAdmin(
         this.prisma,
@@ -2522,7 +2987,6 @@ export class ProcurementService {
   /** Feedback 34 — till-date Artia shortage balances (qtl + bags) per mill */
   async getArtiaShortageBalances(asOfDate?: string) {
     const asOf = asOfDate ? new Date(new Date(asOfDate).setHours(23, 59, 59, 999)) : new Date();
-    const bagWt = 0.382;
     const records = await this.prisma.procurementBatch.findMany({
       where: {
         // Production: only confirmed/completed inwards — never PENDING drafts
@@ -2537,11 +3001,13 @@ export class ProcurementService {
     for (const r of records) {
       const d = r.paddyInwardDetails;
       if (!d) continue;
+      const bagWt = Number(r.plant?.standardBagWeight) || 0.382;
       const key = `${r.plantId}|${r.supplierId || 'none'}|${d.mandi || r.supplier?.mandi || ''}`;
       if (!map.has(key)) {
         map.set(key, {
           plantId: r.plantId,
           millName: r.plant?.name || 'Unknown',
+          bagWt,
           supplierId: r.supplierId,
           artia: r.supplier?.name || 'Walk-in',
           mandi: d.mandi || r.supplier?.mandi || '-',
@@ -2565,13 +3031,14 @@ export class ProcurementService {
 
     return Array.from(map.values())
       .map((r) => {
+        const wt = Number(r.bagWt) || 0.382;
         const balanceQtl = parseFloat((r.shortageQtl - r.recoveryQtl).toFixed(2));
         return {
           ...r,
           shortageQtl: parseFloat(r.shortageQtl.toFixed(2)),
           recoveryQtl: parseFloat(r.recoveryQtl.toFixed(2)),
           balanceQtl,
-          balanceBags: parseFloat((balanceQtl / bagWt).toFixed(2)),
+          balanceBags: parseFloat((balanceQtl / wt).toFixed(2)),
         };
       })
       .filter((r) => Math.abs(r.balanceQtl) > 0.001 || r.shortageQtl > 0)
@@ -3096,8 +3563,8 @@ export class ProcurementService {
     if (plantId !== 'global') where.plantId = plantId;
     if (opts.supplierId) where.supplierId = opts.supplierId;
 
-    // Feedback 35 — filter by inward entryDate (not batch createdAt)
-    const detailAnd: any[] = [];
+      // Feedback 35/39 — filter by inward entryDate (that day only for Net Weight completed entries)
+      const detailAnd: any[] = [];
     if (opts.mandi) {
       detailAnd.push({ mandi: { contains: opts.mandi, mode: 'insensitive' } });
     }
@@ -3127,15 +3594,17 @@ export class ProcurementService {
 
     const rowsAll = batches
       .map((b) => this.mapInwardListRow(b, bagWt))
-      // Feedback 35: unload sequence descending (actual mill unload order), then GP desc
+      // Feedback 39 — strict chronological order (oldest → newest by unload time)
       .sort((a, b) => {
         const ta = a.unloadSort || 0;
         const tb = b.unloadSort || 0;
-        if (tb !== ta) return tb - ta;
-        return String(b.millGp || '').localeCompare(String(a.millGp || ''), undefined, { numeric: true });
+        if (ta !== tb) return ta - tb;
+        return String(a.millGp || '').localeCompare(String(b.millGp || ''), undefined, {
+          numeric: true,
+        });
       });
 
-    // Main report rows = confirmed/completed (drafts excluded from printed/submitted lists)
+    // Main report rows = confirmed/completed Net Weight entries only (that day via entryDate filter)
     const rows = rowsAll.filter((r) => r.status === 'CONFIRMED' || r.status === 'COMPLETED');
     const drafts = rowsAll.filter((r) => r.status === 'DRAFT' || r.status === 'PENDING');
 
@@ -3148,7 +3617,7 @@ export class ProcurementService {
       draftCount: drafts.length,
     };
 
-    // Artia clusters (Latest → Oldest within each artia)
+    // Artia clusters — chronological within each artia; artias by earliest unload first
     const byArtia: Record<string, any[]> = {};
     for (const r of rows) {
       const key = r.artiaName || 'Unknown';
@@ -3156,18 +3625,17 @@ export class ProcurementService {
       byArtia[key].push(r);
     }
     const artiaClusters = Object.entries(byArtia)
-      // Feedback 35 — after finishing one artia then the next; order artias by latest unload first
       .sort(([, listA], [, listB]) => {
-        const maxA = Math.max(...listA.map((r) => r.unloadSort || 0), 0);
-        const maxB = Math.max(...listB.map((r) => r.unloadSort || 0), 0);
-        if (maxB !== maxA) return maxB - maxA;
+        const minA = Math.min(...listA.map((r) => r.unloadSort || Number.MAX_SAFE_INTEGER));
+        const minB = Math.min(...listB.map((r) => r.unloadSort || Number.MAX_SAFE_INTEGER));
+        if (minA !== minB) return minA - minB;
         return String(listA[0]?.artiaName || '').localeCompare(String(listB[0]?.artiaName || ''));
       })
       .map(([artiaName, list]) => {
-        // Within artia: Latest → Oldest
         const sorted = [...list].sort((a, b) => {
-          if ((b.unloadSort || 0) !== (a.unloadSort || 0)) return (b.unloadSort || 0) - (a.unloadSort || 0);
-          return String(b.date || '').localeCompare(String(a.date || ''));
+          if ((a.unloadSort || 0) !== (b.unloadSort || 0))
+            return (a.unloadSort || 0) - (b.unloadSort || 0);
+          return String(a.date || '').localeCompare(String(b.date || ''));
         });
         return {
           artiaName,
@@ -3182,7 +3650,7 @@ export class ProcurementService {
         };
       });
 
-    // Group by date for print page-breaks
+    // Group by date for print page-breaks — chronological date order
     const byDate: Record<string, any[]> = {};
     for (const r of rows) {
       const d = r.date || 'unknown';
@@ -3190,7 +3658,7 @@ export class ProcurementService {
       byDate[d].push(r);
     }
     const dateGroups = Object.entries(byDate)
-      .sort(([a], [b]) => b.localeCompare(a))
+      .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, list]) => ({
         date,
         rows: list,
@@ -3312,6 +3780,13 @@ export class ProcurementService {
     }
     const plantId = opts.plantId || 'global';
     const reportDate = opts.date || new Date().toISOString().slice(0, 10);
+
+    // Feedback 39 — Unloader day reports (signed + submitted to Admin) must be done
+    // before Paddy Inward evening report submission.
+    if (plantId !== 'global') {
+      await this.assertUnloaderReportsReadyForInwardSubmit(plantId, reportDate);
+    }
+
     const live = await this.getInwardListReport({
       plantId,
       dateFrom: reportDate,
@@ -3628,5 +4103,655 @@ export class ProcurementService {
       columns,
       updatedAt: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Calendar day key for mill ops (India). Prefer explicit YYYY-MM-DD from the form.
+   */
+  private plantDayKey(date?: string | null): string {
+    const raw = String(date || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  }
+
+  /**
+   * Feedback 39 — preview next unloader truck serial (not a credit).
+   * Series advances only from CONFIRMED/COMPLETED Net Weight submissions.
+   * Independent daily series per unloader (main) / part-unloader.
+   */
+  async getNextUnloaderTruckCount(
+    plantId: string,
+    unloaderName: string,
+    kind: 'main' | 'part' = 'main',
+    date?: string,
+    excludeBatchId?: string,
+  ) {
+    const day = this.plantDayKey(date);
+    const name = String(unloaderName || '').trim();
+    if (!name || !plantId) {
+      return { nextCount: 1, completedToday: 0, date: day, kind, unloaderName: name };
+    }
+
+    const nameMatch =
+      kind === 'part'
+        ? { partUnloaderName: { equals: name, mode: 'insensitive' as const } }
+        : {
+            OR: [
+              { allocateUnloader: { equals: name, mode: 'insensitive' as const } },
+              { unloaderName: { equals: name, mode: 'insensitive' as const } },
+            ],
+          };
+
+    const rows = await this.prisma.paddyInwardDetails.findMany({
+      where: {
+        ...nameMatch,
+        entryDate: day,
+        ...(excludeBatchId
+          ? { procurementBatchId: { not: excludeBatchId } }
+          : {}),
+        procurementBatch: {
+          plantId,
+          // Only completed unloadings advance the series
+          status: { in: ['CONFIRMED', 'COMPLETED'] },
+        },
+      },
+      select: {
+        mainUnloaderTruckCount: true,
+        partUnloaderTruckCount: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const completedToday = rows.length;
+    const serials = rows.map((r) =>
+      kind === 'part'
+        ? Number(r.partUnloaderTruckCount) || 0
+        : Number(r.mainUnloaderTruckCount) || 0,
+    );
+    const maxSerial = serials.length ? Math.max(...serials) : 0;
+    // Chronological next = completed count + 1; also respect any higher stored serial
+    const nextCount = Math.max(completedToday, maxSerial) + 1;
+
+    return {
+      nextCount,
+      completedToday,
+      maxSerial,
+      date: day,
+      kind,
+      unloaderName: name,
+      series: `${kind}:${name}:${plantId}:${day}`,
+    };
+  }
+
+  /** Daily Paddy Stack documentation rows for Reports */
+  async getPaddyStackDocumentation(plantId: string, date?: string) {
+    const day =
+      (date && String(date).slice(0, 10)) ||
+      new Date().toISOString().slice(0, 10);
+    const dayStart = new Date(`${day}T00:00:00.000Z`);
+    const dayEnd = new Date(`${day}T23:59:59.999Z`);
+
+    const stacks = await this.prisma.paddyStack.findMany({
+      where: { plantId },
+      orderBy: { stackNo: 'asc' },
+    });
+
+    const todayBatches = await this.prisma.procurementBatch.findMany({
+      where: {
+        plantId,
+        status: { in: ['CONFIRMED', 'COMPLETED'] },
+        OR: [
+          { paddyInwardDetails: { entryDate: day } },
+          { updatedAt: { gte: dayStart, lte: dayEnd } },
+        ],
+      },
+      include: { paddyInwardDetails: true },
+    });
+
+    const bagOf = (b: any) =>
+      Number(b.paddyInwardDetails?.bagsInMainStack || 0) +
+      Number(b.paddyInwardDetails?.bagsInSecondPartStack || 0) ||
+      Number(b.paddyInwardDetails?.totalBagsReceived || 0) ||
+      0;
+
+    const atStack = todayBatches.reduce((s, b) => s + bagOf(b), 0);
+    const active = stacks.filter((s) => !['COMPLETED', 'EMPTY'].includes(s.status));
+    const opBal = stacks.reduce((s, st) => s + Number(st.totalBags || 0), 0) - atStack;
+    const dryerBharai = 0;
+    const hoodiKatai = 0;
+    const out = 0;
+    const total = Math.max(0, opBal) + atStack + dryerBharai;
+    const clStock = total - hoodiKatai - out;
+
+    return {
+      date: day,
+      plantId,
+      rows: [
+        {
+          date: day,
+          opBal: Math.max(0, Math.round(opBal)),
+          atStack: Math.round(atStack),
+          dryerBharai,
+          total: Math.round(total),
+          hoodiKatai,
+          out,
+          clStock: Math.round(clStock),
+          stacksInUse: active.map((s) => s.stackNo).join(', ') || '—',
+        },
+      ],
+      stacks: stacks.map((s) => ({
+        stackNo: s.stackNo,
+        status: s.status,
+        totalBags: s.totalBags,
+        averageMoisture: s.averageMoisture,
+      })),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Feedback 39 — Loader & Unloader system-generated report.
+   * Groups completed Paddy Inward unload rows by unloader (main + part),
+   * mill-wise, with independent daily sheets and chronological truck times.
+   */
+  async getLoaderUnloaderReport(
+    plantId: string,
+    dateFrom?: string,
+    dateTo?: string,
+    unloaderName?: string,
+  ) {
+    const from = dateFrom || new Date().toISOString().slice(0, 10);
+    const to = dateTo || from;
+
+    const where: any = {
+      status: { in: ['CONFIRMED', 'COMPLETED'] },
+      paddyInwardDetails: { isNot: null },
+    };
+    if (plantId && plantId !== 'global') where.plantId = plantId;
+
+    const batches = await this.prisma.procurementBatch.findMany({
+      where,
+      include: {
+        paddyInwardDetails: true,
+        plant: { select: { id: true, name: true } },
+        supplier: { select: { name: true } },
+        weighbridge: { select: { vehicleNo: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const dash = (v: any) =>
+      v == null || v === '' || (typeof v === 'number' && Number.isNaN(v))
+        ? '-'
+        : v;
+
+    const fmtTime = (v: any) => {
+      if (!v) return '-';
+      if (typeof v === 'string') {
+        if (/^\d{1,2}:\d{2}/.test(v)) return v.slice(0, 5);
+        const d = new Date(v);
+        if (!Number.isNaN(d.getTime())) {
+          return d.toLocaleTimeString('en-GB', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          });
+        }
+        return v;
+      }
+      if (v instanceof Date && !Number.isNaN(v.getTime())) {
+        return v.toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+      }
+      return '-';
+    };
+
+    const inDateRange = (d?: string | null) => {
+      if (!d) return false;
+      const s = String(d).slice(0, 10);
+      return s >= from && s <= to;
+    };
+
+    /** Feedback 39 template columns A–Q (from Paddy Inward detail only) */
+    type Row = {
+      millName: string;
+      unloaderName: string;
+      date: string;
+      /** A */ unloaderTruckCount: string | number;
+      /** B */ rstNo: string;
+      /** C */ millGp: string;
+      /** D */ timeIn: string;
+      /** E */ timeOut: string;
+      /** F */ stackMain: string;
+      /** G */ stackPart: string;
+      /** H */ stackNo: string;
+      /** I */ hoodi: string;
+      /** J */ truckNo: string;
+      /** K */ partyName: string;
+      /** L */ mandi: string;
+      /** M */ moisture: string | number;
+      /** N */ aClass: number | string;
+      /** O */ bClass: number | string;
+      /** P = N + O */ totalBags: number | string;
+      /** Q */ labourParty: string;
+      batchId: string;
+      sortKey: string;
+    };
+
+    const rows: Row[] = [];
+
+    for (const b of batches) {
+      const d = b.paddyInwardDetails;
+      if (!d) continue;
+
+      // Complete unload only (F39 Reporting): In + Unload Start/Finish + Out Time
+      // Incomplete unload entries are excluded from the unloader list count.
+      const hasTimeIn = !!d.timeIn;
+      const hasStart = !!d.unloadingStartTime;
+      const hasFinish = !!d.unloadingEndTime;
+      const hasOut = !!d.timeOut;
+      if (!hasTimeIn || !hasStart || !hasFinish || !hasOut) continue;
+
+      const entryDay =
+        (d.entryDate && String(d.entryDate).slice(0, 10)) ||
+        (d.gpCompleteDate && String(d.gpCompleteDate).slice(0, 10)) ||
+        b.createdAt.toISOString().slice(0, 10);
+      if (!inDateRange(entryDay)) continue;
+
+      const millName = b.plant?.name || '-';
+      const truckNo = d.truckNo || b.weighbridge?.vehicleNo || '-';
+      const partyName = d.partyName || b.supplier?.name || '-';
+      const alloc = (d.allocationType || '').toLowerCase();
+      const isHoodi =
+        alloc.includes('hoodi') || !!d.isUploadedToHoodiRegister;
+      const sortKey =
+        (d.unloadingStartTime
+          ? new Date(d.unloadingStartTime).toISOString()
+          : '') ||
+        `${entryDay}T${d.timeIn || '00:00'}` ||
+        b.createdAt.toISOString();
+
+      const pushRow = (opts: {
+        unloader: string;
+        stackType: 'Main' | 'Part';
+        truckCount: any;
+        stackNoRaw: any;
+        bags: any;
+        aClass?: any;
+        bClass?: any;
+      }) => {
+        const name = String(opts.unloader || '').trim();
+        if (!name) return;
+        if (
+          unloaderName &&
+          unloaderName.trim() &&
+          name.toLowerCase() !== unloaderName.trim().toLowerCase()
+        ) {
+          return;
+        }
+
+        // N / O from Paddy Inward; P = N + O when A/B known, else bags for that unloader
+        const a =
+          opts.aClass != null && opts.aClass !== ''
+            ? Number(opts.aClass)
+            : null;
+        const bc =
+          opts.bClass != null && opts.bClass !== ''
+            ? Number(opts.bClass)
+            : null;
+        const aOk = a != null && !Number.isNaN(a);
+        const bOk = bc != null && !Number.isNaN(bc);
+        let totalBags: number | string = '-';
+        if (aOk || bOk) {
+          totalBags = (aOk ? a! : 0) + (bOk ? bc! : 0); // P = N + O
+        } else if (opts.bags != null && opts.bags !== '') {
+          const bagsNum = Number(opts.bags);
+          if (!Number.isNaN(bagsNum)) totalBags = bagsNum;
+        }
+
+        // H = Stack No. when stacking; I = Hoodi when marked hoodi (mutually exclusive)
+        const stackNo = isHoodi ? '-' : dash(opts.stackNoRaw);
+        const hoodi = isHoodi ? '✓' : '-';
+
+        rows.push({
+          millName,
+          unloaderName: name,
+          date: entryDay,
+          unloaderTruckCount: dash(opts.truckCount),
+          rstNo: dash(d.rstNo),
+          millGp: dash(d.gpNo),
+          timeIn: fmtTime(d.timeIn),
+          timeOut: fmtTime(d.timeOut),
+          stackMain: opts.stackType === 'Main' ? '✓' : '-',
+          stackPart: opts.stackType === 'Part' ? '✓' : '-',
+          stackNo,
+          hoodi,
+          truckNo: dash(truckNo),
+          partyName: dash(partyName),
+          mandi: dash(d.mandi),
+          moisture: dash(d.moisture),
+          aClass: aOk ? a! : '-',
+          bClass: bOk ? bc! : '-',
+          totalBags,
+          labourParty: dash(d.labourType),
+          batchId: b.id,
+          sortKey,
+        });
+      };
+
+      // Main / Part → that unloader's sheet only (from Paddy Inward)
+      const mainName = d.allocateUnloader || d.unloaderName || '';
+      const partName = d.partUnloaderName || '';
+      const hasPart =
+        !!String(partName).trim() &&
+        (d.bagsInSecondPartStack != null || !!d.secondPartStackNo);
+
+      if (mainName) {
+        pushRow({
+          unloader: mainName,
+          stackType: 'Main',
+          truckCount: d.mainUnloaderTruckCount,
+          stackNoRaw: d.stackNo,
+          bags:
+            d.bagsInMainStack != null
+              ? d.bagsInMainStack
+              : hasPart
+                ? null
+                : d.totalBagsReceived,
+          aClass: hasPart ? null : d.aClassReceived,
+          bClass: hasPart ? null : d.bClassReceived,
+        });
+      }
+      if (hasPart && partName) {
+        pushRow({
+          unloader: partName,
+          stackType: 'Part',
+          truckCount: d.partUnloaderTruckCount,
+          stackNoRaw: d.secondPartStackNo,
+          bags: d.bagsInSecondPartStack,
+          aClass: null,
+          bClass: null,
+        });
+      }
+    }
+
+    rows.sort((a, b) => {
+      const u = a.unloaderName.localeCompare(b.unloaderName);
+      if (u) return u;
+      const dCmp = a.date.localeCompare(b.date);
+      if (dCmp) return dCmp;
+      return a.sortKey.localeCompare(b.sortKey);
+    });
+
+    // Independent daily sheets per unloader
+    const byUnloader: Record<
+      string,
+      {
+        unloaderName: string;
+        days: Record<
+          string,
+          {
+            date: string;
+            millName: string;
+            rows: Omit<Row, 'sortKey' | 'batchId'>[];
+            totals: {
+              trucks: number;
+              aClass: number;
+              bClass: number;
+              totalBags: number;
+            };
+          }
+        >;
+      }
+    > = {};
+
+    for (const r of rows) {
+      if (!byUnloader[r.unloaderName]) {
+        byUnloader[r.unloaderName] = {
+          unloaderName: r.unloaderName,
+          days: {},
+        };
+      }
+      const sheet = byUnloader[r.unloaderName];
+      if (!sheet.days[r.date]) {
+        sheet.days[r.date] = {
+          date: r.date,
+          millName: r.millName,
+          rows: [],
+          totals: { trucks: 0, aClass: 0, bClass: 0, totalBags: 0 },
+        };
+      }
+      const day = sheet.days[r.date];
+      const { sortKey: _s, batchId: _b, ...rest } = r;
+      day.rows.push(rest);
+      // Total trucks unloaded (count of rows on this unloader day sheet)
+      day.totals.trucks += 1;
+      if (typeof r.aClass === 'number') day.totals.aClass += r.aClass;
+      if (typeof r.bClass === 'number') day.totals.bClass += r.bClass;
+      if (typeof r.totalBags === 'number') day.totals.totalBags += r.totalBags;
+    }
+
+    const unloaders = Object.values(byUnloader)
+      .map((u) => ({
+        unloaderName: u.unloaderName,
+        days: Object.values(u.days).sort((a, b) => a.date.localeCompare(b.date)),
+        totalTrucks: Object.values(u.days).reduce((s, d) => s + d.totals.trucks, 0),
+      }))
+      .sort((a, b) => a.unloaderName.localeCompare(b.unloaderName));
+
+    // Submission status per unloader × day (Feedback 39 — submit to Admin before inward evening)
+    const snaps = await this.prisma.dailyUnloaderReportSnapshot.findMany({
+      where: {
+        plantId: plantId && plantId !== 'global' ? plantId : undefined,
+        reportDate: { gte: from, lte: to },
+        ...(unloaderName?.trim()
+          ? { unloaderName: { equals: unloaderName.trim(), mode: 'insensitive' } }
+          : {}),
+      },
+    });
+    const snapKey = (d: string, n: string) =>
+      `${d}|${String(n).trim().toLowerCase()}`;
+    const snapMap = new Map(
+      snaps.map((s) => [
+        snapKey(s.reportDate, s.unloaderName),
+        s,
+      ]),
+    );
+
+    const unloadersWithSubmit = unloaders.map((u) => ({
+      ...u,
+      days: u.days.map((day) => {
+        const s = snapMap.get(snapKey(day.date, u.unloaderName));
+        return {
+          ...day,
+          submitted: !!s,
+          submittedAt: s?.submittedAt || null,
+          unloaderSigned: !!s?.unloaderBiometricOk,
+          supervisorSigned: !!s?.supervisorBiometricOk,
+          unloaderSignedBy: s?.unloaderSignedBy || null,
+          supervisorSignedBy: s?.supervisorSignedBy || null,
+        };
+      }),
+    }));
+
+    // Vehicles still unloading (incomplete) — excluded from list count
+    let excludedIncompleteCount = 0;
+    if (plantId && plantId !== 'global') {
+      excludedIncompleteCount = await this.prisma.paddyInwardDetails.count({
+        where: {
+          entryDate: { gte: from, lte: to },
+          OR: [
+            { unloadingEndTime: null },
+            { timeOut: null },
+            { timeOut: '' },
+          ],
+          procurementBatch: {
+            plantId,
+            status: { in: ['DRAFT', 'PENDING', 'ACTIVE', 'UNLOADING'] },
+          },
+        },
+      });
+    }
+
+    return {
+      systemGenerated: true,
+      plantId,
+      dateFrom: from,
+      dateTo: to,
+      unloaderFilter: unloaderName || null,
+      unloaderCount: unloadersWithSubmit.length,
+      totalTrucks: rows.length, // completed unload only
+      excludedIncompleteCount,
+      unloaders: unloadersWithSubmit,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Feedback 39 — submit one unloader's day report to Admin.
+   * Requires Unloader + Supervisor signature punches (fingerprints).
+   */
+  async submitUnloaderDayReport(opts: {
+    plantId: string;
+    date: string;
+    unloaderName: string;
+    unloaderBiometricData?: string;
+    supervisorBiometricData?: string;
+    unloaderSignedBy?: string;
+    supervisorSignedBy?: string;
+    user?: any;
+  }) {
+    const plantId = opts.plantId;
+    const reportDate = (opts.date || '').slice(0, 10);
+    const name = String(opts.unloaderName || '').trim();
+    if (!plantId || plantId === 'global') {
+      throw new BadRequestException('plantId is required');
+    }
+    if (!reportDate) throw new BadRequestException('date is required');
+    if (!name) throw new BadRequestException('unloaderName is required');
+
+    const isAdmin = this.isAdminRole(opts.user);
+    if (!opts.unloaderBiometricData) {
+      throw new BadRequestException(
+        'Unloader fingerprint signature is required before submitting this report',
+      );
+    }
+    if (!opts.supervisorBiometricData) {
+      throw new BadRequestException(
+        'Supervisor fingerprint signature is required before submitting this report',
+      );
+    }
+    if (
+      !isAdmin &&
+      (opts.unloaderBiometricData === 'ADMIN_BYPASS' ||
+        opts.supervisorBiometricData === 'ADMIN_BYPASS')
+    ) {
+      throw new BadRequestException(
+        'Admin bypass not allowed for supervisors — both signatures must be scanned',
+      );
+    }
+
+    const report = await this.getLoaderUnloaderReport(
+      plantId,
+      reportDate,
+      reportDate,
+      name,
+    );
+    const sheet = (report.unloaders || []).find(
+      (u: any) =>
+        String(u.unloaderName).trim().toLowerCase() === name.toLowerCase(),
+    );
+    if (!sheet || !sheet.days?.length || sheet.totalTrucks < 1) {
+      throw new BadRequestException(
+        `No completed unload trucks for ${name} on ${reportDate} — nothing to submit`,
+      );
+    }
+    const dayPayload = sheet.days.find((d: any) => d.date === reportDate) || sheet.days[0];
+
+    const snap = await this.prisma.dailyUnloaderReportSnapshot.upsert({
+      where: {
+        reportDate_plantId_unloaderName: {
+          reportDate,
+          plantId,
+          unloaderName: name,
+        },
+      },
+      create: {
+        reportDate,
+        plantId,
+        unloaderName: name,
+        payload: dayPayload,
+        unloaderSignedBy: opts.unloaderSignedBy || name,
+        supervisorSignedBy:
+          opts.supervisorSignedBy || opts.user?.username || null,
+        unloaderBiometricOk: true,
+        supervisorBiometricOk: true,
+        submittedBy: opts.supervisorSignedBy || opts.user?.username || null,
+      },
+      update: {
+        payload: dayPayload,
+        unloaderSignedBy: opts.unloaderSignedBy || name,
+        supervisorSignedBy:
+          opts.supervisorSignedBy || opts.user?.username || null,
+        unloaderBiometricOk: true,
+        supervisorBiometricOk: true,
+        submittedBy: opts.supervisorSignedBy || opts.user?.username || null,
+        submittedAt: new Date(),
+      },
+    });
+
+    await this.notifyAdmin(
+      this.prisma,
+      opts.user?.id,
+      'UNLOADER_DAY_REPORT_SUBMITTED',
+      `Unloader day report submitted for ${name} on ${reportDate} (${dayPayload.totals?.trucks || 0} truck(s)). Unloader + Supervisor signatures punched.`,
+      snap.id,
+      plantId,
+    );
+
+    return {
+      ok: true,
+      snapshot: snap,
+      message: `Report for ${name} submitted to Admin for ${reportDate}`,
+    };
+  }
+
+  /** Feedback 39 — block evening inward submit until all unloader day reports are signed+submitted */
+  async assertUnloaderReportsReadyForInwardSubmit(
+    plantId: string,
+    reportDate: string,
+  ) {
+    const report = await this.getLoaderUnloaderReport(
+      plantId,
+      reportDate,
+      reportDate,
+    );
+    const needed = (report.unloaders || [])
+      .filter((u: any) => (u.totalTrucks || 0) > 0)
+      .map((u: any) => String(u.unloaderName).trim());
+    if (!needed.length) return;
+
+    const snaps = await this.prisma.dailyUnloaderReportSnapshot.findMany({
+      where: {
+        plantId,
+        reportDate,
+        unloaderBiometricOk: true,
+        supervisorBiometricOk: true,
+      },
+      select: { unloaderName: true },
+    });
+    const done = new Set(
+      snaps.map((s) => String(s.unloaderName).trim().toLowerCase()),
+    );
+    const missing = needed.filter((n) => !done.has(n.toLowerCase()));
+    if (missing.length) {
+      throw new BadRequestException(
+        `Complete Loader & Unloader reports (Unloader + Supervisor signatures) before Paddy Inward evening submit. Missing: ${missing.join(', ')}`,
+      );
+    }
   }
 }

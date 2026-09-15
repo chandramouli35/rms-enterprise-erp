@@ -1,0 +1,35 @@
+=== line 1601 ===
+re.
+● [ ] Add "No Part Stack" Toggle Checkbox: Add an option to turn off Part Stack details
+with a tick box named "No Part Stack" so supervisors don't need to add an entry in the
+part stack 4 column, ensuring no error is raised to fill the empty column when submitting
+the inward paddy.
+● [ ] Update Stack Drawings: Fix stack drawing update for Beas Agro (currently showing
+Goyal Agro drawing) and update Rajoa Agro stack drawing.
+● [ ] Fix Scrolling Cursor: Ensure while scrolling cursor on stack drawing data, the stack
+summary is not completely visible.
+● [ ] Improve Boli Table Navigation: While adding Boli in Estimate Purchase, allow the
+supervisor to use right/left arrows or Enter button to shift/move to the next column.
+● [ ] Add Test Boli Entries: Add some sample Boli entries in estimate Boli for
+testing/checking purposes( for the time being )
+● [ ] Update Section 5 Text: In Section 5, Rename the line by "Entry as per weight, Bags
+Received less than Agency GP" Then Tick box "Inform Bauji" line. When the pop appears
+for editing, make the first text line colours in light grey as norma
+
+=== line 1647 ===
+re.
+● [ ] Add "No Part Stack" Toggle Checkbox: Add an option to turn off Part Stack details
+with a tick box named "No Part Stack" so supervisors don't need to add an entry in the
+part stack 4 column, ensuring no error is raised to fill the empty column when submitting
+the inward paddy.
+● [ ] Update Stack Drawings: Fix stack drawing update for Beas Agro (currently showing
+Goyal Agro drawing) and update Rajoa Agro stack drawing.
+● [ ] Fix Scrolling Cursor: Ensure while scrolling cursor on stack drawing data, the stack
+summary is not completely visible.
+● [ ] Improve Boli Table Navigation: While adding Boli in Estimate Purchase, allow the
+supervisor to use right/left arrows or Enter button to shift/move to the next column.
+● [ ] Add Test Boli Entries: Add some sample Boli entries in estimate Boli for
+testing/checking purposes( for the time being )
+● [ ] Update Section 5 Text: In Section 5, Rename the line by "Entry as per weight, Bags
+Received less than Agency GP" Then Tick box "Inform Bauji" line. When the pop appears
+for editing, make the first text line colours in light grey as norma

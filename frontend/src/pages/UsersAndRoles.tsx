@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { CustomModal } from '../components/CustomModal';
@@ -6,10 +6,11 @@ import { useUiStore } from '../store/uiStore';
 import Combobox from '../components/Combobox';
 import { usePlantStore } from '../store/plantStore';
 import Pagination from '../components/Pagination';
+import { biometricService } from '../services/biometricService';
 import { 
  Users, Shield, Lock, FileText, Plus, Search, 
  Filter, Edit2, Trash2, ChevronDown, ChevronRight, Check,
- UserCheck, UserX, Calendar, Clock, X, Eye, EyeOff
+ UserCheck, UserX, Calendar, Clock, X, Eye, EyeOff, Fingerprint, ArrowRightLeft
 } from 'lucide-react';
 import { useSubmitLock } from '../hooks/useSubmitLock';
 
@@ -37,9 +38,29 @@ export const UsersAndRoles: React.FC = () => {
  
  // Add User Modal State
  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
-  const [newUserForm, setNewUserForm] = useState<{fullName: string, username: string, email: string, password: string, roleId: string, plantIds: string[]}>({ fullName: '', username: '', email: '', password: '', roleId: '', plantIds: [] });
+  const [newUserForm, setNewUserForm] = useState<{
+    fullName: string;
+    username: string;
+    email: string;
+    password: string;
+    roleId: string;
+    plantIds: string[];
+    fingerprint1: string;
+    fingerprint2: string;
+  }>({
+    fullName: '',
+    username: '',
+    email: '',
+    password: '',
+    roleId: '',
+    plantIds: [],
+    fingerprint1: '',
+    fingerprint2: '',
+  });
  const [showPassword, setShowPassword] = useState(false);
   const [isAddPlantDropdownOpen, setIsAddPlantDropdownOpen] = useState(false);
+  const addPlantDropdownRef = useRef<HTMLDivElement>(null);
+  const editPlantDropdownRef = useRef<HTMLDivElement>(null);
 
  // Add Role Modal State
  const [isAddRoleModalOpen, setIsAddRoleModalOpen] = useState(false);
@@ -52,11 +73,27 @@ export const UsersAndRoles: React.FC = () => {
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [isEditPlantDropdownOpen, setIsEditPlantDropdownOpen] = useState(false);
 
+  // Transfer User (single-mill → new mill account)
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferForm, setTransferForm] = useState({
+    sourceUserId: '',
+    sourceUsername: '',
+    sourceRoleName: '',
+    plantId: '',
+    username: '',
+    password: '',
+    email: '',
+    fingerprint1: '',
+    fingerprint2: '',
+  });
+  const [showTransferPassword, setShowTransferPassword] = useState(false);
+
   const permissionsLock = useSubmitLock();
   const addUserLock = useSubmitLock();
   const addRoleLock = useSubmitLock();
   const editUserLock = useSubmitLock();
   const deleteUserLock = useSubmitLock();
+  const transferUserLock = useSubmitLock();
 
   const toggleModule = (moduleName: string) => {
     const next = new Set(expandedModules);
@@ -77,6 +114,80 @@ export const UsersAndRoles: React.FC = () => {
  setSearchParams({ tab: location.state.defaultTab });
  }
  }, [location.state?.defaultTab]);
+
+  // Close plant dropdowns when clicking outside (empty screen / elsewhere)
+  useEffect(() => {
+    const onDocMouseDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (
+        isAddPlantDropdownOpen &&
+        addPlantDropdownRef.current &&
+        !addPlantDropdownRef.current.contains(t)
+      ) {
+        setIsAddPlantDropdownOpen(false);
+      }
+      if (
+        isEditPlantDropdownOpen &&
+        editPlantDropdownRef.current &&
+        !editPlantDropdownRef.current.contains(t)
+      ) {
+        setIsEditPlantDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [isAddPlantDropdownOpen, isEditPlantDropdownOpen]);
+
+  const selectedAddRole = roles.find((r) => r.id === newUserForm.roleId);
+  const isAddSupervisorRole =
+    !!selectedAddRole?.name && /supervisor/i.test(String(selectedAddRole.name));
+  /** Admins / Superadmins, or roles with "Add more than one mill" permission */
+  const roleAllowsMultipleMills = (roleOrName?: any) => {
+    if (!roleOrName) return false;
+    if (typeof roleOrName === 'object') {
+      if (roleOrName.allowsMultipleMills === true) return true;
+      roleOrName = roleOrName.name;
+    }
+    const n = String(roleOrName).trim().toUpperCase().replace(/[\s-]+/g, '_');
+    return (
+      n === 'SUPER_ADMIN' ||
+      n === 'SUPERADMIN' ||
+      n === 'ADMIN' ||
+      n === 'ADMINISTRATOR'
+    );
+  };
+  const addAllowsMultiMill = roleAllowsMultipleMills(selectedAddRole);
+  const selectedEditRole = roles.find((r) => r.id === editUserForm.roleId);
+  const editAllowsMultiMill = roleAllowsMultipleMills(selectedEditRole);
+
+  const resetNewUserForm = () =>
+    setNewUserForm({
+      fullName: '',
+      username: '',
+      email: '',
+      password: '',
+      roleId: '',
+      plantIds: [],
+      fingerprint1: '',
+      fingerprint2: '',
+    });
+
+  const captureUserFingerprint = async (slot: 1 | 2) => {
+    try {
+      const xml = await biometricService.captureFingerprint();
+      setNewUserForm((prev) => ({
+        ...prev,
+        ...(slot === 1 ? { fingerprint1: xml } : { fingerprint2: xml }),
+      }));
+      useUiStore
+        .getState()
+        .addToast(`Fingerprint ${slot} captured successfully`, 'success');
+    } catch (err: any) {
+      useUiStore
+        .getState()
+        .addToast(err?.message || `Fingerprint ${slot} capture failed`, 'error');
+    }
+  };
 
  const fetchInitialData = async () => {
  try {
@@ -168,16 +279,52 @@ export const UsersAndRoles: React.FC = () => {
 
  const handleAddUser = async (e: React.FormEvent) => {
  e.preventDefault();
+ if (!newUserForm.roleId) {
+   setModalConfig({ isOpen: true, title: 'Role Required', content: 'Please assign a role before creating the user.' });
+   return;
+ }
+ if (!newUserForm.plantIds.length) {
+   setModalConfig({
+     isOpen: true,
+     title: 'Plant Required',
+     content: addAllowsMultiMill
+       ? 'Select at least one mill under Primary Plant.'
+       : 'Select exactly one plant under Primary Plant.',
+   });
+   return;
+ }
+ if (!addAllowsMultiMill && newUserForm.plantIds.length > 1) {
+   setModalConfig({
+     isOpen: true,
+     title: 'Mill Allocation',
+     content: 'This role can be assigned to only one plant. Admin / Superadmin may select multiple mills.',
+   });
+   return;
+ }
+ if (isAddSupervisorRole && (!newUserForm.fingerprint1 || !newUserForm.fingerprint2)) {
+   setModalConfig({
+     isOpen: true,
+     title: 'Fingerprints Required',
+     content: 'Supervisor registration requires two fingerprint scans (Finger 1 and Finger 2).',
+   });
+   return;
+ }
  await addUserLock.wrapSubmit(async () => {
  try {
- await api.post('/users-roles/create', newUserForm);
+ const plantIds = addAllowsMultiMill ? newUserForm.plantIds : newUserForm.plantIds.slice(0, 1);
+ await api.post('/users-roles/create', { ...newUserForm, plantIds });
  setIsAddUserModalOpen(false);
+ setIsAddPlantDropdownOpen(false);
  setModalConfig({ isOpen: true, title: 'Success', content: 'User created successfully!' });
  fetchInitialData();
- setNewUserForm({ fullName: '', username: '', email: '', password: '', roleId: '', plantIds: [] });
- } catch (err) {
+ resetNewUserForm();
+ } catch (err: any) {
  console.error('Failed to create user', err);
- setModalConfig({ isOpen: true, title: 'Error', content: 'Failed to create user. Please try again.' });
+ setModalConfig({
+   isOpen: true,
+   title: 'Error',
+   content: err?.response?.data?.message || 'Failed to create user. Please try again.',
+ });
  }
  });
  };
@@ -203,6 +350,15 @@ export const UsersAndRoles: React.FC = () => {
  };
 
   const handleEditUserClick = (user: any) => {
+    const roleName =
+      (typeof user.role === 'string' ? user.role : user.role?.name) ||
+      roles.find((r) => r.id === user.roleId)?.name;
+    const multi = roleAllowsMultipleMills(roleName);
+    const allPlantIds: string[] =
+      (Array.isArray(user.plantIds) && user.plantIds.length
+        ? user.plantIds
+        : user.plantAccess?.map((pa: any) => pa.plantId)) ||
+      (user.plantId ? [user.plantId] : []);
     setEditUserForm({
       id: user.id,
       fullName: user.fullname || user.username || '',
@@ -210,7 +366,7 @@ export const UsersAndRoles: React.FC = () => {
       newPassword: '',
       confirmPassword: '',
       roleId: user.roleId || '',
-      plantIds: user.plantAccess?.map((pa: any) => pa.plantId) || []
+      plantIds: multi ? allPlantIds : allPlantIds.slice(0, 1),
     });
     setIsEditUserModalOpen(true);
   };
@@ -225,9 +381,29 @@ export const UsersAndRoles: React.FC = () => {
     }
   }
 
+  if (!editUserForm.plantIds.length) {
+    setModalConfig({
+      isOpen: true,
+      title: 'Plant Required',
+      content: editAllowsMultiMill
+        ? 'Select at least one mill under Primary Plant.'
+        : 'Select exactly one plant under Primary Plant.',
+    });
+    return;
+  }
+  if (!editAllowsMultiMill && editUserForm.plantIds.length > 1) {
+    setModalConfig({
+      isOpen: true,
+      title: 'Mill Allocation',
+      content: 'This role can be assigned to only one plant. Admin / Superadmin may select multiple mills.',
+    });
+    return;
+  }
+
   await editUserLock.wrapSubmit(async () => {
   try {
-  await api.patch(`/users-roles/users/${editUserForm.id}`, editUserForm);
+  const plantIds = editAllowsMultiMill ? editUserForm.plantIds : editUserForm.plantIds.slice(0, 1);
+  await api.patch(`/users-roles/users/${editUserForm.id}`, { ...editUserForm, plantIds });
   setIsEditUserModalOpen(false);
   setModalConfig({ isOpen: true, title: 'Success', content: 'User updated successfully!' });
   fetchInitialData();
@@ -238,7 +414,95 @@ export const UsersAndRoles: React.FC = () => {
   });
   };
 
- const handleDeleteUser = async (id: string) => {
+  const handleTransferUserClick = (user: any) => {
+    const roleName =
+      (typeof user.role === 'string' ? user.role : user.role?.name) || '';
+    if (roleAllowsMultipleMills(roles.find((r) => r.id === user.roleId) || roleName)) {
+      setModalConfig({
+        isOpen: true,
+        title: 'Use Edit instead',
+        content:
+          'This role can hold multiple mills. Update Primary Plant on Edit User instead of transferring.',
+      });
+      return;
+    }
+    setTransferForm({
+      sourceUserId: user.id,
+      sourceUsername: user.username,
+      sourceRoleName: roleName,
+      plantId: '',
+      username: '',
+      password: '',
+      email: '',
+      fingerprint1: '',
+      fingerprint2: '',
+    });
+    setIsTransferModalOpen(true);
+  };
+
+  const captureTransferFingerprint = async (slot: 1 | 2) => {
+    try {
+      const xml = await biometricService.captureFingerprint();
+      setTransferForm((prev) => ({
+        ...prev,
+        ...(slot === 1 ? { fingerprint1: xml } : { fingerprint2: xml }),
+      }));
+      useUiStore.getState().addToast(`Fingerprint ${slot} captured`, 'success');
+    } catch (err: any) {
+      useUiStore
+        .getState()
+        .addToast(err?.message || `Fingerprint ${slot} capture failed`, 'error');
+    }
+  };
+
+  const handleTransferUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transferForm.plantId || !transferForm.username || !transferForm.password) {
+      setModalConfig({
+        isOpen: true,
+        title: 'Missing fields',
+        content: 'Destination mill, new User ID and password are required.',
+      });
+      return;
+    }
+    const needsFp = /supervisor/i.test(transferForm.sourceRoleName);
+    if (needsFp && (!transferForm.fingerprint1 || !transferForm.fingerprint2)) {
+      setModalConfig({
+        isOpen: true,
+        title: 'Fingerprints Required',
+        content: 'Supervisor transfer requires two new fingerprint scans.',
+      });
+      return;
+    }
+    await transferUserLock.wrapSubmit(async () => {
+      try {
+        await api.post(`/users-roles/users/${transferForm.sourceUserId}/transfer`, {
+          plantId: transferForm.plantId,
+          username: transferForm.username,
+          password: transferForm.password,
+          email: transferForm.email || undefined,
+          fingerprint1: transferForm.fingerprint1 || undefined,
+          fingerprint2: transferForm.fingerprint2 || undefined,
+        });
+        setIsTransferModalOpen(false);
+        setModalConfig({
+          isOpen: true,
+          title: 'Transferred',
+          content:
+            'New mill account created. Old User ID archived; historical entries and prior fingerprints retained.',
+        });
+        fetchInitialData();
+      } catch (err: any) {
+        setModalConfig({
+          isOpen: true,
+          title: 'Error',
+          content: err?.response?.data?.message || 'Transfer failed.',
+        });
+      }
+    });
+  };
+
+  const handleDeleteUser = async (id: string) => {
  if(!window.confirm('Are you sure you want to delete this user?')) return;
  await deleteUserLock.wrapSubmit(async () => {
  try {
@@ -254,6 +518,7 @@ export const UsersAndRoles: React.FC = () => {
 
     const getNotApplicableActions = (moduleName: string) => {
     const name = moduleName.toLowerCase();
+    if (name.includes('add more than one mill')) return ['add', 'edit', 'delete', 'approve'];
     if (name.includes('dashboard') || name.includes('report') || name.includes('analytics') || name.includes('tracking') || name.includes('qr barcode') || name.includes('summary')) return ['add', 'edit', 'delete', 'approve'];
     if (name.includes('setting')) return ['add', 'delete', 'approve'];
     if (name.includes('product') || name.includes('stock')) return ['approve'];
@@ -404,8 +669,9 @@ export const UsersAndRoles: React.FC = () => {
  <td className="px-3 py-3 text-[var(--text-muted-alt)]">{user.lastLogin}</td>
  <td className="px-3 py-3">
  <div className="flex items-center justify-center gap-2">
- <button onClick={() => handleEditUserClick(user)} className="p-1.5 text-[var(--text-muted-alt)] hover:text-[#e67e00] hover:bg-[#e67e00]/10 rounded transition-colors"><Edit2 size={14} /></button>
- <button onClick={() => handleDeleteUser(user.id)} className="p-1.5 text-[var(--text-muted-alt)] hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"><Trash2 size={14} /></button>
+ <button title="Edit" onClick={() => handleEditUserClick(user)} className="p-1.5 text-[var(--text-muted-alt)] hover:text-[#e67e00] hover:bg-[#e67e00]/10 rounded transition-colors"><Edit2 size={14} /></button>
+ <button title="Transfer to another mill" onClick={() => handleTransferUserClick(user)} className="p-1.5 text-[var(--text-muted-alt)] hover:text-sky-400 hover:bg-sky-400/10 rounded transition-colors"><ArrowRightLeft size={14} /></button>
+ <button title="Delete" onClick={() => handleDeleteUser(user.id)} className="p-1.5 text-[var(--text-muted-alt)] hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"><Trash2 size={14} /></button>
  </div>
  </td>
  </tr>
@@ -623,16 +889,21 @@ export const UsersAndRoles: React.FC = () => {
 
  {/* Add User Modal */}
  {isAddUserModalOpen && (
- <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
- <div className="relative w-full max-w-md bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-visible">
- <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] rounded-t-2xl">
+ <div
+   className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+   onMouseDown={() => setIsAddPlantDropdownOpen(false)}
+ >
+ <div
+   className="relative w-full max-w-md bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-visible max-h-[90vh] flex flex-col"
+   onMouseDown={(e) => e.stopPropagation()}
+ >
+ <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] rounded-t-2xl shrink-0">
  <h2 className="text-lg font-semibold text-[var(--text-main)]">Register New User</h2>
- <button onClick={() => setIsAddUserModalOpen(false)} className="text-[var(--text-muted-alt)] hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)] p-1.5 rounded-lg transition-colors">
+ <button onClick={() => { setIsAddUserModalOpen(false); setIsAddPlantDropdownOpen(false); resetNewUserForm(); }} className="text-[var(--text-muted-alt)] hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)] p-1.5 rounded-lg transition-colors">
  <X size={20} />
  </button>
  </div>
- <div className="p-6 text-[var(--text-muted)]">
- {/* Same form as above */}
+ <div className="p-6 text-[var(--text-muted)] overflow-y-auto flex-1">
  <form id="realAddUserForm" onSubmit={handleAddUser} className="space-y-4">
  <div>
  <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Full Name</label>
@@ -675,47 +946,67 @@ export const UsersAndRoles: React.FC = () => {
  </div>
  )}
  </div>
- <div className="flex gap-3">
- <div className="w-1/2">
+ <div>
  <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Assign Role</label>
  <Combobox
  name="roleId"
  value={newUserForm.roleId}
- onChange={(e: any) => setNewUserForm({...newUserForm, roleId: e.target.value})}
+ onChange={(e: any) => {
+   const nextRoleId = e.target.value;
+   const nextRole = roles.find((r) => r.id === nextRoleId);
+   const multi = roleAllowsMultipleMills(nextRole);
+   setNewUserForm((prev) => ({
+     ...prev,
+     roleId: nextRoleId,
+     plantIds: multi ? prev.plantIds : prev.plantIds.slice(0, 1),
+     ...(!/supervisor/i.test(String(nextRole?.name || ''))
+       ? { fingerprint1: '', fingerprint2: '' }
+       : {}),
+   }));
+ }}
  options={roles}
  valueKey="id"
  placeholder="Select Role..."
  required
+ listMaxHeightClass="max-h-36"
  className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500"
  />
  </div>
- <div className="w-1/2">
-   <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Primary Plant</label>
-   <div className="relative">
+ <div>
+   <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">
+     Primary Plant{addAllowsMultiMill ? ' (multiple allowed)' : ' (one only)'}
+   </label>
+   <div className="relative" ref={addPlantDropdownRef}>
      <div 
        className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] cursor-pointer flex justify-between items-center focus:border-blue-500 hover:border-[var(--border-subtle-alt)] transition-colors"
        onClick={() => setIsAddPlantDropdownOpen(!isAddPlantDropdownOpen)}
      >
        <span className={newUserForm.plantIds.length === 0 ? "text-[var(--text-muted-alt)]" : "flex-1 overflow-x-auto whitespace-nowrap mr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"}>
         {newUserForm.plantIds.length === 0 
-          ? "Select Plant Context..." 
+          ? (addAllowsMultiMill ? "Select mill(s)..." : "Select one mill...")
           : newUserForm.plantIds.map(id => plants.find(p => p.id === id)?.name).filter(Boolean).join(', ')}
       </span>
        <ChevronDown size={16} className={`text-[var(--text-muted-alt)] transition-transform ${isAddPlantDropdownOpen ? 'rotate-180' : ''}`} />
      </div>
      
      {isAddPlantDropdownOpen && (
-       <div className="absolute z-10 top-full mt-1 w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg shadow-lg max-h-[120px] overflow-y-auto">
+       <div className="absolute z-[100] top-full mt-1 w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg shadow-lg max-h-[140px] overflow-y-auto">
          {plants.map(p => (
-           <label key={p.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--bg-base)] cursor-pointer border-b border-[var(--border-subtle)] last:border-0">
+           <label key={p.id} className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--bg-base)] cursor-pointer border-b border-[var(--border-subtle)] last:border-0">
              <input 
-               type="checkbox"
+               type={addAllowsMultiMill ? 'checkbox' : 'radio'}
+               name={addAllowsMultiMill ? undefined : 'addPrimaryPlant'}
                checked={newUserForm.plantIds.includes(p.id)}
                onChange={(e) => {
-                 if (e.target.checked) {
-                   setNewUserForm(prev => ({...prev, plantIds: [...prev.plantIds, p.id]}));
+                 if (addAllowsMultiMill) {
+                   if (e.target.checked) {
+                     setNewUserForm(prev => ({...prev, plantIds: [...prev.plantIds, p.id]}));
+                   } else {
+                     setNewUserForm(prev => ({...prev, plantIds: prev.plantIds.filter(id => id !== p.id)}));
+                   }
                  } else {
-                   setNewUserForm(prev => ({...prev, plantIds: prev.plantIds.filter(id => id !== p.id)}));
+                   setNewUserForm(prev => ({...prev, plantIds: [p.id]}));
+                   setIsAddPlantDropdownOpen(false);
                  }
                }}
                className="w-4 h-4 text-amber-500 rounded border-[var(--border-subtle)] bg-[var(--bg-base)] focus:ring-amber-500 focus:ring-offset-[var(--bg-panel)]"
@@ -726,13 +1017,72 @@ export const UsersAndRoles: React.FC = () => {
        </div>
      )}
    </div>
-   </div>
+   <p className="text-[10px] text-[var(--text-muted-alt)] mt-1">
+     {addAllowsMultiMill
+       ? 'Multiple mills allowed (Admin / Superadmin, or role permission "Add more than one mill").'
+       : 'This role can be assigned to only one plant. Enable "Add more than one mill" under Permissions to allow more.'}
+   </p>
  </div>
+
+ {isAddSupervisorRole && (
+   <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-3">
+     <div className="flex items-center gap-2 text-amber-400 text-sm font-bold">
+       <Fingerprint size={16} />
+       Fingerprint Registration (2 required)
+     </div>
+     <p className="text-[11px] text-[var(--text-muted-alt)]">
+       Supervisor must enroll two fingers (e.g. left thumb + right thumb).
+     </p>
+     <div className="grid grid-cols-2 gap-3">
+       <div className="space-y-1.5">
+         <div className="text-[11px] text-[var(--text-muted-alt)] uppercase tracking-wide">Finger 1</div>
+         {newUserForm.fingerprint1 ? (
+           <div className="flex items-center gap-2 text-green-400 text-xs font-bold bg-green-900/20 border border-green-500/30 rounded-lg px-3 py-2">
+             <Check size={14} /> Captured
+           </div>
+         ) : (
+           <button
+             type="button"
+             onClick={() => captureUserFingerprint(1)}
+             className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5"
+           >
+             <Fingerprint size={14} /> Scan Finger 1
+           </button>
+         )}
+       </div>
+       <div className="space-y-1.5">
+         <div className="text-[11px] text-[var(--text-muted-alt)] uppercase tracking-wide">Finger 2</div>
+         {newUserForm.fingerprint2 ? (
+           <div className="flex items-center gap-2 text-green-400 text-xs font-bold bg-green-900/20 border border-green-500/30 rounded-lg px-3 py-2">
+             <Check size={14} /> Captured
+           </div>
+         ) : (
+           <button
+             type="button"
+             onClick={() => captureUserFingerprint(2)}
+             className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5"
+           >
+             <Fingerprint size={14} /> Scan Finger 2
+           </button>
+         )}
+       </div>
+     </div>
+     {(newUserForm.fingerprint1 || newUserForm.fingerprint2) && (
+       <button
+         type="button"
+         onClick={() => setNewUserForm((p) => ({ ...p, fingerprint1: '', fingerprint2: '' }))}
+         className="text-[11px] text-[var(--text-muted-alt)] hover:text-red-400 underline"
+       >
+         Clear fingerprints &amp; re-scan
+       </button>
+     )}
+   </div>
+ )}
  </form>
  </div>
- <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3 rounded-b-2xl">
- <button onClick={() => setIsAddUserModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
- <button form="realAddUserForm" type="submit" disabled={addUserLock.pending} className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">{addUserLock.pending ? 'Creating...' : 'Create User'}</button>
+ <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3 rounded-b-2xl shrink-0">
+ <button onClick={() => { setIsAddUserModalOpen(false); setIsAddPlantDropdownOpen(false); resetNewUserForm(); }} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
+ <button form="realAddUserForm" type="submit" disabled={addUserLock.pending} className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium transition-colors disabled:opacity-50">{addUserLock.pending ? 'Creating...' : 'Create User'}</button>
  </div>
  </div>
  </div>
@@ -799,41 +1149,59 @@ export const UsersAndRoles: React.FC = () => {
  <Combobox
  name="roleId"
  value={editUserForm.roleId}
- onChange={(e: any) => setEditUserForm({...editUserForm, roleId: e.target.value})}
+ onChange={(e: any) => {
+   const nextRoleId = e.target.value;
+   const nextRole = roles.find((r) => r.id === nextRoleId);
+   const multi = roleAllowsMultipleMills(nextRole);
+   setEditUserForm((prev) => ({
+     ...prev,
+     roleId: nextRoleId,
+     plantIds: multi ? prev.plantIds : prev.plantIds.slice(0, 1),
+   }));
+ }}
  options={roles}
  valueKey="id"
  placeholder="Select Role"
  required
+ listMaxHeightClass="max-h-36"
  className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 transition-colors"
  />
  </div>
  <div>
-   <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Primary Plant</label>
-   <div className="relative">
+   <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">
+     Primary Plant{editAllowsMultiMill ? ' (multiple)' : ' (one only)'}
+   </label>
+   <div className="relative" ref={editPlantDropdownRef}>
      <div 
        className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] cursor-pointer flex justify-between items-center focus:border-blue-500 hover:border-[var(--border-subtle-alt)] transition-colors"
        onClick={() => setIsEditPlantDropdownOpen(!isEditPlantDropdownOpen)}
      >
        <span className={editUserForm.plantIds.length === 0 ? "text-[var(--text-muted-alt)]" : "flex-1 overflow-x-auto whitespace-nowrap mr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"}>
         {editUserForm.plantIds.length === 0 
-          ? "Select Plant Context..." 
+          ? (editAllowsMultiMill ? "Select mill(s)..." : "Select one mill...")
           : editUserForm.plantIds.map(id => plants.find(p => p.id === id)?.name).filter(Boolean).join(', ')}
       </span>
        <ChevronDown size={16} className={`text-[var(--text-muted-alt)] transition-transform ${isEditPlantDropdownOpen ? 'rotate-180' : ''}`} />
      </div>
      
      {isEditPlantDropdownOpen && (
-       <div className="absolute z-10 top-full mt-1 w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg shadow-lg max-h-[120px] overflow-y-auto">
+       <div className="absolute z-[100] top-full mt-1 w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg shadow-lg max-h-[120px] overflow-y-auto">
          {plants.map(p => (
            <label key={p.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--bg-base)] cursor-pointer border-b border-[var(--border-subtle)] last:border-0">
              <input 
-               type="checkbox"
+               type={editAllowsMultiMill ? 'checkbox' : 'radio'}
+               name={editAllowsMultiMill ? undefined : 'editPrimaryPlant'}
                checked={editUserForm.plantIds.includes(p.id)}
                onChange={(e) => {
-                 if (e.target.checked) {
-                   setEditUserForm(prev => ({...prev, plantIds: [...prev.plantIds, p.id]}));
+                 if (editAllowsMultiMill) {
+                   if (e.target.checked) {
+                     setEditUserForm(prev => ({...prev, plantIds: [...prev.plantIds, p.id]}));
+                   } else {
+                     setEditUserForm(prev => ({...prev, plantIds: prev.plantIds.filter(id => id !== p.id)}));
+                   }
                  } else {
-                   setEditUserForm(prev => ({...prev, plantIds: prev.plantIds.filter(id => id !== p.id)}));
+                   setEditUserForm(prev => ({...prev, plantIds: [p.id]}));
+                   setIsEditPlantDropdownOpen(false);
                  }
                }}
                className="w-4 h-4 text-amber-500 rounded border-[var(--border-subtle)] bg-[var(--bg-base)] focus:ring-amber-500 focus:ring-offset-[var(--bg-panel)]"
@@ -844,6 +1212,11 @@ export const UsersAndRoles: React.FC = () => {
        </div>
      )}
    </div>
+   <p className="text-[10px] text-[var(--text-muted-alt)] mt-1">
+     {editAllowsMultiMill
+       ? 'Multiple mills allowed (Admin / Superadmin, or "Add more than one mill" permission).'
+       : 'This role can be assigned to only one plant.'}
+   </p>
    </div>
  </div>
  </form>
@@ -881,6 +1254,100 @@ export const UsersAndRoles: React.FC = () => {
  <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3 rounded-b-2xl">
  <button onClick={() => setIsAddRoleModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
  <button form="addRoleForm" type="submit" disabled={addRoleLock.pending} className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">{addRoleLock.pending ? 'Creating...' : 'Create Role'}</button>
+ </div>
+ </div>
+ </div>
+ )}
+
+ {/* Transfer User Modal */}
+ {isTransferModalOpen && (
+ <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+ <div className="relative w-full max-w-lg bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-visible">
+ <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] rounded-t-2xl">
+ <h2 className="text-lg font-semibold text-[var(--text-main)] flex items-center gap-2">
+ <ArrowRightLeft size={18} /> Transfer User Across Mills
+ </h2>
+ <button onClick={() => setIsTransferModalOpen(false)} className="text-[var(--text-muted-alt)] hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)] p-1.5 rounded-lg transition-colors">
+ <X size={20} />
+ </button>
+ </div>
+ <div className="p-6 max-h-[70vh] overflow-y-auto">
+ <p className="text-xs text-[var(--text-muted-alt)] mb-4">
+ Archiving <span className="text-[var(--text-main)] font-medium">{transferForm.sourceUsername}</span> ({transferForm.sourceRoleName}).
+ Historical entries and prior fingerprints stay on the archived User ID. Destination mill gets a new User ID, password
+ {/supervisor/i.test(transferForm.sourceRoleName) ? ', and two new fingerprints' : ''}.
+ </p>
+ <form id="transferUserForm" onSubmit={handleTransferUserSubmit} className="space-y-3">
+ <div>
+ <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Destination Mill *</label>
+ <select
+ required
+ value={transferForm.plantId}
+ onChange={(e) => setTransferForm((p) => ({ ...p, plantId: e.target.value }))}
+ className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)]"
+ >
+ <option value="">Select mill...</option>
+ {plants.map((p) => (
+ <option key={p.id} value={p.id}>{p.name} ({p.code})</option>
+ ))}
+ </select>
+ </div>
+ <div>
+ <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">New User ID *</label>
+ <input
+ required
+ value={transferForm.username}
+ onChange={(e) => setTransferForm((p) => ({ ...p, username: e.target.value }))}
+ className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)]"
+ placeholder="New login username"
+ />
+ </div>
+ <div>
+ <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">New Password *</label>
+ <div className="relative">
+ <input
+ required
+ type={showTransferPassword ? 'text' : 'password'}
+ value={transferForm.password}
+ onChange={(e) => setTransferForm((p) => ({ ...p, password: e.target.value }))}
+ className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 pr-10 text-sm text-[var(--text-main)]"
+ />
+ <button type="button" onClick={() => setShowTransferPassword(!showTransferPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted-alt)]">
+ {showTransferPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+ </button>
+ </div>
+ </div>
+ <div>
+ <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Email (optional)</label>
+ <input
+ type="email"
+ value={transferForm.email}
+ onChange={(e) => setTransferForm((p) => ({ ...p, email: e.target.value }))}
+ className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)]"
+ />
+ </div>
+ {/supervisor/i.test(transferForm.sourceRoleName) && (
+ <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+ <div className="flex items-center gap-2 text-amber-400 text-sm font-bold">
+ <Fingerprint size={16} /> Re-register fingerprints (2)
+ </div>
+ <div className="grid grid-cols-2 gap-2">
+ <button type="button" onClick={() => captureTransferFingerprint(1)} className={`text-xs font-bold rounded-lg px-3 py-2 border ${transferForm.fingerprint1 ? 'text-green-400 border-green-500/30 bg-green-900/20' : 'text-[var(--text-muted-alt)] border-[var(--border-subtle)]'}`}>
+ {transferForm.fingerprint1 ? 'Finger 1 ✓' : 'Scan Finger 1'}
+ </button>
+ <button type="button" onClick={() => captureTransferFingerprint(2)} className={`text-xs font-bold rounded-lg px-3 py-2 border ${transferForm.fingerprint2 ? 'text-green-400 border-green-500/30 bg-green-900/20' : 'text-[var(--text-muted-alt)] border-[var(--border-subtle)]'}`}>
+ {transferForm.fingerprint2 ? 'Finger 2 ✓' : 'Scan Finger 2'}
+ </button>
+ </div>
+ </div>
+ )}
+ </form>
+ </div>
+ <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3 rounded-b-2xl">
+ <button onClick={() => setIsTransferModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)]">Cancel</button>
+ <button form="transferUserForm" type="submit" disabled={transferUserLock.pending} className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] rounded-lg text-sm font-medium disabled:opacity-50">
+ {transferUserLock.pending ? 'Transferring...' : 'Transfer'}
+ </button>
  </div>
  </div>
  </div>

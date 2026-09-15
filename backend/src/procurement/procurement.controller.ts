@@ -37,6 +37,37 @@ export class ProcurementController {
     return this.procurementService.getDraftInwards(plantId);
   }
 
+  @Get('unloader-truck-count')
+  @RequirePermission('Procurement', 'canView')
+  getUnloaderTruckCount(
+    @Query('plantId') plantId: string,
+    @Query('unloaderName') unloaderName: string,
+    @Query('kind') kind?: string,
+    @Query('date') date?: string,
+    @Query('excludeBatchId') excludeBatchId?: string,
+  ) {
+    if (!plantId || !unloaderName) {
+      throw new BadRequestException('plantId and unloaderName are required');
+    }
+    return this.procurementService.getNextUnloaderTruckCount(
+      plantId,
+      unloaderName,
+      kind === 'part' ? 'part' : 'main',
+      date,
+      excludeBatchId,
+    );
+  }
+
+  @Get('paddy-stack-documentation')
+  @RequirePermission('Procurement', 'canView')
+  getPaddyStackDocumentation(
+    @Query('plantId') plantId: string,
+    @Query('date') date?: string,
+  ) {
+    if (!plantId) throw new BadRequestException('plantId is required');
+    return this.procurementService.getPaddyStackDocumentation(plantId, date);
+  }
+
   @Get('inwards/:plantId')
   @RequirePermission('Procurement', 'canView')
   getInwards(
@@ -168,6 +199,12 @@ export class ProcurementController {
     return this.procurementService.getSupervisorsForPlant(plantId);
   }
 
+  @Get('unloaders/:plantId')
+  @RequirePermission('Procurement', 'canView')
+  getUnloadersForPlant(@Param('plantId') plantId: string) {
+    return this.procurementService.getUnloadersForPlant(plantId);
+  }
+
   @Post('soda-pending')
   @RequirePermission('Procurement', 'canAdd')
   async createSodaPending(@Body() data: any, @Req() req: any) {
@@ -193,6 +230,28 @@ export class ProcurementController {
   async submitFinalBoli(@Param('id') id: string, @Body() data: any, @Req() req: any) {
     try {
       return await this.procurementService.submitFinalBoli(id, data, req.user);
+    } catch (error: any) {
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  /** Cancel a single Boli (supervisor allowed from Final Boli section) */
+  @Put('bolis/:id/cancel')
+  @RequirePermission('Procurement', 'canEdit')
+  async cancelBoli(@Param('id') id: string, @Req() req: any) {
+    try {
+      return await this.procurementService.cancelBoli(id, req.user);
+    } catch (error: any) {
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  /** Cancel entire soda (all open bolis under the estimate) from Final Boli */
+  @Put('soda-pending/:id/cancel')
+  @RequirePermission('Procurement', 'canEdit')
+  async cancelSoda(@Param('id') id: string, @Req() req: any) {
+    try {
+      return await this.procurementService.cancelSoda(id, req.user);
     } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -388,6 +447,45 @@ export class ProcurementController {
   async getStackLayout(@Query('plantId') plantId: string) {
     if (!plantId) throw new BadRequestException('plantId is required');
     return await this.procurementService.getStackLayout(plantId);
+  }
+
+  @Get('reports/loader-unloader')
+  @RequirePermission('Procurement', 'canView')
+  async getLoaderUnloaderReport(
+    @Query('plantId') plantId: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('unloaderName') unloaderName?: string,
+  ) {
+    return this.procurementService.getLoaderUnloaderReport(
+      plantId || 'global',
+      dateFrom,
+      dateTo,
+      unloaderName,
+    );
+  }
+
+  /** Feedback 39 — submit one unloader day report to Admin (both signatures required) */
+  @Post('reports/loader-unloader/submit')
+  @RequirePermission('Procurement', 'canEdit')
+  async submitUnloaderDayReport(@Body() body: any, @Req() req: any) {
+    try {
+      return await this.procurementService.submitUnloaderDayReport({
+        plantId: body?.plantId,
+        date: body?.date,
+        unloaderName: body?.unloaderName,
+        unloaderBiometricData: body?.unloaderBiometricData,
+        supervisorBiometricData: body?.supervisorBiometricData,
+        unloaderSignedBy: body?.unloaderSignedBy,
+        supervisorSignedBy: body?.supervisorSignedBy,
+        user: req.user,
+      });
+    } catch (error: any) {
+      throw new HttpException(
+        error.message || 'Unloader report submit failed',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 
   @Get('stack/active-trucks')

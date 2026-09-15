@@ -42,6 +42,13 @@ export class WeighbridgeController {
     return this.weighbridgeService.getSettings(plantId);
   }
 
+  /** Physical indicator connection status (COM / serial bridge) */
+  @Get('connection-status/:plantId')
+  @RequirePermission('Weighbridge', 'canView')
+  getConnectionStatus(@Param('plantId') plantId: string) {
+    return this.weighbridgeService.getConnectionStatus(plantId);
+  }
+
   @Put('settings/:plantId')
   @RequirePermission('Weighbridge', 'canEdit')
   updateSettings(@Param('plantId') plantId: string, @Body() data: any) {

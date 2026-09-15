@@ -45,6 +45,12 @@ export class UsersRolesController {
     return this.service.deleteUser(id);
   }
 
+  @Post('users/:id/transfer')
+  @RequirePermission('Users and Roles', 'canAdd')
+  transferUser(@Param('id') id: string, @Body() body: any) {
+    return this.service.transferUser(id, body);
+  }
+
   @Get('roles')
   @RequirePermission('Users and Roles', 'canView')
   getRoles() {

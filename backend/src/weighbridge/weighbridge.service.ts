@@ -31,7 +31,7 @@ export class WeighbridgeService {
 
     if (gross == null && tare == null && net == null) {
       throw new NotFoundException(
-        `Active GP found for ${vehicleNo} but weighbridge weights are not punched yet. Enter manually or complete WB first.`,
+        `Active GP found for ${vehicleNo} but weighbridge weights are not punched yet. Complete weighbridge punching first.`,
       );
     }
 
@@ -158,6 +158,29 @@ export class WeighbridgeService {
       });
     }
     return settings;
+  }
+
+  /**
+   * Physical weighbridge indicator status.
+   * Until a COM/serial bridge is running and reporting live, status stays disconnected.
+   */
+  async getConnectionStatus(plantId: string) {
+    const settings = await this.getSettings(plantId);
+    // No serial bridge / hardware agent is wired yet — never report Connected falsely.
+    return {
+      connected: false,
+      status: 'Not Connected',
+      message:
+        'Physical weighbridge indicator is not connected. Connect the device via COM port and confirm weight in PuTTY before live capture.',
+      port: settings?.port || null,
+      baudRate: settings?.baudRate || null,
+      indicatorModel: settings?.indicatorModel || null,
+      connectionType: settings?.connectionType || null,
+      dataBits: settings?.dataBits || null,
+      stopBits: settings?.stopBits || null,
+      parity: settings?.parity || null,
+      checkedAt: new Date().toISOString(),
+    };
   }
 
   async updateSettings(plantId: string, data: any) {

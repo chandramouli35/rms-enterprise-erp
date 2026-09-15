@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 
 interface ComboboxProps {
@@ -11,6 +12,13 @@ interface ComboboxProps {
   className?: string;
   required?: boolean;
   valueKey?: string; // e.g., 'id' to emit ID instead of label
+  /** Tailwind max-height for the options list (default max-h-40 for compact scrollable drawer) */
+  listMaxHeightClass?: string;
+  /**
+   * When true: no typing — open list and pick an option only.
+   * Free-text is never committed (matches Paddy Inward dropdown rules).
+   */
+  selectOnly?: boolean;
 }
 
 export default function Combobox({
@@ -22,12 +30,16 @@ export default function Combobox({
   name,
   className = '',
   required = false,
-  valueKey
+  valueKey,
+  listMaxHeightClass = 'max-h-40',
+  selectOnly = false,
 }: ComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
 
   const getOptionLabel = (opt: any) => {
     return opt.name || opt.truckNumber || opt.id || String(opt);
@@ -36,6 +48,27 @@ export default function Combobox({
   const findOptionByValue = (val: string) => {
     if (!valueKey || val == null || val === '') return undefined;
     return options.find((opt) => String(opt[valueKey]) === String(val));
+  };
+
+  const updateMenuPosition = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const viewportH = window.innerHeight;
+    const spaceBelow = viewportH - rect.bottom;
+    const preferUp = spaceBelow < 160 && rect.top > spaceBelow;
+    const maxH = Math.min(160, preferUp ? rect.top - 8 : spaceBelow - 8);
+
+    setMenuStyle({
+      position: 'fixed',
+      left: rect.left,
+      width: rect.width,
+      zIndex: 9999,
+      maxHeight: Math.max(80, maxH),
+      ...(preferUp
+        ? { bottom: viewportH - rect.top + 4, top: 'auto' as any }
+        : { top: rect.bottom + 4, bottom: 'auto' as any }),
+    });
   };
 
   // Resolve stored value (often an id) to a human-readable label
@@ -57,22 +90,48 @@ export default function Combobox({
         return;
       }
     }
+    if (selectOnly) {
+      const byLabel = options.find(
+        (opt) => getOptionLabel(opt).toLowerCase() === String(value).toLowerCase(),
+      );
+      setInputValue(byLabel ? getOptionLabel(byLabel) : String(value));
+      return;
+    }
     setInputValue(value || '');
-  }, [value, options, valueKey]);
+  }, [value, options, valueKey, selectOnly]);
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    updateMenuPosition();
+    const onReposition = () => updateMenuPosition();
+    window.addEventListener('resize', onReposition);
+    window.addEventListener('scroll', onReposition, true);
+    return () => {
+      window.removeEventListener('resize', onReposition);
+      window.removeEventListener('scroll', onReposition, true);
+    };
+  }, [isOpen, options, selectOnly, inputValue]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+      const t = event.target as Node;
+      if (
+        wrapperRef.current?.contains(t) ||
+        menuRef.current?.contains(t)
+      ) {
+        return;
       }
+      setIsOpen(false);
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter((opt) =>
-    getOptionLabel(opt).toLowerCase().includes(inputValue.toLowerCase()),
-  );
+  const filteredOptions = selectOnly
+    ? options
+    : options.filter((opt) =>
+        getOptionLabel(opt).toLowerCase().includes(inputValue.toLowerCase()),
+      );
 
   const createSyntheticEvent = (val: string) => {
     return {
@@ -81,13 +140,18 @@ export default function Combobox({
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (selectOnly) {
+      // Ignore typed characters entirely — selection only via list
+      setIsOpen(true);
+      return;
+    }
     setInputValue(e.target.value);
     setIsOpen(true);
-    // When emitting ids via valueKey, only update local search text while typing —
-    // do not overwrite the stored id with typed characters (causes UUID/name glitches).
-    if (!valueKey) {
-      onChange(e as any);
+    // valueKey: typing is filter-only — do not commit free text
+    if (valueKey) {
+      return;
     }
+    onChange(e as any);
   };
 
   const handleOptionClick = (opt: any) => {
@@ -99,19 +163,64 @@ export default function Combobox({
   };
 
   const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    // Restore label from selected id if user typed a search query then left
+    // Restore label from selected value; discard typed filter text
     if (valueKey && value) {
       const selectedOpt = findOptionByValue(value);
       if (selectedOpt) {
         setInputValue(getOptionLabel(selectedOpt));
       }
+    } else if (selectOnly) {
+      if (value) {
+        const byLabel = options.find(
+          (opt) => getOptionLabel(opt).toLowerCase() === String(value).toLowerCase(),
+        );
+        setInputValue(byLabel ? getOptionLabel(byLabel) : String(value));
+      } else {
+        setInputValue('');
+      }
     }
-    if (onBlur) {
+    if (onBlur && !selectOnly) {
       setTimeout(() => {
         onBlur(e);
       }, 150);
     }
   };
+
+  const menu = isOpen
+    ? createPortal(
+        <ul
+          ref={menuRef}
+          style={menuStyle}
+          className={`overflow-y-auto overscroll-contain bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg shadow-2xl text-sm text-[var(--text-main)] ${listMaxHeightClass}`}
+        >
+          {filteredOptions.length > 0 ? (
+            filteredOptions.map((opt, idx) => (
+              <li
+                key={opt.id || idx}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleOptionClick(opt)}
+                className="px-3 py-1.5 cursor-pointer hover:bg-amber-500/10 hover:text-amber-500 transition-colors"
+              >
+                {getOptionLabel(opt)}
+                {opt.transportCategory === 'COMPANY' && (
+                  <span className="ml-2 text-xs text-blue-400">(Company)</span>
+                )}
+                {opt.transportCategory === 'PARTY' && (
+                  <span className="ml-2 text-xs text-amber-400">(Party)</span>
+                )}
+              </li>
+            ))
+          ) : (
+            <li className="px-3 py-2 text-[var(--text-muted-alt)] italic">
+              {selectOnly || valueKey
+                ? 'No matching options — select from the list'
+                : `Press enter or click outside to add "${inputValue}"`}
+            </li>
+          )}
+        </ul>,
+        document.body,
+      )
+    : null;
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
@@ -123,11 +232,19 @@ export default function Combobox({
           value={inputValue}
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
+          onClick={() => setIsOpen(true)}
           onBlur={handleInputBlur}
-          placeholder={placeholder}
+          placeholder={
+            selectOnly
+              ? placeholder === 'Select or enter...'
+                ? 'Select from list...'
+                : placeholder
+              : placeholder
+          }
           required={required}
           autoComplete="off"
-          className={`w-full pr-8 ${className}`}
+          readOnly={selectOnly}
+          className={`w-full pr-8 ${selectOnly ? 'cursor-pointer' : ''} ${className}`}
         />
         <button
           type="button"
@@ -141,28 +258,7 @@ export default function Combobox({
           <ChevronDown size={16} />
         </button>
       </div>
-
-      {isOpen && (
-        <ul className="absolute z-50 w-full mt-1 max-h-60 overflow-auto bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg shadow-xl text-sm text-[var(--text-main)]">
-          {filteredOptions.length > 0 ? (
-            filteredOptions.map((opt, idx) => (
-              <li
-                key={opt.id || idx}
-                onClick={() => handleOptionClick(opt)}
-                className="px-3 py-2 cursor-pointer hover:bg-amber-500/10 hover:text-amber-500 transition-colors"
-              >
-                {getOptionLabel(opt)}
-                {opt.transportCategory === 'COMPANY' && <span className="ml-2 text-xs text-blue-400">(Company)</span>}
-                {opt.transportCategory === 'PARTY' && <span className="ml-2 text-xs text-amber-400">(Party)</span>}
-              </li>
-            ))
-          ) : (
-            <li className="px-3 py-2 text-[var(--text-muted-alt)] italic">
-              {valueKey ? 'No matching suppliers' : `Press enter or click outside to add "${inputValue}"`}
-            </li>
-          )}
-        </ul>
-      )}
+      {menu}
     </div>
   );
 }

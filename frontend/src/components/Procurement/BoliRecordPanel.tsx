@@ -12,6 +12,14 @@ import { CustomModal } from '../CustomModal';
 import { exportToExcel } from '../../utils/exportUtils';
 import { useSubmitLock } from '../../hooks/useSubmitLock';
 
+/** Hide faker / Latin placeholder notes left in seed or test data */
+function displayNote(note?: string | null): string {
+  const n = String(note || '').trim();
+  if (!n) return '';
+  if (/(iusto|lusto|quasi|quia sint|nobis veri|ipsum|dolor sit)/i.test(n)) return '';
+  return n;
+}
+
 type Props = {
   suppliers: any[];
   fetchSuppliers: (plantId?: string) => void;
@@ -59,6 +67,7 @@ export default function BoliRecordPanel({
   });
   const [finalSaving, setFinalSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const selectedOpen = useMemo(
     () => openBolis.find((b) => b.id === finalForm.boliId) || null,
@@ -179,8 +188,8 @@ export default function BoliRecordPanel({
               <td>${item.finalHisabAmt ?? ''}</td>
               <td>${item.bagsReceived ?? 0}</td>
               <td>${item.balanceBags ?? ''}</td>
-              <td>${item.isCompleted ? 'Yes' : item.isCancelled ? 'Cancelled' : 'No'}</td>
-              <td>${item.note || ''}</td>
+              <td>${item.isCompleted ? 'Yes' : item.isCancelled ? 'Cancelled' : 'Underway'}</td>
+              <td>${displayNote(item.note)}</td>
             </tr>`,
             )
             .join('')}
@@ -206,8 +215,12 @@ export default function BoliRecordPanel({
         'Final Hisab Amount': item.finalHisabAmt,
         'Received Bags': item.bagsReceived,
         'Balance Bags': item.balanceBags,
-        'Complete Soda': item.isCompleted ? 'Yes' : 'No',
-        Note: item.note,
+        'Complete Soda': item.isCompleted
+          ? 'Done'
+          : item.isCancelled
+            ? 'Cancelled'
+            : 'Underway',
+        Note: displayNote(item.note),
         Mandi: item.mandi,
         Supervisor: item.supervisorName,
       }));
@@ -244,7 +257,7 @@ export default function BoliRecordPanel({
       isOpen: true,
       row,
       payment: row.payment != null ? String(row.payment) : '',
-      note: row.note || '',
+      note: displayNote(row.note),
       finalBags: row.finalBags != null ? String(row.finalBags) : '',
     });
   };
@@ -339,6 +352,75 @@ export default function BoliRecordPanel({
     }
   };
 
+  const cancelSelectedBoli = async () => {
+    if (!selectedOpen?.id || cancelling) return;
+    if (
+      !window.confirm(
+        `Cancel Boli ${selectedOpen.boliNo}? It will be removed from inward receiving. Max 3 cancels per soda.`,
+      )
+    ) {
+      return;
+    }
+    setCancelling(true);
+    try {
+      await api.put(`/api/procurement/bolis/${selectedOpen.id}/cancel`);
+      useUiStore.getState().addToast(`Boli ${selectedOpen.boliNo} cancelled`, 'success');
+      setFinalForm({
+        boliId: '',
+        supervisorName: '',
+        artiaBillChecked: 'No',
+        finalBags: '',
+        biometricData: '',
+      });
+      await fetchRows();
+      await fetchOpenBolis();
+    } catch (err: any) {
+      useUiStore
+        .getState()
+        .addToast(err.response?.data?.message || 'Failed to cancel boli', 'error');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const cancelEntireSoda = async () => {
+    if (!selectedOpen?.sodaId || cancelling) return;
+    if (
+      !window.confirm(
+        `Cancel entire soda for ${selectedOpen.artiaName}? All open bolis without Final Bags will be cancelled.`,
+      )
+    ) {
+      return;
+    }
+    setCancelling(true);
+    try {
+      const res = await api.put(
+        `/api/procurement/soda-pending/${selectedOpen.sodaId}/cancel`,
+      );
+      useUiStore
+        .getState()
+        .addToast(
+          `Soda cancelled (${res.data?.cancelled ?? ''} boli)`,
+          'success',
+        );
+      setFinalForm({
+        boliId: '',
+        supervisorName: '',
+        artiaBillChecked: 'No',
+        finalBags: '',
+        biometricData: '',
+      });
+      await fetchRows();
+      await fetchOpenBolis();
+    } catch (err: any) {
+      useUiStore
+        .getState()
+        .addToast(err.response?.data?.message || 'Failed to cancel soda', 'error');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const billYes = finalForm.artiaBillChecked === 'Yes';
 
   // Group rows visually by Artia (cluster-wise)
@@ -348,7 +430,7 @@ export default function BoliRecordPanel({
     <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
       <div className="p-4 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)] gap-3 flex-wrap">
         <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
-          <Package className="text-[#e67e00]" /> Boli Record
+          <Package className="text-[#e67e00]" /> 3. Boli Record
         </h2>
         <div className="flex items-center gap-2">
           {!isSupervisor && (
@@ -484,25 +566,329 @@ export default function BoliRecordPanel({
           </div>
         )}
 
-        {/* Table 01 */}
-        <div className="overflow-x-auto border border-[var(--border-subtle)] rounded-lg">
+        {/* Add Final Boli — Feedback 32 Pg.2 */}
+        <div className="border border-[var(--border-subtle)] rounded-xl overflow-hidden bg-[var(--bg-panel-alt)]">
+          <div className="px-4 py-2 border-b border-[var(--border-subtle)] font-bold text-sm text-[#e67e00] bg-[#e67e00]/10">
+            Add Final Boli
+          </div>
+          <form onSubmit={submitFinalBoli} className="p-4 space-y-4 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                  Boli No. (Dropdown)
+                </label>
+                <select
+                  value={finalForm.boliId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const b = openBolis.find((x) => x.id === id);
+                    // Auto-fetch all estimate details for this Boli No.
+                    setFinalForm((f) => ({
+                      ...f,
+                      boliId: id,
+                      supervisorName:
+                        b?.supervisorName ||
+                        (isSupervisor ? user?.username : '') ||
+                        '',
+                      artiaBillChecked: 'No',
+                      finalBags: '',
+                      biometricData: '',
+                    }));
+                  }}
+                  className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
+                >
+                  <option value="">Select Boli No.</option>
+                  {openBolis.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.boliNo} — {b.artiaName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                  Artia Name (Auto-fetch)
+                </label>
+                <input
+                  readOnly
+                  tabIndex={-1}
+                  value={selectedOpen?.artiaName || ''}
+                  placeholder="—"
+                  className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80 cursor-default"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                  Mandi Name (Auto-fetch)
+                </label>
+                <input
+                  readOnly
+                  tabIndex={-1}
+                  value={selectedOpen?.mandi || ''}
+                  placeholder="—"
+                  className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80 cursor-default"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                  Supervisor
+                </label>
+                {isSupervisor || !isAdmin ? (
+                  <input
+                    readOnly
+                    tabIndex={-1}
+                    value={
+                      selectedOpen?.supervisorName ||
+                      finalForm.supervisorName ||
+                      user?.username ||
+                      ''
+                    }
+                    placeholder="—"
+                    className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80 cursor-default"
+                  />
+                ) : (
+                  <select
+                    value={finalForm.supervisorName}
+                    onChange={(e) =>
+                      setFinalForm((f) => ({
+                        ...f,
+                        supervisorName: e.target.value,
+                      }))
+                    }
+                    className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
+                  >
+                    <option value="">Select Supervisor</option>
+                    {selectedOpen?.supervisorName && (
+                      <option value={selectedOpen.supervisorName}>
+                        {selectedOpen.supervisorName}
+                      </option>
+                    )}
+                    {supervisors.map((s) => (
+                      <option key={s.id} value={s.username}>
+                        {s.username}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                  Artia Bill Checked And Matched of this Boli
+                </label>
+                <div className="flex gap-4 py-2">
+                  {(['Yes', 'No'] as const).map((v) => (
+                    <label
+                      key={v}
+                      className="flex items-center gap-2 cursor-pointer text-[var(--text-main)]"
+                    >
+                      <input
+                        type="radio"
+                        name="artiaBillChecked"
+                        checked={finalForm.artiaBillChecked === v}
+                        onChange={() =>
+                          setFinalForm((f) => ({
+                            ...f,
+                            artiaBillChecked: v,
+                            ...(v === 'No' ? { finalBags: '', biometricData: '' } : {}),
+                          }))
+                        }
+                        className="accent-[#e67e00]"
+                      />
+                      {v}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Pg.2 table: M/C | Estimate Bags | Rate | Final Bags — no lines between.
+                Hide column headers when Estimate Bags = 0 (cancelled); cancel is Final Bags only. */}
+            {(() => {
+              const estBags = Number(selectedOpen?.estimatedBags);
+              const bagsCancelled =
+                !!selectedOpen &&
+                (selectedOpen.isCancelled ||
+                  (!Number.isNaN(estBags) && estBags === 0));
+              return (
+            <div className="overflow-x-auto rounded-lg bg-[var(--bg-base)] px-1 py-2">
+              <table className="w-full text-sm border-separate border-spacing-0">
+                {!bagsCancelled && (
+                <thead>
+                  <tr className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wide">
+                    <th className="font-medium text-left px-3 py-2">M/C</th>
+                    <th className="font-medium text-left px-3 py-2">
+                      Estimate Bags
+                    </th>
+                    <th className="font-medium text-left px-3 py-2">Rate</th>
+                    <th className="font-medium text-left px-3 py-2">
+                      Final Bags <span className="text-red-500 normal-case">*</span>
+                    </th>
+                  </tr>
+                </thead>
+                )}
+                <tbody>
+                  <tr>
+                    <td className="px-3 py-1.5 align-middle">
+                      <input
+                        readOnly
+                        tabIndex={-1}
+                        title="Auto-fetched from Estimate Purchase"
+                        value={
+                          bagsCancelled
+                            ? ''
+                            : selectedOpen?.moisture != null &&
+                                selectedOpen.moisture !== ''
+                              ? String(selectedOpen.moisture)
+                              : ''
+                        }
+                        placeholder={bagsCancelled ? 'Cancelled' : 'Auto'}
+                        className="w-full min-w-[5rem] bg-transparent border-0 border-b border-transparent px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 align-middle">
+                      <input
+                        readOnly
+                        tabIndex={-1}
+                        title="Auto-fetched from Estimate Purchase"
+                        value={
+                          bagsCancelled
+                            ? ''
+                            : selectedOpen?.estimatedBags != null &&
+                                selectedOpen.estimatedBags !== ''
+                              ? String(selectedOpen.estimatedBags)
+                              : ''
+                        }
+                        placeholder={bagsCancelled ? '' : 'Auto'}
+                        className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 align-middle">
+                      <input
+                        readOnly
+                        tabIndex={-1}
+                        title="Auto-fetched from Estimate Purchase"
+                        value={
+                          bagsCancelled
+                            ? ''
+                            : selectedOpen?.rate != null && selectedOpen.rate !== ''
+                              ? String(selectedOpen.rate)
+                              : ''
+                        }
+                        placeholder={bagsCancelled ? '' : 'Auto'}
+                        className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 align-middle">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={3}
+                        disabled={!billYes || !selectedOpen || bagsCancelled}
+                        title={
+                          bagsCancelled
+                            ? 'Cancelled (Bags = 0) — Final Bags not applicable'
+                            : billYes
+                              ? 'Enter Final Bags manually (max 999, whole numbers)'
+                              : 'Set Artia Bill Checked = Yes to enable'
+                        }
+                        value={bagsCancelled ? '' : finalForm.finalBags}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/\D/g, '').slice(0, 3);
+                          setFinalForm((f) => ({ ...f, finalBags: raw }));
+                        }}
+                        placeholder={
+                          bagsCancelled ? '—' : billYes ? 'Manual' : 'Locked'
+                        }
+                        className={`w-full min-w-[6rem] bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] outline-none focus:border-[#e67e00] ${
+                          !billYes || !selectedOpen || bagsCancelled
+                            ? 'opacity-40 cursor-not-allowed'
+                            : ''
+                        }`}
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p className="text-[10px] text-[var(--text-muted-alt)] px-3 pt-1">
+                {bagsCancelled
+                  ? 'Bags = 0 (cancelled) — column headers hidden; cancel applies to Final Bags only.'
+                  : 'Moisture, Estimate Bags and Rate come from Estimate Purchase. Only Final Bags is typed manually (enabled when Artia Bill = Yes).'}
+              </p>
+            </div>
+              );
+            })()}
+
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={scanFingerprint}
+                disabled={scanning || !billYes || !selectedOpen}
+                className="px-3 py-2 rounded border border-[var(--border-subtle)] text-sm disabled:opacity-40"
+              >
+                {scanning
+                  ? 'Scanning…'
+                  : finalForm.biometricData
+                    ? 'Fingerprint ✓'
+                    : 'Scan Fingerprint'}
+              </button>
+              <button
+                type="submit"
+                disabled={!billYes || !selectedOpen || finalSaving}
+                className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {finalSaving ? 'Submitting…' : 'Submit with Fingerprint'}
+              </button>
+              {selectedOpen && (
+                <>
+                  <button
+                    type="button"
+                    onClick={cancelSelectedBoli}
+                    disabled={cancelling}
+                    className="px-3 py-2 rounded border border-red-500/40 text-red-400 text-sm font-medium hover:bg-red-500/10 disabled:opacity-40"
+                    title="Cancel this Boli (supervisor allowed here)"
+                  >
+                    {cancelling ? 'Cancelling…' : 'Cancel this Boli'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelEntireSoda}
+                    disabled={cancelling}
+                    className="px-3 py-2 rounded border border-red-500/40 text-red-400 text-sm font-medium hover:bg-red-500/10 disabled:opacity-40"
+                    title="Cancel entire soda / estimate"
+                  >
+                    Cancel entire Soda
+                  </button>
+                </>
+              )}
+            </div>
+            {selectedOpen && (
+              <p className="text-[10px] text-[var(--text-muted-alt)]">
+                Cancel is allowed here for supervisors (max 3 per soda). Cancel is
+                blocked in Add Estimate Purchase.
+              </p>
+            )}
+          </form>
+        </div>
+
+        {/* Table 01 — mill-wise Boli Record (no row divider lines; F32 Pg.2/3) */}
+        <div className="overflow-x-auto rounded-lg bg-[var(--bg-panel-alt)]">
           <table className="w-full border-collapse text-[var(--text-muted)] text-sm min-w-[1100px]">
             <thead>
-              <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-[10px] text-left bg-[var(--glass-bg)]">
-                <th className="p-2">Party Name</th>
-                <th className="p-2">Date</th>
-                <th className="p-2">Boli No.</th>
-                <th className="p-2">M/C</th>
-                <th className="p-2">Est. Bags</th>
-                <th className="p-2">Final Bags</th>
-                <th className="p-2">Rate</th>
-                <th className="p-2">Payment</th>
-                <th className="p-2">Final Hisab</th>
-                <th className="p-2">Received</th>
-                <th className="p-2">Balance</th>
-                <th className="p-2">Complete</th>
-                <th className="p-2">Note</th>
-                <th className="p-2 text-right">Edit</th>
+              <tr className="uppercase text-[var(--text-muted-alt)] text-[10px] text-left border-b border-[var(--border-subtle)]">
+                <th className="p-2 font-semibold">Party Name</th>
+                <th className="p-2 font-semibold">Date</th>
+                <th className="p-2 font-semibold">Boli No.</th>
+                <th className="p-2 font-semibold">M/C</th>
+                <th className="p-2 font-semibold">Est. Bags</th>
+                <th className="p-2 font-semibold">Final Bags</th>
+                <th className="p-2 font-semibold">Rate</th>
+                <th className="p-2 font-semibold">Payment</th>
+                <th className="p-2 font-semibold">Final Hisab</th>
+                <th className="p-2 font-semibold">Received</th>
+                <th className="p-2 font-semibold">Balance</th>
+                <th className="p-2 font-semibold">Complete</th>
+                <th className="p-2 font-semibold">Note</th>
+                <th className="p-2 font-semibold text-right">Edit</th>
               </tr>
             </thead>
             <tbody>
@@ -520,9 +906,9 @@ export default function BoliRecordPanel({
                   return (
                     <tr
                       key={r.boliId}
-                      className={`border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)] ${
+                      className={`hover:bg-[var(--glass-bg)]/60 ${
                         r.isCancelled ? 'opacity-50' : ''
-                      } ${showCluster ? 'border-t-2 border-t-[var(--border-subtle)]' : ''}`}
+                      } ${showCluster ? 'pt-1' : ''}`}
                     >
                       <td className="p-2 font-medium text-[var(--text-main)]">
                         {showCluster ? r.partyName : ''}
@@ -558,10 +944,12 @@ export default function BoliRecordPanel({
                         ) : r.isCancelled ? (
                           <span className="text-[var(--text-muted-alt)] text-xs">Cancelled</span>
                         ) : (
-                          <span className="text-[var(--text-muted-alt)] text-xs">Pending</span>
+                          <span className="text-[var(--text-muted-alt)] text-xs">Underway</span>
                         )}
                       </td>
-                      <td className="p-2 max-w-[120px] truncate">{r.note || '-'}</td>
+                      <td className="p-2 max-w-[120px] truncate">
+                        {displayNote(r.note) || ''}
+                      </td>
                       <td className="p-2 text-right">
                         <div className="flex justify-end gap-1">
                           {isAdmin && (
@@ -618,157 +1006,6 @@ export default function BoliRecordPanel({
           </p>
         )}
 
-        {/* Add Final Boli */}
-        <div className="border border-[var(--border-subtle)] rounded-xl overflow-hidden bg-[var(--bg-panel-alt)]">
-          <div className="px-4 py-2 border-b border-[var(--border-subtle)] font-bold text-sm text-[#e67e00] bg-[#e67e00]/10">
-            Add Final Boli
-          </div>
-          <form onSubmit={submitFinalBoli} className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 text-sm">
-            <div>
-              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Boli No. (Dropdown)</label>
-              <select
-                value={finalForm.boliId}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  const b = openBolis.find((x) => x.id === id);
-                  setFinalForm((f) => ({
-                    ...f,
-                    boliId: id,
-                    supervisorName: b?.supervisorName || (isSupervisor ? user?.username : '') || f.supervisorName,
-                    artiaBillChecked: 'No',
-                    finalBags: '',
-                    biometricData: '',
-                  }));
-                }}
-                className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
-              >
-                <option value="">Select Boli No.</option>
-                {openBolis.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.boliNo} — {b.artiaName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Artia Name</label>
-              <input
-                readOnly
-                value={selectedOpen?.artiaName || ''}
-                className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Mandi Name</label>
-              <input
-                readOnly
-                value={selectedOpen?.mandi || ''}
-                className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Supervisor</label>
-              {isSupervisor || !isAdmin ? (
-                <input
-                  readOnly
-                  value={selectedOpen?.supervisorName || user?.username || ''}
-                  className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80"
-                />
-              ) : (
-                <select
-                  value={finalForm.supervisorName}
-                  onChange={(e) => setFinalForm((f) => ({ ...f, supervisorName: e.target.value }))}
-                  className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
-                >
-                  <option value="">Select Supervisor</option>
-                  {selectedOpen?.supervisorName && (
-                    <option value={selectedOpen.supervisorName}>{selectedOpen.supervisorName}</option>
-                  )}
-                  {supervisors.map((s) => (
-                    <option key={s.id} value={s.username}>
-                      {s.username}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
-                Artia Bill Checked And Matched of this Boli
-              </label>
-              <div className="flex gap-4 py-2">
-                {(['Yes', 'No'] as const).map((v) => (
-                  <label key={v} className="flex items-center gap-2 cursor-pointer text-[var(--text-main)]">
-                    <input
-                      type="radio"
-                      name="artiaBillChecked"
-                      checked={finalForm.artiaBillChecked === v}
-                      onChange={() => setFinalForm((f) => ({ ...f, artiaBillChecked: v }))}
-                      className="accent-[#e67e00]"
-                    />
-                    {v}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">M/C (Auto)</label>
-              <input
-                readOnly
-                value={selectedOpen?.moisture ?? ''}
-                className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 opacity-80"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Estimate Bags (Auto)</label>
-              <input
-                readOnly
-                value={selectedOpen?.estimatedBags ?? ''}
-                className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 opacity-80"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Rate (Auto)</label>
-              <input
-                readOnly
-                value={selectedOpen?.rate ?? ''}
-                className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 opacity-80"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Final Bags</label>
-              <input
-                type="number"
-                min="0"
-                max="999"
-                step="1"
-                disabled={!billYes}
-                value={finalForm.finalBags}
-                onChange={(e) => setFinalForm((f) => ({ ...f, finalBags: e.target.value }))}
-                className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] ${
-                  !billYes ? 'opacity-40 cursor-not-allowed' : ''
-                }`}
-              />
-            </div>
-            <div className="md:col-span-2 xl:col-span-3 flex flex-wrap items-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={scanFingerprint}
-                disabled={scanning || !billYes}
-                className="px-3 py-2 rounded border border-[var(--border-subtle)] text-sm disabled:opacity-40"
-              >
-                {scanning ? 'Scanning…' : finalForm.biometricData ? 'Fingerprint ✓' : 'Scan Fingerprint'}
-              </button>
-              <button
-                type="submit"
-                disabled={!billYes || finalSaving}
-                className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {finalSaving ? 'Submitting…' : 'Submit with Fingerprint'}
-              </button>
-            </div>
-          </form>
-        </div>
       </div>
 
       <CustomModal

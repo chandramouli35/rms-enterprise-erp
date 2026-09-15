@@ -138,6 +138,9 @@ model User {
 
   // Tracking
   lastLogin DateTime?
+  /// Fingerprint templates (Morpho/RD PID XML) — supervisors enroll two fingers
+  fingerprint1 String?
+  fingerprint2 String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -418,6 +421,11 @@ model PaddyInwardDetails {
   isBackdated                      Boolean? @default(false)
   remarks                          String?
   discrepancy                      String?
+
+  /// Feedback 39 — Hold under Unloading Management (Section 4)
+  isHold                           Boolean  @default(false)
+  holdReason                       String?
+  heldAt                           DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1649,6 +1657,26 @@ model DailyInwardListSnapshot {
 
   @@unique([reportDate, plantId])
   @@index([reportDate])
+}
+
+/// Feedback 39 — per-unloader daily report submitted to Admin (before evening inward submit)
+model DailyUnloaderReportSnapshot {
+  id                   String   @id @default(uuid())
+  reportDate           String   // YYYY-MM-DD
+  plantId              String
+  unloaderName         String
+  payload              Json     // that unloader's day sheet
+  unloaderSignedBy     String?
+  supervisorSignedBy   String?
+  unloaderBiometricOk  Boolean  @default(false)
+  supervisorBiometricOk Boolean @default(false)
+  submittedBy          String?
+  submittedAt          DateTime @default(now())
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([reportDate, plantId, unloaderName])
+  @@index([reportDate, plantId])
 }
 
 // -----------------------------------------------------------------------------

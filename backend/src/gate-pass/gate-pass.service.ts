@@ -36,7 +36,7 @@ export class GatePassService {
   }
 
   async generateGatePass(data: any) {
-    const {
+    const { 
       plantId, passType, vehicleNo, vehicleType, purpose, 
       supplierId, driverName, contactNo, 
       challanNo, grossWeight, tareWeight, netWeight,
@@ -51,7 +51,7 @@ export class GatePassService {
       // Feedback 28
       financeSodaId, financeSodaNA, billNo, billNoNA, bagTypeGp,
     } = data;
-
+    
     // Min 30-minute gap between GP In (start) and GP Out (complete) when complete is set
     if (!isCompleteDateNA && gpStartDate && gpCompleteDate) {
       this.assertMinGpInOutGap(gpStartDate, gpCompleteDate);
@@ -758,8 +758,8 @@ export class GatePassService {
     if (completionData?.gpCompleteDate) {
         gpCompleteDate = new Date(completionData.gpCompleteDate);
     } else if (!isCompleteDateNA) {
-      gpCompleteDate = new Date();
-    }
+        gpCompleteDate = new Date();
+      }
 
     if (!isCompleteDateNA && pass.gpStartDate && gpCompleteDate) {
       this.assertMinGpInOutGap(pass.gpStartDate, gpCompleteDate);

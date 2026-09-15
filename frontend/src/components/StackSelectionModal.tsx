@@ -42,9 +42,10 @@ export default function StackSelectionModal({
   const confirmLock = useSubmitLock();
 
   const isBeas = /beas/i.test(plantName || '');
+  const isRajoa = /rajoa/i.test(plantName || '');
 
   useEffect(() => {
-    if (!isOpen || !plantId || isBeas) return;
+    if (!isOpen || !plantId || isBeas || isRajoa) return;
     api
       .get(`/api/procurement/stack/layout?plantId=${plantId}`)
       .then((res) => {
@@ -52,7 +53,7 @@ export default function StackSelectionModal({
         setLayoutStacks(nos);
       })
       .catch(() => setLayoutStacks([]));
-  }, [isOpen, plantId, isBeas]);
+  }, [isOpen, plantId, isBeas, isRajoa]);
 
   const plantStackList = useMemo(() => {
     const fromOcc = Object.keys(occupiedStacks || {});
@@ -139,7 +140,6 @@ export default function StackSelectionModal({
         key={stack}
         className="relative flex flex-col items-center"
         onMouseEnter={() => setHoveredStack(stack)}
-        onMouseLeave={() => setHoveredStack(null)}
       >
         <span className="text-[10px] font-bold text-[var(--text-muted-alt)] mb-1">{stack}</span>
         <button
@@ -152,28 +152,15 @@ export default function StackSelectionModal({
             <span className="absolute bottom-0 text-[7.5px] bg-black/70 px-1 rounded truncate w-full">{data.type}</span>
           )}
         </button>
-        {hoveredStack === stack && data && (
-          <div className="absolute z-50 bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 bg-gray-900 border border-gray-700 rounded p-2 text-xs text-white shadow-xl pointer-events-none">
-            <div className="font-bold border-b border-gray-700 pb-1 mb-1 text-center">{stack} Details</div>
-            <div className="flex justify-between">
-              <span>Avg Moisture:</span> <span>{data.moisture}%</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Bags:</span> <span>{data.bags}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Type:</span> <span>{data.type} Bags</span>
-            </div>
-          </div>
-        )}
       </div>
     );
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] shadow-2xl w-full max-w-6xl flex flex-col my-auto">
-        <div className="p-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-hidden">
+      {/* Flex column + max height: only the map scrolls; summary footer stays fully visible */}
+      <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] shadow-2xl w-full max-w-6xl max-h-[min(92vh,920px)] flex flex-col overflow-hidden">
+        <div className="shrink-0 p-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-[var(--text-main)]">
               Yard Map — {plantName || 'Current Mill'}
@@ -181,7 +168,9 @@ export default function StackSelectionModal({
             <p className="text-xs text-[var(--text-muted-alt)] mt-1">
               {isBeas
                 ? 'Beas Agro yard drawing (mill-specific)'
-                : `Plant-scoped stack selection for ${plantName || 'this mill'} (occupancy from this plant only)`}
+                : isRajoa
+                  ? 'Rajoa Agro yard drawing (mill-specific)'
+                  : `Plant-scoped stack selection for ${plantName || 'this mill'} (occupancy from this plant only)`}
             </p>
             <div className="text-xs text-[var(--text-muted)] mt-2 flex flex-wrap gap-4 items-center">
               <span className="font-semibold text-white">Legend:</span>
@@ -211,9 +200,12 @@ export default function StackSelectionModal({
           </button>
         </div>
 
-        <div className="p-6 overflow-x-auto bg-[var(--bg-base)]">
+        <div
+          className="flex-1 min-h-0 p-6 overflow-x-auto overflow-y-auto bg-[var(--bg-base)]"
+          onMouseLeave={() => setHoveredStack(null)}
+        >
           {isBeas ? (
-            <div className="border-2 border-[var(--border-subtle)] rounded-lg relative min-w-[1150px] h-[950px] mx-auto bg-[var(--bg-panel-alt)] shadow-inner overflow-hidden">
+            <div className="border-2 border-[var(--border-subtle)] rounded-lg relative min-w-[1150px] h-[950px] mx-auto bg-[var(--bg-panel-alt)] shadow-inner overflow-visible">
               <div className="absolute left-[240px] top-6 font-bold text-xl text-[var(--text-muted)] tracking-widest">A</div>
               <div className="absolute left-10 top-14 grid grid-flow-col grid-rows-8 gap-x-6 gap-y-3">
                 {generateMainStacks().map((s) => renderStack(s))}
@@ -247,6 +239,28 @@ export default function StackSelectionModal({
                 </div>
               </div>
             </div>
+          ) : isRajoa ? (
+            <div className="border-2 border-[var(--border-subtle)] rounded-lg relative min-w-[980px] h-[720px] mx-auto bg-[var(--bg-panel-alt)] shadow-inner overflow-visible">
+              <div className="absolute left-6 top-4 font-bold text-lg text-[var(--text-muted)] tracking-widest">
+                RAJOA AGRO — YARD
+              </div>
+              <div className="absolute left-8 top-16 grid grid-cols-8 gap-3">
+                {Array.from({ length: 24 }, (_, i) => String(i + 1)).map((s) =>
+                  renderStack(s),
+                )}
+              </div>
+              <div className="absolute left-8 bottom-8 right-8 grid grid-cols-3 gap-4">
+                <div className="h-24 border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] uppercase bg-[var(--bg-base)]">
+                  Weighbridge
+                </div>
+                <div className="h-24 border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] uppercase bg-[var(--bg-base)]">
+                  Godown
+                </div>
+                <div className="h-24 border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] uppercase bg-[var(--bg-base)]">
+                  Dryer Bay
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="border-2 border-[var(--border-subtle)] rounded-lg p-4 bg-[var(--bg-panel-alt)]">
               <div className="mb-3 text-sm font-bold text-[var(--text-main)]">
@@ -256,6 +270,21 @@ export default function StackSelectionModal({
                 {plantStackList.map((s) => renderStack(s))}
               </div>
             </div>
+          )}
+        </div>
+
+        <div className="shrink-0 z-20 border-t border-[var(--border-subtle)] bg-[var(--bg-panel)] px-4 py-3 text-sm text-[var(--text-main)] min-h-[3.5rem] shadow-[0_-4px_12px_rgba(0,0,0,0.12)]">
+          {hoveredStack && occupiedStacks[hoveredStack] ? (
+            <div className="flex flex-wrap gap-x-6 gap-y-1 items-center">
+              <span className="font-bold">{hoveredStack} summary</span>
+              <span>Avg Moisture: {occupiedStacks[hoveredStack].moisture}%</span>
+              <span>Bags: {occupiedStacks[hoveredStack].bags}</span>
+              <span>Type: {occupiedStacks[hoveredStack].type} Bags</span>
+            </div>
+          ) : (
+            <span className="text-[var(--text-muted-alt)] text-xs">
+              Hover a stack to see moisture / bags summary (always visible while scrolling the map)
+            </span>
           )}
         </div>
       </div>

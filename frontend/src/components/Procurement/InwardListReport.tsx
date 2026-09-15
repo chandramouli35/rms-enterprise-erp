@@ -114,7 +114,9 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
           if (mergedGroups.length) {
             payload = {
               ...payload,
-              dateGroups: mergedGroups.sort((a: any, b: any) => String(b.date).localeCompare(String(a.date))),
+              dateGroups: mergedGroups.sort((a: any, b: any) =>
+            String(a.date).localeCompare(String(b.date)),
+          ),
               fromSnapshot: true,
               snapshotMerged: true,
             };
@@ -639,6 +641,8 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
               Confirming that the manual entries completed matches the digital entries of the day.
               Both <b>Govt (Agency GP)</b> and <b>Mill (Actual Bags)</b> lists will be submitted for{' '}
               <b>{filters.dateTo || todayStr()}</b>, and Daily Paddy Summary will be sent to the mill.
+              Loader &amp; Unloader day reports (per unloader, with Unloader + Supervisor
+              signatures) must already be submitted to Admin for this date.
             </p>
           </div>
           <label className="flex items-start gap-2 text-sm text-[var(--text-main)] cursor-pointer">

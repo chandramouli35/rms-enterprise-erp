@@ -7,10 +7,11 @@ export class UsersRolesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getStats() {
+    const notDeleted = { deletedAt: null as Date | null };
     const [totalUsers, activeUsers, inactiveUsers, totalRoles] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.user.count({ where: { isActive: true } }),
-      this.prisma.user.count({ where: { isActive: false } }),
+      this.prisma.user.count({ where: notDeleted }),
+      this.prisma.user.count({ where: { ...notDeleted, isActive: true } }),
+      this.prisma.user.count({ where: { ...notDeleted, isActive: false } }),
       this.prisma.role.count()
     ]);
 
@@ -24,14 +25,16 @@ export class UsersRolesService {
   }
 
   async getUsersList(page?: string, limit?: string) {
+    const notDeleted = { deletedAt: null as Date | null };
     if (page) {
       const pageNum = parseInt(page || '1', 10);
       const limitNum = parseInt(limit || '10', 10);
       const skip = (pageNum - 1) * limitNum;
       
       const [total, users] = await this.prisma.$transaction([
-        this.prisma.user.count(),
+        this.prisma.user.count({ where: notDeleted }),
         this.prisma.user.findMany({
+          where: notDeleted,
           include: {
             role: true,
             plantAccess: {
@@ -52,6 +55,11 @@ export class UsersRolesService {
         roleId: user.roleId,
         plant: user.plantAccess.length > 0 ? user.plantAccess.map(pa => pa.plant.name).join(', ') : 'None',
         plantId: user.plantAccess.length > 0 ? user.plantAccess[0].plantId : '',
+        plantIds: user.plantAccess.map(pa => pa.plantId),
+        plantAccess: user.plantAccess.map(pa => ({
+          plantId: pa.plantId,
+          plant: pa.plant,
+        })),
         status: user.isActive ? 'Active' : 'Inactive',
         lastLogin: user.lastLogin ? user.lastLogin.toLocaleDateString() : 'Never',
         avatar: `https://ui-avatars.com/api/?name=${user.username}`
@@ -61,6 +69,7 @@ export class UsersRolesService {
     }
 
     const users = await this.prisma.user.findMany({
+      where: { deletedAt: null },
       include: {
         role: true,
         plantAccess: {
@@ -78,6 +87,11 @@ export class UsersRolesService {
       roleId: user.roleId,
       plant: user.plantAccess.length > 0 ? user.plantAccess.map(pa => pa.plant.name).join(', ') : 'None',
       plantId: user.plantAccess.length > 0 ? user.plantAccess[0].plantId : '',
+      plantIds: user.plantAccess.map(pa => pa.plantId),
+      plantAccess: user.plantAccess.map(pa => ({
+        plantId: pa.plantId,
+        plant: pa.plant,
+      })),
       status: user.isActive ? 'Active' : 'Inactive',
       lastLogin: user.lastLogin ? user.lastLogin.toLocaleDateString() : 'Never',
       avatar: `https://ui-avatars.com/api/?name=${user.username}`
@@ -85,32 +99,121 @@ export class UsersRolesService {
   }
 
   async createUser(data: any) {
-    const { username, fullname, email, password, roleId, plantIds } = data;
+    const {
+      username,
+      fullName,
+      fullname,
+      email,
+      password,
+      roleId,
+      plantIds,
+      fingerprint1,
+      fingerprint2,
+    } = data;
     const passwordHash = await bcrypt.hash(password, 10);
+
+    const role = roleId
+      ? await this.prisma.role.findUnique({ where: { id: roleId } })
+      : null;
+    const isSupervisor = !!role?.name && /supervisor/i.test(role.name);
+    if (isSupervisor && (!fingerprint1 || !fingerprint2)) {
+      throw new BadRequestException(
+        'Supervisor registration requires two fingerprint scans.',
+      );
+    }
+
+    const normalizedPlants = await this.normalizePlantIdsForRole(role, plantIds);
+
+    // Non-admin: max 2 fingerprints (schema has only 2 slots); reject extras if sent
+    if (
+      !this.roleAllowsMultipleMillsByName(role?.name) &&
+      (fingerprint1 || fingerprint2)
+    ) {
+      // already only 2 fields — enforce both are distinct when both present
+      if (fingerprint1 && fingerprint2 && fingerprint1 === fingerprint2) {
+        throw new BadRequestException(
+          'Finger 1 and Finger 2 must be two different captures.',
+        );
+      }
+    }
 
     const user = await this.prisma.user.create({
       data: {
         username,
-        email,
+        email: email || username,
         passwordHash,
         roleId,
+        fingerprint1: fingerprint1 || null,
+        fingerprint2: fingerprint2 || null,
         plantAccess: {
-          create: plantIds.map((id: string) => ({ plantId: id }))
-        }
-      }
+          create: normalizedPlants.map((id: string) => ({ plantId: id })),
+        },
+      },
     });
     
     // Log audit
     await this.prisma.systemAuditLog.create({
       data: {
-        userId: user.id, // Logged against new user for now as mock
+        userId: user.id,
         action: 'CREATED_USER',
         module: 'Users & Roles',
-        details: `User ${username} created.`
-      }
+        details: `User ${username} created${isSupervisor ? ' with 2 fingerprints' : ''}.${fullName || fullname ? ` Name: ${fullName || fullname}` : ''}`,
+      },
     });
 
     return user;
+  }
+
+  /** Admin / Superadmin always multi-mill; others need "Add more than one mill" permission. */
+  private roleAllowsMultipleMillsByName(roleName?: string | null): boolean {
+    if (!roleName) return false;
+    const n = String(roleName).trim().toUpperCase().replace(/[\s-]+/g, '_');
+    return (
+      n === 'SUPER_ADMIN' ||
+      n === 'SUPERADMIN' ||
+      n === 'ADMIN' ||
+      n === 'ADMINISTRATOR'
+    );
+  }
+
+  private async roleAllowsMultipleMills(
+    role: { id?: string; name?: string | null } | null | undefined,
+  ): Promise<boolean> {
+    if (this.roleAllowsMultipleMillsByName(role?.name)) return true;
+    if (!role?.id) return false;
+    const perm = await this.prisma.modulePermission.findFirst({
+      where: {
+        roleId: role.id,
+        moduleName: 'Users and Roles',
+        subModuleName: 'Add more than one mill',
+        OR: [
+          { canView: true },
+          { canAdd: true },
+          { canEdit: true },
+          { canApprove: true },
+        ],
+      },
+    });
+    return !!perm;
+  }
+
+  private async normalizePlantIdsForRole(
+    role: { id?: string; name?: string | null } | null | undefined,
+    plantIds: any,
+  ): Promise<string[]> {
+    const ids = Array.isArray(plantIds)
+      ? [...new Set(plantIds.map((id: any) => String(id)).filter(Boolean))]
+      : [];
+    if (!ids.length) {
+      throw new BadRequestException('At least one plant must be selected.');
+    }
+    const multi = await this.roleAllowsMultipleMills(role);
+    if (!multi && ids.length > 1) {
+      throw new BadRequestException(
+        'This role can be assigned to only one plant. Enable "Add more than one mill" on the role, or use Admin / Superadmin.',
+      );
+    }
+    return multi ? ids : [ids[0]];
   }
 
   async toggleUserStatus(id: string) {
@@ -138,16 +241,27 @@ export class UsersRolesService {
       updateData.passwordHash = await bcrypt.hash(newPassword, 10);
     }
 
+    const effectiveRoleId = roleId;
+    const role = effectiveRoleId
+      ? await this.prisma.role.findUnique({ where: { id: effectiveRoleId } })
+      : await this.prisma.user.findUnique({
+          where: { id },
+          include: { role: true },
+        }).then((u) => u?.role || null);
+
     const user = await this.prisma.user.update({
       where: { id },
       data: updateData
     });
     
     if (plantIds && Array.isArray(plantIds)) {
-      // Very simplified update for plantAccess: remove existing and add new
+      const normalizedPlants = await this.normalizePlantIdsForRole(
+        role as any,
+        plantIds,
+      );
       await this.prisma.userPlantAccess.deleteMany({ where: { userId: id } });
       await this.prisma.userPlantAccess.createMany({
-        data: plantIds.map((pid: string) => ({ userId: id, plantId: pid }))
+        data: normalizedPlants.map((pid: string) => ({ userId: id, plantId: pid }))
       });
     }
 
@@ -168,27 +282,152 @@ export class UsersRolesService {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new Error('User not found');
 
-    // First delete associated PlantAccess records
+    // Soft-delete so historical entries (audit, procurement names, fingerprints) remain
+    const stamp = id.slice(0, 8);
     await this.prisma.userPlantAccess.deleteMany({ where: { userId: id } });
+    await this.prisma.user.update({
+      where: { id },
+      data: {
+        isActive: false,
+        deletedAt: new Date(),
+        refreshToken: null,
+        username: `${user.username}__archived__${stamp}`,
+        email: `archived+${stamp}.${user.email}`.slice(0, 190),
+      },
+    });
 
-    // Then delete the user
-    await this.prisma.user.delete({ where: { id } });
-
-    // Log audit
     await this.prisma.systemAuditLog.create({
       data: {
-        userId: user.id, // Usually this would be the admin who did it
+        userId: user.id,
         action: 'DELETED_USER',
         module: 'Users & Roles',
-        details: `User ${user.username} deleted.`
+        details: `User ${user.username} archived (soft-deleted). Historical records preserved.`,
       }
     });
 
     return { message: 'User deleted successfully' };
   }
 
+  /**
+   * Transfer a single-mill user to another mill:
+   * creates a new User ID + password (+ fingerprints for supervisors),
+   * archives the old Mill A account while preserving history/fingerprints.
+   */
+  async transferUser(
+    id: string,
+    data: {
+      plantId: string;
+      username: string;
+      password: string;
+      email?: string;
+      fingerprint1?: string;
+      fingerprint2?: string;
+    },
+  ) {
+    const source = await this.prisma.user.findUnique({
+      where: { id },
+      include: { role: true, plantAccess: true },
+    });
+    if (!source || source.deletedAt) {
+      throw new BadRequestException('Source user not found');
+    }
+    if (await this.roleAllowsMultipleMills(source.role)) {
+      throw new BadRequestException(
+        'Admin / Superadmin (or multi-mill roles) should update Primary Plant instead of transferring.',
+      );
+    }
+    if (!data.plantId || !data.username || !data.password) {
+      throw new BadRequestException('plantId, username and password are required.');
+    }
+    const alreadyOnPlant = source.plantAccess.some((p) => p.plantId === data.plantId);
+    if (alreadyOnPlant && source.plantAccess.length === 1) {
+      throw new BadRequestException('User is already assigned only to this mill.');
+    }
+
+    const isSupervisor = /supervisor/i.test(source.role?.name || '');
+    if (isSupervisor && (!data.fingerprint1 || !data.fingerprint2)) {
+      throw new BadRequestException(
+        'Supervisor transfer requires two new fingerprint scans for the destination mill.',
+      );
+    }
+    if (
+      data.fingerprint1 &&
+      data.fingerprint2 &&
+      data.fingerprint1 === data.fingerprint2
+    ) {
+      throw new BadRequestException(
+        'Finger 1 and Finger 2 must be two different captures.',
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(data.password, 10);
+    const newUser = await this.prisma.user.create({
+      data: {
+        username: data.username,
+        email: data.email || data.username,
+        passwordHash,
+        roleId: source.roleId,
+        fingerprint1: data.fingerprint1 || null,
+        fingerprint2: data.fingerprint2 || null,
+        plantAccess: {
+          create: [{ plantId: data.plantId }],
+        },
+      },
+    });
+
+    // Archive Mill A account — keep fingerprints & id for historical reference
+    const stamp = source.id.slice(0, 8);
+    await this.prisma.userPlantAccess.deleteMany({ where: { userId: source.id } });
+    await this.prisma.user.update({
+      where: { id: source.id },
+      data: {
+        isActive: false,
+        deletedAt: new Date(),
+        refreshToken: null,
+        username: `${source.username}__archived__${stamp}`,
+        email: `archived+${stamp}.${source.email}`.slice(0, 190),
+      },
+    });
+
+    await this.prisma.systemAuditLog.create({
+      data: {
+        userId: newUser.id,
+        action: 'TRANSFERRED_USER',
+        module: 'Users & Roles',
+        details: `Transferred from archived user ${source.username} (${source.id}) to ${newUser.username} at plant ${data.plantId}.`,
+        entityId: source.id,
+        plantId: data.plantId,
+      },
+    });
+
+    return {
+      message: 'User transferred successfully',
+      archivedUserId: source.id,
+      newUser,
+    };
+  }
+
   async getRoles() {
-    return this.prisma.role.findMany();
+    const roles = await this.prisma.role.findMany({ orderBy: { name: 'asc' } });
+    const multiPerms = await this.prisma.modulePermission.findMany({
+      where: {
+        moduleName: 'Users and Roles',
+        subModuleName: 'Add more than one mill',
+        OR: [
+          { canView: true },
+          { canAdd: true },
+          { canEdit: true },
+          { canApprove: true },
+        ],
+      },
+      select: { roleId: true },
+    });
+    const multiSet = new Set(multiPerms.map((p) => p.roleId));
+    return roles.map((r) => ({
+      ...r,
+      allowsMultipleMills:
+        this.roleAllowsMultipleMillsByName(r.name) || multiSet.has(r.id),
+    }));
   }
 
   async createRole(data: { name: string, description?: string }) {
@@ -211,9 +450,9 @@ export class UsersRolesService {
         'Supplier Master',
         'Mandi Master',
         'Boli Record',
+        'Stack to Hoodi',
         'Paddy Inward',
         'Inward List',
-        'Stack to Hoodi',
         'Global Settings (Govt Rate)',
         'Reports',
         'Quality Inspection',
@@ -283,7 +522,13 @@ export class UsersRolesService {
     },
     {
       name: 'Users and Roles',
-      subModules: ['Users', 'Roles', 'Permissions', 'Audit Access'],
+      subModules: [
+        'Users',
+        'Roles',
+        'Permissions',
+        'Audit Access',
+        'Add more than one mill',
+      ],
     },
     {
       name: 'Products',

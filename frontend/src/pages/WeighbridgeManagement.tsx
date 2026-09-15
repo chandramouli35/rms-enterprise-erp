@@ -42,7 +42,9 @@ export const WeighbridgeManagement = () => {
  const [isStreaming, setIsStreaming] = useState(false);
  const [lastReading, setLastReading] = useState<string>('-');
  const [tareWeight, setTareWeight] = useState(0); 
- const [connectionStatus, setConnectionStatus] = useState('Connected');
+ const [connectionStatus, setConnectionStatus] = useState('Not Connected');
+ const [connectionMessage, setConnectionMessage] = useState('');
+ const [isTestingConnection, setIsTestingConnection] = useState(false);
 
  const [modalConfig, setModalConfig] = useState<{isOpen: boolean; title: string; content: React.ReactNode}>({ isOpen: false, title: '', content: null });
  
@@ -267,6 +269,39 @@ export const WeighbridgeManagement = () => {
     }
   }, [activeTab, activePlant?.id]);
 
+  /** Load settings + real hardware connection status (never assume Connected) */
+  const refreshConnectionStatus = async () => {
+    const pid = activePlant?.id || 'global';
+    try {
+      const [settingsRes, statusRes] = await Promise.all([
+        api.get(`/api/weighbridge/settings/${pid}`),
+        api.get(`/api/weighbridge/connection-status/${pid}`),
+      ]);
+      if (settingsRes.data) {
+        setSettings((prev) => ({ ...prev, ...settingsRes.data }));
+      }
+      const st = statusRes.data;
+      setConnectionStatus(st?.connected ? 'Connected' : 'Not Connected');
+      setConnectionMessage(st?.message || '');
+      if (!st?.connected) {
+        setIsStreaming(false);
+      }
+    } catch (error) {
+      console.error('Failed to refresh weighbridge connection status', error);
+      setConnectionStatus('Not Connected');
+      setConnectionMessage(
+        'Unable to verify weighbridge connection. Device is treated as not connected.',
+      );
+      setIsStreaming(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'capture' || activeTab === 'settings') {
+      refreshConnectionStatus();
+    }
+  }, [activeTab, activePlant?.id]);
+
  const handleSaveSettings = async () => {
  if (!activePlant) return;
  setIsSavingSettings(true);
@@ -291,6 +326,8 @@ export const WeighbridgeManagement = () => {
  return;
  }
  try {
+ // Note: stream API currently reads punched GP weights — not physical COM.
+ // Do not mark hardware as Connected from this call.
  setIsStreaming(true);
  const res = await api.get(`/api/weighbridge/stream/${vehicleNo}`);
  setWeightData(res.data);
@@ -383,9 +420,46 @@ export const WeighbridgeManagement = () => {
  setLastReading('-');
  };
 
- const handleTestConnection = () => {
- setTestSuccess(true);
- setTimeout(() => setTestSuccess(false), 3000);
+ const handleTestConnection = async () => {
+   setIsTestingConnection(true);
+   setTestSuccess(false);
+   try {
+     const pid = activePlant?.id || 'global';
+     const res = await api.get(`/api/weighbridge/connection-status/${pid}`);
+     const st = res.data;
+     setConnectionStatus(st?.connected ? 'Connected' : 'Not Connected');
+     setConnectionMessage(st?.message || '');
+     if (st?.connected) {
+       setTestSuccess(true);
+       setTimeout(() => setTestSuccess(false), 3000);
+       setModalConfig({
+         isOpen: true,
+         title: 'Connection Successful',
+         content: `Physical weighbridge connected on ${st.port || 'COM'} @ ${st.baudRate || '-'} baud.`,
+       });
+     } else {
+       setIsStreaming(false);
+       setModalConfig({
+         isOpen: true,
+         title: 'Not Connected',
+         content:
+           st?.message ||
+           'Physical weighbridge indicator is not connected. Test the COM port in PuTTY first, then integrate the live feed.',
+       });
+     }
+   } catch (error: any) {
+     setConnectionStatus('Not Connected');
+     setIsStreaming(false);
+     setModalConfig({
+       isOpen: true,
+       title: 'Connection Test Failed',
+       content:
+         error?.response?.data?.message ||
+         'Could not reach weighbridge connection status. Device remains Not Connected.',
+     });
+   } finally {
+     setIsTestingConnection(false);
+   }
  };
 
  const currentWeight = weightData ? weightData.grossWeight : 0;
@@ -643,8 +717,8 @@ export const WeighbridgeManagement = () => {
  <div className="flex justify-between items-center mb-4">
  <h3 className="text-sm font-medium text-[var(--text-main)]">Weight Captured</h3>
  <div className="flex items-center gap-1.5">
- <span className={`h-2 w-2 rounded-full ${isStreaming ? 'bg-green-500' : 'bg-gray-500'}`}></span>
- <span className={`text-xs font-medium ${isStreaming ? 'text-green-500' : 'text-[var(--text-muted-alt)]'}`}>{isStreaming ? 'Stable' : 'Offline'}</span>
+ <span className={`h-2 w-2 rounded-full ${connectionStatus === 'Connected' && isStreaming ? 'bg-green-500' : 'bg-gray-500'}`}></span>
+ <span className={`text-xs font-medium ${connectionStatus === 'Connected' && isStreaming ? 'text-green-500' : 'text-[var(--text-muted-alt)]'}`}>{connectionStatus === 'Connected' && isStreaming ? 'Stable' : 'Offline'}</span>
  </div>
  </div>
  
@@ -747,8 +821,8 @@ export const WeighbridgeManagement = () => {
  {currentWeight.toLocaleString()} <span className="text-lg opacity-80 font-medium ml-1">kg</span>
  </div>
  <div className="flex items-center justify-center gap-1.5 mt-2">
- <span className={`h-2 w-2 rounded-full ${isStreaming ? 'bg-green-500' : 'bg-gray-500'}`}></span>
- <span className={`text-xs font-medium ${isStreaming ? 'text-green-500' : 'text-[var(--text-muted-alt)]'}`}>{isStreaming ? 'Stable' : 'Offline'}</span>
+ <span className={`h-2 w-2 rounded-full ${connectionStatus === 'Connected' && isStreaming ? 'bg-green-500' : 'bg-gray-500'}`}></span>
+ <span className={`text-xs font-medium ${connectionStatus === 'Connected' && isStreaming ? 'text-green-500' : 'text-[var(--text-muted-alt)]'}`}>{connectionStatus === 'Connected' && isStreaming ? 'Stable' : 'Offline'}</span>
  </div>
  </div>
  </div>
@@ -760,19 +834,30 @@ export const WeighbridgeManagement = () => {
  <div className="space-y-4 flex-1">
  <div className="flex justify-between items-center text-sm border-b border-[var(--border-subtle-alt)] pb-2">
  <span className="text-[var(--text-muted-alt)]">Connection Status</span>
- <span className="text-green-500 bg-green-500/10 px-2 py-0.5 rounded text-xs font-medium border border-green-500/20">{connectionStatus}</span>
+ <span
+   className={`px-2 py-0.5 rounded text-xs font-medium border ${
+     connectionStatus === 'Connected'
+       ? 'text-green-500 bg-green-500/10 border-green-500/20'
+       : 'text-red-400 bg-red-500/10 border-red-500/20'
+   }`}
+ >
+   {connectionStatus}
+ </span>
  </div>
+ {connectionMessage && connectionStatus !== 'Connected' && (
+   <p className="text-[10px] text-amber-500/90 leading-snug -mt-2">{connectionMessage}</p>
+ )}
  <div className="flex justify-between items-center text-sm border-b border-[var(--border-subtle-alt)] pb-2">
  <span className="text-[var(--text-muted-alt)]">Port / IP</span>
- <span className="text-[var(--text-main)] font-medium">COM3</span>
+ <span className="text-[var(--text-main)] font-medium">{settings.port || '-'}</span>
  </div>
  <div className="flex justify-between items-center text-sm border-b border-[var(--border-subtle-alt)] pb-2">
  <span className="text-[var(--text-muted-alt)]">Baud Rate / Speed</span>
- <span className="text-[var(--text-main)] font-medium">9600</span>
+ <span className="text-[var(--text-main)] font-medium">{settings.baudRate || '-'}</span>
  </div>
  <div className="flex justify-between items-center text-sm border-b border-[var(--border-subtle-alt)] pb-2">
  <span className="text-[var(--text-muted-alt)]">Indicator Model</span>
- <span className="text-[var(--text-main)] font-medium">Essae - DS2520</span>
+ <span className="text-[var(--text-main)] font-medium">{settings.indicatorModel || '-'}</span>
  </div>
  <div className="flex justify-between items-center text-sm border-b border-[var(--border-subtle-alt)] pb-2">
  <span className="text-[var(--text-muted-alt)]">Last Reading</span>
@@ -780,13 +865,30 @@ export const WeighbridgeManagement = () => {
  </div>
  <div className="flex justify-between items-center text-sm">
  <span className="text-[var(--text-muted-alt)]">Status</span>
- <span className={`${isStreaming ? 'text-green-500' : 'text-[var(--text-muted-alt)]'} font-medium`}>{isStreaming ? 'Stable' : 'Offline'}</span>
+ <span className={`${connectionStatus === 'Connected' && isStreaming ? 'text-green-500' : 'text-[var(--text-muted-alt)]'} font-medium`}>
+   {connectionStatus === 'Connected' && isStreaming ? 'Stable' : 'Offline'}
+ </span>
  </div>
  </div>
 
- <div className="mt-5 pt-4 border-t border-[var(--border-subtle-alt)]">
- <button onClick={() => { setIsStreaming(false); setConnectionStatus('Disconnected'); }} className="flex items-center justify-center gap-2 w-full py-2 border border-red-500/50 hover:bg-red-500/10 text-red-400 rounded-lg text-sm font-medium transition-colors">
- <Link2Off size={16} /> Disconnect
+ <div className="mt-5 pt-4 border-t border-[var(--border-subtle-alt)] space-y-2">
+ <button
+   type="button"
+   onClick={refreshConnectionStatus}
+   className="flex items-center justify-center gap-2 w-full py-2 border border-[var(--border-subtle)] hover:bg-[var(--bg-base)] text-[var(--text-muted)] rounded-lg text-sm font-medium transition-colors"
+ >
+   <RefreshCw size={16} /> Refresh Status
+ </button>
+ <button
+   type="button"
+   onClick={() => {
+     setIsStreaming(false);
+     setConnectionStatus('Not Connected');
+     setConnectionMessage('Disconnected manually. Physical indicator is not linked.');
+   }}
+   className="flex items-center justify-center gap-2 w-full py-2 border border-red-500/50 hover:bg-red-500/10 text-red-400 rounded-lg text-sm font-medium transition-colors"
+ >
+   <Link2Off size={16} /> Disconnect
  </button>
  </div>
  </div>
@@ -1029,13 +1131,19 @@ export const WeighbridgeManagement = () => {
  <div className="flex items-center gap-4">
  <button 
  onClick={handleTestConnection}
- className="bg-blue-600 hover:bg-blue-500 text-[var(--text-main)] px-5 py-2.5 rounded-lg font-medium transition-colors shadow-lg shadow-blue-600/20 text-sm flex items-center gap-2"
+ disabled={isTestingConnection}
+ className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-[var(--text-main)] px-5 py-2.5 rounded-lg font-medium transition-colors shadow-lg shadow-blue-600/20 text-sm flex items-center gap-2"
  >
- <Settings2 size={16} /> Test Connection
+ <Settings2 size={16} /> {isTestingConnection ? 'Testing…' : 'Test Connection'}
  </button>
  {testSuccess && (
  <div className="flex items-center gap-2 text-green-400 text-sm font-medium bg-green-400/10 px-3 py-2 rounded-lg border border-green-400/20">
  <Shield size={16} /> Connection Successful
+ </div>
+ )}
+ {connectionStatus === 'Not Connected' && !testSuccess && (
+ <div className="flex items-center gap-2 text-red-400 text-sm font-medium bg-red-400/10 px-3 py-2 rounded-lg border border-red-400/20">
+ <Link2Off size={16} /> Not Connected
  </div>
  )}
  </div>
