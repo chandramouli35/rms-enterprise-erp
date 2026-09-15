@@ -9,6 +9,7 @@ interface Plant {
   benchmarkMoisture?: number;
   safaiCut?: number;
   processingCut?: number;
+  standardBagWeight?: number;
   allowManualDateTimePaddyInward?: boolean;
   allowManualDateTimeGateIn?: boolean;
   allowManualDateTimeGateOut?: boolean;
