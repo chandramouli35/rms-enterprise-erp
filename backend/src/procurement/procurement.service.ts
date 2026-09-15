@@ -1563,28 +1563,73 @@ export class ProcurementService {
     return `${code}-B${String(seq).padStart(4, '0')}`;
   }
 
-  /** Older Estimate rows may have null boliNo — assign mill-wise series once */
+  /**
+   * Feedback 32 / client: ONE Boli No. per Estimate Purchase (soda / Artia / day).
+   * All M/C–Bags–Rate lines under that soda share the same number.
+   * Next soda (next day / next Artia entry) gets the next mill-wise series number.
+   */
+  private async ensureSodaBoliNo(
+    tx: any,
+    plantId: string,
+    sodaId: string,
+    existingBolis?: { boliNo?: string | null }[],
+  ): Promise<string> {
+    const fromExisting = (existingBolis || [])
+      .map((b) => String(b.boliNo || '').trim())
+      .filter(Boolean)
+      .sort()[0];
+    if (fromExisting) return fromExisting;
+
+    const any = await tx.paddyBoli.findFirst({
+      where: {
+        sodaPendingId: sodaId,
+        AND: [{ boliNo: { not: null } }, { boliNo: { not: '' } }],
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { boliNo: true },
+    });
+    if (any?.boliNo) return any.boliNo;
+    return this.nextBoliNo(tx, plantId);
+  }
+
+  /** Assign / normalize: one Boli No. per soda for all lines */
   private async backfillMissingBoliNos(plantId?: string) {
-    const where: any = {
-      OR: [{ boliNo: null }, { boliNo: '' }],
-    };
-    if (plantId && plantId !== 'global') {
-      where.sodaPending = { plantId };
-    }
-    const missing = await this.prisma.paddyBoli.findMany({
-      where,
-      include: { sodaPending: { select: { plantId: true } } },
+    const sodaWhere: any =
+      plantId && plantId !== 'global' ? { plantId } : {};
+    const sodas = await this.prisma.paddySodaPending.findMany({
+      where: sodaWhere,
+      include: {
+        bolis: { select: { id: true, boliNo: true, createdAt: true } },
+      },
       orderBy: { createdAt: 'asc' },
       take: 500,
     });
-    if (missing.length === 0) return;
 
     await this.prisma.$transaction(async (tx) => {
-      for (const b of missing) {
-        const pid = b.sodaPending?.plantId;
-        if (!pid) continue;
-        const boliNo = await this.nextBoliNo(tx, pid);
-        await tx.paddyBoli.update({ where: { id: b.id }, data: { boliNo } });
+      for (const soda of sodas) {
+        if (!soda.bolis?.length) continue;
+        const nos = soda.bolis
+          .map((b) => String(b.boliNo || '').trim())
+          .filter(Boolean);
+        const unique = [...new Set(nos)];
+        let shared: string;
+        if (unique.length === 1) {
+          shared = unique[0];
+        } else if (unique.length > 1) {
+          // Consolidate duplicate series under one soda → keep earliest / lowest
+          shared = unique.sort()[0];
+        } else {
+          shared = await this.nextBoliNo(tx, soda.plantId);
+        }
+        const needUpdate = soda.bolis.filter(
+          (b) => String(b.boliNo || '').trim() !== shared,
+        );
+        for (const b of needUpdate) {
+          await tx.paddyBoli.update({
+            where: { id: b.id },
+            data: { boliNo: shared },
+          });
+        }
       }
     });
   }
@@ -2423,11 +2468,12 @@ export class ProcurementService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      // One Boli No. for this entire Estimate Purchase (all lines share it)
+      const sharedBoliNo = await this.nextBoliNo(tx, data.plantId);
       const createdBolis: any[] = [];
       for (const b of bolisData) {
-        const boliNo = await this.nextBoliNo(tx, data.plantId);
         createdBolis.push({
-          boliNo,
+          boliNo: sharedBoliNo,
           moisture: b.moisture,
           bags: b.bags,
           rate: b.rate,
@@ -2603,6 +2649,14 @@ export class ProcurementService {
       const keptIds = new Set<string>();
       const upserted: any[] = [];
 
+      // One shared Boli No. for this soda (all lines)
+      const sharedBoliNo = await this.ensureSodaBoliNo(
+        tx,
+        existing.plantId,
+        id,
+        existing.bolis,
+      );
+
       for (let i = 0; i < bolisData.length; i++) {
         const b = bolisData[i];
         // Prefer explicit id; else match by position to preserve UUIDs
@@ -2611,10 +2665,6 @@ export class ProcurementService {
           (!b.id && existing.bolis[i] && !keptIds.has(existing.bolis[i].id) ? existing.bolis[i] : null);
 
         const existingBoli = matched || null;
-        let boliNo = b.boliNo || existingBoli?.boliNo;
-        if (!boliNo) {
-          boliNo = await this.nextBoliNo(tx, existing.plantId);
-        }
 
         // Preserve Final Bags / received / complete / bill-checked from dedicated flows only
         const finalBags = existingBoli?.finalBags ?? null;
@@ -2628,7 +2678,7 @@ export class ProcurementService {
           moisture: b.moisture,
           bags: b.bags,
           rate: b.rate,
-          boliNo,
+          boliNo: sharedBoliNo,
           finalBags,
           artiaBillChecked,
           payment,

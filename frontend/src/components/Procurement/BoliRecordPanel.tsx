@@ -62,7 +62,8 @@ export default function BoliRecordPanel({
     boliId: '',
     supervisorName: '',
     artiaBillChecked: 'No' as 'Yes' | 'No',
-    finalBags: '',
+    /** Final Bags per boli line (Feedback 32 — up to 4 lines like Estimate Purchase) */
+    finalBagsById: {} as Record<string, string>,
     biometricData: '',
   });
   const [finalSaving, setFinalSaving] = useState(false);
@@ -73,6 +74,40 @@ export default function BoliRecordPanel({
     () => openBolis.find((b) => b.id === finalForm.boliId) || null,
     [openBolis, finalForm.boliId],
   );
+
+  /** One dropdown option per Boli No. (soda) — not one per M/C line */
+  const openBoliOptions = useMemo(() => {
+    const bySoda = new Map<string, any>();
+    for (const b of openBolis) {
+      const key = b.sodaId || b.id;
+      if (!bySoda.has(key)) bySoda.set(key, b);
+    }
+    return [...bySoda.values()].sort((a, b) =>
+      String(a.boliNo || '').localeCompare(String(b.boliNo || '')),
+    );
+  }, [openBolis]);
+
+  /** Always 4 lines: selected + sibling open bolis from same soda, then empty slots */
+  const finalBoliLines = useMemo(() => {
+    const empty = () => null as any;
+    if (!selectedOpen) return [empty(), empty(), empty(), empty()];
+    const siblings = openBolis.filter((b) => b.sodaId === selectedOpen.sodaId);
+    const ordered = [
+      selectedOpen,
+      ...siblings.filter((b) => b.id !== selectedOpen.id),
+    ].slice(0, 4);
+    while (ordered.length < 4) ordered.push(empty());
+    return ordered;
+  }, [selectedOpen, openBolis]);
+
+  const resetFinalForm = () =>
+    setFinalForm({
+      boliId: '',
+      supervisorName: '',
+      artiaBillChecked: 'No',
+      finalBagsById: {},
+      biometricData: '',
+    });
 
   const fetchRows = async () => {
     if (!activePlant?.id) return;
@@ -314,12 +349,8 @@ export default function BoliRecordPanel({
       useUiStore.getState().addToast('Set Artia Bill Checked And Matched to Yes', 'error');
       return;
     }
-    if (!finalForm.boliId || finalForm.finalBags === '') {
-      useUiStore.getState().addToast('Boli No and Final Bags are required', 'error');
-      return;
-    }
-    if (/[.]/.test(String(finalForm.finalBags))) {
-      useUiStore.getState().addToast('Final Bags must be a whole number (no decimals)', 'error');
+    if (!finalForm.boliId) {
+      useUiStore.getState().addToast('Select a Boli No. first', 'error');
       return;
     }
     if (!finalForm.biometricData) {
@@ -327,22 +358,50 @@ export default function BoliRecordPanel({
       return;
     }
 
+    const toSubmit = finalBoliLines
+      .filter(Boolean)
+      .map((b: any) => ({
+        id: b.id,
+        boliNo: b.boliNo,
+        bags: String(finalForm.finalBagsById[b.id] ?? '').trim(),
+      }))
+      .filter((x) => x.bags !== '');
+
+    if (!toSubmit.length) {
+      useUiStore.getState().addToast('Enter Final Bags on at least one line', 'error');
+      return;
+    }
+    for (const row of toSubmit) {
+      if (/[.]/.test(row.bags) || !/^\d{1,3}$/.test(row.bags)) {
+        useUiStore
+          .getState()
+          .addToast(
+            `Final Bags for ${row.boliNo || 'line'} must be a whole number (max 999)`,
+            'error',
+          );
+        return;
+      }
+    }
+
     setFinalSaving(true);
     try {
-      await api.put(`/api/procurement/bolis/${finalForm.boliId}/final`, {
-        artiaBillChecked: true,
-        finalBags: parseInt(finalForm.finalBags, 10),
-        supervisorName: finalForm.supervisorName || selectedOpen?.supervisorName,
-        biometricData: finalForm.biometricData,
-      });
-      useUiStore.getState().addToast('Final Boli submitted', 'success');
-      setFinalForm({
-        boliId: '',
-        supervisorName: '',
-        artiaBillChecked: 'No',
-        finalBags: '',
-        biometricData: '',
-      });
+      for (const row of toSubmit) {
+        await api.put(`/api/procurement/bolis/${row.id}/final`, {
+          artiaBillChecked: true,
+          finalBags: parseInt(row.bags, 10),
+          supervisorName: finalForm.supervisorName || selectedOpen?.supervisorName,
+          biometricData: finalForm.biometricData,
+        });
+      }
+      useUiStore
+        .getState()
+        .addToast(
+          toSubmit.length === 1
+            ? 'Final Boli submitted'
+            : `${toSubmit.length} Final Boli lines submitted`,
+          'success',
+        );
+      resetFinalForm();
       await fetchRows();
       await fetchOpenBolis();
     } catch (err: any) {
@@ -365,13 +424,7 @@ export default function BoliRecordPanel({
     try {
       await api.put(`/api/procurement/bolis/${selectedOpen.id}/cancel`);
       useUiStore.getState().addToast(`Boli ${selectedOpen.boliNo} cancelled`, 'success');
-      setFinalForm({
-        boliId: '',
-        supervisorName: '',
-        artiaBillChecked: 'No',
-        finalBags: '',
-        biometricData: '',
-      });
+      resetFinalForm();
       await fetchRows();
       await fetchOpenBolis();
     } catch (err: any) {
@@ -403,13 +456,7 @@ export default function BoliRecordPanel({
           `Soda cancelled (${res.data?.cancelled ?? ''} boli)`,
           'success',
         );
-      setFinalForm({
-        boliId: '',
-        supervisorName: '',
-        artiaBillChecked: 'No',
-        finalBags: '',
-        biometricData: '',
-      });
+      resetFinalForm();
       await fetchRows();
       await fetchOpenBolis();
     } catch (err: any) {
@@ -566,310 +613,6 @@ export default function BoliRecordPanel({
           </div>
         )}
 
-        {/* Add Final Boli — Feedback 32 Pg.2 */}
-        <div className="border border-[var(--border-subtle)] rounded-xl overflow-hidden bg-[var(--bg-panel-alt)]">
-          <div className="px-4 py-2 border-b border-[var(--border-subtle)] font-bold text-sm text-[#e67e00] bg-[#e67e00]/10">
-            Add Final Boli
-          </div>
-          <form onSubmit={submitFinalBoli} className="p-4 space-y-4 text-sm">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
-                  Boli No. (Dropdown)
-                </label>
-                <select
-                  value={finalForm.boliId}
-                  onChange={(e) => {
-                    const id = e.target.value;
-                    const b = openBolis.find((x) => x.id === id);
-                    // Auto-fetch all estimate details for this Boli No.
-                    setFinalForm((f) => ({
-                      ...f,
-                      boliId: id,
-                      supervisorName:
-                        b?.supervisorName ||
-                        (isSupervisor ? user?.username : '') ||
-                        '',
-                      artiaBillChecked: 'No',
-                      finalBags: '',
-                      biometricData: '',
-                    }));
-                  }}
-                  className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
-                >
-                  <option value="">Select Boli No.</option>
-                  {openBolis.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.boliNo} — {b.artiaName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
-                  Artia Name (Auto-fetch)
-                </label>
-                <input
-                  readOnly
-                  tabIndex={-1}
-                  value={selectedOpen?.artiaName || ''}
-                  placeholder="—"
-                  className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80 cursor-default"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
-                  Mandi Name (Auto-fetch)
-                </label>
-                <input
-                  readOnly
-                  tabIndex={-1}
-                  value={selectedOpen?.mandi || ''}
-                  placeholder="—"
-                  className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80 cursor-default"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
-                  Supervisor
-                </label>
-                {isSupervisor || !isAdmin ? (
-                  <input
-                    readOnly
-                    tabIndex={-1}
-                    value={
-                      selectedOpen?.supervisorName ||
-                      finalForm.supervisorName ||
-                      user?.username ||
-                      ''
-                    }
-                    placeholder="—"
-                    className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80 cursor-default"
-                  />
-                ) : (
-                  <select
-                    value={finalForm.supervisorName}
-                    onChange={(e) =>
-                      setFinalForm((f) => ({
-                        ...f,
-                        supervisorName: e.target.value,
-                      }))
-                    }
-                    className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
-                  >
-                    <option value="">Select Supervisor</option>
-                    {selectedOpen?.supervisorName && (
-                      <option value={selectedOpen.supervisorName}>
-                        {selectedOpen.supervisorName}
-                      </option>
-                    )}
-                    {supervisors.map((s) => (
-                      <option key={s.id} value={s.username}>
-                        {s.username}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
-                  Artia Bill Checked And Matched of this Boli
-                </label>
-                <div className="flex gap-4 py-2">
-                  {(['Yes', 'No'] as const).map((v) => (
-                    <label
-                      key={v}
-                      className="flex items-center gap-2 cursor-pointer text-[var(--text-main)]"
-                    >
-                      <input
-                        type="radio"
-                        name="artiaBillChecked"
-                        checked={finalForm.artiaBillChecked === v}
-                        onChange={() =>
-                          setFinalForm((f) => ({
-                            ...f,
-                            artiaBillChecked: v,
-                            ...(v === 'No' ? { finalBags: '', biometricData: '' } : {}),
-                          }))
-                        }
-                        className="accent-[#e67e00]"
-                      />
-                      {v}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Pg.2 table: M/C | Estimate Bags | Rate | Final Bags — no lines between.
-                Hide column headers when Estimate Bags = 0 (cancelled); cancel is Final Bags only. */}
-            {(() => {
-              const estBags = Number(selectedOpen?.estimatedBags);
-              const bagsCancelled =
-                !!selectedOpen &&
-                (selectedOpen.isCancelled ||
-                  (!Number.isNaN(estBags) && estBags === 0));
-              return (
-            <div className="overflow-x-auto rounded-lg bg-[var(--bg-base)] px-1 py-2">
-              <table className="w-full text-sm border-separate border-spacing-0">
-                {!bagsCancelled && (
-                <thead>
-                  <tr className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wide">
-                    <th className="font-medium text-left px-3 py-2">M/C</th>
-                    <th className="font-medium text-left px-3 py-2">
-                      Estimate Bags
-                    </th>
-                    <th className="font-medium text-left px-3 py-2">Rate</th>
-                    <th className="font-medium text-left px-3 py-2">
-                      Final Bags <span className="text-red-500 normal-case">*</span>
-                    </th>
-                  </tr>
-                </thead>
-                )}
-                <tbody>
-                  <tr>
-                    <td className="px-3 py-1.5 align-middle">
-                      <input
-                        readOnly
-                        tabIndex={-1}
-                        title="Auto-fetched from Estimate Purchase"
-                        value={
-                          bagsCancelled
-                            ? ''
-                            : selectedOpen?.moisture != null &&
-                                selectedOpen.moisture !== ''
-                              ? String(selectedOpen.moisture)
-                              : ''
-                        }
-                        placeholder={bagsCancelled ? 'Cancelled' : 'Auto'}
-                        className="w-full min-w-[5rem] bg-transparent border-0 border-b border-transparent px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5 align-middle">
-                      <input
-                        readOnly
-                        tabIndex={-1}
-                        title="Auto-fetched from Estimate Purchase"
-                        value={
-                          bagsCancelled
-                            ? ''
-                            : selectedOpen?.estimatedBags != null &&
-                                selectedOpen.estimatedBags !== ''
-                              ? String(selectedOpen.estimatedBags)
-                              : ''
-                        }
-                        placeholder={bagsCancelled ? '' : 'Auto'}
-                        className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5 align-middle">
-                      <input
-                        readOnly
-                        tabIndex={-1}
-                        title="Auto-fetched from Estimate Purchase"
-                        value={
-                          bagsCancelled
-                            ? ''
-                            : selectedOpen?.rate != null && selectedOpen.rate !== ''
-                              ? String(selectedOpen.rate)
-                              : ''
-                        }
-                        placeholder={bagsCancelled ? '' : 'Auto'}
-                        className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5 align-middle">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={3}
-                        disabled={!billYes || !selectedOpen || bagsCancelled}
-                        title={
-                          bagsCancelled
-                            ? 'Cancelled (Bags = 0) — Final Bags not applicable'
-                            : billYes
-                              ? 'Enter Final Bags manually (max 999, whole numbers)'
-                              : 'Set Artia Bill Checked = Yes to enable'
-                        }
-                        value={bagsCancelled ? '' : finalForm.finalBags}
-                        onChange={(e) => {
-                          const raw = e.target.value.replace(/\D/g, '').slice(0, 3);
-                          setFinalForm((f) => ({ ...f, finalBags: raw }));
-                        }}
-                        placeholder={
-                          bagsCancelled ? '—' : billYes ? 'Manual' : 'Locked'
-                        }
-                        className={`w-full min-w-[6rem] bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] outline-none focus:border-[#e67e00] ${
-                          !billYes || !selectedOpen || bagsCancelled
-                            ? 'opacity-40 cursor-not-allowed'
-                            : ''
-                        }`}
-                      />
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              <p className="text-[10px] text-[var(--text-muted-alt)] px-3 pt-1">
-                {bagsCancelled
-                  ? 'Bags = 0 (cancelled) — column headers hidden; cancel applies to Final Bags only.'
-                  : 'Moisture, Estimate Bags and Rate come from Estimate Purchase. Only Final Bags is typed manually (enabled when Artia Bill = Yes).'}
-              </p>
-            </div>
-              );
-            })()}
-
-            <div className="flex flex-wrap items-center gap-3 pt-1">
-              <button
-                type="button"
-                onClick={scanFingerprint}
-                disabled={scanning || !billYes || !selectedOpen}
-                className="px-3 py-2 rounded border border-[var(--border-subtle)] text-sm disabled:opacity-40"
-              >
-                {scanning
-                  ? 'Scanning…'
-                  : finalForm.biometricData
-                    ? 'Fingerprint ✓'
-                    : 'Scan Fingerprint'}
-              </button>
-              <button
-                type="submit"
-                disabled={!billYes || !selectedOpen || finalSaving}
-                className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {finalSaving ? 'Submitting…' : 'Submit with Fingerprint'}
-              </button>
-              {selectedOpen && (
-                <>
-                  <button
-                    type="button"
-                    onClick={cancelSelectedBoli}
-                    disabled={cancelling}
-                    className="px-3 py-2 rounded border border-red-500/40 text-red-400 text-sm font-medium hover:bg-red-500/10 disabled:opacity-40"
-                    title="Cancel this Boli (supervisor allowed here)"
-                  >
-                    {cancelling ? 'Cancelling…' : 'Cancel this Boli'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={cancelEntireSoda}
-                    disabled={cancelling}
-                    className="px-3 py-2 rounded border border-red-500/40 text-red-400 text-sm font-medium hover:bg-red-500/10 disabled:opacity-40"
-                    title="Cancel entire soda / estimate"
-                  >
-                    Cancel entire Soda
-                  </button>
-                </>
-              )}
-            </div>
-            {selectedOpen && (
-              <p className="text-[10px] text-[var(--text-muted-alt)]">
-                Cancel is allowed here for supervisors (max 3 per soda). Cancel is
-                blocked in Add Estimate Purchase.
-              </p>
-            )}
-          </form>
-        </div>
-
         {/* Table 01 — mill-wise Boli Record (no row divider lines; F32 Pg.2/3) */}
         <div className="overflow-x-auto rounded-lg bg-[var(--bg-panel-alt)]">
           <table className="w-full border-collapse text-[var(--text-muted)] text-sm min-w-[1100px]">
@@ -1005,6 +748,355 @@ export default function BoliRecordPanel({
             Showing all {total} boli(s) for selected Artia (no pagination).
           </p>
         )}
+
+
+        {/* Add Final Boli — Feedback 32 Pg.2 */}
+        <div className="border border-[var(--border-subtle)] rounded-xl overflow-hidden bg-[var(--bg-panel-alt)]">
+          <div className="px-4 py-2 border-b border-[var(--border-subtle)] font-bold text-sm text-[#e67e00] bg-[#e67e00]/10">
+            Add Final Boli
+          </div>
+          <form onSubmit={submitFinalBoli} className="p-4 space-y-4 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                  Boli No. (Dropdown)
+                </label>
+                <select
+                  value={finalForm.boliId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const b = openBolis.find((x) => x.id === id);
+                    // Auto-fetch all estimate details for this Boli No.
+                    setFinalForm((f) => ({
+                      ...f,
+                      boliId: id,
+                      supervisorName:
+                        b?.supervisorName ||
+                        (isSupervisor ? user?.username : '') ||
+                        '',
+                      artiaBillChecked: 'No',
+                      finalBagsById: {},
+                      biometricData: '',
+                    }));
+                  }}
+                  className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
+                >
+                  <option value="">Select Boli No.</option>
+                  {openBoliOptions.map((b) => (
+                    <option key={b.sodaId || b.id} value={b.id}>
+                      {b.boliNo} — {b.artiaName}
+                      {b.date
+                        ? ` (${new Date(b.date).toLocaleDateString()})`
+                        : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                  Artia Name (Auto-fetch)
+                </label>
+                <input
+                  readOnly
+                  tabIndex={-1}
+                  value={selectedOpen?.artiaName || ''}
+                  placeholder="—"
+                  className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80 cursor-default"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                  Mandi Name (Auto-fetch)
+                </label>
+                <input
+                  readOnly
+                  tabIndex={-1}
+                  value={selectedOpen?.mandi || ''}
+                  placeholder="—"
+                  className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80 cursor-default"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                  Supervisor
+                </label>
+                {isSupervisor || !isAdmin ? (
+                  <input
+                    readOnly
+                    tabIndex={-1}
+                    value={
+                      selectedOpen?.supervisorName ||
+                      finalForm.supervisorName ||
+                      user?.username ||
+                      ''
+                    }
+                    placeholder="—"
+                    className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80 cursor-default"
+                  />
+                ) : (
+                  <select
+                    value={finalForm.supervisorName}
+                    onChange={(e) =>
+                      setFinalForm((f) => ({
+                        ...f,
+                        supervisorName: e.target.value,
+                      }))
+                    }
+                    className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
+                  >
+                    <option value="">Select Supervisor</option>
+                    {selectedOpen?.supervisorName && (
+                      <option value={selectedOpen.supervisorName}>
+                        {selectedOpen.supervisorName}
+                      </option>
+                    )}
+                    {supervisors.map((s) => (
+                      <option key={s.id} value={s.username}>
+                        {s.username}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                  Artia Bill Checked And Matched of this Boli
+                </label>
+                <div className="flex gap-4 py-2">
+                  {(['Yes', 'No'] as const).map((v) => (
+                    <label
+                      key={v}
+                      className="flex items-center gap-2 cursor-pointer text-[var(--text-main)]"
+                    >
+                      <input
+                        type="radio"
+                        name="artiaBillChecked"
+                        checked={finalForm.artiaBillChecked === v}
+                        onChange={() =>
+                          setFinalForm((f) => ({
+                            ...f,
+                            artiaBillChecked: v,
+                            ...(v === 'No'
+                              ? { finalBagsById: {}, biometricData: '' }
+                              : {}),
+                          }))
+                        }
+                        className="accent-[#e67e00]"
+                      />
+                      {v}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Feedback 32: always 4 lines — M/C | Estimate Bags | Rate | Final Bags
+                (same as Estimate Purchase default 4 boli slots). Sibling soda bolis fill extra lines. */}
+            {(() => {
+              const anyCancelled =
+                !!selectedOpen &&
+                finalBoliLines.some(
+                  (b: any) =>
+                    b &&
+                    (b.isCancelled ||
+                      (!Number.isNaN(Number(b.estimatedBags)) &&
+                        Number(b.estimatedBags) === 0)),
+                );
+              const showHeaders = !anyCancelled || finalBoliLines.some((b: any) => b && Number(b.estimatedBags) > 0);
+              return (
+            <div className="overflow-x-auto rounded-lg bg-[var(--bg-base)] px-1 py-2">
+              <table className="w-full text-sm border-separate border-spacing-0">
+                {showHeaders && (
+                <thead>
+                  <tr className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wide">
+                    <th className="font-medium text-left px-3 py-2 w-10">#</th>
+                    <th className="font-medium text-left px-3 py-2">Boli No.</th>
+                    <th className="font-medium text-left px-3 py-2">M/C</th>
+                    <th className="font-medium text-left px-3 py-2">
+                      Estimate Bags
+                    </th>
+                    <th className="font-medium text-left px-3 py-2">Rate</th>
+                    <th className="font-medium text-left px-3 py-2">
+                      Final Bags <span className="text-red-500 normal-case">*</span>
+                    </th>
+                  </tr>
+                </thead>
+                )}
+                <tbody>
+                  {finalBoliLines.map((line: any, idx: number) => {
+                    const bagsCancelled =
+                      !!line &&
+                      (line.isCancelled ||
+                        (!Number.isNaN(Number(line.estimatedBags)) &&
+                          Number(line.estimatedBags) === 0));
+                    const empty = !line;
+                    const dash = '-';
+                    return (
+                  <tr key={line?.id || `empty-${idx}`} className="border-t border-[var(--border-subtle)]/40">
+                    <td className="px-3 py-1.5 text-[var(--text-muted-alt)] text-xs">{idx + 1}</td>
+                    <td className="px-3 py-1.5 align-middle text-[var(--text-muted)] text-xs">
+                      {empty ? dash : line.boliNo || dash}
+                    </td>
+                    <td className="px-3 py-1.5 align-middle">
+                      <input
+                        readOnly
+                        tabIndex={-1}
+                        title="Auto-fetched from Estimate Purchase"
+                        value={
+                          empty || bagsCancelled
+                            ? ''
+                            : line.moisture != null && line.moisture !== ''
+                              ? String(line.moisture)
+                              : ''
+                        }
+                        placeholder={empty ? dash : bagsCancelled ? 'Cancelled' : 'Auto'}
+                        className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 align-middle">
+                      <input
+                        readOnly
+                        tabIndex={-1}
+                        title="Auto-fetched from Estimate Purchase"
+                        value={
+                          empty || bagsCancelled
+                            ? ''
+                            : line.estimatedBags != null && line.estimatedBags !== ''
+                              ? String(line.estimatedBags)
+                              : ''
+                        }
+                        placeholder={empty ? dash : bagsCancelled ? '' : 'Auto'}
+                        className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 align-middle">
+                      <input
+                        readOnly
+                        tabIndex={-1}
+                        title="Auto-fetched from Estimate Purchase"
+                        value={
+                          empty || bagsCancelled
+                            ? ''
+                            : line.rate != null && line.rate !== ''
+                              ? String(line.rate)
+                              : ''
+                        }
+                        placeholder={empty ? dash : bagsCancelled ? '' : 'Auto'}
+                        className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 align-middle">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={3}
+                        disabled={empty || !billYes || bagsCancelled}
+                        title={
+                          empty
+                            ? 'Empty line (no boli on this slot)'
+                            : bagsCancelled
+                              ? 'Cancelled (Bags = 0) — Final Bags not applicable'
+                              : billYes
+                                ? 'Enter Final Bags manually (max 999, whole numbers)'
+                                : 'Set Artia Bill Checked = Yes to enable'
+                        }
+                        value={
+                          empty || bagsCancelled
+                            ? ''
+                            : finalForm.finalBagsById[line.id] || ''
+                        }
+                        onChange={(e) => {
+                          if (empty || !line?.id) return;
+                          const raw = e.target.value.replace(/\D/g, '').slice(0, 3);
+                          setFinalForm((f) => ({
+                            ...f,
+                            finalBagsById: {
+                              ...f.finalBagsById,
+                              [line.id]: raw,
+                            },
+                          }));
+                        }}
+                        placeholder={
+                          empty
+                            ? dash
+                            : bagsCancelled
+                              ? '—'
+                              : billYes
+                                ? 'Manual'
+                                : 'Locked'
+                        }
+                        className={`w-full min-w-[6rem] bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] outline-none focus:border-[#e67e00] ${
+                          empty || !billYes || bagsCancelled
+                            ? 'opacity-40 cursor-not-allowed'
+                            : ''
+                        }`}
+                      />
+                    </td>
+                  </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <p className="text-[10px] text-[var(--text-muted-alt)] px-3 pt-1">
+                One Boli No. covers all today&apos;s lines for this Artia (Estimate Purchase).
+                M/C, Estimate Bags and Rate auto-fetch per line; empty slots show (-). Enter
+                Final Bags on each filled line when Artia Bill = Yes.
+              </p>
+            </div>
+              );
+            })()}
+
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={scanFingerprint}
+                disabled={scanning || !billYes || !selectedOpen}
+                className="px-3 py-2 rounded border border-[var(--border-subtle)] text-sm disabled:opacity-40"
+              >
+                {scanning
+                  ? 'Scanning…'
+                  : finalForm.biometricData
+                    ? 'Fingerprint ✓'
+                    : 'Scan Fingerprint'}
+              </button>
+              <button
+                type="submit"
+                disabled={!billYes || !selectedOpen || finalSaving}
+                className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {finalSaving ? 'Submitting…' : 'Submit with Fingerprint'}
+              </button>
+              {selectedOpen && (
+                <>
+                  <button
+                    type="button"
+                    onClick={cancelSelectedBoli}
+                    disabled={cancelling}
+                    className="px-3 py-2 rounded border border-red-500/40 text-red-400 text-sm font-medium hover:bg-red-500/10 disabled:opacity-40"
+                    title="Cancel this Boli (supervisor allowed here)"
+                  >
+                    {cancelling ? 'Cancelling…' : 'Cancel this Boli'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelEntireSoda}
+                    disabled={cancelling}
+                    className="px-3 py-2 rounded border border-red-500/40 text-red-400 text-sm font-medium hover:bg-red-500/10 disabled:opacity-40"
+                    title="Cancel entire soda / estimate"
+                  >
+                    Cancel entire Soda
+                  </button>
+                </>
+              )}
+            </div>
+            {selectedOpen && (
+              <p className="text-[10px] text-[var(--text-muted-alt)]">
+                Cancel is allowed here for supervisors (max 3 per soda). Cancel is
+                blocked in Add Estimate Purchase.
+              </p>
+            )}
+          </form>
+        </div>
 
       </div>
 

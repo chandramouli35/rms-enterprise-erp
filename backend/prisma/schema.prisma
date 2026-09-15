@@ -473,7 +473,8 @@ model PaddyBoli {
   sodaPendingId String
   sodaPending   PaddySodaPending @relation(fields: [sodaPendingId], references: [id], onDelete: Cascade)
 
-  /// Mill-wise chronological series (e.g. BOLI-0001)
+  /// Mill-wise chronological series shared by ALL lines of one Estimate Purchase / soda
+  /// (e.g. BEAS-B0001). Next soda / day / Artia entry gets the next number.
   boliNo String?
 
   moisture Float
