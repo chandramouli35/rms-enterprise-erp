@@ -195,6 +195,47 @@ export const ProcurementManagement = () => {
 
  // Inward Form States
   const [unrecoveredShortagesCount, setUnrecoveredShortagesCount] = useState(0);
+  /** Till-date Artia shortage balance (confirmed entries only) — Ref table "Total shortage of Artia" */
+  const [artiaTillDateShortage, setArtiaTillDateShortage] = useState({
+    qtl: 0,
+    bags: 0,
+  });
+
+  const refreshArtiaTillDateShortage = async (
+    supplierId?: string,
+    plantId?: string,
+  ) => {
+    const sid = supplierId || "";
+    const pid = plantId || activePlant?.id || "";
+    if (!sid || !pid) {
+      setArtiaTillDateShortage({ qtl: 0, bags: 0 });
+      return;
+    }
+    try {
+      const res = await api.get(
+        "/api/procurement/reports/shortage-artia-balances",
+      );
+      const rows = Array.isArray(res.data) ? res.data : [];
+      const match = rows.filter(
+        (r: any) => r.supplierId === sid && r.plantId === pid,
+      );
+      const qtl = match.reduce(
+        (s: number, r: any) => s + (Number(r.balanceQtl) || 0),
+        0,
+      );
+      const bags = match.reduce(
+        (s: number, r: any) => s + (Number(r.balanceBags) || 0),
+        0,
+      );
+      setArtiaTillDateShortage({
+        qtl: parseFloat(qtl.toFixed(3)),
+        bags: parseFloat(bags.toFixed(2)),
+      });
+    } catch (error) {
+      console.error("Failed to fetch Artia till-date shortage", error);
+      setArtiaTillDateShortage({ qtl: 0, bags: 0 });
+    }
+  };
 
   useEffect(() => {
     if (isSupervisor && activePlant) {
@@ -330,6 +371,11 @@ export const ProcurementManagement = () => {
   const [inwardFormData, setInwardFormData] = useState<any>(
     defaultInwardFormData,
   );
+
+  useEffect(() => {
+    refreshArtiaTillDateShortage(inwardFormData.supplierId, activePlant?.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inwardFormData.supplierId, activePlant?.id]);
   
   // Track Boli bags input from supervisor
   const [boliInputs, setBoliInputs] = useState<Record<string, string>>({});
@@ -642,6 +688,41 @@ export const ProcurementManagement = () => {
     }
     const autoNarrationText = narrations.join("; ");
 
+    // Feedback 33 — Section 8 shortage breakdown (Ref table 01)
+    const bdQualityQtl = qualityCutQtl;
+    const bdQualityBags =
+      qualityCutType === "BAGS"
+        ? qualityCutValue
+        : bagWt > 0
+          ? qualityCutQtl / bagWt
+          : 0;
+
+    // Shortage by Weight:
+    // - mill < required → positive residual (or full netDiff if Bauji bags-less)
+    // - mill > required + Inform Bauji excess → NEGATIVE difference
+    // - mill > required without Bauji → 0 (excess not shown in shortage)
+    let bdWeightQtl = 0;
+    if (netDiff < 0 && inwardFormData.informBaujiExcessWeight) {
+      bdWeightQtl = netDiff; // negative excess against shortage
+    } else if (residualWtShortage > 0.0005) {
+      bdWeightQtl = residualWtShortage;
+    } else if (netDiff > 0 && inwardFormData.informBaujiBagsLess) {
+      bdWeightQtl = netDiff;
+    }
+    const bdWeightBags = bagWt > 0 ? bdWeightQtl / bagWt : 0;
+
+    // Shortage by Bags: only when bags less AND Bauji NOT marked
+    const showBagsShortage =
+      bagsLess > 0 && !inwardFormData.informBaujiBagsLess;
+    const bdBagsQtl = showBagsShortage ? bagsLess * bagWt : 0;
+    const bdBagsBags = showBagsShortage ? bagsLess : 0;
+
+    const bdTruckTotalQtl = bdQualityQtl + bdWeightQtl + bdBagsQtl;
+    const bdTruckTotalBags =
+      bagWt > 0
+        ? bdTruckTotalQtl / bagWt
+        : bdQualityBags + bdWeightBags + bdBagsBags;
+
     setInwardFormData((prev: any) => ({ 
       ...prev, 
       reqNetWt: req,
@@ -649,10 +730,20 @@ export const ProcurementManagement = () => {
       qualityCutQtl,
       actualShortageQtl: parseFloat(shortageQtlRaw.toFixed(2)),
       shortageBagsCreditQtl: parseFloat(shortageBagsCredit.toFixed(3)),
+      // Current truck net contribution to Artia (preview) — not till-date balance
       artiaNetShortageQtl: parseFloat(netArtiaShortage.toFixed(2)),
       shortageQtl: shortageQtl,
       shortageBags: parseFloat(shortageBags) > 0 ? shortageBags : "0.00",
       autoNarrationText,
+      // Section 8 Ref breakdown
+      bdQualityCutQtl: parseFloat(bdQualityQtl.toFixed(3)),
+      bdQualityCutBags: parseFloat(bdQualityBags.toFixed(2)),
+      bdWeightShortageQtl: parseFloat(bdWeightQtl.toFixed(3)),
+      bdWeightShortageBags: parseFloat(bdWeightBags.toFixed(2)),
+      bdBagsShortageQtl: parseFloat(bdBagsQtl.toFixed(3)),
+      bdBagsShortageBags: parseFloat(bdBagsBags.toFixed(2)),
+      bdTruckTotalQtl: parseFloat(bdTruckTotalQtl.toFixed(3)),
+      bdTruckTotalBags: parseFloat(bdTruckTotalBags.toFixed(2)),
       ...(prev.autoNarration !== false
         ? { shortageNarration: autoNarrationText }
         : {}),
@@ -683,6 +774,50 @@ export const ProcurementManagement = () => {
 
   const [inwardErrors, setInwardErrors] = useState<Record<string, string>>({});
 
+  /** Plant standard bag weight (Qtl) — used for Quality Cut bags ↔ quintal */
+  const plantBagWt =
+    plants.find((p) => p.id === activePlant?.id)?.standardBagWeight || 0.382;
+
+  /** Live Quality Cut (bags or %) → Qtl/Bags for Section 8 table 01 */
+  const liveQualityCut = (() => {
+    const type = inwardFormData.qualityCutType || "NONE";
+    const val = parseFloat(String(inwardFormData.qualityCutValue)) || 0;
+    const actualWt = parseFloat(String(inwardFormData.netWtMill)) || 0;
+    if (type === "BAGS" && val > 0) {
+      const qtl = val * plantBagWt;
+      return {
+        type,
+        value: val,
+        qtl,
+        bags: val,
+        label: `${val} Bags`,
+        narration: `${val} Bags Quality Cut`,
+      };
+    }
+    if (type === "PERCENTAGE" && val > 0) {
+      const qtl = (actualWt * val) / 100;
+      const bags = plantBagWt > 0 ? qtl / plantBagWt : 0;
+      return {
+        type,
+        value: val,
+        qtl,
+        bags,
+        label: `${val}%`,
+        narration: `${val}% Quality Cut`,
+        needsNetWt: actualWt <= 0,
+      };
+    }
+    return {
+      type,
+      value: 0,
+      qtl: 0,
+      bags: 0,
+      label: "",
+      narration: "",
+      needsNetWt: false,
+    };
+  })();
+
   const handleInwardChange = (e: any) => {
     const { name, value, type, checked } = e.target;
     setInwardFormData((prev: any) => {
@@ -690,6 +825,14 @@ export const ProcurementManagement = () => {
         ...prev,
         [name]: type === "checkbox" ? checked : value,
       };
+      // Quality Cut type switch — clear cut value when None; keep live recalc via useEffect
+      if (name === "qualityCutType") {
+        if (value === "NONE") {
+          next.qualityCutValue = 0;
+          next.qualityCutQtl = 0;
+          next.qualityCutReason = "";
+        }
+      }
       // Default Party Name from selected Artia when empty or still matching previous supplier
       if (name === "supplierId") {
         const selected = suppliers.find((s: any) => s.id === value);
@@ -2145,6 +2288,10 @@ export const ProcurementManagement = () => {
             : `Paddy Inward Saved as ${effectiveStatus}`,
           "success",
         );
+      if (effectiveStatus === "CONFIRMED") {
+        // Real-time Artia till-date shortage after fingerprint submit
+        await refreshArtiaTillDateShortage(working.supplierId, selectedPlantId);
+      }
       if (effectiveStatus === "DRAFT") {
         // Keep form open with id so supervisor can continue after unload
         setInwardFormData({
@@ -2615,8 +2762,23 @@ export const ProcurementManagement = () => {
  <div className="col-span-12 xl:col-span-7 space-y-6">
  {/* 1. Basic Information */}
                 <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-visible relative z-10">
-                  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">
-                    1. Basic Information
+                  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm flex flex-wrap items-center justify-between gap-2">
+                    <span>1. Basic Information</span>
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                        autoUpdateDateTime
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : "bg-amber-500/20 text-amber-400"
+                      }`}
+                      title={
+                        autoUpdateDateTime
+                          ? "Auto Update ON — Date & Time In lock; Time Out stamps on fingerprint. Change in Plant Settings."
+                          : "Auto Update OFF — Manual Date/Time allowed for this mill. Change in Plant Settings."
+                      }
+                    >
+                      Auto Update Date &amp; Time:{" "}
+                      {autoUpdateDateTime ? "ON" : "OFF"}
+                    </span>
                   </div>
  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4 text-sm">
  <div>
@@ -3011,7 +3173,7 @@ export const ProcurementManagement = () => {
  </div>
 
  {/* 4. Unloading Management */}
- <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
+ <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-visible relative z-[5]">
                   <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">
                     4. Unloading Management
                   </div>
@@ -3511,9 +3673,16 @@ export const ProcurementManagement = () => {
     onChange={handleInwardChange}
     onBlur={handleMasterDataBlur}
     options={labours}
+    valueKey="name"
+    listMaxHeightClass="max-h-48"
     className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
-    placeholder="Select or enter labour name"
+    placeholder="Select labour name"
   />
+                      {labours.length === 0 && (
+                        <p className="text-[10px] text-amber-500 mt-1">
+                          No labour in master — add via Staff Management → Add Staff → Labour
+                        </p>
+                      )}
                       {inwardErrors.labour && (
                         <span className="text-red-500 text-[10px] mt-1 block">
                           {inwardErrors.labour}
@@ -3743,39 +3912,44 @@ export const ProcurementManagement = () => {
                           <input
                             type="number"
                             min="0"
+                            step="any"
                             name="qualityCutValue"
                             value={inwardFormData.qualityCutValue}
                             onChange={handleInwardChange}
-                            disabled={inwardFormData.qualityCutType === "NONE"}
+                            disabled={
+                              !inwardFormData.qualityCutType ||
+                              inwardFormData.qualityCutType === "NONE"
+                            }
                             className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)] outline-none disabled:opacity-50 pr-16"
                           />
                           {inwardFormData.qualityCutType === "BAGS" &&
-                            inwardFormData.qualityCutValue > 0 && (
+                            liveQualityCut.qtl > 0 && (
                   <span className="absolute right-2 top-1.5 text-[10px] font-bold text-orange-400 flex items-center h-5">
-                                {(
-                                  parseFloat(inwardFormData.qualityCutValue) *
-                                  0.382
-                                ).toFixed(2)}{" "}
-                                Qtl
+                                {liveQualityCut.qtl.toFixed(2)} Qtl
                   </span>
                 )}
                           {inwardFormData.qualityCutType === "PERCENTAGE" &&
-                            inwardFormData.qualityCutValue > 0 && (
+                            liveQualityCut.value > 0 && (
                   <span className="absolute right-2 top-1.5 text-[10px] font-bold text-orange-400 flex items-center h-5">
-                                {inwardFormData.netWtMill > 0
-                                  ? `${((parseFloat(inwardFormData.netWtMill) * parseFloat(inwardFormData.qualityCutValue)) / 100).toFixed(2)} Qtl`
-                                  : "Wait for Net Wt"}
+                                {liveQualityCut.needsNetWt
+                                  ? "Wait for Net Wt"
+                                  : `${liveQualityCut.qtl.toFixed(2)} Qtl`}
                   </span>
                 )}
               </div>
                         {(inwardFormData.qualityCutType === "BAGS" ||
                           inwardFormData.qualityCutType === "PERCENTAGE") && (
                           <p className="text-[10px] text-orange-400 mt-1 font-medium">
-                            Cut in quintals:{" "}
-                            {(
-                              parseFloat(inwardFormData.qualityCutQtl) || 0
-                            ).toFixed(2)}{" "}
-                            Qtl
+                            Cut in quintals: {liveQualityCut.qtl.toFixed(3)} Qtl
+                            {liveQualityCut.label
+                              ? ` (${liveQualityCut.label})`
+                              : ""}
+                            {inwardFormData.qualityCutType === "BAGS"
+                              ? ` · ${plantBagWt} Qtl/bag`
+                              : ""}
+                            {liveQualityCut.needsNetWt
+                              ? " — enter Net Wt at Mill for % cut"
+                              : ""}
                           </p>
                         )}
             </div>
@@ -4400,35 +4574,158 @@ export const ProcurementManagement = () => {
                     8. Shortage Management
                   </div>
   <div className="p-4 grid grid-cols-2 gap-4 text-sm">
-  <div className="col-span-2 bg-red-900/10 border border-red-500/20 p-3 rounded-lg flex items-center justify-between">
-    <div>
-                        <span className="text-red-400 font-bold block">
-                          Calculated Shortage
-                        </span>
-                        <span className="text-[10px] text-[var(--text-muted-alt)]">
-                          Based on Standard Bag Weight (
-                          {plants.find((p) => p.id === activePlant?.id)
-                            ?.standardBagWeight || 0.382}{" "}
-                          Qtl)
-                        </span>
+  <div className="col-span-2 bg-red-900/10 border border-red-500/20 p-3 rounded-lg space-y-3">
+    <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div>
+        <span className="text-red-400 font-bold block">
+          Calculated Shortage
+        </span>
+        <span className="text-[10px] text-[var(--text-muted-alt)]">
+          Based on Standard Bag Weight (
+          {plants.find((p) => p.id === activePlant?.id)
+            ?.standardBagWeight || 0.382}{" "}
+          Qtl)
+        </span>
+      </div>
     </div>
-    <div className="flex gap-6">
-      <div className="text-center">
-                          <div className="text-[10px] text-[var(--text-muted-alt)] uppercase tracking-wider">
-                            Qtl
-                          </div>
-                          <div className="text-[var(--text-main)] font-mono font-bold text-lg">
-                            {inwardFormData.shortageQtl || "0.00"}
-                          </div>
-      </div>
-      <div className="text-center border-l border-red-500/20 pl-6">
-                          <div className="text-[10px] text-[var(--text-muted-alt)] uppercase tracking-wider">
-                            Bags
-                          </div>
-                          <div className="text-[var(--text-main)] font-mono font-bold text-lg">
-                            {inwardFormData.shortageBags || "0.00"}
-                          </div>
-      </div>
+    {/* Feedback 33 — Ref table: quality cut / weight / bags separately */}
+    <div className="overflow-x-auto rounded-lg border border-red-500/20 bg-[var(--bg-base)]/40">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-red-500/20 text-[var(--text-muted-alt)]">
+            <th className="text-left px-3 py-2 font-medium">Calculated Shortage</th>
+            <th className="text-right px-3 py-2 font-medium w-28">Qtl</th>
+            <th className="text-right px-3 py-2 font-medium w-28">Bags</th>
+          </tr>
+        </thead>
+        <tbody className="text-[var(--text-main)] font-mono">
+          <tr className="border-b border-[var(--border-subtle)]">
+            <td className="px-3 py-2 font-sans">
+              Quality Cut Shortage
+              {liveQualityCut.label ? (
+                <span className="block text-[10px] text-orange-400 font-medium mt-0.5">
+                  {liveQualityCut.narration}
+                  {liveQualityCut.needsNetWt
+                    ? " (waiting for Net Wt at Mill)"
+                    : ""}
+                </span>
+              ) : (
+                <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
+                  From Quality Cut (Bags or %age) — live
+                </span>
+              )}
+            </td>
+            <td className="px-3 py-2 text-right text-orange-300">
+              {liveQualityCut.qtl.toFixed(3)}
+            </td>
+            <td className="px-3 py-2 text-right text-orange-300">
+              {liveQualityCut.bags.toFixed(2)}
+            </td>
+          </tr>
+          <tr className="border-b border-[var(--border-subtle)]">
+            <td className="px-3 py-2 font-sans">
+              Shortage by weight
+              {Number(inwardFormData.bdWeightShortageQtl || 0) < -0.0005 ? (
+                <span className="block text-[10px] text-emerald-400 font-medium mt-0.5">
+                  Excess Weight Received (Inform Bauji) — negative
+                </span>
+              ) : Number(inwardFormData.bdWeightShortageQtl || 0) > 0.0005 ? (
+                <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
+                  Mill wt &lt; required · bags = Qtl ÷ {plantBagWt}
+                </span>
+              ) : null}
+            </td>
+            <td
+              className={`px-3 py-2 text-right ${
+                Number(inwardFormData.bdWeightShortageQtl || 0) < 0
+                  ? "text-emerald-400"
+                  : ""
+              }`}
+            >
+              {Number(inwardFormData.bdWeightShortageQtl || 0).toFixed(3)}
+            </td>
+            <td
+              className={`px-3 py-2 text-right ${
+                Number(inwardFormData.bdWeightShortageBags || 0) < 0
+                  ? "text-emerald-400"
+                  : ""
+              }`}
+            >
+              {Number(inwardFormData.bdWeightShortageBags || 0).toFixed(2)}
+            </td>
+          </tr>
+          <tr className="border-b border-[var(--border-subtle)]">
+            <td className="px-3 py-2 font-sans">
+              Shortage by bags
+              {inwardFormData.informBaujiBagsLess ||
+              inwardFormData.bagsRecLessThanAgencyGp ? (
+                <span className="block text-[10px] text-amber-400 font-medium mt-0.5">
+                  Hidden — Bags less than Agency GP, Inform Bauji
+                </span>
+              ) : Number(inwardFormData.bdBagsShortageBags || 0) > 0 ? (
+                <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
+                  Mill bags (excl. shortage) &lt; Agency GP · × {plantBagWt} Qtl
+                </span>
+              ) : null}
+            </td>
+            <td className="px-3 py-2 text-right">
+              {Number(inwardFormData.bdBagsShortageQtl || 0).toFixed(3)}
+            </td>
+            <td className="px-3 py-2 text-right">
+              {Number(inwardFormData.bdBagsShortageBags || 0).toFixed(2)}
+            </td>
+          </tr>
+          <tr className="border-b border-red-500/30 bg-red-900/10 font-bold">
+            <td className="px-3 py-2 font-sans text-red-300">
+              Total shortage of this truck
+              <span className="block text-[10px] text-red-300/70 font-normal mt-0.5">
+                Quality cut + Weight + Bags
+              </span>
+            </td>
+            <td className="px-3 py-2 text-right text-red-300">
+              {(
+                liveQualityCut.qtl +
+                Number(inwardFormData.bdWeightShortageQtl || 0) +
+                Number(inwardFormData.bdBagsShortageQtl || 0)
+              ).toFixed(3)}
+            </td>
+            <td className="px-3 py-2 text-right text-red-300">
+              {(() => {
+                const qtl =
+                  liveQualityCut.qtl +
+                  Number(inwardFormData.bdWeightShortageQtl || 0) +
+                  Number(inwardFormData.bdBagsShortageQtl || 0);
+                return plantBagWt > 0
+                  ? (qtl / plantBagWt).toFixed(2)
+                  : (
+                      liveQualityCut.bags +
+                      Number(inwardFormData.bdWeightShortageBags || 0) +
+                      Number(inwardFormData.bdBagsShortageBags || 0)
+                    ).toFixed(2);
+              })()}
+            </td>
+          </tr>
+          <tr className="bg-amber-900/10 font-bold">
+            <td className="px-3 py-2 font-sans text-amber-300">
+              Total shortage of Artia
+              <span className="block text-[10px] text-amber-300/70 font-normal mt-0.5">
+                Till-date balance for selected Artia (confirmed entries) — not
+                this truck alone
+              </span>
+            </td>
+            <td className="px-3 py-2 text-right text-amber-300">
+              {inwardFormData.supplierId
+                ? artiaTillDateShortage.qtl.toFixed(3)
+                : "—"}
+            </td>
+            <td className="px-3 py-2 text-right text-amber-300">
+              {inwardFormData.supplierId
+                ? artiaTillDateShortage.bags.toFixed(2)
+                : "—"}
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 
@@ -4466,24 +4763,32 @@ export const ProcurementManagement = () => {
   <div className="grid grid-cols-2 gap-4">
     <div>
                         <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
-                          Total shortage of Artia (Qtl)
+                          Total shortage of Artia (Qtl) — till date
                         </label>
                         <input
                           type="text"
                           value={
-                            inwardFormData.artiaNetShortageQtl != null
-                              ? Number(
-                                  inwardFormData.artiaNetShortageQtl,
-                                ).toFixed(2)
-                              : inwardFormData.shortageQtl || "0.00"
+                            inwardFormData.supplierId
+                              ? artiaTillDateShortage.qtl.toFixed(2)
+                              : "—"
                           }
                           disabled
                           className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed font-bold text-red-400"
                         />
+                        <span className="text-[10px] text-[var(--text-muted-alt)] mt-1 block">
+                          Confirmed ledger balance for selected Artia. This truck
+                          preview:{" "}
+                          {Number(
+                            inwardFormData.artiaNetShortageQtl ??
+                              inwardFormData.shortageQtl ??
+                              0,
+                          ).toFixed(2)}{" "}
+                          Qtl
+                        </span>
                         {(parseFloat(inwardFormData.shortageBagsCreditQtl) ||
                           0) > 0 && (
                           <span className="text-[10px] text-emerald-400 mt-1 block">
-                            Includes −
+                            This truck includes −
                             {Number(
                               inwardFormData.shortageBagsCreditQtl,
                             ).toFixed(2)}{" "}
@@ -4493,20 +4798,15 @@ export const ProcurementManagement = () => {
     </div>
     <div>
                         <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
-                          Total shortage of Artia (Bags)
+                          Total shortage of Artia (Bags) — till date
                         </label>
                         <input
                           type="text"
-                          value={(() => {
-                            const bagWt =
-                              plants.find((p) => p.id === activePlant?.id)
-                                ?.standardBagWeight || 0.382;
-                            const qtl =
-                              inwardFormData.artiaNetShortageQtl != null
-                                ? Number(inwardFormData.artiaNetShortageQtl)
-                                : parseFloat(inwardFormData.shortageQtl) || 0;
-                            return (Math.max(0, qtl) / bagWt).toFixed(2);
-                          })()}
+                          value={
+                            inwardFormData.supplierId
+                              ? artiaTillDateShortage.bags.toFixed(2)
+                              : "—"
+                          }
                           disabled
                           className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed font-bold text-red-400"
                         />
@@ -5429,30 +5729,48 @@ export const ProcurementManagement = () => {
                           </div>
                           <div>
                             <p className="text-xs text-[var(--text-muted-alt)] mb-1">
-                              Allow manual Date/Time (Paddy Inward)
+                              Paddy Inward — Auto Update Date/Time
                             </p>
-                            <p className="text-xl font-bold text-[var(--text-main)]">
-                              {plantSettings.allowManualDateTimePaddyInward
+                            <p
+                              className={`text-xl font-bold ${
+                                !plantSettings.allowManualDateTimePaddyInward
+                                  ? "text-emerald-400"
+                                  : "text-amber-400"
+                              }`}
+                            >
+                              {!plantSettings.allowManualDateTimePaddyInward
                                 ? "ON"
                                 : "OFF"}
                             </p>
                           </div>
                           <div>
                             <p className="text-xs text-[var(--text-muted-alt)] mb-1">
-                              Allow manual Date/Time (Gate In)
+                              Gate In — Auto Update Date/Time
                             </p>
-                            <p className="text-xl font-bold text-[var(--text-main)]">
-                              {plantSettings.allowManualDateTimeGateIn
+                            <p
+                              className={`text-xl font-bold ${
+                                !plantSettings.allowManualDateTimeGateIn
+                                  ? "text-emerald-400"
+                                  : "text-amber-400"
+                              }`}
+                            >
+                              {!plantSettings.allowManualDateTimeGateIn
                                 ? "ON"
                                 : "OFF"}
                             </p>
                           </div>
                           <div>
                             <p className="text-xs text-[var(--text-muted-alt)] mb-1">
-                              Allow manual Date/Time (Gate Out)
+                              Gate Out — Auto Update Date/Time
                             </p>
-                            <p className="text-xl font-bold text-[var(--text-main)]">
-                              {plantSettings.allowManualDateTimeGateOut
+                            <p
+                              className={`text-xl font-bold ${
+                                !plantSettings.allowManualDateTimeGateOut
+                                  ? "text-emerald-400"
+                                  : "text-amber-400"
+                              }`}
+                            >
+                              {!plantSettings.allowManualDateTimeGateOut
                                 ? "ON"
                                 : "OFF"}
                             </p>
@@ -5571,65 +5889,89 @@ export const ProcurementManagement = () => {
                               className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-amber-500"
                             />
                           </div>
-                          <div className="col-span-1 sm:col-span-2 lg:col-span-4 space-y-3">
-                            <p className="text-xs font-bold text-[var(--text-main)] uppercase tracking-wide">
-                              Allow manual Date/Time (mill-wise)
-                            </p>
-                            <p className="text-[10px] text-[var(--text-muted-alt)] -mt-1">
-                              When OFF → Auto Update Date &amp; Time ON (locks
-                              fields; stamps on fingerprint).
-                            </p>
-                            <label className="flex items-center gap-2 text-sm text-[var(--text-main)] cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={
-                                  !!plantSettings.allowManualDateTimePaddyInward
-                                }
-                                onChange={(e) =>
-                                  setPlantSettings({
-                                    ...plantSettings,
-                                    allowManualDateTimePaddyInward:
-                                      e.target.checked,
-                                  })
-                                }
-                                className="accent-amber-500 w-4 h-4"
-                              />
-                              Allow manual Date/Time (Paddy Inward)
-                            </label>
-                            <label className="flex items-center gap-2 text-sm text-[var(--text-main)] cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={
-                                  !!plantSettings.allowManualDateTimeGateIn
-                                }
-                                onChange={(e) =>
-                                  setPlantSettings({
-                                    ...plantSettings,
-                                    allowManualDateTimeGateIn: e.target.checked,
-                                  })
-                                }
-                                className="accent-amber-500 w-4 h-4"
-                              />
-                              Allow manual Date/Time (Gate In)
-                            </label>
-                            <label className="flex items-center gap-2 text-sm text-[var(--text-main)] cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={
-                                  !!plantSettings.allowManualDateTimeGateOut
-                                }
-                                onChange={(e) =>
-                                  setPlantSettings({
-                                    ...plantSettings,
-                                    allowManualDateTimeGateOut:
-                                      e.target.checked,
-                                  })
-                                }
-                                className="accent-amber-500 w-4 h-4"
-                              />
-                              Allow manual Date/Time (Gate Out)
-                            </label>
-                        </div>
+                          <div className="col-span-1 sm:col-span-2 lg:col-span-4 space-y-4">
+                            <div>
+                              <p className="text-xs font-bold text-[var(--text-main)] uppercase tracking-wide">
+                                Auto Update Date &amp; Time (mill-wise ON/OFF)
+                              </p>
+                              <p className="text-[10px] text-[var(--text-muted-alt)] mt-1">
+                                When Auto Update is <b>ON</b>, Date/Time fields
+                                are locked and stamp on fingerprint. When{" "}
+                                <b>OFF</b>, supervisors may enter Date/Time
+                                manually for that form.
+                              </p>
+                            </div>
+
+                            {(
+                              [
+                                {
+                                  key: "allowManualDateTimePaddyInward",
+                                  label: "Paddy Inward",
+                                },
+                                {
+                                  key: "allowManualDateTimeGateIn",
+                                  label: "Gate In",
+                                },
+                                {
+                                  key: "allowManualDateTimeGateOut",
+                                  label: "Gate Out",
+                                },
+                              ] as const
+                            ).map((row) => {
+                              const manualOn = !!(plantSettings as any)[row.key];
+                              const autoOn = !manualOn;
+                              return (
+                                <div
+                                  key={row.key}
+                                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-4 py-3"
+                                >
+                                  <div>
+                                    <div className="text-sm font-medium text-[var(--text-main)]">
+                                      {row.label}
+                                    </div>
+                                    <div className="text-[10px] text-[var(--text-muted-alt)]">
+                                      Auto Update Date &amp; Time:{" "}
+                                      <span
+                                        className={
+                                          autoOn
+                                            ? "text-emerald-400 font-bold"
+                                            : "text-amber-400 font-bold"
+                                        }
+                                      >
+                                        {autoOn ? "ON" : "OFF"}
+                                      </span>
+                                      {manualOn
+                                        ? " (manual entry allowed)"
+                                        : " (locked / auto stamp)"}
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={autoOn}
+                                    title="Toggle Auto Update Date & Time"
+                                    onClick={() =>
+                                      setPlantSettings({
+                                        ...plantSettings,
+                                        [row.key]: autoOn,
+                                      })
+                                    }
+                                    className={`relative inline-flex h-7 w-14 shrink-0 items-center rounded-full transition-colors ${
+                                      autoOn ? "bg-emerald-500" : "bg-gray-600"
+                                    }`}
+                                  >
+                                    <span
+                                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                                        autoOn
+                                          ? "translate-x-8"
+                                          : "translate-x-1"
+                                      }`}
+                                    />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
                         <div className="col-span-1 sm:col-span-2 lg:col-span-4 flex justify-end gap-3 mt-2">
                             <button
                               onClick={() => setIsEditingSettings(false)}

@@ -274,11 +274,23 @@ export const DashboardShell: React.FC = () => {
       label: "Staff Management",
       href: "/staff",
       icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
-      roles: ["SUPER_ADMIN", "PLANT_MANAGER", "GATE_OPERATOR"],
+      roles: ["SUPER_ADMIN", "PLANT_MANAGER", "GATE_OPERATOR", "SUPERVISOR"],
       subItems: [
-        { label: "Staff List", tab: "list" },
-        { label: "Add Staff", tab: "add" },
-        { label: "Truck Management", tab: "truck" },
+        {
+          label: "Staff List",
+          tab: "list",
+          roles: ["SUPER_ADMIN", "PLANT_MANAGER", "GATE_OPERATOR"],
+        },
+        {
+          label: "Add Staff",
+          tab: "add",
+          roles: ["SUPER_ADMIN", "PLANT_MANAGER", "GATE_OPERATOR"],
+        },
+        {
+          label: "Truck Management",
+          tab: "truck",
+          roles: ["SUPER_ADMIN", "PLANT_MANAGER", "GATE_OPERATOR", "SUPERVISOR"],
+        },
       ],
     },
     {
@@ -497,6 +509,20 @@ export const DashboardShell: React.FC = () => {
     return true;
   };
 
+  const isSubItemAllowed = (parentLabel: string, sub: { label: string; roles?: string[] }) => {
+    if (sub.roles?.length && user?.role && !sub.roles.includes(user.role)) {
+      return false;
+    }
+    if (
+      user?.role === "SUPERVISOR" &&
+      parentLabel === "Staff Management" &&
+      sub.label === "Truck Management"
+    ) {
+      return true;
+    }
+    return hasSubPermission(parentLabel, sub.label);
+  };
+
   const currentNavItem = navItems.find((item) =>
     location.pathname.startsWith(item.href),
   );
@@ -554,7 +580,7 @@ export const DashboardShell: React.FC = () => {
               if (!parentAllowed) return false;
               if (item.subItems) {
                 const allowedSubs = item.subItems.filter((sub: any) =>
-                  hasSubPermission(item.label, sub.label),
+                  isSubItemAllowed(item.label, sub),
                 );
                 if (allowedSubs.length === 0) return false;
               }
@@ -563,7 +589,7 @@ export const DashboardShell: React.FC = () => {
                 item.subGroups.forEach((sg: any) => {
                   if (
                     sg.items.filter((sub: any) =>
-                      hasSubPermission(item.label, sub.label),
+                      isSubItemAllowed(item.label, sub),
                     ).length > 0
                   )
                     hasAnySub = true;
@@ -587,7 +613,7 @@ export const DashboardShell: React.FC = () => {
                           if (item.subItems) {
                             const allowedSubs = item.subItems.filter(
                               (sub: any) =>
-                                hasSubPermission(item.label, sub.label),
+                                isSubItemAllowed(item.label, sub),
                             );
                             if (allowedSubs.length > 0)
                               navigate(
@@ -596,13 +622,13 @@ export const DashboardShell: React.FC = () => {
                           } else if (item.subGroups) {
                             const firstGroup = item.subGroups.find((sg: any) =>
                               sg.items.some((sub: any) =>
-                                hasSubPermission(item.label, sub.label),
+                                isSubItemAllowed(item.label, sub),
                               ),
                             );
                             if (firstGroup) {
                               const allowedSubs = firstGroup.items.filter(
                                 (sub: any) =>
-                                  hasSubPermission(item.label, sub.label),
+                                  isSubItemAllowed(item.label, sub),
                               );
                               if (allowedSubs.length > 0)
                                 navigate(
@@ -662,7 +688,7 @@ export const DashboardShell: React.FC = () => {
                     <div className="ml-8 mt-0.5 flex flex-col border-l border-[var(--border-subtle-alt)] pl-1.5 space-y-0.5">
                       {item.subItems
                         .filter((sub: any) =>
-                          hasSubPermission(item.label, sub.label),
+                          isSubItemAllowed(item.label, sub),
                         )
                         .map((sub: any, subIdx: any) => {
                           const isSubActive =

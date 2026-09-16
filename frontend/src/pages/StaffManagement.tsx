@@ -1,13 +1,22 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import TruckManagement from './TruckManagement';
 import { StaffList } from '../components/Staff/StaffList';
 import { AddStaff } from '../components/Staff/AddStaff';
+import { useAuthStore } from '../store/authStore';
 
 export const StaffManagement = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const user = useAuthStore(state => state.user);
   const searchParams = new URLSearchParams(location.search);
   const activeTab = searchParams.get('tab') || 'list';
+
+  useEffect(() => {
+    if (user?.role === 'SUPERVISOR' && activeTab !== 'truck') {
+      navigate('/staff?tab=truck', { replace: true });
+    }
+  }, [user?.role, activeTab, navigate]);
 
   return (
     <div className="flex flex-col h-full bg-[var(--bg-base)] text-[var(--text-main)]">

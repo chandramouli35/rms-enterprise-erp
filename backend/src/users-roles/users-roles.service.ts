@@ -98,6 +98,29 @@ export class UsersRolesService {
     }));
   }
 
+  /** Live duplicate check while typing username (Add User / Transfer). */
+  async checkUsernameExists(username: string) {
+    const trimmed = String(username || '').trim();
+    if (!trimmed || trimmed.length < 2) {
+      return { exists: false, username: trimmed || null };
+    }
+    const existing = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: { equals: trimmed, mode: 'insensitive' } },
+          { email: { equals: trimmed, mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true, username: true, deletedAt: true },
+    });
+    return {
+      exists: !!existing,
+      username: trimmed,
+      archived: !!existing?.deletedAt,
+      existingUsername: existing?.username ?? null,
+    };
+  }
+
   async createUser(data: any) {
     const {
       username,
@@ -110,6 +133,39 @@ export class UsersRolesService {
       fingerprint1,
       fingerprint2,
     } = data;
+
+    const trimmedUsername = String(username || '').trim();
+    if (!trimmedUsername) {
+      throw new BadRequestException('Username is required.');
+    }
+    if (!password) {
+      throw new BadRequestException('Password is required.');
+    }
+
+    const emailToUse = String(email || trimmedUsername).trim();
+
+    const existingByUsername = await this.prisma.user.findFirst({
+      where: { username: trimmedUsername },
+      select: { id: true, deletedAt: true },
+    });
+    if (existingByUsername) {
+      throw new BadRequestException(
+        existingByUsername.deletedAt
+          ? `Username "${trimmedUsername}" already exists (archived). Choose a different username.`
+          : `Username "${trimmedUsername}" already exists. Choose a different username.`,
+      );
+    }
+
+    const existingByEmail = await this.prisma.user.findFirst({
+      where: { email: emailToUse },
+      select: { id: true },
+    });
+    if (existingByEmail) {
+      throw new BadRequestException(
+        `Email "${emailToUse}" is already in use. Choose a different email or username.`,
+      );
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
 
     const role = roleId
@@ -137,31 +193,41 @@ export class UsersRolesService {
       }
     }
 
-    const user = await this.prisma.user.create({
-      data: {
-        username,
-        email: email || username,
-        passwordHash,
-        roleId,
-        fingerprint1: fingerprint1 || null,
-        fingerprint2: fingerprint2 || null,
-        plantAccess: {
-          create: normalizedPlants.map((id: string) => ({ plantId: id })),
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          username: trimmedUsername,
+          email: emailToUse,
+          passwordHash,
+          roleId,
+          fingerprint1: fingerprint1 || null,
+          fingerprint2: fingerprint2 || null,
+          plantAccess: {
+            create: normalizedPlants.map((id: string) => ({ plantId: id })),
+          },
         },
-      },
-    });
-    
-    // Log audit
-    await this.prisma.systemAuditLog.create({
-      data: {
-        userId: user.id,
-        action: 'CREATED_USER',
-        module: 'Users & Roles',
-        details: `User ${username} created${isSupervisor ? ' with 2 fingerprints' : ''}.${fullName || fullname ? ` Name: ${fullName || fullname}` : ''}`,
-      },
-    });
+      });
 
-    return user;
+      await this.prisma.systemAuditLog.create({
+        data: {
+          userId: user.id,
+          action: 'CREATED_USER',
+          module: 'Users & Roles',
+          details: `User ${trimmedUsername} created${isSupervisor ? ' with 2 fingerprints' : ''}.${fullName || fullname ? ` Name: ${fullName || fullname}` : ''}`,
+        },
+      });
+
+      return user;
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        const fields = err?.meta?.target;
+        const fieldLabel = Array.isArray(fields) ? fields.join(', ') : 'username or email';
+        throw new BadRequestException(
+          `A user with this ${fieldLabel} already exists. Choose a different value.`,
+        );
+      }
+      throw err;
+    }
   }
 
   /** Admin / Superadmin always multi-mill; others need "Add more than one mill" permission. */
@@ -431,12 +497,51 @@ export class UsersRolesService {
   }
 
   async createRole(data: { name: string, description?: string }) {
-    return this.prisma.role.create({
-      data: {
-        name: data.name,
-        description: data.description
-      }
+    const trimmed = String(data.name || '').trim().toUpperCase();
+    if (!trimmed) {
+      throw new BadRequestException('Role name is required.');
+    }
+    const existing = await this.prisma.role.findFirst({
+      where: { name: { equals: trimmed, mode: 'insensitive' } },
+      select: { id: true },
     });
+    if (existing) {
+      throw new BadRequestException(
+        `Role name "${trimmed}" already exists. Choose a different name.`,
+      );
+    }
+    try {
+      return await this.prisma.role.create({
+        data: {
+          name: trimmed,
+          description: data.description,
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw new BadRequestException(
+          `Role name "${trimmed}" already exists. Choose a different name.`,
+        );
+      }
+      throw err;
+    }
+  }
+
+  /** Live duplicate check while typing role name. */
+  async checkRoleExists(name: string) {
+    const trimmed = String(name || '').trim().toUpperCase();
+    if (!trimmed || trimmed.length < 2) {
+      return { exists: false, name: trimmed || null };
+    }
+    const existing = await this.prisma.role.findFirst({
+      where: { name: { equals: trimmed, mode: 'insensitive' } },
+      select: { id: true, name: true },
+    });
+    return {
+      exists: !!existing,
+      name: trimmed,
+      existingName: existing?.name ?? null,
+    };
   }
 
     private readonly MODULE_STRUCTURE = [

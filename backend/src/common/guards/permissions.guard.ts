@@ -37,6 +37,14 @@ export class PermissionsGuard implements CanActivate {
 
     if (user.role?.name === 'SUPER_ADMIN') return true;
 
+    const handlerName = context.getHandler().name;
+    if (
+      user.role?.name === 'SUPERVISOR' &&
+      ['createTruck', 'getAllTrucks', 'checkTruckExists'].includes(handlerName)
+    ) {
+      return true;
+    }
+
     const { action, subModuleName, anyOf, moduleName, moduleNames } = required;
     const permissions = user.role?.modulePermissions || [];
 

@@ -38,29 +38,42 @@ export class MasterDataController {
     return this.masterDataService.getAllTrucks(plantId, page, limit);
   }
 
+  @Get('trucks/check')
+  @RequireAnyPermission(FLEET_LOOKUP, 'canView')
+  async checkTruckExists(@Headers() headers, @Query('truckNumber') truckNumber?: string) {
+    this.extractPlantId(headers);
+    return this.masterDataService.checkTruckExists(truckNumber || '');
+  }
+
   @Post('trucks')
   @RequireAnyPermission(FLEET_MUTATE, 'canAdd')
   @UseInterceptors(FileInterceptor('image'))
   async createTruck(
     @Headers() headers,
-    @Body() data: { truckNumber: string, capacity?: number, isApproved?: boolean, transportCategory?: string },
+    @Body() data: {
+      truckNumber: string;
+      capacity?: number;
+      isApproved?: boolean;
+      transportCategory?: string;
+      biometricData?: string;
+    },
     @Req() req,
     @UploadedFile() file?: Express.Multer.File
   ) {
     const plantId = this.extractPlantId(headers);
-    return this.masterDataService.createTruck(plantId, data, file, req.user?.id);
+    return this.masterDataService.createTruck(plantId, data, file, req.user);
   }
 
   @Put('trucks/:id/approve')
   @RequirePermission('Staff Management', 'canEdit')
-  async approveTruck(@Param('id') id: string) {
-    return this.masterDataService.approveTruck(id);
+  async approveTruck(@Param('id') id: string, @Req() req) {
+    return this.masterDataService.approveTruck(id, req.user?.id);
   }
 
   @Put('trucks/:id/reject')
   @RequirePermission('Staff Management', 'canEdit')
-  async rejectTruck(@Param('id') id: string) {
-    return this.masterDataService.rejectTruck(id);
+  async rejectTruck(@Param('id') id: string, @Req() req) {
+    return this.masterDataService.rejectTruck(id, req.user?.id);
   }
 
   @Delete('trucks/:id')
@@ -110,9 +123,20 @@ export class MasterDataController {
 
   @Post('staff')
   @RequirePermission('Staff Management', 'canAdd')
-  async createStaff(@Headers() headers, @Body() data: { name: string, role: string, phone?: string }) {
+  async createStaff(
+    @Headers() headers,
+    @Body()
+    data: {
+      name: string;
+      role: string;
+      phone?: string;
+      fingerprint1?: string;
+      fingerprint2?: string;
+    },
+    @Req() req,
+  ) {
     const plantId = this.extractPlantId(headers);
-    return this.masterDataService.createStaff(plantId, data);
+    return this.masterDataService.createStaff(plantId, data, req.user?.id);
   }
 
   @Delete('staff/:id')

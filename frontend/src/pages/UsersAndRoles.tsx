@@ -61,10 +61,16 @@ export const UsersAndRoles: React.FC = () => {
   const [isAddPlantDropdownOpen, setIsAddPlantDropdownOpen] = useState(false);
   const addPlantDropdownRef = useRef<HTMLDivElement>(null);
   const editPlantDropdownRef = useRef<HTMLDivElement>(null);
+  const [usernameExists, setUsernameExists] = useState(false);
+  const [checkingUsername, setCheckingUsername] = useState(false);
+  const usernameCheckSeq = useRef(0);
 
  // Add Role Modal State
  const [isAddRoleModalOpen, setIsAddRoleModalOpen] = useState(false);
  const [newRoleForm, setNewRoleForm] = useState({ name: '', description: '' });
+ const [roleNameExists, setRoleNameExists] = useState(false);
+ const [checkingRoleName, setCheckingRoleName] = useState(false);
+ const roleNameCheckSeq = useRef(0);
 
  // Edit User Modal State
  const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
@@ -160,7 +166,10 @@ export const UsersAndRoles: React.FC = () => {
   const selectedEditRole = roles.find((r) => r.id === editUserForm.roleId);
   const editAllowsMultiMill = roleAllowsMultipleMills(selectedEditRole);
 
-  const resetNewUserForm = () =>
+  const resetNewUserForm = () => {
+    setUsernameExists(false);
+    setCheckingUsername(false);
+    usernameCheckSeq.current += 1;
     setNewUserForm({
       fullName: '',
       username: '',
@@ -171,6 +180,69 @@ export const UsersAndRoles: React.FC = () => {
       fingerprint1: '',
       fingerprint2: '',
     });
+  };
+
+  // Live username duplicate check (same pattern as truck number)
+  useEffect(() => {
+    if (!isAddUserModalOpen) return;
+    const trimmed = String(newUserForm.username || '').trim();
+    if (!trimmed || trimmed.length < 2) {
+      setUsernameExists(false);
+      setCheckingUsername(false);
+      return;
+    }
+    const seq = ++usernameCheckSeq.current;
+    setCheckingUsername(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.get('/users-roles/check-username', {
+          params: { username: trimmed },
+        });
+        if (seq !== usernameCheckSeq.current) return;
+        setUsernameExists(!!res.data?.exists);
+      } catch (err) {
+        if (seq !== usernameCheckSeq.current) return;
+        console.error(err);
+        setUsernameExists(false);
+      } finally {
+        if (seq === usernameCheckSeq.current) setCheckingUsername(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [isAddUserModalOpen, newUserForm.username]);
+
+  // Live role name duplicate check
+  useEffect(() => {
+    if (!isAddRoleModalOpen) return;
+    const trimmed = String(newRoleForm.name || '').trim();
+    if (!trimmed || trimmed.length < 2) {
+      setRoleNameExists(false);
+      setCheckingRoleName(false);
+      return;
+    }
+    const seq = ++roleNameCheckSeq.current;
+    setCheckingRoleName(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.get('/users-roles/check-role', {
+          params: { name: trimmed },
+        });
+        if (seq !== roleNameCheckSeq.current) return;
+        setRoleNameExists(!!res.data?.exists);
+      } catch (err) {
+        if (seq !== roleNameCheckSeq.current) return;
+        console.error(err);
+        setRoleNameExists(false);
+      } finally {
+        if (seq === roleNameCheckSeq.current) setCheckingRoleName(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [isAddRoleModalOpen, newRoleForm.name]);
+
+  const usernameBlocksForm = usernameExists;
+  const addUserFieldsDisabled = usernameBlocksForm;
+  const roleNameBlocksForm = roleNameExists;
 
   const captureUserFingerprint = async (slot: 1 | 2) => {
     try {
@@ -309,6 +381,14 @@ export const UsersAndRoles: React.FC = () => {
    });
    return;
  }
+ if (usernameExists) {
+   setModalConfig({
+     isOpen: true,
+     title: 'Username Taken',
+     content: 'Username already exists. Choose a different username.',
+   });
+   return;
+ }
  await addUserLock.wrapSubmit(async () => {
  try {
  const plantIds = addAllowsMultiMill ? newUserForm.plantIds : newUserForm.plantIds.slice(0, 1);
@@ -331,10 +411,21 @@ export const UsersAndRoles: React.FC = () => {
 
  const handleAddRole = async (e: React.FormEvent) => {
  e.preventDefault();
+ if (roleNameExists) {
+   setModalConfig({
+     isOpen: true,
+     title: 'Role Name Taken',
+     content: 'Role name already exists. Choose a different name.',
+   });
+   return;
+ }
  await addRoleLock.wrapSubmit(async () => {
  try {
  await api.post('/users-roles/roles', newRoleForm);
  setIsAddRoleModalOpen(false);
+ setRoleNameExists(false);
+ setCheckingRoleName(false);
+ roleNameCheckSeq.current += 1;
  setModalConfig({ isOpen: true, title: 'Success', content: 'Role created successfully!' });
  
  const rolesRes = await api.get('/users-roles/roles');
@@ -342,9 +433,13 @@ export const UsersAndRoles: React.FC = () => {
  const statsRes = await api.get('/users-roles/summary-metrics');
  setStats(statsRes.data);
  setNewRoleForm({ name: '', description: '' });
- } catch (err) {
+ } catch (err: any) {
  console.error('Failed to create role', err);
- setModalConfig({ isOpen: true, title: 'Error', content: 'Failed to create role. Please try again.' });
+ setModalConfig({
+   isOpen: true,
+   title: 'Error',
+   content: err?.response?.data?.message || 'Failed to create role. Please try again.',
+ });
  }
  });
  };
@@ -748,7 +843,8 @@ export const UsersAndRoles: React.FC = () => {
  options={roles}
  valueKey="id"
  placeholder="Select Role"
- className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 shadow-sm"
+ listMaxHeightClass="max-h-56"
+ className="min-w-[200px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 shadow-sm"
  />
  </div>
  <button onClick={savePermissions} disabled={permissionsLock.pending} className="bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50">
@@ -911,7 +1007,23 @@ export const UsersAndRoles: React.FC = () => {
  </div>
  <div>
  <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Username</label>
- <input type="text" required value={newUserForm.username} onChange={e => setNewUserForm({...newUserForm, username: e.target.value, email: e.target.value})} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500" placeholder="Username" />
+ <input
+   type="text"
+   required
+   value={newUserForm.username}
+   onChange={e => setNewUserForm({...newUserForm, username: e.target.value, email: e.target.value})}
+   className={`w-full bg-[var(--bg-panel)] border rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none ${
+     usernameExists
+       ? 'border-red-500 focus:border-red-500'
+       : 'border-[var(--border-subtle)] focus:border-blue-500'
+   }`}
+   placeholder="Username"
+ />
+ {usernameExists ? (
+   <p className="text-red-500 text-xs mt-1 font-medium">Username already exists</p>
+ ) : checkingUsername && String(newUserForm.username || '').trim().length >= 2 ? (
+   <p className="text-[var(--text-muted-alt)] text-xs mt-1">Checking username…</p>
+ ) : null}
  </div>
  <div>
  <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Secure Password</label>
@@ -921,18 +1033,20 @@ export const UsersAndRoles: React.FC = () => {
  required 
  value={newUserForm.password} 
  onChange={e => setNewUserForm({...newUserForm, password: e.target.value})} 
- className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 pr-10 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500" 
+ disabled={addUserFieldsDisabled}
+ className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 pr-10 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed" 
  placeholder="••••••••" 
  />
  <button 
  type="button" 
  onClick={() => setShowPassword(!showPassword)} 
- className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors"
+ disabled={addUserFieldsDisabled}
+ className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors disabled:opacity-50"
  >
  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
  </button>
  </div>
- {newUserForm.password.length > 0 && (
+ {newUserForm.password.length > 0 && !addUserFieldsDisabled && (
  <div className="mt-2 text-xs flex gap-4">
  <span className={`flex items-center gap-1 ${newUserForm.password.length >= 8 ? 'text-green-500' : 'text-red-500'}`}>
  {newUserForm.password.length >= 8 ? <Check size={12}/> : <X size={12}/>} Min 8 chars
@@ -946,7 +1060,7 @@ export const UsersAndRoles: React.FC = () => {
  </div>
  )}
  </div>
- <div>
+ <div className={addUserFieldsDisabled ? 'opacity-50 pointer-events-none' : ''}>
  <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Assign Role</label>
  <Combobox
  name="roleId"
@@ -972,14 +1086,14 @@ export const UsersAndRoles: React.FC = () => {
  className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500"
  />
  </div>
- <div>
+ <div className={addUserFieldsDisabled ? 'opacity-50 pointer-events-none' : ''}>
    <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">
      Primary Plant{addAllowsMultiMill ? ' (multiple allowed)' : ' (one only)'}
    </label>
    <div className="relative" ref={addPlantDropdownRef}>
      <div 
        className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] cursor-pointer flex justify-between items-center focus:border-blue-500 hover:border-[var(--border-subtle-alt)] transition-colors"
-       onClick={() => setIsAddPlantDropdownOpen(!isAddPlantDropdownOpen)}
+       onClick={() => !addUserFieldsDisabled && setIsAddPlantDropdownOpen(!isAddPlantDropdownOpen)}
      >
        <span className={newUserForm.plantIds.length === 0 ? "text-[var(--text-muted-alt)]" : "flex-1 overflow-x-auto whitespace-nowrap mr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"}>
         {newUserForm.plantIds.length === 0 
@@ -989,7 +1103,7 @@ export const UsersAndRoles: React.FC = () => {
        <ChevronDown size={16} className={`text-[var(--text-muted-alt)] transition-transform ${isAddPlantDropdownOpen ? 'rotate-180' : ''}`} />
      </div>
      
-     {isAddPlantDropdownOpen && (
+     {isAddPlantDropdownOpen && !addUserFieldsDisabled && (
        <div className="absolute z-[100] top-full mt-1 w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg shadow-lg max-h-[140px] overflow-y-auto">
          {plants.map(p => (
            <label key={p.id} className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--bg-base)] cursor-pointer border-b border-[var(--border-subtle)] last:border-0">
@@ -1025,7 +1139,7 @@ export const UsersAndRoles: React.FC = () => {
  </div>
 
  {isAddSupervisorRole && (
-   <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-3">
+   <div className={`rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-3 ${addUserFieldsDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
      <div className="flex items-center gap-2 text-amber-400 text-sm font-bold">
        <Fingerprint size={16} />
        Fingerprint Registration (2 required)
@@ -1044,7 +1158,8 @@ export const UsersAndRoles: React.FC = () => {
            <button
              type="button"
              onClick={() => captureUserFingerprint(1)}
-             className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5"
+             disabled={addUserFieldsDisabled}
+             className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 disabled:opacity-50"
            >
              <Fingerprint size={14} /> Scan Finger 1
            </button>
@@ -1060,7 +1175,8 @@ export const UsersAndRoles: React.FC = () => {
            <button
              type="button"
              onClick={() => captureUserFingerprint(2)}
-             className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5"
+             disabled={addUserFieldsDisabled}
+             className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 disabled:opacity-50"
            >
              <Fingerprint size={14} /> Scan Finger 2
            </button>
@@ -1071,7 +1187,8 @@ export const UsersAndRoles: React.FC = () => {
        <button
          type="button"
          onClick={() => setNewUserForm((p) => ({ ...p, fingerprint1: '', fingerprint2: '' }))}
-         className="text-[11px] text-[var(--text-muted-alt)] hover:text-red-400 underline"
+         disabled={addUserFieldsDisabled}
+         className="text-[11px] text-[var(--text-muted-alt)] hover:text-red-400 underline disabled:opacity-50"
        >
          Clear fingerprints &amp; re-scan
        </button>
@@ -1082,7 +1199,7 @@ export const UsersAndRoles: React.FC = () => {
  </div>
  <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3 rounded-b-2xl shrink-0">
  <button onClick={() => { setIsAddUserModalOpen(false); setIsAddPlantDropdownOpen(false); resetNewUserForm(); }} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
- <button form="realAddUserForm" type="submit" disabled={addUserLock.pending} className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium transition-colors disabled:opacity-50">{addUserLock.pending ? 'Creating...' : 'Create User'}</button>
+ <button form="realAddUserForm" type="submit" disabled={addUserLock.pending || usernameBlocksForm || checkingUsername} className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium transition-colors disabled:opacity-50">{addUserLock.pending ? 'Creating...' : 'Create User'}</button>
  </div>
  </div>
  </div>
@@ -1235,7 +1352,7 @@ export const UsersAndRoles: React.FC = () => {
  <div className="relative w-full max-w-md bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-visible">
  <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] rounded-t-2xl">
  <h2 className="text-lg font-semibold text-[var(--text-main)]">Create New Role</h2>
- <button onClick={() => setIsAddRoleModalOpen(false)} className="text-[var(--text-muted-alt)] hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)] p-1.5 rounded-lg transition-colors">
+ <button onClick={() => { setIsAddRoleModalOpen(false); setRoleNameExists(false); setCheckingRoleName(false); roleNameCheckSeq.current += 1; setNewRoleForm({ name: '', description: '' }); }} className="text-[var(--text-muted-alt)] hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)] p-1.5 rounded-lg transition-colors">
  <X size={20} />
  </button>
  </div>
@@ -1243,17 +1360,40 @@ export const UsersAndRoles: React.FC = () => {
  <form id="addRoleForm" onSubmit={handleAddRole} className="space-y-4">
  <div>
  <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Role Name</label>
- <input type="text" required value={newRoleForm.name} onChange={e => setNewRoleForm({...newRoleForm, name: e.target.value.toUpperCase()})} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500" placeholder="e.g. DATA_ENTRY" />
+ <input
+   type="text"
+   required
+   value={newRoleForm.name}
+   onChange={e => setNewRoleForm({...newRoleForm, name: e.target.value.toUpperCase()})}
+   className={`w-full bg-[var(--bg-panel)] border rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none ${
+     roleNameExists
+       ? 'border-red-500 focus:border-red-500'
+       : 'border-[var(--border-subtle)] focus:border-blue-500'
+   }`}
+   placeholder="e.g. DATA_ENTRY"
+ />
+ {roleNameExists ? (
+   <p className="text-red-500 text-xs mt-1 font-medium">Role name already exists</p>
+ ) : checkingRoleName && String(newRoleForm.name || '').trim().length >= 2 ? (
+   <p className="text-[var(--text-muted-alt)] text-xs mt-1">Checking role name…</p>
+ ) : null}
  </div>
  <div>
  <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1">Description</label>
- <textarea rows={3} value={newRoleForm.description} onChange={e => setNewRoleForm({...newRoleForm, description: e.target.value})} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500" placeholder="What does this role do?" />
+ <textarea
+   rows={3}
+   value={newRoleForm.description}
+   onChange={e => setNewRoleForm({...newRoleForm, description: e.target.value})}
+   disabled={roleNameBlocksForm}
+   className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+   placeholder="What does this role do?"
+ />
  </div>
  </form>
  </div>
  <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3 rounded-b-2xl">
- <button onClick={() => setIsAddRoleModalOpen(false)} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
- <button form="addRoleForm" type="submit" disabled={addRoleLock.pending} className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">{addRoleLock.pending ? 'Creating...' : 'Create Role'}</button>
+ <button onClick={() => { setIsAddRoleModalOpen(false); setRoleNameExists(false); setCheckingRoleName(false); roleNameCheckSeq.current += 1; setNewRoleForm({ name: '', description: '' }); }} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
+ <button form="addRoleForm" type="submit" disabled={addRoleLock.pending || roleNameBlocksForm || checkingRoleName} className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium transition-colors disabled:opacity-50">{addRoleLock.pending ? 'Creating...' : 'Create Role'}</button>
  </div>
  </div>
  </div>

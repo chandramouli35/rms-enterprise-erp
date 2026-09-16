@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { v2 as cloudinary } from 'cloudinary';
 import { Readable } from 'stream';
@@ -32,6 +32,75 @@ export class MasterDataService {
   }
 
   // ===================== TRUCK MASTER =====================
+
+  /** Uppercase, strip spaces & special chars — prevents duplicate truck numbers. */
+  normalizeTruckNumber(raw: string): string {
+    return String(raw || '')
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '')
+      .replace(/[^A-Z0-9]/g, '');
+  }
+
+  private isAdminRole(user: any) {
+    const role = user?.role?.name || user?.role || '';
+    return /SUPER_ADMIN|PLANT_MANAGER|ADMIN/i.test(String(role));
+  }
+
+  private isSupervisorRole(user: any) {
+    const role = user?.role?.name || user?.role || '';
+    return /SUPERVISOR/i.test(String(role));
+  }
+
+  private assertValidFingerprint(biometricData: string | undefined, user: any) {
+    const isAdmin = this.isAdminRole(user);
+    if (isAdmin && (!biometricData || biometricData === 'ADMIN_BYPASS')) return;
+    if (!biometricData || biometricData === 'ADMIN_BYPASS') {
+      throw new BadRequestException(
+        'Fingerprint scan is required to submit a new truck application.',
+      );
+    }
+    if (
+      !String(biometricData).includes('errCode="0"') &&
+      !String(biometricData).includes("errCode='0'")
+    ) {
+      if (
+        !String(biometricData).includes('<Pid') &&
+        !String(biometricData).includes('<Resp') &&
+        !/dc=|mi=|DeviceInfo|hmac/i.test(String(biometricData))
+      ) {
+        throw new BadRequestException('Invalid fingerprint capture — please scan again');
+      }
+    }
+  }
+
+  private async findTruckByNormalizedNumber(normalized: string, excludeId?: string) {
+    if (!normalized) return null;
+    const all = await this.prisma.truckMaster.findMany({
+      select: { id: true, truckNumber: true, isApproved: true },
+    });
+    return (
+      all.find(
+        (t) =>
+          t.id !== excludeId && this.normalizeTruckNumber(t.truckNumber) === normalized,
+      ) || null
+    );
+  }
+
+  /** Live duplicate check while typing truck number (normalized). */
+  async checkTruckExists(truckNumber: string) {
+    const normalized = this.normalizeTruckNumber(truckNumber);
+    if (!normalized || normalized.length < 4) {
+      return { exists: false, truckNumber: normalized || null };
+    }
+    const existing = await this.findTruckByNormalizedNumber(normalized);
+    return {
+      exists: !!existing,
+      truckNumber: normalized,
+      isApproved: existing?.isApproved ?? null,
+    };
+  }
+
   async getTrucks(plantId: string, page?: string, limit?: string) {
     const where = { isApproved: true };
     if (page) {
@@ -62,59 +131,145 @@ export class MasterDataService {
     return this.prisma.truckMaster.findMany({ where, orderBy: { createdAt: 'desc' } });
   }
 
-  async createTruck(plantId: string, data: { truckNumber: string, capacity?: number, isApproved?: boolean, transportCategory?: string }, file?: Express.Multer.File, userId?: string) {
-    const existing = await this.prisma.truckMaster.findFirst({
-      where: { truckNumber: data.truckNumber }
-    });
-    
+  async createTruck(
+    plantId: string,
+    data: {
+      truckNumber: string;
+      capacity?: number;
+      isApproved?: boolean;
+      transportCategory?: string;
+      biometricData?: string;
+    },
+    file?: Express.Multer.File,
+    user?: any,
+  ) {
+    const userId = user?.id;
+    const isAdmin = this.isAdminRole(user);
+    const isSupervisor = this.isSupervisorRole(user);
+
+    if (isSupervisor) {
+      this.assertValidFingerprint(data.biometricData, user);
+    }
+
+    const normalized = this.normalizeTruckNumber(data.truckNumber);
+    if (!normalized || normalized.length < 4) {
+      throw new BadRequestException('Enter a valid truck number (letters and digits only).');
+    }
+
+    const existing = await this.findTruckByNormalizedNumber(normalized);
     if (existing) {
-      const { BadRequestException } = require('@nestjs/common');
-      throw new BadRequestException(`Truck number ${data.truckNumber} already exists in this plant`);
+      throw new BadRequestException(
+        `Truck number ${normalized} already exists (duplicate check ignores spaces, case, and special characters).`,
+      );
     }
 
     let imageUrl: string | null = null;
-    if (file) {
+    if (file && isAdmin) {
       imageUrl = await this.uploadImageToCloudinary(file);
     }
-    
-    // Convert capacity string to number if it's sent as FormData
+
     const capacityNum = data.capacity ? Number(data.capacity) : undefined;
-    const isApprovedBool = typeof data.isApproved === 'string' ? data.isApproved === 'true' : data.isApproved;
+    const isApprovedBool =
+      isSupervisor
+        ? false
+        : isAdmin
+          ? typeof data.isApproved === 'string'
+            ? data.isApproved === 'true'
+            : data.isApproved !== false
+          : false;
 
     const truck = await this.prisma.truckMaster.create({
-      data: { 
-        plantId, 
-        truckNumber: data.truckNumber,
+      data: {
+        plantId,
+        truckNumber: normalized,
         transportCategory: data.transportCategory || 'PARTY',
         capacity: capacityNum,
-        isApproved: isApprovedBool,
-        imageUrl
-      }
+        isApproved: !!isApprovedBool,
+        imageUrl,
+      },
+    });
+
+    if (userId) {
+      await this.prisma.systemAuditLog.create({
+        data: {
+          userId,
+          action: isSupervisor ? 'TRUCK_APPLICATION_SUBMITTED' : 'AUTO_ADD_MASTER_DATA',
+          module: 'Master Data',
+          details: isSupervisor
+            ? `Supervisor submitted truck application: ${normalized} (pending admin approval)`
+            : `Added Truck: ${normalized}`,
+        },
+      });
+    }
+
+    if (isSupervisor) {
+      const submitter =
+        user?.fullName || user?.username || user?.name || 'Supervisor';
+      const msg = `${submitter} submitted new truck application ${normalized} (${data.transportCategory || 'PARTY'}). Please confirm or decline.`;
+      await this.prisma.notification.createMany({
+        data: [
+          { title: 'New Truck Application', message: msg, type: 'ALERT', role: 'SUPER_ADMIN' },
+          { title: 'New Truck Application', message: msg, type: 'ALERT', role: 'PLANT_MANAGER' },
+        ],
+      });
+    }
+
+    return truck;
+  }
+
+  async approveTruck(id: string, userId?: string) {
+    const truck = await this.prisma.truckMaster.update({
+      where: { id },
+      data: { isApproved: true },
     });
     if (userId) {
       await this.prisma.systemAuditLog.create({
         data: {
           userId,
-          action: 'AUTO_ADD_MASTER_DATA',
+          action: 'TRUCK_APPROVED',
           module: 'Master Data',
-          details: `Auto-added Truck: ${data.truckNumber}`
-        }
+          details: `Approved truck: ${truck.truckNumber}`,
+        },
       });
     }
+    await this.prisma.notification.createMany({
+      data: [
+        {
+          title: 'Truck Application Approved',
+          message: `Truck ${truck.truckNumber} has been approved and is now available for use.`,
+          type: 'INFO',
+          role: 'SUPERVISOR',
+        },
+      ],
+    });
     return truck;
   }
 
-  async approveTruck(id: string) {
-    return this.prisma.truckMaster.update({
-      where: { id },
-      data: { isApproved: true }
+  async rejectTruck(id: string, userId?: string) {
+    const truck = await this.prisma.truckMaster.findUnique({ where: { id } });
+    if (!truck) throw new NotFoundException('Truck not found');
+    await this.prisma.truckMaster.delete({ where: { id } });
+    if (userId) {
+      await this.prisma.systemAuditLog.create({
+        data: {
+          userId,
+          action: 'TRUCK_REJECTED',
+          module: 'Master Data',
+          details: `Declined truck application: ${truck.truckNumber}`,
+        },
+      });
+    }
+    await this.prisma.notification.createMany({
+      data: [
+        {
+          title: 'Truck Application Declined',
+          message: `Truck application ${truck.truckNumber} was declined by Admin.`,
+          type: 'WARNING',
+          role: 'SUPERVISOR',
+        },
+      ],
     });
-  }
-
-  async rejectTruck(id: string) {
-    return this.prisma.truckMaster.delete({
-      where: { id }
-    });
+    return { success: true };
   }
 
   async deleteTruck(id: string) {
@@ -167,9 +322,40 @@ export class MasterDataService {
     return this.prisma.staffMaster.findMany({ where: { plantId }, orderBy: { name: 'asc' } });
   }
 
-  async createStaff(plantId: string, data: { name: string, role: string, phone?: string }, userId?: string) {
+  async createStaff(
+    plantId: string,
+    data: {
+      name: string;
+      role: string;
+      phone?: string;
+      fingerprint1?: string;
+      fingerprint2?: string;
+    },
+    userId?: string,
+  ) {
+    const isUnloader = /UNLOADER/i.test(String(data.role || ''));
+    if (isUnloader) {
+      if (!data.fingerprint1 || !data.fingerprint2) {
+        throw new BadRequestException(
+          'Unloader registration requires two fingerprint scans (Finger 1 and Finger 2).',
+        );
+      }
+      if (data.fingerprint1 === data.fingerprint2) {
+        throw new BadRequestException(
+          'Finger 1 and Finger 2 must be two different captures.',
+        );
+      }
+    }
+
     const staff = await this.prisma.staffMaster.create({
-      data: { plantId, ...data }
+      data: {
+        plantId,
+        name: data.name,
+        role: data.role,
+        phone: data.phone || null,
+        fingerprint1: data.fingerprint1 || null,
+        fingerprint2: data.fingerprint2 || null,
+      },
     });
     if (userId) {
       await this.prisma.systemAuditLog.create({
@@ -177,8 +363,8 @@ export class MasterDataService {
           userId,
           action: 'AUTO_ADD_MASTER_DATA',
           module: 'Master Data',
-          details: `Auto-added Staff: ${data.name}`
-        }
+          details: `Auto-added Staff: ${data.name}${isUnloader ? ' (Unloader with fingerprints)' : ''}`,
+        },
       });
     }
     return staff;

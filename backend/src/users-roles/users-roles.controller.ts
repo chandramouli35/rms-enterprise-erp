@@ -21,6 +21,12 @@ export class UsersRolesController {
     return this.service.getUsersList(page, limit);
   }
 
+  @Get('check-username')
+  @RequirePermission('Users and Roles', 'canView')
+  checkUsernameExists(@Query('username') username?: string) {
+    return this.service.checkUsernameExists(username || '');
+  }
+
   @Post('create')
   @RequirePermission('Users and Roles', 'canAdd')
   createUser(@Body() body: any) {
@@ -55,6 +61,12 @@ export class UsersRolesController {
   @RequirePermission('Users and Roles', 'canView')
   getRoles() {
     return this.service.getRoles();
+  }
+
+  @Get('check-role')
+  @RequirePermission('Users and Roles', 'canView')
+  checkRoleExists(@Query('name') name?: string) {
+    return this.service.checkRoleExists(name || '');
   }
 
   @Post('roles')

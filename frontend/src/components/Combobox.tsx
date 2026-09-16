@@ -127,11 +127,27 @@ export default function Combobox({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = selectOnly
-    ? options
-    : options.filter((opt) =>
-        getOptionLabel(opt).toLowerCase().includes(inputValue.toLowerCase()),
-      );
+  const selectedOpt = valueKey && value ? findOptionByValue(value) : undefined;
+  const selectedLabel = selectedOpt ? getOptionLabel(selectedOpt) : '';
+  const inputNorm = inputValue.trim().toLowerCase();
+
+  // When a valueKey selection is showing its label (or a sentinel like "All"),
+  // don't treat that text as a search filter — otherwise the open list only
+  // shows the currently selected item (e.g. ACCOUNTANT).
+  const isShowingSelectedLabel =
+    !!valueKey &&
+    !!inputNorm &&
+    ((!!selectedLabel && inputNorm === selectedLabel.trim().toLowerCase()) ||
+      (!selectedOpt &&
+        !!value &&
+        inputNorm === String(value).trim().toLowerCase()));
+
+  const filteredOptions =
+    selectOnly || isShowingSelectedLabel || !inputNorm
+      ? options
+      : options.filter((opt) =>
+          getOptionLabel(opt).toLowerCase().includes(inputNorm),
+        );
 
   const createSyntheticEvent = (val: string) => {
     return {
@@ -145,7 +161,23 @@ export default function Combobox({
       setIsOpen(true);
       return;
     }
-    setInputValue(e.target.value);
+    let next = e.target.value;
+    // valueKey searchable select: if still showing the selected label, start a fresh search
+    // (don't append onto "ACCOUNTANT" when user types "S")
+    if (valueKey && value) {
+      const selected = findOptionByValue(value);
+      const label = selected ? getOptionLabel(selected) : '';
+      if (label && inputValue.trim().toLowerCase() === label.trim().toLowerCase()) {
+        const prev = inputValue;
+        // Browser may send full new value (prev + char) or replacement — prefer last typed char(s)
+        if (next.length === prev.length + 1 && next.startsWith(prev)) {
+          next = next.slice(prev.length);
+        } else if (next.length > prev.length && next.startsWith(prev)) {
+          next = next.slice(prev.length);
+        }
+      }
+    }
+    setInputValue(next);
     setIsOpen(true);
     // valueKey: typing is filter-only — do not commit free text
     if (valueKey) {

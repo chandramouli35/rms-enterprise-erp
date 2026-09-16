@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { usePlantStore } from '../../store/plantStore';
 import api from '../../api/axios';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Fingerprint, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSubmitLock } from '../../hooks/useSubmitLock';
+import { biometricService } from '../../services/biometricService';
+import { useUiStore } from '../../store/uiStore';
 
 type StaffCategory = 'DRIVER' | 'LABOUR' | 'PAHUNCH' | 'UNLOADER';
 
@@ -16,13 +18,16 @@ export const AddStaff: React.FC = () => {
   const [category, setCategory] = useState<StaffCategory>('DRIVER');
   const [error, setError] = useState('');
   const submitLock = useSubmitLock();
+  const [scanningSlot, setScanningSlot] = useState<1 | 2 | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
     contact: '',
     age: '',
     type: '',
-    firmName: ''
+    firmName: '',
+    fingerprint1: '',
+    fingerprint2: '',
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -32,13 +37,36 @@ export const AddStaff: React.FC = () => {
     }));
   };
 
+  const captureFingerprint = async (slot: 1 | 2) => {
+    setScanningSlot(slot);
+    setError('');
+    try {
+      const xml = await biometricService.captureFingerprint();
+      setFormData(prev => ({
+        ...prev,
+        ...(slot === 1 ? { fingerprint1: xml } : { fingerprint2: xml }),
+      }));
+      useUiStore.getState().addToast(`Fingerprint ${slot} captured`, 'success');
+    } catch (err: any) {
+      useUiStore
+        .getState()
+        .addToast(err?.message || `Fingerprint ${slot} capture failed`, 'error');
+    } finally {
+      setScanningSlot(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
-    // Plant ID check for non-global staff
     if (category !== 'DRIVER' && !activePlantId && user?.role !== 'SUPER_ADMIN') {
       setError('Please select a plant before adding this staff category.');
+      return;
+    }
+
+    if (category === 'UNLOADER' && (!formData.fingerprint1 || !formData.fingerprint2)) {
+      setError('Unloader registration requires two fingerprint scans (Finger 1 and Finger 2).');
       return;
     }
 
@@ -76,7 +104,9 @@ export const AddStaff: React.FC = () => {
         await api.post('/api/master-data/staff', {
           name: formData.name,
           role: 'UNLOADER',
-          phone: formData.contact || undefined
+          phone: formData.contact || undefined,
+          fingerprint1: formData.fingerprint1,
+          fingerprint2: formData.fingerprint2,
         }, {
           headers: { 'x-plant-id': activePlantId }
         });
@@ -86,7 +116,7 @@ export const AddStaff: React.FC = () => {
       navigate('/staff?tab=list&subtab=' + category.toLowerCase());
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Failed to add staff member.');
+      setError(err?.response?.data?.message || err.message || 'Failed to add staff member.');
     }
     });
   };
@@ -106,7 +136,6 @@ export const AddStaff: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-xl p-6 shadow-sm space-y-8">
           
-          {/* 1. Select Category */}
           <section>
             <h2 className="text-lg font-semibold border-b border-[var(--border-subtle)] pb-2 mb-4">1. Select Category</h2>
             <div className="flex gap-4">
@@ -119,7 +148,10 @@ export const AddStaff: React.FC = () => {
                       name="category"
                       value={cat}
                       checked={category === cat}
-                      onChange={() => setCategory(cat as StaffCategory)}
+                      onChange={() => {
+                        setCategory(cat as StaffCategory);
+                        setFormData(prev => ({ ...prev, fingerprint1: '', fingerprint2: '' }));
+                      }}
                       className="accent-[#e67e00]"
                     />
                   </div>
@@ -134,7 +166,6 @@ export const AddStaff: React.FC = () => {
             )}
           </section>
 
-          {/* 2. Common Information */}
           <section>
             <h2 className="text-lg font-semibold border-b border-[var(--border-subtle)] pb-2 mb-4">2. Common Information</h2>
             <div className="grid grid-cols-2 gap-4">
@@ -162,7 +193,6 @@ export const AddStaff: React.FC = () => {
             </div>
           </section>
 
-          {/* 3. Category-Specific Information */}
           <section>
             <h2 className="text-lg font-semibold border-b border-[var(--border-subtle)] pb-2 mb-4">3. Category-Specific Information</h2>
             
@@ -214,7 +244,60 @@ export const AddStaff: React.FC = () => {
             )}
 
             {category === 'UNLOADER' && (
-              <p className="text-sm text-[var(--text-muted)] italic">Contact number is optional for Unloaders. No other fields required.</p>
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-amber-400 text-sm font-bold">
+                  <Fingerprint size={16} />
+                  Fingerprint Registration (2 required)
+                </div>
+                <p className="text-[11px] text-[var(--text-muted-alt)]">
+                  Unloader must enroll two fingers (e.g. left thumb + right thumb). Contact number is optional.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] text-[var(--text-muted-alt)] uppercase tracking-wide">Finger 1</div>
+                    {formData.fingerprint1 ? (
+                      <div className="flex items-center gap-2 text-green-400 text-xs font-bold bg-green-900/20 border border-green-500/30 rounded-lg px-3 py-2">
+                        <Check size={14} /> Captured
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => captureFingerprint(1)}
+                        disabled={scanningSlot !== null}
+                        className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        <Fingerprint size={14} /> {scanningSlot === 1 ? 'Scanning...' : 'Scan Finger 1'}
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] text-[var(--text-muted-alt)] uppercase tracking-wide">Finger 2</div>
+                    {formData.fingerprint2 ? (
+                      <div className="flex items-center gap-2 text-green-400 text-xs font-bold bg-green-900/20 border border-green-500/30 rounded-lg px-3 py-2">
+                        <Check size={14} /> Captured
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => captureFingerprint(2)}
+                        disabled={scanningSlot !== null}
+                        className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        <Fingerprint size={14} /> {scanningSlot === 2 ? 'Scanning...' : 'Scan Finger 2'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {(formData.fingerprint1 || formData.fingerprint2) && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData(p => ({ ...p, fingerprint1: '', fingerprint2: '' }))}
+                    className="text-[11px] text-[var(--text-muted-alt)] hover:text-red-400 underline"
+                  >
+                    Clear fingerprints &amp; re-scan
+                  </button>
+                )}
+              </div>
             )}
 
           </section>
@@ -222,7 +305,10 @@ export const AddStaff: React.FC = () => {
           <div className="flex justify-end mt-8">
             <button
               type="submit"
-              disabled={submitLock.pending}
+              disabled={
+                submitLock.pending ||
+                (category === 'UNLOADER' && (!formData.fingerprint1 || !formData.fingerprint2))
+              }
               className="px-6 py-2 bg-[#e67e00] hover:bg-[#cc7000] text-black font-semibold rounded-lg shadow transition-colors disabled:opacity-50"
             >
               {submitLock.pending ? 'Adding...' : 'Add Staff'}
