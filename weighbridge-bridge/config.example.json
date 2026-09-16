@@ -1,0 +1,12 @@
+{
+  "apiBaseUrl": "http://localhost:3000",
+  "plantId": "REPLACE_WITH_PLANT_UUID",
+  "bridgeKey": "",
+  "port": "COM4",
+  "baudRate": 2400,
+  "dataBits": 8,
+  "stopBits": 1,
+  "parity": "none",
+  "postIntervalMs": 800,
+  "simulate": false
+}

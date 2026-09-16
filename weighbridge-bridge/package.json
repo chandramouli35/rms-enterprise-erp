@@ -1,0 +1,18 @@
+{
+  "name": "rms-weighbridge-com-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local Windows COM bridge — reads weighbridge indicator and posts live kg to RMS",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "simulate": "node src/index.js --simulate"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "serialport": "^12.0.0"
+  }
+}

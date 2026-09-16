@@ -1,9 +1,114 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+
+/** Live reading pushed by the Windows COM Bridge (in-memory; plant-scoped). */
+type LiveReading = {
+  weightKg: number;
+  at: Date;
+  port?: string;
+  baudRate?: string | number;
+  stable?: boolean;
+  raw?: string;
+};
+
+/** Consider connected if Bridge posted within this window. */
+const BRIDGE_HEARTBEAT_MS = 12_000;
 
 @Injectable()
 export class WeighbridgeService {
+  private readonly liveByPlant = new Map<string, LiveReading>();
+
   constructor(private prisma: PrismaService) {}
+
+  private assertBridgeKey(bridgeKey?: string) {
+    const expected = process.env.WEIGHBRIDGE_BRIDGE_SECRET;
+    if (!expected) return; // open when secret not configured
+    if (!bridgeKey || bridgeKey !== expected) {
+      throw new UnauthorizedException(
+        'Invalid or missing weighbridge bridge key (X-Bridge-Key).',
+      );
+    }
+  }
+
+  /**
+   * Push live indicator kg for a plant.
+   * @param requireBridgeAuth — true for Node bridge-ingest route
+   */
+  ingestLiveWeight(
+    plantId: string,
+    body: {
+      weightKg?: number;
+      weight?: number;
+      port?: string;
+      baudRate?: string | number;
+      stable?: boolean;
+      raw?: string;
+      bridgeKey?: string;
+    },
+    headerKey?: string,
+    requireBridgeAuth = false,
+  ) {
+    if (requireBridgeAuth) {
+      this.assertBridgeKey(headerKey || body?.bridgeKey);
+    }
+    if (!plantId || plantId === 'global') {
+      throw new BadRequestException('plantId is required for live weighbridge ingest.');
+    }
+    const weightKg = Number(body?.weightKg ?? body?.weight);
+    if (!Number.isFinite(weightKg) || weightKg < 0) {
+      throw new BadRequestException('weightKg must be a non-negative number.');
+    }
+    const reading: LiveReading = {
+      weightKg,
+      at: new Date(),
+      port: body?.port,
+      baudRate: body?.baudRate,
+      stable: body?.stable !== false,
+      raw: body?.raw != null ? String(body.raw).slice(0, 120) : undefined,
+    };
+    this.liveByPlant.set(plantId, reading);
+    return {
+      ok: true,
+      plantId,
+      weightKg: reading.weightKg,
+      at: reading.at.toISOString(),
+      connected: true,
+    };
+  }
+
+  /** Latest live kg from COM Bridge (null if never posted / stale). */
+  getLiveWeight(plantId: string, maxAgeMs = BRIDGE_HEARTBEAT_MS) {
+    const reading = this.liveByPlant.get(plantId);
+    if (!reading) {
+      return {
+        connected: false,
+        weightKg: null,
+        ageMs: null,
+        at: null,
+        message: 'No live weight yet. On the weighbridge PC open Capture and click Connect Indicator (Chrome/Edge).',
+      };
+    }
+    const ageMs = Date.now() - reading.at.getTime();
+    const connected = ageMs <= maxAgeMs;
+    return {
+      connected,
+      weightKg: reading.weightKg,
+      ageMs,
+      at: reading.at.toISOString(),
+      port: reading.port ?? null,
+      baudRate: reading.baudRate ?? null,
+      stable: reading.stable ?? true,
+      raw: reading.raw ?? null,
+      message: connected
+        ? 'Live weight from COM Bridge.'
+        : 'COM Bridge heartbeat timed out. Is the bridge still running?',
+    };
+  }
 
   async streamWeight(vehicleNo: string) {
     // Prefer real weights already punched on an active INWARD gate pass
@@ -162,18 +267,23 @@ export class WeighbridgeService {
 
   /**
    * Physical weighbridge indicator status.
-   * Until a COM/serial bridge is running and reporting live, status stays disconnected.
+   * Connected only while the COM Bridge is posting live heartbeats for this plant.
    */
   async getConnectionStatus(plantId: string) {
     const settings = await this.getSettings(plantId);
-    // No serial bridge / hardware agent is wired yet — never report Connected falsely.
+    const live = this.getLiveWeight(plantId);
+    const connected = !!live.connected;
     return {
-      connected: false,
-      status: 'Not Connected',
-      message:
-        'Physical weighbridge indicator is not connected. Connect the device via COM port and confirm weight in PuTTY before live capture.',
-      port: settings?.port || null,
-      baudRate: settings?.baudRate || null,
+      connected,
+      status: connected ? 'Connected' : 'Not Connected',
+      message: connected
+        ? `Physical weighbridge live on ${live.port || settings?.port || 'COM'} @ ${live.baudRate || settings?.baudRate || '-'} baud.`
+        : live.message ||
+          'Indicator not connected. On this PC use Chrome/Edge → Weighbridge → Capture → Connect Indicator.',
+      weightKg: connected ? live.weightKg : null,
+      liveAt: live.at,
+      port: live.port || settings?.port || null,
+      baudRate: live.baudRate || settings?.baudRate || null,
       indicatorModel: settings?.indicatorModel || null,
       connectionType: settings?.connectionType || null,
       dataBits: settings?.dataBits || null,

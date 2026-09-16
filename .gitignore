@@ -28,3 +28,7 @@ Thumbs.db
 *.backup
 *.swp
 scratch/
+
+# Weighbridge bridge local config (may contain plantId / secrets)
+weighbridge-bridge/config.json
+

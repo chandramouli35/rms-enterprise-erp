@@ -3,13 +3,20 @@ import { useSearchParams } from 'react-router-dom';
 import { 
  Search, Eye, Settings, History, Scale, ShieldCheck,
  Save, Download, Settings2, Shield, Calendar, MapPin,
- RefreshCw, Edit3, Link2Off
+ RefreshCw, Edit3, Link2Off, Plug, Unplug
 } from 'lucide-react';
 import { usePlantStore } from '../store/plantStore';
 import api from '../api/axios';
 import { CustomModal } from '../components/CustomModal';
 import Combobox from '../components/Combobox';
 import { useSubmitLock } from '../hooks/useSubmitLock';
+import {
+  connectWebSerialWeighbridge,
+  FIXED_WEIGHBRIDGE,
+  isSecureWeighbridgeContext,
+  isWebSerialSupported,
+  fixedSerialOptions,
+} from '../utils/webSerialWeighbridge';
 
 export const WeighbridgeManagement = () => {
  const [searchParams] = useSearchParams();
@@ -45,6 +52,11 @@ export const WeighbridgeManagement = () => {
  const [connectionStatus, setConnectionStatus] = useState('Not Connected');
  const [connectionMessage, setConnectionMessage] = useState('');
  const [isTestingConnection, setIsTestingConnection] = useState(false);
+ const [webSerialConnected, setWebSerialConnected] = useState(false);
+ const [webSerialBusy, setWebSerialBusy] = useState(false);
+ const [webSerialPortLabel, setWebSerialPortLabel] = useState('');
+ const webSerialDisconnectRef = useRef<null | (() => Promise<void>)>(null);
+ const lastLivePostRef = useRef(0);
 
  const [modalConfig, setModalConfig] = useState<{isOpen: boolean; title: string; content: React.ReactNode}>({ isOpen: false, title: '', content: null });
  
@@ -238,8 +250,8 @@ export const WeighbridgeManagement = () => {
  const [settings, setSettings] = useState({
  indicatorModel: 'Essae - DS2520',
  connectionType: 'Serial Port (COM)',
- port: 'COM1',
- baudRate: '9600',
+ port: FIXED_WEIGHBRIDGE.port,
+ baudRate: String(FIXED_WEIGHBRIDGE.baudRate),
  dataBits: '8',
  stopBits: '1',
  parity: 'None',
@@ -259,7 +271,15 @@ export const WeighbridgeManagement = () => {
         try {
           const res = await api.get(`/api/weighbridge/settings/${pid}`);
           if (res.data) {
-            setSettings(prev => ({ ...prev, ...res.data }));
+            setSettings(prev => ({
+              ...prev,
+              ...res.data,
+              port: FIXED_WEIGHBRIDGE.port,
+              baudRate: String(FIXED_WEIGHBRIDGE.baudRate),
+              dataBits: '8',
+              stopBits: '1',
+              parity: 'None',
+            }));
           }
         } catch (error) {
           console.error("Failed to fetch settings", error);
@@ -278,7 +298,16 @@ export const WeighbridgeManagement = () => {
         api.get(`/api/weighbridge/connection-status/${pid}`),
       ]);
       if (settingsRes.data) {
-        setSettings((prev) => ({ ...prev, ...settingsRes.data }));
+        setSettings((prev) => ({
+          ...prev,
+          ...settingsRes.data,
+          // Locked mill profile — do not let saved/other values change connect behavior
+          port: FIXED_WEIGHBRIDGE.port,
+          baudRate: String(FIXED_WEIGHBRIDGE.baudRate),
+          dataBits: '8',
+          stopBits: '1',
+          parity: 'None',
+        }));
       }
       const st = statusRes.data;
       setConnectionStatus(st?.connected ? 'Connected' : 'Not Connected');
@@ -302,12 +331,219 @@ export const WeighbridgeManagement = () => {
     }
   }, [activeTab, activePlant?.id]);
 
+  /** Poll server live weight only when this browser is NOT driving Web Serial. */
+  useEffect(() => {
+    if (activeTab !== 'capture') return;
+    if (webSerialConnected) return;
+    const pid = activePlant?.id;
+    if (!pid || pid === 'global') return;
+
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const res = await api.get(`/api/weighbridge/live/${pid}`);
+        if (cancelled) return;
+        const live = res.data;
+        if (live?.connected && live.weightKg != null) {
+          setConnectionStatus('Connected');
+          setConnectionMessage(live.message || '');
+          setIsStreaming(true);
+          setWeightData((prev: any) => ({
+            vehicleNo: prev?.vehicleNo || vehicleNo || 'LIVE',
+            grossWeight: Number(live.weightKg),
+            tareWeight: prev?.tareWeight,
+            netWeight: prev?.netWeight,
+            source: live.source || 'live',
+            status: live.stable === false ? 'Unstable' : 'Stable',
+          }));
+          setLastReading(
+            live.at ? new Date(live.at).toLocaleString() : new Date().toLocaleString(),
+          );
+        } else {
+          setConnectionStatus('Not Connected');
+          setConnectionMessage(
+            live?.message ||
+              'Click Connect Indicator on this weighbridge PC (Chrome / Edge).',
+          );
+          setIsStreaming(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setConnectionStatus('Not Connected');
+          setIsStreaming(false);
+        }
+      }
+    };
+
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, activePlant?.id, webSerialConnected]);
+
+  useEffect(() => {
+    return () => {
+      webSerialDisconnectRef.current?.().catch(() => undefined);
+    };
+  }, []);
+
+  const applyLiveWeight = (weightKg: number, source: string) => {
+    setConnectionStatus('Connected');
+    setIsStreaming(true);
+    setWeightData((prev: any) => ({
+      vehicleNo: prev?.vehicleNo || vehicleNo || 'LIVE',
+      grossWeight: weightKg,
+      tareWeight: prev?.tareWeight,
+      netWeight: prev?.netWeight,
+      source,
+      status: 'Stable',
+    }));
+    setLastReading(new Date().toLocaleString());
+  };
+
+  const postLiveToServer = async (weightKg: number, raw?: string) => {
+    const pid = activePlant?.id;
+    if (!pid || pid === 'global') return;
+    const now = Date.now();
+    if (now - lastLivePostRef.current < 700) return;
+    lastLivePostRef.current = now;
+    try {
+      await api.post(`/api/weighbridge/live/${pid}`, {
+        weightKg,
+        port: FIXED_WEIGHBRIDGE.port,
+        baudRate: FIXED_WEIGHBRIDGE.baudRate,
+        stable: true,
+        raw,
+      });
+    } catch {
+      /* non-blocking — local Capture still works */
+    }
+  };
+
+  const handleConnectIndicator = async () => {
+    if (!activePlant?.id) {
+      setModalConfig({
+        isOpen: true,
+        title: 'Select Plant',
+        content: 'Select the mill plant first, then connect the indicator.',
+      });
+      return;
+    }
+    if (!isWebSerialSupported()) {
+      setModalConfig({
+        isOpen: true,
+        title: 'Browser Not Supported',
+        content:
+          'Use Google Chrome or Microsoft Edge on the weighbridge PC. Firefox and Safari cannot open the COM port from the browser.',
+      });
+      return;
+    }
+    if (!isSecureWeighbridgeContext()) {
+      setModalConfig({
+        isOpen: true,
+        title: 'HTTPS Required',
+        content:
+          'Chrome only allows serial access on HTTPS (or localhost). Open RMS with https:// on this PC.',
+      });
+      return;
+    }
+
+    setWebSerialBusy(true);
+    try {
+      await webSerialDisconnectRef.current?.();
+      webSerialDisconnectRef.current = null;
+
+      const serialOptions = fixedSerialOptions();
+      const session = await connectWebSerialWeighbridge({
+        serialOptions,
+        onWeight: (weightKg, raw) => {
+          applyLiveWeight(weightKg, 'web_serial');
+          postLiveToServer(weightKg, raw);
+        },
+        onError: (message) => {
+          setConnectionMessage(message);
+          setModalConfig({
+            isOpen: true,
+            title: 'Indicator Read Error',
+            content: message,
+          });
+        },
+        onDisconnected: () => {
+          setWebSerialConnected(false);
+          setWebSerialPortLabel('');
+          webSerialDisconnectRef.current = null;
+          setConnectionStatus('Not Connected');
+          setIsStreaming(false);
+          setConnectionMessage('Indicator disconnected.');
+        },
+      });
+
+      webSerialDisconnectRef.current = session.disconnect;
+      setWebSerialConnected(true);
+      setWebSerialPortLabel(FIXED_WEIGHBRIDGE.port);
+      setConnectionStatus('Connected');
+      setConnectionMessage(
+        `Connected ${FIXED_WEIGHBRIDGE.port} @ ${FIXED_WEIGHBRIDGE.baudRate} baud. Leave this tab open.`,
+      );
+      setIsStreaming(true);
+      if (session.usedPicker) {
+        setModalConfig({
+          isOpen: true,
+          title: 'Allow COM4 once',
+          content:
+            'If Chrome asked for a port, choose COM4 only. Next time Connect will use COM4 @ 2400 automatically with no selection.',
+        });
+      }
+    } catch (err: any) {
+      const msg =
+        err?.name === 'NotFoundError'
+          ? 'Please choose COM4 in the browser list (one time only).'
+          : err?.message || 'Could not open COM4.';
+      setModalConfig({ isOpen: true, title: 'Connect Failed', content: msg });
+    } finally {
+      setWebSerialBusy(false);
+    }
+  };
+
+  const handleDisconnectIndicator = async () => {
+    setWebSerialBusy(true);
+    try {
+      await webSerialDisconnectRef.current?.();
+    } finally {
+      webSerialDisconnectRef.current = null;
+      setWebSerialConnected(false);
+      setWebSerialPortLabel('');
+      setConnectionStatus('Not Connected');
+      setIsStreaming(false);
+      setConnectionMessage('Indicator disconnected.');
+      setWebSerialBusy(false);
+    }
+  };
+
  const handleSaveSettings = async () => {
  if (!activePlant) return;
  setIsSavingSettings(true);
  try {
- await api.put(`/api/weighbridge/settings/${activePlant.id}`, settings);
- setModalConfig({ isOpen: true, title: 'Settings Saved', content: 'Weighbridge hardware integration settings have been updated successfully.' });
+ await api.put(`/api/weighbridge/settings/${activePlant.id}`, {
+   ...settings,
+   port: FIXED_WEIGHBRIDGE.port,
+   baudRate: String(FIXED_WEIGHBRIDGE.baudRate),
+   dataBits: '8',
+   stopBits: '1',
+   parity: 'None',
+ });
+ setSettings((prev) => ({
+   ...prev,
+   port: FIXED_WEIGHBRIDGE.port,
+   baudRate: String(FIXED_WEIGHBRIDGE.baudRate),
+   dataBits: '8',
+   stopBits: '1',
+   parity: 'None',
+ }));
+ setModalConfig({ isOpen: true, title: 'Settings Saved', content: `Saved. Live connect is fixed to ${FIXED_WEIGHBRIDGE.port} @ ${FIXED_WEIGHBRIDGE.baudRate} baud.` });
  } catch (error) {
  console.error("Failed to save settings", error);
  setModalConfig({ isOpen: true, title: 'Error', content: 'Failed to save settings. Please try again.' });
@@ -321,13 +557,37 @@ export const WeighbridgeManagement = () => {
  };
 
  const fetchLiveWeight = async () => {
+ const pid = activePlant?.id;
+ // Prefer physical COM Bridge live feed when available
+ if (pid && pid !== 'global') {
+   try {
+     const liveRes = await api.get(`/api/weighbridge/live/${pid}`);
+     if (liveRes.data?.connected && liveRes.data.weightKg != null) {
+       setIsStreaming(true);
+       setConnectionStatus('Connected');
+       setWeightData({
+         vehicleNo: vehicleNo || 'LIVE',
+         grossWeight: Number(liveRes.data.weightKg),
+         source: 'com_bridge',
+         status: 'Stable',
+       });
+       setLastReading(
+         liveRes.data.at
+           ? new Date(liveRes.data.at).toLocaleString()
+           : new Date().toLocaleString(),
+       );
+       return;
+     }
+   } catch {
+     /* fall through to gate-pass stream */
+   }
+ }
  if (!vehicleNo) {
- setModalConfig({ isOpen: true, title: 'Validation Error', content: 'Please enter a Vehicle No.' });
+ setModalConfig({ isOpen: true, title: 'Validation Error', content: 'Please enter a Vehicle No. (or start the COM Bridge for live weight).' });
  return;
  }
  try {
- // Note: stream API currently reads punched GP weights — not physical COM.
- // Do not mark hardware as Connected from this call.
+ // Fallback: punched GP weights — not physical COM.
  setIsStreaming(true);
  const res = await api.get(`/api/weighbridge/stream/${vehicleNo}`);
  setWeightData(res.data);
@@ -338,7 +598,7 @@ export const WeighbridgeManagement = () => {
  setModalConfig({ 
  isOpen: true, 
  title: 'Error', 
- content: error.response?.data?.message || 'Failed to stream weight. Does the vehicle have an active INWARD pass?' 
+ content: error.response?.data?.message || 'Failed to stream weight. Start the COM Bridge, or enter a vehicle with an active INWARD pass.' 
  });
  }
  };
@@ -380,7 +640,7 @@ export const WeighbridgeManagement = () => {
  try {
  await api.post(`/api/weighbridge/save-transaction`, {
  plantId,
- vehicleNo: weightData.vehicleNo,
+ vehicleNo: vehicleNo || weightData.vehicleNo,
  transactionType: transType,
  driverName,
  materialType,
@@ -849,11 +1109,11 @@ export const WeighbridgeManagement = () => {
  )}
  <div className="flex justify-between items-center text-sm border-b border-[var(--border-subtle-alt)] pb-2">
  <span className="text-[var(--text-muted-alt)]">Port / IP</span>
- <span className="text-[var(--text-main)] font-medium">{settings.port || '-'}</span>
+ <span className="text-[var(--text-main)] font-medium">{FIXED_WEIGHBRIDGE.port}</span>
  </div>
  <div className="flex justify-between items-center text-sm border-b border-[var(--border-subtle-alt)] pb-2">
  <span className="text-[var(--text-muted-alt)]">Baud Rate / Speed</span>
- <span className="text-[var(--text-main)] font-medium">{settings.baudRate || '-'}</span>
+ <span className="text-[var(--text-main)] font-medium">{FIXED_WEIGHBRIDGE.baudRate}</span>
  </div>
  <div className="flex justify-between items-center text-sm border-b border-[var(--border-subtle-alt)] pb-2">
  <span className="text-[var(--text-muted-alt)]">Indicator Model</span>
@@ -872,23 +1132,38 @@ export const WeighbridgeManagement = () => {
  </div>
 
  <div className="mt-5 pt-4 border-t border-[var(--border-subtle-alt)] space-y-2">
+ {webSerialConnected ? (
+   <button
+     type="button"
+     disabled={webSerialBusy}
+     onClick={handleDisconnectIndicator}
+     className="flex items-center justify-center gap-2 w-full py-2.5 bg-red-600/90 hover:bg-red-500 disabled:opacity-50 text-[var(--text-main)] rounded-lg text-sm font-medium transition-colors"
+   >
+     <Unplug size={16} /> {webSerialBusy ? 'Disconnecting…' : 'Disconnect Indicator'}
+   </button>
+ ) : (
+   <button
+     type="button"
+     disabled={webSerialBusy}
+     onClick={handleConnectIndicator}
+     className="flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-[var(--text-main)] rounded-lg text-sm font-medium transition-colors shadow-lg shadow-emerald-600/20"
+   >
+     <Plug size={16} /> {webSerialBusy ? 'Connecting…' : `Connect ${FIXED_WEIGHBRIDGE.port} @ ${FIXED_WEIGHBRIDGE.baudRate}`}
+   </button>
+ )}
+ <p className="text-[10px] text-[var(--text-muted-alt)] leading-snug">
+   {webSerialConnected
+     ? `Live on ${FIXED_WEIGHBRIDGE.port} @ ${FIXED_WEIGHBRIDGE.baudRate}. Keep this tab open.`
+     : isWebSerialSupported()
+       ? `Fixed profile ${FIXED_WEIGHBRIDGE.port} @ ${FIXED_WEIGHBRIDGE.baudRate}. First click may ask Chrome to allow COM4 once; after that no selection.`
+       : 'Use Chrome or Edge on the weighbridge PC to connect the indicator.'}
+ </p>
  <button
    type="button"
    onClick={refreshConnectionStatus}
    className="flex items-center justify-center gap-2 w-full py-2 border border-[var(--border-subtle)] hover:bg-[var(--bg-base)] text-[var(--text-muted)] rounded-lg text-sm font-medium transition-colors"
  >
    <RefreshCw size={16} /> Refresh Status
- </button>
- <button
-   type="button"
-   onClick={() => {
-     setIsStreaming(false);
-     setConnectionStatus('Not Connected');
-     setConnectionMessage('Disconnected manually. Physical indicator is not linked.');
-   }}
-   className="flex items-center justify-center gap-2 w-full py-2 border border-red-500/50 hover:bg-red-500/10 text-red-400 rounded-lg text-sm font-medium transition-colors"
- >
-   <Link2Off size={16} /> Disconnect
  </button>
  </div>
  </div>
@@ -1036,22 +1311,27 @@ export const WeighbridgeManagement = () => {
 
  <div className="grid grid-cols-2 gap-4">
  <div>
- <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1.5">Port</label>
- <select value={settings.port} onChange={e => handleSettingChange('port', e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-3 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 appearance-none">
- <option>COM3</option>
- <option>COM1</option>
- <option>COM2</option>
- </select>
+ <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1.5">Port (fixed)</label>
+ <input
+   type="text"
+   value={FIXED_WEIGHBRIDGE.port}
+   disabled
+   className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-3 text-sm text-[var(--text-main)] opacity-70 cursor-not-allowed"
+ />
  </div>
  <div>
- <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1.5">Baud Rate</label>
- <select value={settings.baudRate} onChange={e => handleSettingChange('baudRate', e.target.value)} className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-3 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 appearance-none">
- <option>9600</option>
- <option>4800</option>
- <option>19200</option>
- </select>
+ <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1.5">Baud Rate (fixed)</label>
+ <input
+   type="text"
+   value={String(FIXED_WEIGHBRIDGE.baudRate)}
+   disabled
+   className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-3 text-sm text-[var(--text-main)] opacity-70 cursor-not-allowed"
+ />
  </div>
  </div>
+ <p className="text-xs text-amber-500/90 -mt-2">
+   Locked for this mill: {FIXED_WEIGHBRIDGE.port} @ {FIXED_WEIGHBRIDGE.baudRate} (verified in PuTTY). No daily port/baud selection.
+ </p>
 
  <div className="grid grid-cols-3 gap-4">
  <div>
