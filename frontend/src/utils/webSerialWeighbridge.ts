@@ -10,6 +10,8 @@ export const FIXED_WEIGHBRIDGE = {
   dataBits: 8 as const,
   stopBits: 1 as const,
   parity: 'none' as const,
+  /** Same as PuTTY: Flow control = None */
+  flowControl: 'none' as const,
 };
 
 export type SerialOpenOptions = {
@@ -17,6 +19,7 @@ export type SerialOpenOptions = {
   dataBits?: 7 | 8;
   stopBits?: 1 | 2;
   parity?: 'none' | 'even' | 'odd';
+  flowControl?: 'none' | 'hardware';
 };
 
 export function isWebSerialSupported(): boolean {
@@ -48,13 +51,14 @@ export function parseIndicatorWeight(chunk: string): number | null {
   return null;
 }
 
-/** Always COM4 profile — ignore other settings for open(). */
+/** Always COM4 @ 2400 8N1 + flowControl none — matches working PuTTY profile. */
 export function fixedSerialOptions(): SerialOpenOptions {
   return {
     baudRate: FIXED_WEIGHBRIDGE.baudRate,
     dataBits: FIXED_WEIGHBRIDGE.dataBits,
     stopBits: FIXED_WEIGHBRIDGE.stopBits,
     parity: FIXED_WEIGHBRIDGE.parity,
+    flowControl: FIXED_WEIGHBRIDGE.flowControl,
   };
 }
 

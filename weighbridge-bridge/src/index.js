@@ -120,6 +120,9 @@ async function startSerial(cfg) {
     dataBits: cfg.dataBits,
     stopBits: cfg.stopBits,
     parity: cfg.parity,
+    rtscts: false,
+    xon: false,
+    xoff: false,
     autoOpen: false,
   });
 
