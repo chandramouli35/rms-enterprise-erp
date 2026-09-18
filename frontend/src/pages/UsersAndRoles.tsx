@@ -47,6 +47,8 @@ export const UsersAndRoles: React.FC = () => {
     plantIds: string[];
     fingerprint1: string;
     fingerprint2: string;
+    fingerprint1Template: string;
+    fingerprint2Template: string;
   }>({
     fullName: '',
     username: '',
@@ -56,6 +58,8 @@ export const UsersAndRoles: React.FC = () => {
     plantIds: [],
     fingerprint1: '',
     fingerprint2: '',
+    fingerprint1Template: '',
+    fingerprint2Template: '',
   });
  const [showPassword, setShowPassword] = useState(false);
   const [isAddPlantDropdownOpen, setIsAddPlantDropdownOpen] = useState(false);
@@ -91,6 +95,8 @@ export const UsersAndRoles: React.FC = () => {
     email: '',
     fingerprint1: '',
     fingerprint2: '',
+    fingerprint1Template: '',
+    fingerprint2Template: '',
   });
   const [showTransferPassword, setShowTransferPassword] = useState(false);
 
@@ -179,6 +185,8 @@ export const UsersAndRoles: React.FC = () => {
       plantIds: [],
       fingerprint1: '',
       fingerprint2: '',
+      fingerprint1Template: '',
+      fingerprint2Template: '',
     });
   };
 
@@ -246,10 +254,19 @@ export const UsersAndRoles: React.FC = () => {
 
   const captureUserFingerprint = async (slot: 1 | 2) => {
     try {
-      const xml = await biometricService.captureFingerprint();
+      const { pidData, isoTemplate } =
+        await biometricService.captureForEnrollment();
       setNewUserForm((prev) => ({
         ...prev,
-        ...(slot === 1 ? { fingerprint1: xml } : { fingerprint2: xml }),
+        ...(slot === 1
+          ? {
+              fingerprint1: pidData,
+              fingerprint1Template: isoTemplate || '',
+            }
+          : {
+              fingerprint2: pidData,
+              fingerprint2Template: isoTemplate || '',
+            }),
       }));
       useUiStore
         .getState()
@@ -531,16 +548,27 @@ export const UsersAndRoles: React.FC = () => {
       email: '',
       fingerprint1: '',
       fingerprint2: '',
+      fingerprint1Template: '',
+      fingerprint2Template: '',
     });
     setIsTransferModalOpen(true);
   };
 
   const captureTransferFingerprint = async (slot: 1 | 2) => {
     try {
-      const xml = await biometricService.captureFingerprint();
+      const { pidData, isoTemplate } =
+        await biometricService.captureForEnrollment();
       setTransferForm((prev) => ({
         ...prev,
-        ...(slot === 1 ? { fingerprint1: xml } : { fingerprint2: xml }),
+        ...(slot === 1
+          ? {
+              fingerprint1: pidData,
+              fingerprint1Template: isoTemplate || '',
+            }
+          : {
+              fingerprint2: pidData,
+              fingerprint2Template: isoTemplate || '',
+            }),
       }));
       useUiStore.getState().addToast(`Fingerprint ${slot} captured`, 'success');
     } catch (err: any) {
@@ -578,6 +606,8 @@ export const UsersAndRoles: React.FC = () => {
           email: transferForm.email || undefined,
           fingerprint1: transferForm.fingerprint1 || undefined,
           fingerprint2: transferForm.fingerprint2 || undefined,
+          fingerprint1Template: transferForm.fingerprint1Template || undefined,
+          fingerprint2Template: transferForm.fingerprint2Template || undefined,
         });
         setIsTransferModalOpen(false);
         setModalConfig({
@@ -1074,7 +1104,12 @@ export const UsersAndRoles: React.FC = () => {
      roleId: nextRoleId,
      plantIds: multi ? prev.plantIds : prev.plantIds.slice(0, 1),
      ...(!/supervisor/i.test(String(nextRole?.name || ''))
-       ? { fingerprint1: '', fingerprint2: '' }
+       ? {
+           fingerprint1: '',
+           fingerprint2: '',
+           fingerprint1Template: '',
+           fingerprint2Template: '',
+         }
        : {}),
    }));
  }}
@@ -1186,7 +1221,15 @@ export const UsersAndRoles: React.FC = () => {
      {(newUserForm.fingerprint1 || newUserForm.fingerprint2) && (
        <button
          type="button"
-         onClick={() => setNewUserForm((p) => ({ ...p, fingerprint1: '', fingerprint2: '' }))}
+         onClick={() =>
+           setNewUserForm((p) => ({
+             ...p,
+             fingerprint1: '',
+             fingerprint2: '',
+             fingerprint1Template: '',
+             fingerprint2Template: '',
+           }))
+         }
          disabled={addUserFieldsDisabled}
          className="text-[11px] text-[var(--text-muted-alt)] hover:text-red-400 underline disabled:opacity-50"
        >

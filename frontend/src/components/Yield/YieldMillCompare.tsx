@@ -577,7 +577,7 @@ export const YieldMillCompare: React.FC<{ basis: Basis }> = ({ basis }) => {
                 className="px-3 py-2 bg-amber-500 text-black text-xs font-bold rounded-lg"
                 onClick={async () => {
                   try {
-                    const xml = await biometricService.captureFingerprint();
+                    const xml = await biometricService.captureAndVerifyLoggedInUser();
                     setPaddyForm((p) => ({ ...p, biometricData: xml }));
                     notify('Captured', 'success');
                   } catch (err: any) {

@@ -351,7 +351,10 @@ export default function LoaderUnloaderReport({
       [key]: { ...prev[key], scanning: which },
     }));
     try {
-      const xml = await biometricService.captureFingerprint();
+      const xml =
+        which === "supervisor"
+          ? await biometricService.captureAndVerifyLoggedInUser()
+          : await biometricService.captureFingerprint();
       setSigs((prev) => ({
         ...prev,
         [key]: {

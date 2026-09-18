@@ -381,7 +381,7 @@ export default function BoliRecordPanel({
   const scanFingerprint = async () => {
     setScanning(true);
     try {
-      const xml = await biometricService.captureFingerprint();
+      const xml = await biometricService.captureAndVerifyLoggedInUser();
       setFinalForm((f) => ({ ...f, biometricData: xml }));
       useUiStore.getState().addToast("Fingerprint captured", "success");
     } catch (e: any) {

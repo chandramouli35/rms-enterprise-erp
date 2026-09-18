@@ -182,7 +182,7 @@ export default function TruckManagement() {
   const handleScanFingerprint = async () => {
     setIsScanning(true);
     try {
-      const xml = await biometricService.captureFingerprint();
+      const xml = await biometricService.captureAndVerifyLoggedInUser();
       setAddModal(prev => ({ ...prev, biometricData: xml }));
     } catch (err: any) {
       alert(err?.message || 'Fingerprint scan failed');

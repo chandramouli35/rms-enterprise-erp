@@ -261,7 +261,7 @@ export default function InwardListReport({
   const scanFp = async () => {
     setScanning(true);
     try {
-      const xml = await biometricService.captureFingerprint();
+      const xml = await biometricService.captureAndVerifyLoggedInUser();
       setBiometricData(xml);
       toast("Fingerprint captured", "success");
     } catch (err: any) {

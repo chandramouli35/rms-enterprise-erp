@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { FingerprintVerifyService } from '../auth/fingerprint-verify.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -132,6 +133,8 @@ export class UsersRolesService {
       plantIds,
       fingerprint1,
       fingerprint2,
+      fingerprint1Template,
+      fingerprint2Template,
     } = data;
 
     const trimmedUsername = String(username || '').trim();
@@ -193,6 +196,15 @@ export class UsersRolesService {
       }
     }
 
+    const tpl1 = FingerprintVerifyService.resolveTemplate(
+      fingerprint1,
+      fingerprint1Template,
+    );
+    const tpl2 = FingerprintVerifyService.resolveTemplate(
+      fingerprint2,
+      fingerprint2Template,
+    );
+
     try {
       const user = await this.prisma.user.create({
         data: {
@@ -202,6 +214,8 @@ export class UsersRolesService {
           roleId,
           fingerprint1: fingerprint1 || null,
           fingerprint2: fingerprint2 || null,
+          fingerprint1Template: tpl1,
+          fingerprint2Template: tpl2,
           plantAccess: {
             create: normalizedPlants.map((id: string) => ({ plantId: id })),
           },
@@ -388,6 +402,8 @@ export class UsersRolesService {
       email?: string;
       fingerprint1?: string;
       fingerprint2?: string;
+      fingerprint1Template?: string;
+      fingerprint2Template?: string;
     },
   ) {
     const source = await this.prisma.user.findUnique({
@@ -426,6 +442,15 @@ export class UsersRolesService {
       );
     }
 
+    const tpl1 = FingerprintVerifyService.resolveTemplate(
+      data.fingerprint1,
+      data.fingerprint1Template,
+    );
+    const tpl2 = FingerprintVerifyService.resolveTemplate(
+      data.fingerprint2,
+      data.fingerprint2Template,
+    );
+
     const passwordHash = await bcrypt.hash(data.password, 10);
     const newUser = await this.prisma.user.create({
       data: {
@@ -435,6 +460,8 @@ export class UsersRolesService {
         roleId: source.roleId,
         fingerprint1: data.fingerprint1 || null,
         fingerprint2: data.fingerprint2 || null,
+        fingerprint1Template: tpl1,
+        fingerprint2Template: tpl2,
         plantAccess: {
           create: [{ plantId: data.plantId }],
         },

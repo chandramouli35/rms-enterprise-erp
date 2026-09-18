@@ -4286,7 +4286,7 @@ export const ProcurementManagement = () => {
                             onClick={async () => {
                               try {
                                 const xml =
-                                  await biometricService.captureFingerprint();
+                                  await biometricService.captureAndVerifyLoggedInUser();
                                 setInwardFormData((p: any) =>
                                   applySupervisorFingerprintStamps(p, xml),
                                 );
@@ -5192,7 +5192,7 @@ export const ProcurementManagement = () => {
                               onClick={async () => {
                                 try {
                                   const xml =
-                                    await biometricService.captureFingerprint();
+                                    await biometricService.captureAndVerifyLoggedInUser();
                                   setInwardFormData((p: any) =>
                                     applySupervisorFingerprintStamps(p, xml),
                                   );
@@ -5265,7 +5265,7 @@ export const ProcurementManagement = () => {
                                 onClick={async () => {
                                   try {
                                     const xml =
-                                      await biometricService.captureFingerprint();
+                                      await biometricService.captureAndVerifyLoggedInUser();
                                     setInwardFormData((p: any) => ({
                                       ...p,
                                       headBiometricData: xml,
@@ -7218,7 +7218,7 @@ export const ProcurementManagement = () => {
               onClick={async () => {
                 setIsScanningFingerprint(true);
                 try {
-                  const xml = await biometricService.captureFingerprint();
+                  const xml = await biometricService.captureAndVerifyLoggedInUser();
                   setPaddyPurchaseModal((prev: any) => ({
                     ...prev,
                     biometricData: xml,

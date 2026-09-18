@@ -178,7 +178,7 @@ export const ProductionManagement = () => {
     
     setNotification({ message: 'Please place thumb on scanner to finalize batch...', type: 'success' });
     try {
-      const bioData = await biometricService.captureFingerprint();
+      const bioData = await biometricService.captureAndVerifyLoggedInUser();
       setLoading(true);
       await api.post(`/production/batches/${selectedBatchId}/submit`, { biometricData: bioData });
       setNotification({ message: 'Batch finalized successfully', type: 'success' });

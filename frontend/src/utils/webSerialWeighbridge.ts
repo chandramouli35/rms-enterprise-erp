@@ -5,35 +5,35 @@
  */
 
 export const FIXED_WEIGHBRIDGE = {
-  port: 'COM4',
+  port: "COM4",
   baudRate: 2400,
   dataBits: 8 as const,
   stopBits: 1 as const,
-  parity: 'none' as const,
+  parity: "none" as const,
   /** Same as PuTTY: Flow control = None */
-  flowControl: 'none' as const,
+  flowControl: "none" as const,
 };
 
 export type SerialOpenOptions = {
   baudRate: number;
   dataBits?: 7 | 8;
   stopBits?: 1 | 2;
-  parity?: 'none' | 'even' | 'odd';
-  flowControl?: 'none' | 'hardware';
+  parity?: "none" | "even" | "odd";
+  flowControl?: "none" | "hardware";
 };
 
 export function isWebSerialSupported(): boolean {
-  return typeof navigator !== 'undefined' && 'serial' in navigator;
+  return typeof navigator !== "undefined" && "serial" in navigator;
 }
 
 export function isSecureWeighbridgeContext(): boolean {
-  if (typeof window === 'undefined') return false;
+  if (typeof window === "undefined") return false;
   return window.isSecureContext === true;
 }
 
 /** Extract kg from typical indicator serial text. */
 export function parseIndicatorWeight(chunk: string): number | null {
-  const text = String(chunk || '');
+  const text = String(chunk || "");
   const labeled = text.match(
     /(?:WT|NET|GROSS|WEIGHT|WGT)[^\d\-]*(-?\d+(?:\.\d+)?)/i,
   );
@@ -63,7 +63,9 @@ export function fixedSerialOptions(): SerialOpenOptions {
 }
 
 /** @deprecated use fixedSerialOptions — kept for call sites */
-export function serialOptionsFromSettings(_settings?: unknown): SerialOpenOptions {
+export function serialOptionsFromSettings(
+  _settings?: unknown,
+): SerialOpenOptions {
   return fixedSerialOptions();
 }
 
@@ -81,7 +83,7 @@ function portLooksLikeCom4(port: any): boolean {
   try {
     const info = port.getInfo?.() || {};
     const blob = JSON.stringify(info).toUpperCase();
-    if (blob.includes('COM4')) return true;
+    if (blob.includes("COM4")) return true;
   } catch {
     /* ignore */
   }
@@ -93,7 +95,7 @@ async function openPort(port: any, serialOptions: SerialOpenOptions) {
   try {
     await port.open(serialOptions);
   } catch (err: any) {
-    const msg = String(err?.message || err || '');
+    const msg = String(err?.message || err || "");
     if (!/already open/i.test(msg)) throw err;
   }
   return port;
@@ -118,12 +120,12 @@ export async function connectWebSerialWeighbridge(opts: {
 }> {
   if (!isWebSerialSupported()) {
     throw new Error(
-      'Web Serial is not supported. Use Google Chrome or Microsoft Edge on this PC.',
+      "Web Serial is not supported. Use Google Chrome or Microsoft Edge on this PC.",
     );
   }
   if (!isSecureWeighbridgeContext()) {
     throw new Error(
-      'Browser blocked serial access. Open RMS via HTTPS (or localhost) on this weighbridge PC.',
+      "Browser blocked serial access. Open RMS via HTTPS (or localhost) on this weighbridge PC.",
     );
   }
 
@@ -135,8 +137,7 @@ export async function connectWebSerialWeighbridge(opts: {
 
   const existing = (await nav.serial.getPorts?.()) || [];
   if (existing.length) {
-    const preferred =
-      existing.find((p) => portLooksLikeCom4(p)) || existing[0];
+    const preferred = existing.find((p) => portLooksLikeCom4(p)) || existing[0];
     port = await openPort(preferred, serialOptions);
   } else if (!opts.existingOnly) {
     // One-time browser permission — operator must click COM4 in the list once
@@ -145,7 +146,7 @@ export async function connectWebSerialWeighbridge(opts: {
     await openPort(port, serialOptions);
   } else {
     throw new Error(
-      'COM4 not authorized yet. Click Connect Indicator once to allow COM4.',
+      "COM4 not authorized yet. Click Connect Indicator once to allow COM4.",
     );
   }
 
@@ -155,7 +156,7 @@ export async function connectWebSerialWeighbridge(opts: {
   const inputDone = port.readable.pipeTo(decoder.writable).catch(() => {});
   const reader = decoder.readable.getReader();
 
-  let buffer = '';
+  let buffer = "";
   let stopped = false;
   let lastPosted = 0;
 
@@ -170,7 +171,7 @@ export async function connectWebSerialWeighbridge(opts: {
 
         const parts = buffer.split(/[\r\n=]+/);
         if (parts.length > 1) {
-          buffer = parts.pop() || '';
+          buffer = parts.pop() || "";
           for (const part of parts) {
             const w = parseIndicatorWeight(part);
             if (w == null) continue;
@@ -192,7 +193,7 @@ export async function connectWebSerialWeighbridge(opts: {
       }
     } catch (err: any) {
       if (!stopped) {
-        opts.onError?.(err?.message || 'Serial read failed');
+        opts.onError?.(err?.message || "Serial read failed");
       }
     } finally {
       try {

@@ -72,9 +72,9 @@ Only after test-page Capture works, use RMS Scan.
 
 ### 4. Test in RMS
 
-1. Chrome / Edge → RMS (HTTPS) → log in.  
-2. Any Scan screen (Users & Roles, Staff Unloader, Paddy Inward, Gate Pass, etc.).  
-3. Click **Scan** → success.
+1. Chrome / Edge → RMS (HTTPS) → log in as a **supervisor who has enrolled fingerprints**.  
+2. Any Scan screen (Paddy Inward, Gate Pass, Truck, etc.).  
+3. Click **Scan** → finger must match the **logged-in user** or RMS shows **Fingerprint not matched**.
 
 ---
 
@@ -82,12 +82,18 @@ Only after test-page Capture works, use RMS Scan.
 
 | Place in RMS | What to do |
 |--------------|------------|
-| **Users & Roles → Add User** (Supervisor) | Finger 1 + Finger 2 |
+| **Users & Roles → Add User** (Supervisor) | Finger 1 + Finger 2 (enrollment — no match yet) |
 | **Users & Roles → Transfer User** | Re-register 2 fingers |
-| **Staff → Unloader** | Two fingerprint scans required |
-| **Paddy Inward** | Scan at tare / confirm when asked |
-| **Gate Pass** | Scan when closing / confirming |
-| Other modules | Only when Scan is shown |
+| **Staff → Unloader** | Two fingerprint scans required (enrollment) |
+| **Paddy Inward / Truck / Gate Pass / Production / Yield / Boli / lists** | Scan verifies against **logged-in user’s** enrolled fingerprints |
+| Admin roles | May bypass when device unavailable |
+
+### Match behaviour
+
+1. Supervisor must enroll 2 fingerprints at registration.  
+2. On form Scan, RMS captures live finger and calls `POST /auth/verify-fingerprint`.  
+3. If matchable FMR/ISO templates exist → true 1:1 match; failure → **Fingerprint not matched**.  
+4. If only encrypted RD PidData is stored (common on L1) → checks that the login has enrolled fingerprints + live capture succeeded (re-enroll enables full minutiae match when templates are available).
 
 ---
 
@@ -100,6 +106,8 @@ Only after test-page Capture works, use RMS Scan.
 | Device not ready | Unplug/replug MFS110. Wait until Mantra dashboard = Ready/Active. Need internet for first register. |
 | Invalid PidOptions | Hard refresh RMS (`Ctrl+Shift+R`). Update Mantra RD Service to latest. |
 | Capture failed | Clean sensor, firm finger, close other biometric apps. |
+| **Fingerprint not matched** | Wrong finger / not the logged-in supervisor. Scan the enrolled finger(s). |
+| **No fingerprint enrolled for your login** | Admin must register 2 fingerprints for this user in Users & Roles. |
 | Works on one PC only | Install RD Service + register MFS110 on **each** PC (serial usually tied per activation rules). |
 
 ### Mantra support

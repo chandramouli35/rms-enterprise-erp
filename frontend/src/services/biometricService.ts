@@ -1,32 +1,32 @@
 /**
- * Mantra MFS110 L1 — RD Service fingerprint capture for RMS.
+ * Mantra MFS110 L1 — RD Service fingerprint capture + verify for RMS.
  *
  * Runs ONLY in the browser on the PC where the scanner is plugged in.
- * Backend cannot see USB / 127.0.0.1.
  *
- * Straight flow:
- *   1. Find RD Service (127.0.0.1:11100–11120) — parallel probe
- *   2. Status must be READY (or USED)
- *   3. CAPTURE with PidOptions (always fCount=1 = one finger)
- *   4. Success only if errCode=0 AND biometric <Data> present
- *
- * Notes:
- *   - fType is template FORMAT (0=FMR, 1=FIR, 2=FMR+FIR), NOT number of fingers.
- *     Finger count is fCount (always 1 for MFS110 single-finger scans).
- *   - fetch() TypeError on a closed port looks identical to CORS/mixed-content.
- *     Closed ports during discovery are NORMAL — never claim "browser blocked"
- *     just because a TypeError happened while scanning empty ports.
+ * Flows:
+ *   captureFingerprint()     — enroll / raw PidData
+ *   captureForEnrollment()   — PidData + best-effort match template
+ *   captureAndVerifyLoggedInUser() — Scan on forms: capture then 1:1 verify
  */
 
-/** Single finger (fCount=1), FMR minutiae — common Mantra default */
+import api from '../api/axios';
+import { useAuthStore } from '../store/authStore';
+
+/** Single finger (fCount=1), FMR minutiae */
 const PID_OPTIONS_FMR = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="0" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="P"/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
 
-/** Single finger (fCount=1), FMR+FIR — often required by L1 RD builds */
+/** Single finger, FMR+FIR — often required by L1 RD builds */
 const PID_OPTIONS_L1 = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="2" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="P"/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
+
+/** Demo capture — some RD builds return clearer FMR for local matching */
+const PID_OPTIONS_DEMO_FMR = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="0" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="P"/><Demo/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
 
 const PORTS = Array.from({ length: 21 }, (_, i) => 11100 + i);
 const PROBE_TIMEOUT_MS = 900;
 const CAPTURE_TIMEOUT_MS = 25000;
+
+const ADMIN_ROLES =
+  /SUPER_ADMIN|SUPERADMIN|PLANT_MANAGER|ADMIN|ADMINISTRATOR/i;
 
 type RdService = {
   baseUrl: string;
@@ -41,11 +41,15 @@ export type FingerprintDeviceStatus = {
   message: string;
 };
 
-function schemes(): Array<"https" | "http"> {
+export type EnrollmentCapture = {
+  pidData: string;
+  isoTemplate?: string;
+};
+
+function schemes(): Array<'https' | 'http'> {
   const https =
-    typeof window !== "undefined" && window.location.protocol === "https:";
-  // Prefer matching page scheme first (HTTPS app → try https RD first)
-  return https ? ["https", "http"] : ["http", "https"];
+    typeof window !== 'undefined' && window.location.protocol === 'https:';
+  return https ? ['https', 'http'] : ['http', 'https'];
 }
 
 function statusOf(xml: string): string | null {
@@ -56,7 +60,7 @@ function statusOf(xml: string): string | null {
 function pathFor(xml: string, id: string, fallback: string): string {
   const re = new RegExp(
     `id=["']${id}["'][^>]*path=["']([^"']+)["']|path=["']([^"']+)["'][^>]*id=["']${id}["']`,
-    "i",
+    'i',
   );
   const m = xml.match(re);
   return m?.[1] || m?.[2] || fallback;
@@ -77,41 +81,38 @@ async function fetchWithTimeout(
 }
 
 type ProbeResult =
-  | { kind: "READY"; rd: RdService }
-  | { kind: "NOTREADY"; status: string }
-  | { kind: "ABSENT" };
+  | { kind: 'READY'; rd: RdService }
+  | { kind: 'NOTREADY'; status: string }
+  | { kind: 'ABSENT' };
 
 async function probeOne(baseUrl: string): Promise<ProbeResult> {
   try {
     const res = await fetchWithTimeout(
       `${baseUrl}/`,
-      { method: "RDSERVICE", headers: { Accept: "text/xml" } },
+      { method: 'RDSERVICE', headers: { Accept: 'text/xml' } },
       PROBE_TIMEOUT_MS,
     );
-    if (!res.ok) return { kind: "ABSENT" };
+    if (!res.ok) return { kind: 'ABSENT' };
     const xml = await res.text();
-    if (!xml || !/<RDService/i.test(xml)) return { kind: "ABSENT" };
+    if (!xml || !/<RDService/i.test(xml)) return { kind: 'ABSENT' };
 
     const status = statusOf(xml);
-    if (status === "READY" || status === "USED") {
+    if (status === 'READY' || status === 'USED') {
       return {
-        kind: "READY",
+        kind: 'READY',
         rd: {
           baseUrl,
-          capturePath: pathFor(xml, "CAPTURE", "/rd/capture"),
-          infoPath: pathFor(xml, "DEVICEINFO", "/rd/info"),
+          capturePath: pathFor(xml, 'CAPTURE', '/rd/capture'),
+          infoPath: pathFor(xml, 'DEVICEINFO', '/rd/info'),
         },
       };
     }
-    return { kind: "NOTREADY", status: status || "UNKNOWN" };
+    return { kind: 'NOTREADY', status: status || 'UNKNOWN' };
   } catch {
-    // Closed port, timeout, CORS, mixed-content — all look the same to JS.
-    // During discovery this is almost always "nothing on this port". Treat as ABSENT.
-    return { kind: "ABSENT" };
+    return { kind: 'ABSENT' };
   }
 }
 
-/** Find READY RD Service. All scheme×port probes run in parallel. */
 async function findReadyRdService(): Promise<RdService> {
   const combos: string[] = [];
   for (const scheme of schemes()) {
@@ -123,13 +124,13 @@ async function findReadyRdService(): Promise<RdService> {
   const results = await Promise.all(combos.map(probeOne));
 
   const ready = results.find(
-    (r): r is Extract<ProbeResult, { kind: "READY" }> => r.kind === "READY",
+    (r): r is Extract<ProbeResult, { kind: 'READY' }> => r.kind === 'READY',
   );
   if (ready) return ready.rd;
 
   const notReady = results.find(
-    (r): r is Extract<ProbeResult, { kind: "NOTREADY" }> =>
-      r.kind === "NOTREADY",
+    (r): r is Extract<ProbeResult, { kind: 'NOTREADY' }> =>
+      r.kind === 'NOTREADY',
   );
   if (notReady) {
     throw new Error(
@@ -137,16 +138,14 @@ async function findReadyRdService(): Promise<RdService> {
     );
   }
 
-  // Nothing answered. Give a practical checklist — do NOT claim "browser blocked"
-  // just because closed ports threw TypeError during the scan.
   const onHttps =
-    typeof window !== "undefined" && window.location.protocol === "https:";
+    typeof window !== 'undefined' && window.location.protocol === 'https:';
   const httpsTip = onHttps
-    ? " Because this site is HTTPS: if RD Service uses https://127.0.0.1, open that URL once in this browser and accept the certificate warning, then retry."
-    : "";
+    ? ' Because this site is HTTPS: if RD Service uses https://127.0.0.1, open that URL once in this browser and accept the certificate warning, then retry.'
+    : '';
 
   throw new Error(
-    "Mantra RD Service not found on this PC (ports 11100–11120). Install MFS110 L1 RD Service, confirm the tray icon shows running/READY, use Chrome/Edge on the same PC as the scanner. Test: https://rdtest.aadhaardevice.com/." +
+    'Mantra RD Service not found on this PC (ports 11100–11120). Install MFS110 L1 RD Service, confirm the tray icon shows running/READY, use Chrome/Edge on the same PC as the scanner. Test: https://rdtest.aadhaardevice.com/.' +
       httpsTip,
   );
 }
@@ -155,7 +154,7 @@ async function readDeviceModel(rd: RdService): Promise<string | undefined> {
   try {
     const res = await fetchWithTimeout(
       `${rd.baseUrl}${rd.infoPath}`,
-      { method: "DEVICEINFO", headers: { Accept: "text/xml" } },
+      { method: 'DEVICEINFO', headers: { Accept: 'text/xml' } },
       PROBE_TIMEOUT_MS,
     );
     if (!res.ok) return undefined;
@@ -166,50 +165,47 @@ async function readDeviceModel(rd: RdService): Promise<string | undefined> {
   }
 }
 
-/** Strict success: PidData + errCode 0 + non-empty biometric Data (text or CDATA). */
 export function isValidSuccessfulPidCapture(xml: string): boolean {
   if (!xml || !/<PidData[\s>]/i.test(xml)) return false;
 
   const codes = [...xml.matchAll(/errCode\s*=\s*["']([^"']+)["']/gi)].map((m) =>
     m[1].trim(),
   );
-  if (!codes.length || !codes.every((c) => c === "0")) return false;
+  if (!codes.length || !codes.every((c) => c === '0')) return false;
 
-  // Plain text or CDATA inside <Data>
   const data =
-    xml
-      .match(/<Data\b[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/Data>/i)?.[1]
-      ?.trim() || xml.match(/<Data\b[^>]*>([^<]{32,})<\/Data>/i)?.[1]?.trim();
+    xml.match(/<Data\b[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/Data>/i)?.[1]?.trim() ||
+    xml.match(/<Data\b[^>]*>([^<]{32,})<\/Data>/i)?.[1]?.trim();
   return !!data;
 }
 
 function errorFromPidXml(xml: string): Error {
   const code = xml.match(/errCode\s*=\s*["']([^"']+)["']/i)?.[1];
-  const info = xml.match(/errInfo\s*=\s*["']([^"']*)["']/i)?.[1] || "";
+  const info = xml.match(/errInfo\s*=\s*["']([^"']*)["']/i)?.[1] || '';
 
   if (
-    code === "720" ||
-    code === "740" ||
+    code === '720' ||
+    code === '740' ||
     /not ready|not connected/i.test(info)
   ) {
     return new Error(
-      `Device not ready${code ? ` (errCode ${code})` : ""}. Unplug/replug Mantra MFS110, wait for READY, place finger, then Scan.`,
+      `Device not ready${code ? ` (errCode ${code})` : ''}. Unplug/replug Mantra MFS110, wait for READY, place finger, then Scan.`,
     );
   }
-  if (code === "700" || /timeout/i.test(info)) {
+  if (code === '700' || /timeout/i.test(info)) {
     return new Error(
-      "Capture timed out. Keep finger on the MFS110 sensor and Scan again.",
+      'Capture timed out. Keep finger on the MFS110 sensor and Scan again.',
     );
   }
   if (/pidoptions|strictly adhere/i.test(info)) {
     return new Error(
-      `RD rejected PidOptions (${info || "invalid"}). Update Mantra MFS110 L1 RD Service and retry.`,
+      `RD rejected PidOptions (${info || 'invalid'}). Update Mantra MFS110 L1 RD Service and retry.`,
     );
   }
   return new Error(
     info
       ? `${info}. Place finger firmly on Mantra MFS110 and Scan again.`
-      : "Fingerprint capture failed. Place finger firmly on Mantra MFS110 and Scan again.",
+      : 'Fingerprint capture failed. Place finger firmly on Mantra MFS110 and Scan again.',
   );
 }
 
@@ -221,25 +217,23 @@ async function capturePid(rd: RdService, pidOptions: string): Promise<string> {
     res = await fetchWithTimeout(
       url,
       {
-        method: "CAPTURE",
+        method: 'CAPTURE',
         headers: {
-          "Content-Type": "text/xml; charset=utf-8",
-          Accept: "text/xml",
+          'Content-Type': 'text/xml; charset=utf-8',
+          Accept: 'text/xml',
         },
         body: pidOptions,
       },
       CAPTURE_TIMEOUT_MS,
     );
   } catch (err) {
-    if (err instanceof DOMException && err.name === "AbortError") {
+    if (err instanceof DOMException && err.name === 'AbortError') {
       throw new Error(
-        "Capture timed out waiting for RD Service. Place finger firmly on Mantra MFS110 and Scan again.",
+        'Capture timed out waiting for RD Service. Place finger firmly on Mantra MFS110 and Scan again.',
       );
     }
-    // Here we DID find READY earlier — a TypeError on capture is more suspicious.
-    // Still soft-word it: could be service crashed mid-scan.
     throw new Error(
-      "Could not reach RD Service for capture. Confirm Mantra RD Service is still running and READY, then Scan again.",
+      'Could not reach RD Service for capture. Confirm Mantra RD Service is still running and READY, then Scan again.',
     );
   }
 
@@ -250,7 +244,7 @@ async function capturePid(rd: RdService, pidOptions: string): Promise<string> {
   }
 
   const xml = await res.text();
-  if (!xml) throw new Error("Empty response from RD Service.");
+  if (!xml) throw new Error('Empty response from RD Service.');
 
   if (isValidSuccessfulPidCapture(xml)) return xml;
 
@@ -259,11 +253,83 @@ async function capturePid(rd: RdService, pidOptions: string): Promise<string> {
   }
 
   throw new Error(
-    "Unexpected RD response. Confirm Capture works on https://rdtest.aadhaardevice.com/",
+    'Unexpected RD response. Confirm Capture works on https://rdtest.aadhaardevice.com/',
   );
 }
 
-/** Public: is scanner / RD ready? (for UI) */
+async function capturePidData(): Promise<string> {
+  const rd = await findReadyRdService();
+  try {
+    return await capturePid(rd, PID_OPTIONS_L1);
+  } catch (e: any) {
+    if (e?.message && /pidoptions|strictly adhere|ftype/i.test(e.message)) {
+      return await capturePid(rd, PID_OPTIONS_FMR);
+    }
+    throw e;
+  }
+}
+
+/** Best-effort extract of matchable FMR/ISO base64 from PidData XML. */
+export function extractIsoTemplateFromPidXml(xml: string): string | undefined {
+  if (!xml) return undefined;
+
+  const bio =
+    xml.match(/<Bio\b[^>]*type\s*=\s*["']FMR["'][^>]*>([^<]{32,})<\/Bio>/i)?.[1] ||
+    xml.match(
+      /<Param\b[^>]*name\s*=\s*["'][^"']*(?:iso|fmr|template|Fmrt)[^"']*["'][^>]*value\s*=\s*["']([^"']+)["']/i,
+    )?.[1];
+  if (bio && bio.replace(/\s+/g, '').length >= 64) {
+    return bio.replace(/\s+/g, '');
+  }
+
+  const data =
+    xml.match(/<Data\b[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/Data>/i)?.[1]?.trim() ||
+    xml.match(/<Data\b[^>]*>([^<]{32,})<\/Data>/i)?.[1]?.trim();
+  if (!data) return undefined;
+
+  const cleaned = data.replace(/\s+/g, '');
+  try {
+    const bin = atob(cleaned);
+    if (
+      bin.length >= 4 &&
+      bin.charCodeAt(0) === 0x46 &&
+      bin.charCodeAt(1) === 0x4d &&
+      bin.charCodeAt(2) === 0x52
+    ) {
+      return cleaned;
+    }
+    for (let i = 0; i < bin.length - 4; i++) {
+      if (
+        bin.charCodeAt(i) === 0x46 &&
+        bin.charCodeAt(i + 1) === 0x4d &&
+        bin.charCodeAt(i + 2) === 0x52 &&
+        bin.charCodeAt(i + 3) === 0
+      ) {
+        return btoa(bin.slice(i));
+      }
+    }
+  } catch {
+    /* encrypted / not base64 */
+  }
+  return undefined;
+}
+
+async function tryDemoIsoTemplate(rd: RdService): Promise<string | undefined> {
+  try {
+    const xml = await capturePid(rd, PID_OPTIONS_DEMO_FMR);
+    return extractIsoTemplateFromPidXml(xml);
+  } catch {
+    return undefined;
+  }
+}
+
+function apiErrorMessage(err: any): string {
+  const m = err?.response?.data?.message;
+  if (Array.isArray(m)) return m.join(', ');
+  if (typeof m === 'string') return m;
+  return err?.message || 'Fingerprint verification failed';
+}
+
 export async function checkFingerprintDevice(): Promise<FingerprintDeviceStatus> {
   try {
     const rd = await findReadyRdService();
@@ -279,7 +345,7 @@ export async function checkFingerprintDevice(): Promise<FingerprintDeviceStatus>
   } catch (e: any) {
     return {
       connected: false,
-      message: e?.message || "Fingerprint device not connected",
+      message: e?.message || 'Fingerprint device not connected',
     };
   }
 }
@@ -287,21 +353,88 @@ export async function checkFingerprintDevice(): Promise<FingerprintDeviceStatus>
 export const biometricService = {
   checkDevice: checkFingerprintDevice,
 
+  /** Raw capture — PidData XML only. */
+  captureFingerprint: async (): Promise<string> => capturePidData(),
+
   /**
-   * READY RD Service → CAPTURE (1 finger) → valid PidData or throw.
+   * Enrollment capture: PidData + best-effort ISO/FMR template for later 1:1 match.
    */
-  captureFingerprint: async (): Promise<string> => {
+  captureForEnrollment: async (): Promise<EnrollmentCapture> => {
     const rd = await findReadyRdService();
+    let pidData: string;
+    try {
+      pidData = await capturePid(rd, PID_OPTIONS_L1);
+    } catch (e: any) {
+      if (e?.message && /pidoptions|strictly adhere|ftype/i.test(e.message)) {
+        pidData = await capturePid(rd, PID_OPTIONS_FMR);
+      } else {
+        throw e;
+      }
+    }
+
+    let isoTemplate = extractIsoTemplateFromPidXml(pidData);
+    if (!isoTemplate) {
+      isoTemplate = await tryDemoIsoTemplate(rd);
+    }
+
+    return { pidData, isoTemplate };
+  },
+
+  /**
+   * Form Scan: capture live finger → verify against logged-in user's enrolled fingerprints.
+   * Throws "Fingerprint not matched" (or enroll message) when verify fails.
+   * Admins may bypass without a device.
+   */
+  captureAndVerifyLoggedInUser: async (): Promise<string> => {
+    const role = useAuthStore.getState().user?.role || '';
+    const isAdmin = ADMIN_ROLES.test(String(role));
+
+    if (isAdmin) {
+      try {
+        const pidData = await capturePidData();
+        try {
+          await api.post('/auth/verify-fingerprint', {
+            biometricData: pidData,
+            isoTemplate: extractIsoTemplateFromPidXml(pidData),
+          });
+        } catch {
+          /* admin: keep capture even if match templates missing */
+        }
+        return pidData;
+      } catch {
+        await api.post('/auth/verify-fingerprint', {
+          biometricData: 'ADMIN_BYPASS',
+        });
+        return 'ADMIN_BYPASS';
+      }
+    }
+
+    const rd = await findReadyRdService();
+    let pidData: string;
+    try {
+      pidData = await capturePid(rd, PID_OPTIONS_L1);
+    } catch (e: any) {
+      if (e?.message && /pidoptions|strictly adhere|ftype/i.test(e.message)) {
+        pidData = await capturePid(rd, PID_OPTIONS_FMR);
+      } else {
+        throw e;
+      }
+    }
+
+    let isoTemplate = extractIsoTemplateFromPidXml(pidData);
+    if (!isoTemplate) {
+      isoTemplate = await tryDemoIsoTemplate(rd);
+    }
 
     try {
-      // Prefer L1 dual template for MFS110 L1; still fCount=1 (one finger)
-      return await capturePid(rd, PID_OPTIONS_L1);
-    } catch (e: any) {
-      // Only swap template format if RD explicitly rejected PidOptions
-      if (e?.message && /pidoptions|strictly adhere|ftype/i.test(e.message)) {
-        return await capturePid(rd, PID_OPTIONS_FMR);
-      }
-      throw e;
+      await api.post('/auth/verify-fingerprint', {
+        biometricData: pidData,
+        isoTemplate,
+      });
+    } catch (err: any) {
+      throw new Error(apiErrorMessage(err) || 'Fingerprint not matched');
     }
+
+    return pidData;
   },
 };

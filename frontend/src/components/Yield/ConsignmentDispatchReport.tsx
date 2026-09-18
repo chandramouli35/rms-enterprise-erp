@@ -372,7 +372,7 @@ export const ConsignmentDispatchReport: React.FC<{ promptOpen?: boolean; onPromp
             className="px-3 py-2 bg-amber-500 text-black text-xs font-bold rounded-lg"
             onClick={async () => {
               try {
-                const xml = await biometricService.captureFingerprint();
+                const xml = await biometricService.captureAndVerifyLoggedInUser();
                 setForm((p) => ({ ...p, biometricData: xml }));
                 toast.success('Fingerprint captured');
               } catch (err: any) {

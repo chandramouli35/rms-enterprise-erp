@@ -138,9 +138,12 @@ model User {
 
   // Tracking
   lastLogin DateTime?
-  /// Fingerprint templates (Morpho/RD PID XML) — supervisors enroll two fingers
+  /// Fingerprint PidData XML (RD capture) — supervisors enroll two fingers
   fingerprint1 String?
   fingerprint2 String?
+  /// Matchable FMR/ISO template (base64) extracted at enroll — used for 1:1 verify
+  fingerprint1Template String?
+  fingerprint2Template String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?

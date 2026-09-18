@@ -3805,7 +3805,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
                type="button"
                onClick={async () => {
                  try {
-                   const xml = await biometricService.captureFingerprint();
+                   const xml = await biometricService.captureAndVerifyLoggedInUser();
                    setConfirmForm(prev => ({ ...prev, biometricData: xml }));
                    toast.success('Fingerprint captured');
                  } catch (err: any) {
@@ -4399,7 +4399,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
               type="button"
               onClick={async () => {
                 try {
-                  const xml = await biometricService.captureFingerprint();
+                  const xml = await biometricService.captureAndVerifyLoggedInUser();
                   setReportFinalizeForm(prev => ({ ...prev, biometricData: xml }));
                   toast.success('Fingerprint captured');
                 } catch (err: any) {
@@ -4481,7 +4481,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
             type="button"
             onClick={async () => {
               try {
-                const xml = await biometricService.captureFingerprint();
+                const xml = await biometricService.captureAndVerifyLoggedInUser();
                 setCloseForm(prev => ({
                   ...prev,
                   biometricData: xml,
