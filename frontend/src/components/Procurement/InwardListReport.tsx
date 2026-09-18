@@ -1,15 +1,22 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Printer, Fingerprint, Eye, Edit, AlertTriangle } from 'lucide-react';
-import api from '../../api/axios';
-import { useUiStore } from '../../store/uiStore';
-import { useAuthStore } from '../../store/authStore';
-import { useMandiStore } from '../../store/mandiStore';
-import { biometricService } from '../../services/biometricService';
-import { CustomModal } from '../CustomModal';
-import Combobox from '../Combobox';
-import { exportToExcel } from '../../utils/exportUtils';
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Download,
+  Printer,
+  Fingerprint,
+  Eye,
+  Edit,
+  AlertTriangle,
+} from "lucide-react";
+import api from "../../api/axios";
+import { useUiStore } from "../../store/uiStore";
+import { useAuthStore } from "../../store/authStore";
+import { useMandiStore } from "../../store/mandiStore";
+import { biometricService } from "../../services/biometricService";
+import { CustomModal } from "../CustomModal";
+import Combobox from "../Combobox";
+import { exportToExcel } from "../../utils/exportUtils";
 
-type ListMode = 'govt' | 'mill';
+type ListMode = "govt" | "mill";
 
 interface Props {
   activePlant: any;
@@ -26,13 +33,18 @@ function seasonStartStr(ref = new Date()) {
   return `${y}-10-01`;
 }
 
-export default function InwardListReport({ activePlant, suppliers, onView, onContinueDraft }: Props) {
+export default function InwardListReport({
+  activePlant,
+  suppliers,
+  onView,
+  onContinueDraft,
+}: Props) {
   const user = useAuthStore((s) => s.user);
   const { mandis } = useMandiStore();
-  const toast = (msg: string, type: 'success' | 'error' | 'info' = 'info') =>
+  const toast = (msg: string, type: "success" | "error" | "info" = "info") =>
     useUiStore.getState().addToast(msg, type);
 
-  const [mode, setMode] = useState<ListMode>('mill');
+  const [mode, setMode] = useState<ListMode>("mill");
   const [bagWt, setBagWt] = useState(0.382);
   const [supervisorDetail, setSupervisorDetail] = useState<{
     name: string;
@@ -41,42 +53,45 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
   const [filters, setFilters] = useState({
     dateFrom: todayStr(),
     dateTo: todayStr(),
-    mandi: '',
-    supplierId: '',
+    mandi: "",
+    supplierId: "",
   });
   const [report, setReport] = useState<any>(null);
   const [activeGpsLive, setActiveGpsLive] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
-  const [supervisorName, setSupervisorName] = useState(user?.username || '');
-  const [biometricData, setBiometricData] = useState('');
+  const [supervisorName, setSupervisorName] = useState(user?.username || "");
+  const [biometricData, setBiometricData] = useState("");
   const [manualMatchConfirmed, setManualMatchConfirmed] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const plantId = activePlant?.id || 'global';
-  const plantLabel = activePlant?.name || 'All Mills';
+  const plantId = activePlant?.id || "global";
+  const plantLabel = activePlant?.name || "All Mills";
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set('plantId', plantId);
-      if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
-      if (filters.dateTo) params.set('dateTo', filters.dateTo);
-      if (filters.mandi) params.set('mandi', filters.mandi);
-      if (filters.supplierId) params.set('supplierId', filters.supplierId);
-      params.set('bagWt', String(bagWt));
-      params.set('date', filters.dateTo || todayStr());
+      params.set("plantId", plantId);
+      if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+      if (filters.dateTo) params.set("dateTo", filters.dateTo);
+      if (filters.mandi) params.set("mandi", filters.mandi);
+      if (filters.supplierId) params.set("supplierId", filters.supplierId);
+      params.set("bagWt", String(bagWt));
+      params.set("date", filters.dateTo || todayStr());
       // Feedback 35 — evening snapshot when viewing a single day (same report as submitted)
       const singleDay =
-        !!filters.dateTo && (!filters.dateFrom || filters.dateFrom === filters.dateTo);
+        !!filters.dateTo &&
+        (!filters.dateFrom || filters.dateFrom === filters.dateTo);
       if (singleDay && !filters.mandi && !filters.supplierId) {
-        params.set('snapshot', '1');
+        params.set("snapshot", "1");
       }
       const [res, gpsRes] = await Promise.all([
         api.get(`/api/procurement/reports/inward-list?${params}`),
-        api.get(`/api/procurement/reports/active-gps?plantId=${plantId}`).catch(() => null),
+        api
+          .get(`/api/procurement/reports/active-gps?plantId=${plantId}`)
+          .catch(() => null),
       ]);
       let payload = res.data;
       // Multi-day print: merge per-day evening snapshots into dateGroups when available
@@ -89,12 +104,12 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
       ) {
         try {
           const days: string[] = [];
-          const cursor = new Date(filters.dateFrom + 'T12:00:00');
-          const end = new Date(filters.dateTo + 'T12:00:00');
+          const cursor = new Date(filters.dateFrom + "T12:00:00");
+          const end = new Date(filters.dateTo + "T12:00:00");
           while (cursor <= end) {
             const y = cursor.getFullYear();
-            const m = String(cursor.getMonth() + 1).padStart(2, '0');
-            const d = String(cursor.getDate()).padStart(2, '0');
+            const m = String(cursor.getMonth() + 1).padStart(2, "0");
+            const d = String(cursor.getDate()).padStart(2, "0");
             days.push(`${y}-${m}-${d}`);
             cursor.setDate(cursor.getDate() + 1);
           }
@@ -115,8 +130,8 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
             payload = {
               ...payload,
               dateGroups: mergedGroups.sort((a: any, b: any) =>
-            String(a.date).localeCompare(String(b.date)),
-          ),
+                String(a.date).localeCompare(String(b.date)),
+              ),
               fromSnapshot: true,
               snapshotMerged: true,
             };
@@ -126,10 +141,14 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
         }
       }
       setReport(payload);
-      if (gpsRes?.data?.count != null) setActiveGpsLive(Number(gpsRes.data.count));
+      if (gpsRes?.data?.count != null)
+        setActiveGpsLive(Number(gpsRes.data.count));
     } catch (e: any) {
       console.error(e);
-      toast(e?.response?.data?.message || 'Failed to load inward list', 'error');
+      toast(
+        e?.response?.data?.message || "Failed to load inward list",
+        "error",
+      );
     } finally {
       setLoading(false);
     }
@@ -144,7 +163,9 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
     let cancelled = false;
     const poll = async () => {
       try {
-        const gpsRes = await api.get(`/api/procurement/reports/active-gps?plantId=${plantId}`);
+        const gpsRes = await api.get(
+          `/api/procurement/reports/active-gps?plantId=${plantId}`,
+        );
         if (!cancelled && gpsRes?.data?.count != null) {
           setActiveGpsLive(Number(gpsRes.data.count));
         }
@@ -160,7 +181,12 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
     };
   }, [plantId]);
 
-  const totals = report?.totals || { agencyBags: 0, millBags: 0, shortageBags: 0, totalBags: 0 };
+  const totals = report?.totals || {
+    agencyBags: 0,
+    millBags: 0,
+    shortageBags: 0,
+    totalBags: 0,
+  };
 
   /** Feedback 35 — Artia select: always season Latest→Oldest */
   const onArtiaChange = (supplierId: string) => {
@@ -173,55 +199,56 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
           dateTo: todayStr(),
         };
       }
-      return { ...f, supplierId: '' };
+      return { ...f, supplierId: "" };
     });
   };
 
   const exportCurrent = () => {
     if (!report) return;
-    if (mode === 'govt') {
+    if (mode === "govt") {
       exportToExcel(
         (report.govt?.rows || []).map((r: any) => ({
-          'S.No': r.sno,
+          "S.No": r.sno,
           Date: r.date,
-          'Agency GP': r.agencyGp,
-          'Truck No': r.truckNo,
+          "Agency GP": r.agencyGp,
+          "Truck No": r.truckNo,
           Mandi: r.mandi,
-          'Party Name': r.partyName,
+          "Party Name": r.partyName,
           Moisture: r.moisture,
-          'A Class': r.aClass,
-          'B Class': r.bClass,
-          'Bags at Agency GP': r.agencyBags ?? (Number(r.aClass || 0) + Number(r.bClass || 0)),
-          'Mill Net Weight': r.millNetWeight,
+          "A Class": r.aClass,
+          "B Class": r.bClass,
+          "Bags at Agency GP":
+            r.agencyBags ?? Number(r.aClass || 0) + Number(r.bClass || 0),
+          "Mill Net Weight": r.millNetWeight,
         })),
         `Govt_Inward_List_${filters.dateFrom}_${filters.dateTo}.xlsx`,
       );
     } else {
       exportToExcel(
         (report.mill?.rows || []).map((r: any) => ({
-          'S.No': r.sno,
+          "S.No": r.sno,
           Date: r.date,
-          'RST No': r.rstNo,
-          'In Time': r.timeIn,
-          'GP Complete Date': r.gpCompleteDate,
-          'Out Time': r.timeOut,
-          'Mill GP': r.millGp,
-          'Agency GP': r.agencyGp,
-          'Truck No': r.truckNo,
+          "RST No": r.rstNo,
+          "In Time": r.timeIn,
+          "GP Complete Date": r.gpCompleteDate,
+          "Out Time": r.timeOut,
+          "Mill GP": r.millGp,
+          "Agency GP": r.agencyGp,
+          "Truck No": r.truckNo,
           Mandi: r.mandi,
-          'Party Name': r.partyName,
-          'Mill A': r.aClassMill,
-          'Mill B': r.bClassMill,
-          'Shortage A': r.aClassShortage,
-          'Shortage B': r.bClassShortage,
-          'Total A': r.aClassTotal,
-          'Total B': r.bClassTotal,
+          "Party Name": r.partyName,
+          "Mill A": r.aClassMill,
+          "Mill B": r.bClassMill,
+          "Shortage A": r.aClassShortage,
+          "Shortage B": r.bClassShortage,
+          "Total A": r.aClassTotal,
+          "Total B": r.bClassTotal,
           Moisture: r.moisture,
-          'Required Net Wt': r.requiredNetWt,
-          'Mill Net Wt': r.millNetWt,
-          'Surplus +/-': r.surplus,
-          'Actual Received Bags': r.millBags,
-          'Bags at Agency GP': r.agencyBags,
+          "Required Net Wt": r.requiredNetWt,
+          "Mill Net Wt": r.millNetWt,
+          "Surplus +/-": r.surplus,
+          "Actual Received Bags": r.millBags,
+          "Bags at Agency GP": r.agencyBags,
           Status: r.status,
         })),
         `Mill_Inward_List_${filters.dateFrom}_${filters.dateTo}.xlsx`,
@@ -236,13 +263,13 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
     try {
       const xml = await biometricService.captureFingerprint();
       setBiometricData(xml);
-      toast('Fingerprint captured', 'success');
+      toast("Fingerprint captured", "success");
     } catch (err: any) {
-      if (user?.role === 'SUPER_ADMIN' || user?.role === 'PLANT_MANAGER') {
-        setBiometricData('ADMIN_BYPASS');
-        toast('Admin bypass fingerprint (scanner unavailable)', 'success');
+      if (user?.role === "SUPER_ADMIN" || user?.role === "PLANT_MANAGER") {
+        setBiometricData("ADMIN_BYPASS");
+        toast("Admin bypass fingerprint (scanner unavailable)", "success");
       } else {
-        toast(err.message || 'Fingerprint capture failed', 'error');
+        toast(err.message || "Fingerprint capture failed", "error");
       }
     } finally {
       setScanning(false);
@@ -251,42 +278,45 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
 
   const submitEvening = async () => {
     if (!manualMatchConfirmed) {
-      toast('Please confirm manual entries match digital entries', 'error');
+      toast("Please confirm manual entries match digital entries", "error");
       return;
     }
     if (!biometricData) {
-      toast('Fingerprint is required', 'error');
+      toast("Fingerprint is required", "error");
       return;
     }
     if (
-      biometricData === 'ADMIN_BYPASS' &&
-      user?.role !== 'SUPER_ADMIN' &&
-      user?.role !== 'PLANT_MANAGER'
+      biometricData === "ADMIN_BYPASS" &&
+      user?.role !== "SUPER_ADMIN" &&
+      user?.role !== "PLANT_MANAGER"
     ) {
-      toast('Supervisor fingerprint scan is required', 'error');
+      toast("Supervisor fingerprint scan is required", "error");
       return;
     }
     if (!supervisorName.trim()) {
-      toast('Supervisor name is required', 'error');
+      toast("Supervisor name is required", "error");
       return;
     }
     setSubmitting(true);
     try {
-      await api.post('/api/procurement/reports/inward-list/submit', {
+      await api.post("/api/procurement/reports/inward-list/submit", {
         plantId,
         date: filters.dateTo || todayStr(),
         bagWt,
         supervisorName: supervisorName.trim(),
         biometricData,
-        source: 'EVENING_SUBMIT',
+        source: "EVENING_SUBMIT",
       });
-      toast('Evening lists submitted. Daily Paddy Summary sent to mill (Reports → Daily Inward Summary).', 'success');
+      toast(
+        "Evening lists submitted. Daily Paddy Summary sent to mill (Reports → Daily Inward Summary).",
+        "success",
+      );
       setSubmitOpen(false);
-      setBiometricData('');
+      setBiometricData("");
       setManualMatchConfirmed(false);
       fetchReport();
     } catch (e: any) {
-      toast(e?.response?.data?.message || 'Submit failed', 'error');
+      toast(e?.response?.data?.message || "Submit failed", "error");
     } finally {
       setSubmitting(false);
     }
@@ -295,35 +325,44 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
   const clusterSections = useMemo(() => {
     if (!report?.artiaClusters) return [];
     if (filters.supplierId) {
-      return report.artiaClusters.filter((c: any) => c.artiaId === filters.supplierId);
+      return report.artiaClusters.filter(
+        (c: any) => c.artiaId === filters.supplierId,
+      );
     }
     return report.artiaClusters;
   }, [report, filters.supplierId]);
 
   const ClusterBlocks = ({ forPrint = false }: { forPrint?: boolean }) => (
-    <div className={forPrint ? '' : 'space-y-6'}>
+    <div className={forPrint ? "" : "space-y-6"}>
       {clusterSections.length === 0 && !forPrint && (
-        <p className="text-center text-[var(--text-muted-alt)] py-4 text-sm">No artia clusters for filters.</p>
+        <p className="text-center text-[var(--text-muted-alt)] py-4 text-sm">
+          No artia clusters for filters.
+        </p>
       )}
       {clusterSections.map((cluster: any) => (
         <div
-          key={`${forPrint ? 'p' : 's'}-${cluster.artiaName}`}
-          className={`border border-[var(--border-subtle)] rounded-xl overflow-hidden ${forPrint ? 'print-artia-page mb-6' : ''}`}
+          key={`${forPrint ? "p" : "s"}-${cluster.artiaName}`}
+          className={`border border-[var(--border-subtle)] rounded-xl overflow-hidden ${forPrint ? "print-artia-page mb-6" : ""}`}
         >
           <div className="bg-[var(--bg-muted)] px-4 py-2 flex flex-wrap justify-between gap-2">
-            <h3 className="font-bold text-[var(--text-main)]">Artia: {cluster.artiaName}</h3>
+            <h3 className="font-bold text-[var(--text-main)]">
+              Artia: {cluster.artiaName}
+            </h3>
             <div className="text-xs text-[var(--text-muted-alt)] flex gap-3">
               <span>
-                Agency: <b className="text-[#e67e00]">{cluster.totals.agencyBags}</b>
+                Agency:{" "}
+                <b className="text-[#e67e00]">{cluster.totals.agencyBags}</b>
               </span>
               <span>
                 Mill: <b>{cluster.totals.millBags}</b>
               </span>
               <span>
-                Shortage: <b className="text-amber-400">{cluster.totals.shortageBags}</b>
+                Shortage:{" "}
+                <b className="text-amber-400">{cluster.totals.shortageBags}</b>
               </span>
               <span>
-                Total: <b className="text-emerald-400">{cluster.totals.totalBags}</b>
+                Total:{" "}
+                <b className="text-emerald-400">{cluster.totals.totalBags}</b>
               </span>
             </div>
           </div>
@@ -351,18 +390,26 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
                   entryCompletionAt: r.entryCompletionAt,
                 }))}
                 compact
-                onSupervisorClick={(name, at) => setSupervisorDetail({ name, at })}
+                onSupervisorClick={(name, at) =>
+                  setSupervisorDetail({ name, at })
+                }
               />
             </div>
             <div>
               <h4 className="text-xs font-bold uppercase text-[var(--text-muted-alt)] mb-2">
-                Mill Mandi & Artia List — Mill {cluster.totals.millBags} · Shortage{' '}
-                {cluster.totals.shortageBags} · Total {cluster.totals.totalBags}
+                Mill Mandi & Artia List — Mill {cluster.totals.millBags} ·
+                Shortage {cluster.totals.shortageBags} · Total{" "}
+                {cluster.totals.totalBags}
               </h4>
               <MillTable
-                rows={cluster.rows.map((r: any, i: number) => ({ sno: i + 1, ...r }))}
+                rows={cluster.rows.map((r: any, i: number) => ({
+                  sno: i + 1,
+                  ...r,
+                }))}
                 compact
-                onSupervisorClick={(name, at) => setSupervisorDetail({ name, at })}
+                onSupervisorClick={(name, at) =>
+                  setSupervisorDetail({ name, at })
+                }
               />
             </div>
           </div>
@@ -391,9 +438,11 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
           <span className="text-[#e67e00] text-[10px] bg-[#e67e00]/10 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
             {plantLabel}
           </span>
-          <h1 className="text-base font-bold text-[var(--text-muted)]">Inward List</h1>
+          <h1 className="text-base font-bold text-[var(--text-muted)]">
+            Inward List
+          </h1>
           <span className="ml-2 text-xs font-bold px-2.5 py-1 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
-            Active GPs: {activeGpsLive ?? report?.activeGps ?? '—'}
+            Active GPs: {activeGpsLive ?? report?.activeGps ?? "—"}
           </span>
           <span
             className="text-[10px] px-2 py-0.5 rounded bg-violet-500/20 text-violet-200 border border-violet-500/30"
@@ -403,7 +452,10 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
           </span>
           {report?.fromSnapshot && (
             <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400">
-              Submitted {report.submittedAt ? new Date(report.submittedAt).toLocaleString() : ''}
+              Submitted{" "}
+              {report.submittedAt
+                ? new Date(report.submittedAt).toLocaleString()
+                : ""}
             </span>
           )}
         </div>
@@ -431,63 +483,105 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
 
       {/* Mode-aware header boxes (PDF) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <div className={`rounded-lg border p-3 ${mode === 'govt' ? 'border-[#e67e00] bg-[#e67e00]/10' : 'border-[var(--border-subtle)] bg-[var(--bg-base)]'}`}>
-          <p className="text-[10px] uppercase text-[var(--text-muted-alt)] font-bold">As per Agency GP</p>
-          <p className="text-xl font-bold text-[#e67e00]">{totals.agencyBags}</p>
-          <p className="text-[10px] text-[var(--text-muted-alt)]">Govt Inward List · Total Bags</p>
+        <div
+          className={`rounded-lg border p-3 ${mode === "govt" ? "border-[#e67e00] bg-[#e67e00]/10" : "border-[var(--border-subtle)] bg-[var(--bg-base)]"}`}
+        >
+          <p className="text-[10px] uppercase text-[var(--text-muted-alt)] font-bold">
+            As per Agency GP
+          </p>
+          <p className="text-xl font-bold text-[#e67e00]">
+            {totals.agencyBags}
+          </p>
+          <p className="text-[10px] text-[var(--text-muted-alt)]">
+            Govt Inward List · Total Bags
+          </p>
         </div>
-        <div className={`rounded-lg border p-3 ${mode === 'mill' ? 'border-[#e67e00] bg-[#e67e00]/10' : 'border-[var(--border-subtle)] bg-[var(--bg-base)]'}`}>
-          <p className="text-[10px] uppercase text-[var(--text-muted-alt)] font-bold">Mill Bags</p>
-          <p className="text-xl font-bold text-[var(--text-main)]">{totals.millBags}</p>
-          <p className="text-[10px] text-[var(--text-muted-alt)]">As per Mill Inward List</p>
+        <div
+          className={`rounded-lg border p-3 ${mode === "mill" ? "border-[#e67e00] bg-[#e67e00]/10" : "border-[var(--border-subtle)] bg-[var(--bg-base)]"}`}
+        >
+          <p className="text-[10px] uppercase text-[var(--text-muted-alt)] font-bold">
+            Mill Bags
+          </p>
+          <p className="text-xl font-bold text-[var(--text-main)]">
+            {totals.millBags}
+          </p>
+          <p className="text-[10px] text-[var(--text-muted-alt)]">
+            As per Mill Inward List
+          </p>
         </div>
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3">
-          <p className="text-[10px] uppercase text-[var(--text-muted-alt)] font-bold">Shortage Bags</p>
-          <p className="text-xl font-bold text-amber-400">{totals.shortageBags}</p>
+          <p className="text-[10px] uppercase text-[var(--text-muted-alt)] font-bold">
+            Shortage Bags
+          </p>
+          <p className="text-xl font-bold text-amber-400">
+            {totals.shortageBags}
+          </p>
         </div>
         <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3">
-          <p className="text-[10px] uppercase text-[var(--text-muted-alt)] font-bold">Total Bags</p>
-          <p className="text-xl font-bold text-emerald-400">{totals.totalBags}</p>
-          <p className="text-[10px] text-[var(--text-muted-alt)]">Mill + Shortage</p>
+          <p className="text-[10px] uppercase text-[var(--text-muted-alt)] font-bold">
+            Total Bags
+          </p>
+          <p className="text-xl font-bold text-emerald-400">
+            {totals.totalBags}
+          </p>
+          <p className="text-[10px] text-[var(--text-muted-alt)]">
+            Mill + Shortage
+          </p>
         </div>
       </div>
 
       <div className="flex flex-wrap items-end gap-3 mb-4 no-print">
         <div>
-          <label className="block text-[var(--text-muted-alt)] text-xs mb-1">From</label>
+          <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+            From
+          </label>
           <input
             type="date"
             value={filters.dateFrom}
-            onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
+            onChange={(e) =>
+              setFilters((f) => ({ ...f, dateFrom: e.target.value }))
+            }
             className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm"
           />
         </div>
         <div>
-          <label className="block text-[var(--text-muted-alt)] text-xs mb-1">To</label>
+          <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+            To
+          </label>
           <input
             type="date"
             value={filters.dateTo}
-            onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
+            onChange={(e) =>
+              setFilters((f) => ({ ...f, dateTo: e.target.value }))
+            }
             className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm"
           />
         </div>
         <div>
-          <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi</label>
+          <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+            Mandi
+          </label>
           <select
             value={filters.mandi}
-            onChange={(e) => setFilters((f) => ({ ...f, mandi: e.target.value }))}
+            onChange={(e) =>
+              setFilters((f) => ({ ...f, mandi: e.target.value }))
+            }
             className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm min-w-[140px]"
           >
             <option value="">All Mandis</option>
-            {mandis.filter((m: any) => m.isActive).map((m: any) => (
-              <option key={m.id} value={m.name}>
-                {m.name}
-              </option>
-            ))}
+            {mandis
+              .filter((m: any) => m.isActive)
+              .map((m: any) => (
+                <option key={m.id} value={m.name}>
+                  {m.name}
+                </option>
+              ))}
           </select>
         </div>
         <div className="min-w-[180px]">
-          <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Artia (season if selected)</label>
+          <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+            Artia (season if selected)
+          </label>
           <Combobox
             name="supplierIdFilter"
             value={filters.supplierId}
@@ -499,7 +593,9 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
           />
         </div>
         <div>
-          <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Bag Wt (Govt Net)</label>
+          <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+            Bag Wt (Govt Net)
+          </label>
           <select
             value={bagWt}
             onChange={(e) => setBagWt(parseFloat(e.target.value))}
@@ -511,7 +607,12 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
         </div>
         <button
           onClick={() =>
-            setFilters({ dateFrom: todayStr(), dateTo: todayStr(), mandi: '', supplierId: '' })
+            setFilters({
+              dateFrom: todayStr(),
+              dateTo: todayStr(),
+              mandi: "",
+              supplierId: "",
+            })
           }
           className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm"
         >
@@ -522,8 +623,8 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
       <div className="flex border-b border-[var(--border-subtle)] mb-4 no-print">
         {(
           [
-            ['govt', 'Govt Inward List'],
-            ['mill', 'Mill Inward List'],
+            ["govt", "Govt Inward List"],
+            ["mill", "Mill Inward List"],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -531,8 +632,8 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
             onClick={() => setMode(key)}
             className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
               mode === key
-                ? 'border-[#e67e00] text-[#e67e00]'
-                : 'border-transparent text-[var(--text-muted-alt)] hover:text-[var(--text-main)]'
+                ? "border-[#e67e00] text-[#e67e00]"
+                : "border-transparent text-[var(--text-muted-alt)] hover:text-[var(--text-main)]"
             }`}
           >
             {label}
@@ -540,18 +641,25 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
         ))}
       </div>
 
-      {loading && <p className="text-sm text-[var(--text-muted-alt)] mb-2 no-print">Loading…</p>}
+      {loading && (
+        <p className="text-sm text-[var(--text-muted-alt)] mb-2 no-print">
+          Loading…
+        </p>
+      )}
 
       {/* Main list (screen) — page scroll only, no nested vertical scroll */}
       <div className="screen-only">
-        {mode === 'govt' ? (
+        {mode === "govt" ? (
           <GovtTable
             rows={report?.govt?.rows || []}
             onSupervisorClick={(name, at) => setSupervisorDetail({ name, at })}
           />
         ) : (
           <MillTable
-            rows={[...(report?.mill?.rows || []), ...(report?.mill?.draftRows || [])]}
+            rows={[
+              ...(report?.mill?.rows || []),
+              ...(report?.mill?.draftRows || []),
+            ]}
             onView={onView}
             onContinueDraft={onContinueDraft}
             onSupervisorClick={(name, at) => setSupervisorDetail({ name, at })}
@@ -560,9 +668,12 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
 
         {/* Feedback 35 — Mandi & Artia sections BELOW the inward list */}
         <div className="mt-8 pt-4 border-t border-[var(--border-subtle)]">
-          <h2 className="text-sm font-bold text-[var(--text-main)] mb-1">Mandi & Artia Wise Details</h2>
+          <h2 className="text-sm font-bold text-[var(--text-main)] mb-1">
+            Mandi & Artia Wise Details
+          </h2>
           <p className="text-[10px] text-[var(--text-muted-alt)] mb-4">
-            Artia-wise clusters (Latest → Oldest). Mandi filter shows all artias for that mandi; Artia filter shows that artia for the season.
+            Artia-wise clusters (Latest → Oldest). Mandi filter shows all artias
+            for that mandi; Artia filter shows that artia for the season.
           </p>
           <ClusterBlocks />
         </div>
@@ -571,12 +682,15 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
       {/* Print: date-wise pages + full Mandi/Artia pages */}
       <div className="print-only">
         <h1 className="text-lg font-bold mb-1">
-          {mode === 'govt' ? 'Govt Inward List (Agency GP)' : 'Mill Inward List (Actual Bags)'} — {plantLabel}
+          {mode === "govt"
+            ? "Govt Inward List (Agency GP)"
+            : "Mill Inward List (Actual Bags)"}{" "}
+          — {plantLabel}
         </h1>
         <p className="text-xs mb-4">
           Bag Wt {bagWt} · {filters.dateFrom} → {filters.dateTo}
-          {filters.mandi ? ` · Mandi: ${filters.mandi}` : ''}
-          {filters.supplierId ? ' · Artia filtered' : ''}
+          {filters.mandi ? ` · Mandi: ${filters.mandi}` : ""}
+          {filters.supplierId ? " · Artia filtered" : ""}
         </p>
 
         {(report?.dateGroups || []).map((g: any) => (
@@ -584,7 +698,7 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
             <h2 className="font-bold mb-2 border-b pb-1">
               Date: {g.date} · Total Bags: {g.totals.totalBags}
             </h2>
-            {mode === 'govt' ? (
+            {mode === "govt" ? (
               <GovtTable
                 rows={g.rows.map((r: any, i: number) => ({
                   sno: i + 1,
@@ -601,17 +715,22 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
                   entryMadeByName: r.entryMadeByName,
                   entryCompletionAt: r.entryCompletionAt,
                 }))}
-                onSupervisorClick={(name, at) => setSupervisorDetail({ name, at })}
+                onSupervisorClick={(name, at) =>
+                  setSupervisorDetail({ name, at })
+                }
               />
             ) : (
               <MillTable
                 rows={g.rows.map((r: any, i: number) => ({ sno: i + 1, ...r }))}
-                onSupervisorClick={(name, at) => setSupervisorDetail({ name, at })}
+                onSupervisorClick={(name, at) =>
+                  setSupervisorDetail({ name, at })
+                }
               />
             )}
             <p className="mt-2 text-sm font-bold">
-              Day totals — Agency: {g.totals.agencyBags} · Mill: {g.totals.millBags} · Shortage:{' '}
-              {g.totals.shortageBags} · Total: {g.totals.totalBags}
+              Day totals — Agency: {g.totals.agencyBags} · Mill:{" "}
+              {g.totals.millBags} · Shortage: {g.totals.shortageBags} · Total:{" "}
+              {g.totals.totalBags}
             </p>
           </div>
         ))}
@@ -620,7 +739,7 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
         <div className="print-artia-page">
           <h2 className="text-base font-bold mb-3 border-b pb-1">
             Mandi & Artia Wise Details
-            {filters.mandi ? ` — ${filters.mandi}` : ' — All Mandis'}
+            {filters.mandi ? ` — ${filters.mandi}` : " — All Mandis"}
           </h2>
           <ClusterBlocks forPrint />
         </div>
@@ -633,16 +752,22 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
         <span className="text-[#e67e00]">Total Bags: {totals.totalBags}</span>
       </div>
 
-      <CustomModal isOpen={submitOpen} onClose={() => setSubmitOpen(false)} title="Submit Evening Inward Lists">
+      <CustomModal
+        isOpen={submitOpen}
+        onClose={() => setSubmitOpen(false)}
+        title="Submit Evening Inward Lists"
+      >
         <div className="space-y-4">
           <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex gap-2 text-sm text-amber-200">
             <AlertTriangle size={18} className="shrink-0 mt-0.5" />
             <p>
-              Confirming that the manual entries completed matches the digital entries of the day.
-              Both <b>Govt (Agency GP)</b> and <b>Mill (Actual Bags)</b> lists will be submitted for{' '}
-              <b>{filters.dateTo || todayStr()}</b>, and Daily Paddy Summary will be sent to the mill.
-              Loader &amp; Unloader day reports (per unloader, with Unloader + Supervisor
-              signatures) must already be submitted to Admin for this date.
+              Confirming that the manual entries completed matches the digital
+              entries of the day. Both <b>Govt (Agency GP)</b> and{" "}
+              <b>Mill (Actual Bags)</b> lists will be submitted for{" "}
+              <b>{filters.dateTo || todayStr()}</b>, and Daily Paddy Summary
+              will be sent to the mill. Loader &amp; Unloader day reports (per
+              unloader, with Unloader + Supervisor signatures) must already be
+              submitted to Admin for this date.
             </p>
           </div>
           <label className="flex items-start gap-2 text-sm text-[var(--text-main)] cursor-pointer">
@@ -655,7 +780,9 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
             I confirm manual entries match the digital inward entries for today.
           </label>
           <div>
-            <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Supervisor Name</label>
+            <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+              Supervisor Name
+            </label>
             <input
               value={supervisorName}
               onChange={(e) => setSupervisorName(e.target.value)}
@@ -663,11 +790,13 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
             />
           </div>
           <div>
-            <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Fingerprint</label>
+            <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+              Fingerprint
+            </label>
             <div className="flex gap-2">
               <input
                 readOnly
-                value={biometricData ? 'Captured ✓' : ''}
+                value={biometricData ? "Captured ✓" : ""}
                 placeholder="Scan fingerprint…"
                 className="flex-1 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
               />
@@ -677,12 +806,16 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
                 disabled={scanning}
                 className="px-3 py-2 border border-[var(--border-subtle)] rounded text-sm"
               >
-                {scanning ? 'Scanning…' : 'Scan'}
+                {scanning ? "Scanning…" : "Scan"}
               </button>
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => setSubmitOpen(false)} className="px-4 py-2 text-[var(--text-muted-alt)]" disabled={submitting}>
+            <button
+              onClick={() => setSubmitOpen(false)}
+              className="px-4 py-2 text-[var(--text-muted-alt)]"
+              disabled={submitting}
+            >
               Cancel
             </button>
             <button
@@ -690,7 +823,7 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
               disabled={submitting || !manualMatchConfirmed || !biometricData}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded font-bold"
             >
-              {submitting ? 'Submitting…' : 'Submit with Fingerprint'}
+              {submitting ? "Submitting…" : "Submit with Fingerprint"}
             </button>
           </div>
         </div>
@@ -707,7 +840,7 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
               Supervisor
             </div>
             <div className="font-bold text-[var(--text-main)]">
-              {supervisorDetail?.name || '-'}
+              {supervisorDetail?.name || "-"}
             </div>
           </div>
           <div>
@@ -717,7 +850,7 @@ export default function InwardListReport({ activePlant, suppliers, onView, onCon
             <div className="font-medium text-[var(--text-main)]">
               {supervisorDetail?.at
                 ? new Date(supervisorDetail.at).toLocaleString()
-                : 'Not recorded'}
+                : "Not recorded"}
             </div>
           </div>
           <div className="flex justify-end pt-2">
@@ -769,7 +902,9 @@ function GovtTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className={`w-full border-collapse text-[var(--text-muted)] ${compact ? 'text-xs' : 'text-sm'}`}>
+      <table
+        className={`w-full border-collapse text-[var(--text-muted)] ${compact ? "text-xs" : "text-sm"}`}
+      >
         <thead>
           <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)] text-xs font-semibold tracking-wide">
             <th className="p-2.5">S.No</th>
@@ -791,11 +926,11 @@ function GovtTable({
             <tr
               key={r.id || i}
               className={`border-b border-[var(--border-subtle-alt)] ${
-                r.isBackdated ? 'bg-violet-500/20 text-violet-100' : ''
+                r.isBackdated ? "bg-violet-500/20 text-violet-100" : ""
               }`}
               title={
                 r.isBackdated
-                  ? `Backdated entry${r.entryMadeByName ? ` by ${r.entryMadeByName}` : ''}${r.entryCompletionAt ? ` at ${r.entryCompletionAt}` : ''}`
+                  ? `Backdated entry${r.entryMadeByName ? ` by ${r.entryMadeByName}` : ""}${r.entryCompletionAt ? ` at ${r.entryCompletionAt}` : ""}`
                   : undefined
               }
             >
@@ -804,7 +939,9 @@ function GovtTable({
               <td className="p-2 font-mono text-xs">{r.agencyGp}</td>
               <td className="p-2">{r.truckNo}</td>
               <td className="p-2">{r.mandi}</td>
-              <td className="p-2 font-bold text-[var(--text-main)]">{r.partyName}</td>
+              <td className="p-2 font-bold text-[var(--text-main)]">
+                {r.partyName}
+              </td>
               <td className="p-2">
                 <SupervisorCell
                   name={r.entryMadeByName}
@@ -812,7 +949,7 @@ function GovtTable({
                   onClick={onSupervisorClick}
                 />
               </td>
-              <td className="p-2 text-right">{r.moisture ?? '-'}</td>
+              <td className="p-2 text-right">{r.moisture ?? "-"}</td>
               <td className="p-2 text-right">{r.aClass}</td>
               <td className="p-2 text-right">{r.bClass}</td>
               <td className="p-2 text-right font-bold">
@@ -823,7 +960,10 @@ function GovtTable({
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={12} className="p-6 text-center text-[var(--text-muted-alt)]">
+              <td
+                colSpan={12}
+                className="p-6 text-center text-[var(--text-muted-alt)]"
+              >
                 No govt inward rows.
               </td>
             </tr>
@@ -849,35 +989,94 @@ function MillTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className={`w-full border-collapse text-[var(--text-muted)] ${compact ? 'text-xs' : 'text-sm'}`}>
+      <table
+        className={`w-full border-collapse text-[var(--text-muted)] ${compact ? "text-xs" : "text-sm"}`}
+      >
         <thead>
           <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)] text-xs font-semibold tracking-wide">
-            <th className="p-2.5" rowSpan={2}>S.No</th>
-            <th className="p-2.5" rowSpan={2}>Date</th>
-            <th className="p-2.5" rowSpan={2}>RST No.</th>
-            <th className="p-2.5" rowSpan={2}>In Time</th>
-            <th className="p-2.5" rowSpan={2}>GP Complete Date</th>
-            <th className="p-2.5" rowSpan={2}>Out Time</th>
-            <th className="p-2.5" rowSpan={2}>Mill GP</th>
-            <th className="p-2.5" rowSpan={2}>Agency GP</th>
-            <th className="p-2.5" rowSpan={2}>Truck No.</th>
-            <th className="p-2.5" rowSpan={2}>Mandi</th>
-            <th className="p-2.5" rowSpan={2}>Party Name</th>
-            <th className="p-2.5" rowSpan={2}>Supervisor</th>
-            <th className="p-2 text-center border-l border-[var(--border-subtle)]" colSpan={2}>Mill</th>
-            <th className="p-2 text-center text-amber-400" colSpan={2}>Shortage</th>
-            <th className="p-2 text-center text-[#e67e00]" colSpan={2}>Total</th>
-            <th className="p-2.5" rowSpan={2}>Moisture</th>
-            <th className="p-2.5 text-right" rowSpan={2}>Required Net Weight</th>
-            <th className="p-2.5 text-right" rowSpan={2}>Mill Net Weight</th>
-            <th className="p-2.5 text-right" rowSpan={2}>Surplus Plus / Minus</th>
-            <th className="p-2.5 text-right" rowSpan={2} title="Actual Received = mill A+B excl shortage">Actual Rec. Bags</th>
-            <th className="p-2.5 text-right" rowSpan={2}>Bags at Agency GP</th>
-            <th className="p-2.5 no-print" rowSpan={2}>Status</th>
-            {(onView || onContinueDraft) && <th className="p-2.5 text-center no-print" rowSpan={2}>Action</th>}
+            <th className="p-2.5" rowSpan={2}>
+              S.No
+            </th>
+            <th className="p-2.5" rowSpan={2}>
+              Date
+            </th>
+            <th className="p-2.5" rowSpan={2}>
+              RST No.
+            </th>
+            <th className="p-2.5" rowSpan={2}>
+              In Time
+            </th>
+            <th className="p-2.5" rowSpan={2}>
+              GP Complete Date
+            </th>
+            <th className="p-2.5" rowSpan={2}>
+              Out Time
+            </th>
+            <th className="p-2.5" rowSpan={2}>
+              Mill GP
+            </th>
+            <th className="p-2.5" rowSpan={2}>
+              Agency GP
+            </th>
+            <th className="p-2.5" rowSpan={2}>
+              Truck No.
+            </th>
+            <th className="p-2.5" rowSpan={2}>
+              Mandi
+            </th>
+            <th className="p-2.5" rowSpan={2}>
+              Party Name
+            </th>
+            <th className="p-2.5" rowSpan={2}>
+              Supervisor
+            </th>
+            <th
+              className="p-2 text-center border-l border-[var(--border-subtle)]"
+              colSpan={2}
+            >
+              Mill
+            </th>
+            <th className="p-2 text-center text-amber-400" colSpan={2}>
+              Shortage
+            </th>
+            <th className="p-2 text-center text-[#e67e00]" colSpan={2}>
+              Total
+            </th>
+            <th className="p-2.5" rowSpan={2}>
+              Moisture
+            </th>
+            <th className="p-2.5 text-right" rowSpan={2}>
+              Required Net Weight
+            </th>
+            <th className="p-2.5 text-right" rowSpan={2}>
+              Mill Net Weight
+            </th>
+            <th className="p-2.5 text-right" rowSpan={2}>
+              Surplus Plus / Minus
+            </th>
+            <th
+              className="p-2.5 text-right"
+              rowSpan={2}
+              title="Actual Received = mill A+B excl shortage"
+            >
+              Actual Rec. Bags
+            </th>
+            <th className="p-2.5 text-right" rowSpan={2}>
+              Bags at Agency GP
+            </th>
+            <th className="p-2.5 no-print" rowSpan={2}>
+              Status
+            </th>
+            {(onView || onContinueDraft) && (
+              <th className="p-2.5 text-center no-print" rowSpan={2}>
+                Action
+              </th>
+            )}
           </tr>
           <tr className="border-b border-[var(--border-subtle)] text-xs font-semibold text-[var(--text-muted-alt)] bg-[var(--bg-base)]">
-            <th className="p-2 text-right border-l border-[var(--border-subtle)]">A</th>
+            <th className="p-2 text-right border-l border-[var(--border-subtle)]">
+              A
+            </th>
             <th className="p-2 text-right">B</th>
             <th className="p-2 text-right text-amber-400">A</th>
             <th className="p-2 text-right text-amber-400">B</th>
@@ -890,25 +1089,31 @@ function MillTable({
             <tr
               key={r.id || i}
               className={`border-b border-[var(--border-subtle-alt)] whitespace-nowrap ${
-                r.isBackdated ? 'bg-violet-500/20 text-violet-100' : ''
+                r.isBackdated ? "bg-violet-500/20 text-violet-100" : ""
               }`}
               title={
                 r.isBackdated
-                  ? `Backdated entry${r.entryMadeByName ? ` by ${r.entryMadeByName}` : ''}${r.entryCompletionAt ? ` at ${r.entryCompletionAt}` : ''}`
+                  ? `Backdated entry${r.entryMadeByName ? ` by ${r.entryMadeByName}` : ""}${r.entryCompletionAt ? ` at ${r.entryCompletionAt}` : ""}`
                   : undefined
               }
             >
               <td className="p-2">{r.sno ?? i + 1}</td>
               <td className="p-2">{r.date}</td>
               <td className="p-2 text-xs">{r.rstNo}</td>
-              <td className="p-2">{r.timeIn || '-'}</td>
-              <td className="p-2 whitespace-nowrap">{r.gpCompleteDate || '-'}</td>
-              <td className="p-2">{r.timeOut || '-'}</td>
-              <td className="p-2 font-mono text-xs font-bold text-[var(--text-main)]">{r.millGp}</td>
+              <td className="p-2">{r.timeIn || "-"}</td>
+              <td className="p-2 whitespace-nowrap">
+                {r.gpCompleteDate || "-"}
+              </td>
+              <td className="p-2">{r.timeOut || "-"}</td>
+              <td className="p-2 font-mono text-xs font-bold text-[var(--text-main)]">
+                {r.millGp}
+              </td>
               <td className="p-2 text-xs">{r.agencyGp}</td>
               <td className="p-2">{r.truckNo}</td>
               <td className="p-2">{r.mandi}</td>
-              <td className="p-2 font-bold text-[var(--text-main)]">{r.partyName}</td>
+              <td className="p-2 font-bold text-[var(--text-main)]">
+                {r.partyName}
+              </td>
               <td className="p-2">
                 <SupervisorCell
                   name={r.entryMadeByName}
@@ -916,41 +1121,61 @@ function MillTable({
                   onClick={onSupervisorClick}
                 />
               </td>
-              <td className="p-2 text-right border-l border-[var(--border-subtle)]">{r.aClassMill}</td>
+              <td className="p-2 text-right border-l border-[var(--border-subtle)]">
+                {r.aClassMill}
+              </td>
               <td className="p-2 text-right">{r.bClassMill}</td>
-              <td className="p-2 text-right text-amber-400">{r.aClassShortage}</td>
-              <td className="p-2 text-right text-amber-400">{r.bClassShortage}</td>
-              <td className="p-2 text-right text-[#e67e00] font-bold">{r.aClassTotal ?? (Number(r.aClassMill||0)+Number(r.aClassShortage||0))}</td>
-              <td className="p-2 text-right text-[#e67e00] font-bold">{r.bClassTotal ?? (Number(r.bClassMill||0)+Number(r.bClassShortage||0))}</td>
-              <td className="p-2 text-right">{r.moisture ?? '-'}</td>
-              <td className="p-2 text-right">{r.requiredNetWt || '-'}</td>
-              <td className="p-2 text-right font-bold">{r.millNetWt || '-'}</td>
-              <td className="p-2 text-right">{r.surplus ?? '-'}</td>
-              <td className="p-2 text-right font-bold">{r.millBags ?? '-'}</td>
-              <td className="p-2 text-right">{r.agencyBags ?? '-'}</td>
+              <td className="p-2 text-right text-amber-400">
+                {r.aClassShortage}
+              </td>
+              <td className="p-2 text-right text-amber-400">
+                {r.bClassShortage}
+              </td>
+              <td className="p-2 text-right text-[#e67e00] font-bold">
+                {r.aClassTotal ??
+                  Number(r.aClassMill || 0) + Number(r.aClassShortage || 0)}
+              </td>
+              <td className="p-2 text-right text-[#e67e00] font-bold">
+                {r.bClassTotal ??
+                  Number(r.bClassMill || 0) + Number(r.bClassShortage || 0)}
+              </td>
+              <td className="p-2 text-right">{r.moisture ?? "-"}</td>
+              <td className="p-2 text-right">{r.requiredNetWt || "-"}</td>
+              <td className="p-2 text-right font-bold">{r.millNetWt || "-"}</td>
+              <td className="p-2 text-right">{r.surplus ?? "-"}</td>
+              <td className="p-2 text-right font-bold">{r.millBags ?? "-"}</td>
+              <td className="p-2 text-right">{r.agencyBags ?? "-"}</td>
               <td className="p-2 no-print">
                 <span
                   className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                    r.status === 'DRAFT'
-                      ? 'bg-amber-500/20 text-amber-400'
-                      : r.status === 'CONFIRMED' || r.status === 'COMPLETED'
-                        ? 'bg-green-500/20 text-green-400'
-                        : 'bg-[var(--glass-bg)]'
+                    r.status === "DRAFT"
+                      ? "bg-amber-500/20 text-amber-400"
+                      : r.status === "CONFIRMED" || r.status === "COMPLETED"
+                        ? "bg-green-500/20 text-green-400"
+                        : "bg-[var(--glass-bg)]"
                   }`}
                 >
-                  {r.status || '-'}
+                  {r.status || "-"}
                 </span>
               </td>
               {(onView || onContinueDraft) && (
                 <td className="p-2 text-center no-print">
                   <div className="flex justify-center gap-1">
-                    {r.status === 'DRAFT' && onContinueDraft && (
-                      <button onClick={() => onContinueDraft(r)} className="text-[#e67e00] p-1" title="Continue Draft">
+                    {r.status === "DRAFT" && onContinueDraft && (
+                      <button
+                        onClick={() => onContinueDraft(r)}
+                        className="text-[#e67e00] p-1"
+                        title="Continue Draft"
+                      >
                         <Edit size={16} />
                       </button>
                     )}
                     {onView && (
-                      <button onClick={() => onView(r)} className="text-blue-500 p-1" title="View">
+                      <button
+                        onClick={() => onView(r)}
+                        className="text-blue-500 p-1"
+                        title="View"
+                      >
                         <Eye size={16} />
                       </button>
                     )}
@@ -961,7 +1186,10 @@ function MillTable({
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={26} className="p-6 text-center text-[var(--text-muted-alt)]">
+              <td
+                colSpan={26}
+                className="p-6 text-center text-[var(--text-muted-alt)]"
+              >
                 No mill inward rows.
               </td>
             </tr>

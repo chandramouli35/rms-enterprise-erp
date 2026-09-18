@@ -1,22 +1,30 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Download, Edit, Package, ArrowUpRight, ArrowDownRight, Printer } from 'lucide-react';
-import api from '../../api/axios';
-import { usePlantStore } from '../../store/plantStore';
-import { useUiStore } from '../../store/uiStore';
-import { useAuthStore } from '../../store/authStore';
-import { useMandiStore } from '../../store/mandiStore';
-import { biometricService } from '../../services/biometricService';
-import Pagination from '../Pagination';
-import Combobox from '../Combobox';
-import { CustomModal } from '../CustomModal';
-import { exportToExcel } from '../../utils/exportUtils';
-import { useSubmitLock } from '../../hooks/useSubmitLock';
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Download,
+  Edit,
+  Package,
+  ArrowUpRight,
+  ArrowDownRight,
+  Printer,
+} from "lucide-react";
+import api from "../../api/axios";
+import { usePlantStore } from "../../store/plantStore";
+import { useUiStore } from "../../store/uiStore";
+import { useAuthStore } from "../../store/authStore";
+import { useMandiStore } from "../../store/mandiStore";
+import { biometricService } from "../../services/biometricService";
+import Pagination from "../Pagination";
+import Combobox from "../Combobox";
+import { CustomModal } from "../CustomModal";
+import { exportToExcel } from "../../utils/exportUtils";
+import { useSubmitLock } from "../../hooks/useSubmitLock";
 
 /** Hide faker / Latin placeholder notes left in seed or test data */
 function displayNote(note?: string | null): string {
-  const n = String(note || '').trim();
-  if (!n) return '';
-  if (/(iusto|lusto|quasi|quia sint|nobis veri|ipsum|dolor sit)/i.test(n)) return '';
+  const n = String(note || "").trim();
+  if (!n) return "";
+  if (/(iusto|lusto|quasi|quia sint|nobis veri|ipsum|dolor sit)/i.test(n))
+    return "";
   return n;
 }
 
@@ -40,15 +48,17 @@ export default function BoliRecordPanel({
 }: Props) {
   const activePlant = usePlantStore((s) => s.activePlant);
   const user = useAuthStore((s) => s.user);
-  const isSupervisor = user?.role === 'SUPERVISOR';
-  const isAdmin = /SUPER_ADMIN|PLANT_MANAGER|ADMIN/i.test(String(user?.role || ''));
+  const isSupervisor = user?.role === "SUPERVISOR";
+  const isAdmin = /SUPER_ADMIN|PLANT_MANAGER|ADMIN/i.test(
+    String(user?.role || ""),
+  );
   const { mandis } = useMandiStore();
 
   const [filters, setFilters] = useState({
-    supplierId: '',
-    mandi: '',
-    dateFrom: '',
-    dateTo: '',
+    supplierId: "",
+    mandi: "",
+    dateFrom: "",
+    dateTo: "",
   });
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -59,12 +69,12 @@ export default function BoliRecordPanel({
   const [openBolis, setOpenBolis] = useState<any[]>([]);
   const [supervisors, setSupervisors] = useState<any[]>([]);
   const [finalForm, setFinalForm] = useState({
-    boliId: '',
-    supervisorName: '',
-    artiaBillChecked: 'No' as 'Yes' | 'No',
+    boliId: "",
+    supervisorName: "",
+    artiaBillChecked: "No" as "Yes" | "No",
     /** Final Bags per boli line (Feedback 32 — up to 4 lines like Estimate Purchase) */
     finalBagsById: {} as Record<string, string>,
-    biometricData: '',
+    biometricData: "",
   });
   const [finalSaving, setFinalSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -83,7 +93,7 @@ export default function BoliRecordPanel({
       if (!bySoda.has(key)) bySoda.set(key, b);
     }
     return [...bySoda.values()].sort((a, b) =>
-      String(a.boliNo || '').localeCompare(String(b.boliNo || '')),
+      String(a.boliNo || "").localeCompare(String(b.boliNo || "")),
     );
   }, [openBolis]);
 
@@ -102,11 +112,11 @@ export default function BoliRecordPanel({
 
   const resetFinalForm = () =>
     setFinalForm({
-      boliId: '',
-      supervisorName: '',
-      artiaBillChecked: 'No',
+      boliId: "",
+      supervisorName: "",
+      artiaBillChecked: "No",
       finalBagsById: {},
-      biometricData: '',
+      biometricData: "",
     });
 
   const fetchRows = async () => {
@@ -114,18 +124,20 @@ export default function BoliRecordPanel({
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
-      if (filters.dateTo) params.append('dateTo', filters.dateTo);
-      if (filters.mandi) params.append('mandi', filters.mandi);
-      if (filters.supplierId) params.append('supplierId', filters.supplierId);
-      params.append('page', String(page));
-      params.append('limit', String(pageSize));
-      const res = await api.get(`/api/procurement/boli-records/${activePlant.id}?${params}`);
+      if (filters.dateFrom) params.append("dateFrom", filters.dateFrom);
+      if (filters.dateTo) params.append("dateTo", filters.dateTo);
+      if (filters.mandi) params.append("mandi", filters.mandi);
+      if (filters.supplierId) params.append("supplierId", filters.supplierId);
+      params.append("page", String(page));
+      params.append("limit", String(pageSize));
+      const res = await api.get(
+        `/api/procurement/boli-records/${activePlant.id}?${params}`,
+      );
       setRows(res.data?.data || []);
       setTotal(res.data?.total || 0);
     } catch (e) {
       console.error(e);
-      useUiStore.getState().addToast('Failed to load Boli records', 'error');
+      useUiStore.getState().addToast("Failed to load Boli records", "error");
     } finally {
       setLoading(false);
     }
@@ -134,7 +146,9 @@ export default function BoliRecordPanel({
   const fetchOpenBolis = async () => {
     if (!activePlant?.id) return;
     try {
-      const res = await api.get(`/api/procurement/bolis/open-for-final/${activePlant.id}`);
+      const res = await api.get(
+        `/api/procurement/bolis/open-for-final/${activePlant.id}`,
+      );
       setOpenBolis(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
       console.error(e);
@@ -144,7 +158,9 @@ export default function BoliRecordPanel({
   const fetchSupervisors = async () => {
     if (!activePlant?.id) return;
     try {
-      const res = await api.get(`/api/procurement/supervisors/${activePlant.id}`);
+      const res = await api.get(
+        `/api/procurement/supervisors/${activePlant.id}`,
+      );
       setSupervisors(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
       console.error(e);
@@ -163,12 +179,26 @@ export default function BoliRecordPanel({
 
   // Cluster-wise Artia daily stats from current page rows (display aid)
   const dailyStats = useMemo(() => {
-    const stats: Record<string, { maxRate: number; minRate: number; overPricedValue: number; govtRate: number }> = {};
+    const stats: Record<
+      string,
+      {
+        maxRate: number;
+        minRate: number;
+        overPricedValue: number;
+        govtRate: number;
+      }
+    > = {};
     rows.forEach((r) => {
       if (r.isCancelled) return;
       const d = new Date(r.date).toLocaleDateString();
       const govtRate = r.govtRate || activePlant?.govtRate || 0;
-      if (!stats[d]) stats[d] = { maxRate: 0, minRate: Infinity, overPricedValue: 0, govtRate };
+      if (!stats[d])
+        stats[d] = {
+          maxRate: 0,
+          minRate: Infinity,
+          overPricedValue: 0,
+          govtRate,
+        };
       const rate = Number(r.rate) || 0;
       if (rate > stats[d].maxRate) stats[d].maxRate = rate;
       if (rate < stats[d].minRate) stats[d].minRate = rate;
@@ -181,19 +211,21 @@ export default function BoliRecordPanel({
     }));
   }, [rows, activePlant]);
 
-  const exportAll = async (mode: 'excel' | 'print' = 'excel') => {
+  const exportAll = async (mode: "excel" | "print" = "excel") => {
     if (!activePlant?.id) return;
     try {
       const params = new URLSearchParams();
-      if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
-      if (filters.dateTo) params.append('dateTo', filters.dateTo);
-      if (filters.mandi) params.append('mandi', filters.mandi);
-      if (filters.supplierId) params.append('supplierId', filters.supplierId);
-      params.append('page', '1');
-      params.append('limit', '1000000');
-      const res = await api.get(`/api/procurement/boli-records/${activePlant.id}?${params}`);
+      if (filters.dateFrom) params.append("dateFrom", filters.dateFrom);
+      if (filters.dateTo) params.append("dateTo", filters.dateTo);
+      if (filters.mandi) params.append("mandi", filters.mandi);
+      if (filters.supplierId) params.append("supplierId", filters.supplierId);
+      params.append("page", "1");
+      params.append("limit", "1000000");
+      const res = await api.get(
+        `/api/procurement/boli-records/${activePlant.id}?${params}`,
+      );
       const list = res.data?.data || [];
-      if (mode === 'print') {
+      if (mode === "print") {
         const html = `
           <html><head><title>Boli Record</title>
           <style>
@@ -203,8 +235,8 @@ export default function BoliRecordPanel({
             th{background:#eee}
             h1{font-size:16px}
           </style></head><body>
-          <h1>Boli Record — ${activePlant.name || ''}</h1>
-          <p>Filters: Artia=${filters.supplierId || 'All'}, Mandi=${filters.mandi || 'All'}, ${filters.dateFrom || '…'} to ${filters.dateTo || '…'}</p>
+          <h1>Boli Record — ${activePlant.name || ""}</h1>
+          <p>Filters: Artia=${filters.supplierId || "All"}, Mandi=${filters.mandi || "All"}, ${filters.dateFrom || "…"} to ${filters.dateTo || "…"}</p>
           <table><thead><tr>
             <th>Party</th><th>Date</th><th>Boli No</th><th>M/C</th><th>Est</th><th>Final</th><th>Rate</th>
             <th>Payment</th><th>Hisab</th><th>Received</th><th>Balance</th><th>Complete</th><th>Note</th>
@@ -212,24 +244,24 @@ export default function BoliRecordPanel({
           ${list
             .map(
               (item: any) => `<tr>
-              <td>${item.partyName || ''}</td>
-              <td>${item.date ? new Date(item.date).toLocaleDateString() : ''}</td>
-              <td>${item.boliNo || ''}</td>
-              <td>${item.moisture ?? ''}</td>
-              <td>${item.estimatedBags ?? ''}</td>
-              <td>${item.finalBags ?? ''}</td>
-              <td>${item.rate ?? ''}</td>
-              <td>${item.payment ?? ''}</td>
-              <td>${item.finalHisabAmt ?? ''}</td>
+              <td>${item.partyName || ""}</td>
+              <td>${item.date ? new Date(item.date).toLocaleDateString() : ""}</td>
+              <td>${item.boliNo || ""}</td>
+              <td>${item.moisture ?? ""}</td>
+              <td>${item.estimatedBags ?? ""}</td>
+              <td>${item.finalBags ?? ""}</td>
+              <td>${item.rate ?? ""}</td>
+              <td>${item.payment ?? ""}</td>
+              <td>${item.finalHisabAmt ?? ""}</td>
               <td>${item.bagsReceived ?? 0}</td>
-              <td>${item.balanceBags ?? ''}</td>
-              <td>${item.isCompleted ? 'Yes' : item.isCancelled ? 'Cancelled' : 'Underway'}</td>
+              <td>${item.balanceBags ?? ""}</td>
+              <td>${item.isCompleted ? "Yes" : item.isCancelled ? "Cancelled" : "Underway"}</td>
               <td>${displayNote(item.note)}</td>
             </tr>`,
             )
-            .join('')}
+            .join("")}
           </tbody></table></body></html>`;
-        const w = window.open('', '_blank');
+        const w = window.open("", "_blank");
         if (w) {
           w.document.write(html);
           w.document.close();
@@ -239,22 +271,22 @@ export default function BoliRecordPanel({
         return;
       }
       const data = list.map((item: any) => ({
-        'Party Name': item.partyName,
+        "Party Name": item.partyName,
         Date: item.date,
-        'Boli No.': item.boliNo,
-        'M/C': item.moisture,
-        'Estimated Bags': item.estimatedBags,
-        'Final Bags': item.finalBags,
+        "Boli No.": item.boliNo,
+        "M/C": item.moisture,
+        "Estimated Bags": item.estimatedBags,
+        "Final Bags": item.finalBags,
         Rate: item.rate,
         Payment: item.payment,
-        'Final Hisab Amount': item.finalHisabAmt,
-        'Received Bags': item.bagsReceived,
-        'Balance Bags': item.balanceBags,
-        'Complete Soda': item.isCompleted
-          ? 'Done'
+        "Final Hisab Amount": item.finalHisabAmt,
+        "Received Bags": item.bagsReceived,
+        "Balance Bags": item.balanceBags,
+        "Complete Soda": item.isCompleted
+          ? "Done"
           : item.isCancelled
-            ? 'Cancelled'
-            : 'Underway',
+            ? "Cancelled"
+            : "Underway",
         Note: displayNote(item.note),
         Mandi: item.mandi,
         Supervisor: item.supervisorName,
@@ -262,7 +294,9 @@ export default function BoliRecordPanel({
       exportToExcel(data, `Boli_Record_Full`);
     } catch (e) {
       console.error(e);
-      useUiStore.getState().addToast(mode === 'print' ? 'Print failed' : 'Export failed', 'error');
+      useUiStore
+        .getState()
+        .addToast(mode === "print" ? "Print failed" : "Export failed", "error");
     }
   };
 
@@ -284,16 +318,16 @@ export default function BoliRecordPanel({
     payment: string;
     note: string;
     finalBags: string;
-  }>({ isOpen: false, row: null, payment: '', note: '', finalBags: '' });
+  }>({ isOpen: false, row: null, payment: "", note: "", finalBags: "" });
   const adminEditLock = useSubmitLock();
 
   const openAdminEdit = (row: any) => {
     setAdminEdit({
       isOpen: true,
       row,
-      payment: row.payment != null ? String(row.payment) : '',
+      payment: row.payment != null ? String(row.payment) : "",
       note: displayNote(row.note),
-      finalBags: row.finalBags != null ? String(row.finalBags) : '',
+      finalBags: row.finalBags != null ? String(row.finalBags) : "",
     });
   };
 
@@ -301,18 +335,38 @@ export default function BoliRecordPanel({
     e.preventDefault();
     if (!adminEdit.row?.boliId) return;
     await adminEditLock.wrapSubmit(async () => {
-    try {
-      await api.put(`/api/procurement/bolis/${adminEdit.row.boliId}/admin-table01`, {
-        payment: adminEdit.payment === '' ? undefined : parseFloat(adminEdit.payment),
-        note: adminEdit.note,
-        finalBags: adminEdit.finalBags === '' ? undefined : parseInt(adminEdit.finalBags, 10),
-      });
-      useUiStore.getState().addToast('Table 01 row updated', 'success');
-      setAdminEdit({ isOpen: false, row: null, payment: '', note: '', finalBags: '' });
-      await fetchRows();
-    } catch (err: any) {
-      useUiStore.getState().addToast(err.response?.data?.message || 'Admin update failed', 'error');
-    }
+      try {
+        await api.put(
+          `/api/procurement/bolis/${adminEdit.row.boliId}/admin-table01`,
+          {
+            payment:
+              adminEdit.payment === ""
+                ? undefined
+                : parseFloat(adminEdit.payment),
+            note: adminEdit.note,
+            finalBags:
+              adminEdit.finalBags === ""
+                ? undefined
+                : parseInt(adminEdit.finalBags, 10),
+          },
+        );
+        useUiStore.getState().addToast("Table 01 row updated", "success");
+        setAdminEdit({
+          isOpen: false,
+          row: null,
+          payment: "",
+          note: "",
+          finalBags: "",
+        });
+        await fetchRows();
+      } catch (err: any) {
+        useUiStore
+          .getState()
+          .addToast(
+            err.response?.data?.message || "Admin update failed",
+            "error",
+          );
+      }
     });
   };
 
@@ -329,13 +383,20 @@ export default function BoliRecordPanel({
     try {
       const xml = await biometricService.captureFingerprint();
       setFinalForm((f) => ({ ...f, biometricData: xml }));
-      useUiStore.getState().addToast('Fingerprint captured', 'success');
+      useUiStore.getState().addToast("Fingerprint captured", "success");
     } catch (e: any) {
       if (isAdmin) {
-        setFinalForm((f) => ({ ...f, biometricData: 'ADMIN_BYPASS' }));
-        useUiStore.getState().addToast('Admin bypass fingerprint (scanner unavailable)', 'success');
+        setFinalForm((f) => ({ ...f, biometricData: "ADMIN_BYPASS" }));
+        useUiStore
+          .getState()
+          .addToast(
+            "Admin bypass fingerprint (scanner unavailable)",
+            "success",
+          );
       } else {
-        useUiStore.getState().addToast(e.message || 'Fingerprint capture failed', 'error');
+        useUiStore
+          .getState()
+          .addToast(e.message || "Fingerprint capture failed", "error");
       }
     } finally {
       setScanning(false);
@@ -345,16 +406,18 @@ export default function BoliRecordPanel({
   const submitFinalBoli = async (e: React.FormEvent) => {
     e.preventDefault();
     if (finalSaving) return;
-    if (finalForm.artiaBillChecked !== 'Yes') {
-      useUiStore.getState().addToast('Set Artia Bill Checked And Matched to Yes', 'error');
+    if (finalForm.artiaBillChecked !== "Yes") {
+      useUiStore
+        .getState()
+        .addToast("Set Artia Bill Checked And Matched to Yes", "error");
       return;
     }
     if (!finalForm.boliId) {
-      useUiStore.getState().addToast('Select a Boli No. first', 'error');
+      useUiStore.getState().addToast("Select a Boli No. first", "error");
       return;
     }
     if (!finalForm.biometricData) {
-      useUiStore.getState().addToast('Fingerprint required', 'error');
+      useUiStore.getState().addToast("Fingerprint required", "error");
       return;
     }
 
@@ -363,12 +426,14 @@ export default function BoliRecordPanel({
       .map((b: any) => ({
         id: b.id,
         boliNo: b.boliNo,
-        bags: String(finalForm.finalBagsById[b.id] ?? '').trim(),
+        bags: String(finalForm.finalBagsById[b.id] ?? "").trim(),
       }))
-      .filter((x) => x.bags !== '');
+      .filter((x) => x.bags !== "");
 
     if (!toSubmit.length) {
-      useUiStore.getState().addToast('Enter Final Bags on at least one line', 'error');
+      useUiStore
+        .getState()
+        .addToast("Enter Final Bags on at least one line", "error");
       return;
     }
     for (const row of toSubmit) {
@@ -376,8 +441,8 @@ export default function BoliRecordPanel({
         useUiStore
           .getState()
           .addToast(
-            `Final Bags for ${row.boliNo || 'line'} must be a whole number (max 999)`,
-            'error',
+            `Final Bags for ${row.boliNo || "line"} must be a whole number (max 999)`,
+            "error",
           );
         return;
       }
@@ -389,7 +454,8 @@ export default function BoliRecordPanel({
         await api.put(`/api/procurement/bolis/${row.id}/final`, {
           artiaBillChecked: true,
           finalBags: parseInt(row.bags, 10),
-          supervisorName: finalForm.supervisorName || selectedOpen?.supervisorName,
+          supervisorName:
+            finalForm.supervisorName || selectedOpen?.supervisorName,
           biometricData: finalForm.biometricData,
         });
       }
@@ -397,15 +463,20 @@ export default function BoliRecordPanel({
         .getState()
         .addToast(
           toSubmit.length === 1
-            ? 'Final Boli submitted'
+            ? "Final Boli submitted"
             : `${toSubmit.length} Final Boli lines submitted`,
-          'success',
+          "success",
         );
       resetFinalForm();
       await fetchRows();
       await fetchOpenBolis();
     } catch (err: any) {
-      useUiStore.getState().addToast(err.response?.data?.message || 'Failed to submit Final Boli', 'error');
+      useUiStore
+        .getState()
+        .addToast(
+          err.response?.data?.message || "Failed to submit Final Boli",
+          "error",
+        );
     } finally {
       setFinalSaving(false);
     }
@@ -423,14 +494,19 @@ export default function BoliRecordPanel({
     setCancelling(true);
     try {
       await api.put(`/api/procurement/bolis/${selectedOpen.id}/cancel`);
-      useUiStore.getState().addToast(`Boli ${selectedOpen.boliNo} cancelled`, 'success');
+      useUiStore
+        .getState()
+        .addToast(`Boli ${selectedOpen.boliNo} cancelled`, "success");
       resetFinalForm();
       await fetchRows();
       await fetchOpenBolis();
     } catch (err: any) {
       useUiStore
         .getState()
-        .addToast(err.response?.data?.message || 'Failed to cancel boli', 'error');
+        .addToast(
+          err.response?.data?.message || "Failed to cancel boli",
+          "error",
+        );
     } finally {
       setCancelling(false);
     }
@@ -453,8 +529,8 @@ export default function BoliRecordPanel({
       useUiStore
         .getState()
         .addToast(
-          `Soda cancelled (${res.data?.cancelled ?? ''} boli)`,
-          'success',
+          `Soda cancelled (${res.data?.cancelled ?? ""} boli)`,
+          "success",
         );
       resetFinalForm();
       await fetchRows();
@@ -462,16 +538,19 @@ export default function BoliRecordPanel({
     } catch (err: any) {
       useUiStore
         .getState()
-        .addToast(err.response?.data?.message || 'Failed to cancel soda', 'error');
+        .addToast(
+          err.response?.data?.message || "Failed to cancel soda",
+          "error",
+        );
     } finally {
       setCancelling(false);
     }
   };
 
-  const billYes = finalForm.artiaBillChecked === 'Yes';
+  const billYes = finalForm.artiaBillChecked === "Yes";
 
   // Group rows visually by Artia (cluster-wise)
-  let lastParty = '';
+  let lastParty = "";
 
   return (
     <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
@@ -483,13 +562,13 @@ export default function BoliRecordPanel({
           {!isSupervisor && (
             <>
               <button
-                onClick={() => exportAll('excel')}
+                onClick={() => exportAll("excel")}
                 className="flex items-center gap-2 bg-[#107c41] text-white px-3 py-1.5 rounded hover:bg-[#1f8c51] transition-colors text-sm font-medium"
               >
                 <Download size={16} /> Export All
               </button>
               <button
-                onClick={() => exportAll('print')}
+                onClick={() => exportAll("print")}
                 className="flex items-center gap-2 bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-[var(--text-main)] px-3 py-1.5 rounded text-sm font-medium"
               >
                 <Printer size={16} /> Print All
@@ -511,7 +590,9 @@ export default function BoliRecordPanel({
         {/* Filters: Artia → Mandi → From/To */}
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Artia (Supplier) Name</label>
+            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+              Artia (Supplier) Name
+            </label>
             <Combobox
               name="supplierIdFilter"
               value={filters.supplierId}
@@ -524,7 +605,10 @@ export default function BoliRecordPanel({
                   // Feedback 32 — Artia select shows from first entry of the season
                   ...(supplierId
                     ? {
-                        dateFrom: f.dateFrom && f.dateFrom !== todayStr() ? f.dateFrom : seasonStartStr(),
+                        dateFrom:
+                          f.dateFrom && f.dateFrom !== todayStr()
+                            ? f.dateFrom
+                            : seasonStartStr(),
                         dateTo: f.dateTo || todayStr(),
                       }
                     : {}),
@@ -540,7 +624,9 @@ export default function BoliRecordPanel({
             />
           </div>
           <div>
-            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">Mandi</label>
+            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+              Mandi
+            </label>
             <select
               value={filters.mandi}
               onChange={(e) => {
@@ -550,15 +636,19 @@ export default function BoliRecordPanel({
               className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm"
             >
               <option value="">All Mandis</option>
-              {mandis.filter((m: any) => m.isActive).map((m: any) => (
-                <option key={m.id} value={m.name}>
-                  {m.name}
-                </option>
-              ))}
+              {mandis
+                .filter((m: any) => m.isActive)
+                .map((m: any) => (
+                  <option key={m.id} value={m.name}>
+                    {m.name}
+                  </option>
+                ))}
             </select>
           </div>
           <div>
-            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">From Date</label>
+            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+              From Date
+            </label>
             <input
               type="date"
               value={filters.dateFrom}
@@ -570,7 +660,9 @@ export default function BoliRecordPanel({
             />
           </div>
           <div>
-            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">To Date</label>
+            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+              To Date
+            </label>
             <input
               type="date"
               value={filters.dateTo}
@@ -584,7 +676,12 @@ export default function BoliRecordPanel({
           <button
             onClick={() => {
               setPage(1);
-              setFilters({ supplierId: '', mandi: '', dateFrom: '', dateTo: '' });
+              setFilters({
+                supplierId: "",
+                mandi: "",
+                dateFrom: "",
+                dateTo: "",
+              });
             }}
             className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded border border-[var(--border-subtle)] text-sm"
           >
@@ -599,14 +696,20 @@ export default function BoliRecordPanel({
                 key={stat.date}
                 className="min-w-[160px] bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg p-2 text-xs"
               >
-                <div className="font-bold text-[var(--text-muted-alt)]">{stat.date}</div>
+                <div className="font-bold text-[var(--text-muted-alt)]">
+                  {stat.date}
+                </div>
                 <div className="flex justify-between mt-1">
                   <span>High</span>
-                  <span className="text-red-400 font-bold">₹{stat.maxRate}</span>
+                  <span className="text-red-400 font-bold">
+                    ₹{stat.maxRate}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Low</span>
-                  <span className="text-green-400 font-bold">₹{stat.minRate}</span>
+                  <span className="text-green-400 font-bold">
+                    ₹{stat.minRate}
+                  </span>
                 </div>
               </div>
             ))}
@@ -637,7 +740,10 @@ export default function BoliRecordPanel({
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={14} className="p-6 text-center text-[var(--text-muted-alt)]">
+                  <td
+                    colSpan={14}
+                    className="p-6 text-center text-[var(--text-muted-alt)]"
+                  >
                     Loading…
                   </td>
                 </tr>
@@ -650,48 +756,72 @@ export default function BoliRecordPanel({
                     <tr
                       key={r.boliId}
                       className={`hover:bg-[var(--glass-bg)]/60 ${
-                        r.isCancelled ? 'opacity-50' : ''
-                      } ${showCluster ? 'pt-1' : ''}`}
+                        r.isCancelled ? "opacity-50" : ""
+                      } ${showCluster ? "pt-1" : ""}`}
                     >
                       <td className="p-2 font-medium text-[var(--text-main)]">
-                        {showCluster ? r.partyName : ''}
+                        {showCluster ? r.partyName : ""}
                         {r.mandi && showCluster ? (
-                          <div className="text-[10px] text-[var(--text-muted-alt)]">{r.mandi}</div>
+                          <div className="text-[10px] text-[var(--text-muted-alt)]">
+                            {r.mandi}
+                          </div>
                         ) : null}
                       </td>
-                      <td className="p-2">{new Date(r.date).toLocaleDateString()}</td>
-                      <td className="p-2 font-mono text-xs text-[#e67e00]">{r.boliNo || '-'}</td>
-                      <td className="p-2">{r.moisture ?? '-'}</td>
-                      <td className="p-2">{r.estimatedBags ?? '-'}</td>
-                      <td className="p-2 font-bold text-[var(--text-main)]">{r.finalBags ?? '—'}</td>
-                      <td className="p-2 text-[#e67e00] font-bold">{r.rate ?? '-'}</td>
-                      <td className="p-2">{r.payment != null ? `₹${Number(r.payment).toFixed(2)}` : '—'}</td>
+                      <td className="p-2">
+                        {new Date(r.date).toLocaleDateString()}
+                      </td>
+                      <td className="p-2 font-mono text-xs text-[#e67e00]">
+                        {r.boliNo || "-"}
+                      </td>
+                      <td className="p-2">{r.moisture ?? "-"}</td>
+                      <td className="p-2">{r.estimatedBags ?? "-"}</td>
+                      <td className="p-2 font-bold text-[var(--text-main)]">
+                        {r.finalBags ?? "—"}
+                      </td>
+                      <td className="p-2 text-[#e67e00] font-bold">
+                        {r.rate ?? "-"}
+                      </td>
+                      <td className="p-2">
+                        {r.payment != null
+                          ? `₹${Number(r.payment).toFixed(2)}`
+                          : "—"}
+                      </td>
                       <td className="p-2">
                         {Number(r.finalHisabAmt) > 0 ? (
                           <span className="text-red-500 font-bold inline-flex items-center gap-1">
-                            <ArrowUpRight size={12} /> ₹{Number(r.finalHisabAmt).toFixed(2)}
+                            <ArrowUpRight size={12} /> ₹
+                            {Number(r.finalHisabAmt).toFixed(2)}
                           </span>
                         ) : Number(r.finalHisabAmt) < 0 ? (
                           <span className="text-green-500 font-bold inline-flex items-center gap-1">
-                            <ArrowDownRight size={12} /> ₹{Math.abs(Number(r.finalHisabAmt)).toFixed(2)}
+                            <ArrowDownRight size={12} /> ₹
+                            {Math.abs(Number(r.finalHisabAmt)).toFixed(2)}
                           </span>
                         ) : (
                           <span>₹0</span>
                         )}
                       </td>
                       <td className="p-2">{r.bagsReceived ?? 0}</td>
-                      <td className="p-2">{r.balanceBags != null ? r.balanceBags : '—'}</td>
+                      <td className="p-2">
+                        {r.balanceBags != null ? r.balanceBags : "—"}
+                      </td>
                       <td className="p-2 text-center">
                         {r.isCompleted ? (
-                          <span className="text-green-500 text-xs font-bold">✓ Done</span>
+                          <span className="text-green-500 text-xs font-bold">
+                            ✓ Done
+                          </span>
                         ) : r.isCancelled ? (
-                          <span className="text-[var(--text-muted-alt)] text-xs">Cancelled</span>
+                          <span className="text-[var(--text-muted-alt)] text-xs">
+                            Cancelled
+                          </span>
                         ) : (
-                          <span className="text-[var(--text-muted-alt)] text-xs">Underway</span>
+                          <span className="text-[var(--text-muted-alt)] text-xs">
+                            Underway
+                          </span>
                         )}
                       </td>
                       <td className="p-2 max-w-[120px] truncate">
-                        {displayNote(r.note) || ''}
+                        {displayNote(r.note) || ""}
                       </td>
                       <td className="p-2 text-right">
                         <div className="flex justify-end gap-1">
@@ -713,7 +843,9 @@ export default function BoliRecordPanel({
                               <Edit className="w-4 h-4" />
                             </button>
                           ) : !isAdmin ? (
-                            <span className="text-[10px] text-[var(--text-muted-alt)]">Locked</span>
+                            <span className="text-[10px] text-[var(--text-muted-alt)]">
+                              Locked
+                            </span>
                           ) : null}
                         </div>
                       </td>
@@ -722,7 +854,10 @@ export default function BoliRecordPanel({
                 })}
               {!loading && rows.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="p-6 text-center text-[var(--text-muted-alt)]">
+                  <td
+                    colSpan={14}
+                    className="p-6 text-center text-[var(--text-muted-alt)]"
+                  >
                     No boli records found.
                   </td>
                 </tr>
@@ -749,7 +884,6 @@ export default function BoliRecordPanel({
           </p>
         )}
 
-
         {/* Add Final Boli — Feedback 32 Pg.2 */}
         <div className="border border-[var(--border-subtle)] rounded-xl overflow-hidden bg-[var(--bg-panel-alt)]">
           <div className="px-4 py-2 border-b border-[var(--border-subtle)] font-bold text-sm text-[#e67e00] bg-[#e67e00]/10">
@@ -772,11 +906,11 @@ export default function BoliRecordPanel({
                       boliId: id,
                       supervisorName:
                         b?.supervisorName ||
-                        (isSupervisor ? user?.username : '') ||
-                        '',
-                      artiaBillChecked: 'No',
+                        (isSupervisor ? user?.username : "") ||
+                        "",
+                      artiaBillChecked: "No",
                       finalBagsById: {},
-                      biometricData: '',
+                      biometricData: "",
                     }));
                   }}
                   className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
@@ -787,7 +921,7 @@ export default function BoliRecordPanel({
                       {b.boliNo} — {b.artiaName}
                       {b.date
                         ? ` (${new Date(b.date).toLocaleDateString()})`
-                        : ''}
+                        : ""}
                     </option>
                   ))}
                 </select>
@@ -799,7 +933,7 @@ export default function BoliRecordPanel({
                 <input
                   readOnly
                   tabIndex={-1}
-                  value={selectedOpen?.artiaName || ''}
+                  value={selectedOpen?.artiaName || ""}
                   placeholder="—"
                   className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80 cursor-default"
                 />
@@ -811,7 +945,7 @@ export default function BoliRecordPanel({
                 <input
                   readOnly
                   tabIndex={-1}
-                  value={selectedOpen?.mandi || ''}
+                  value={selectedOpen?.mandi || ""}
                   placeholder="—"
                   className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80 cursor-default"
                 />
@@ -828,7 +962,7 @@ export default function BoliRecordPanel({
                       selectedOpen?.supervisorName ||
                       finalForm.supervisorName ||
                       user?.username ||
-                      ''
+                      ""
                     }
                     placeholder="—"
                     className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80 cursor-default"
@@ -863,7 +997,7 @@ export default function BoliRecordPanel({
                   Artia Bill Checked And Matched of this Boli
                 </label>
                 <div className="flex gap-4 py-2">
-                  {(['Yes', 'No'] as const).map((v) => (
+                  {(["Yes", "No"] as const).map((v) => (
                     <label
                       key={v}
                       className="flex items-center gap-2 cursor-pointer text-[var(--text-main)]"
@@ -876,8 +1010,8 @@ export default function BoliRecordPanel({
                           setFinalForm((f) => ({
                             ...f,
                             artiaBillChecked: v,
-                            ...(v === 'No'
-                              ? { finalBagsById: {}, biometricData: '' }
+                            ...(v === "No"
+                              ? { finalBagsById: {}, biometricData: "" }
                               : {}),
                           }))
                         }
@@ -902,147 +1036,180 @@ export default function BoliRecordPanel({
                       (!Number.isNaN(Number(b.estimatedBags)) &&
                         Number(b.estimatedBags) === 0)),
                 );
-              const showHeaders = !anyCancelled || finalBoliLines.some((b: any) => b && Number(b.estimatedBags) > 0);
+              const showHeaders =
+                !anyCancelled ||
+                finalBoliLines.some(
+                  (b: any) => b && Number(b.estimatedBags) > 0,
+                );
               return (
-            <div className="overflow-x-auto rounded-lg bg-[var(--bg-base)] px-1 py-2">
-              <table className="w-full text-sm border-separate border-spacing-0">
-                {showHeaders && (
-                <thead>
-                  <tr className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wide">
-                    <th className="font-medium text-left px-3 py-2 w-10">#</th>
-                    <th className="font-medium text-left px-3 py-2">Boli No.</th>
-                    <th className="font-medium text-left px-3 py-2">M/C</th>
-                    <th className="font-medium text-left px-3 py-2">
-                      Estimate Bags
-                    </th>
-                    <th className="font-medium text-left px-3 py-2">Rate</th>
-                    <th className="font-medium text-left px-3 py-2">
-                      Final Bags <span className="text-red-500 normal-case">*</span>
-                    </th>
-                  </tr>
-                </thead>
-                )}
-                <tbody>
-                  {finalBoliLines.map((line: any, idx: number) => {
-                    const bagsCancelled =
-                      !!line &&
-                      (line.isCancelled ||
-                        (!Number.isNaN(Number(line.estimatedBags)) &&
-                          Number(line.estimatedBags) === 0));
-                    const empty = !line;
-                    const dash = '-';
-                    return (
-                  <tr key={line?.id || `empty-${idx}`} className="border-t border-[var(--border-subtle)]/40">
-                    <td className="px-3 py-1.5 text-[var(--text-muted-alt)] text-xs">{idx + 1}</td>
-                    <td className="px-3 py-1.5 align-middle text-[var(--text-muted)] text-xs">
-                      {empty ? dash : line.boliNo || dash}
-                    </td>
-                    <td className="px-3 py-1.5 align-middle">
-                      <input
-                        readOnly
-                        tabIndex={-1}
-                        title="Auto-fetched from Estimate Purchase"
-                        value={
-                          empty || bagsCancelled
-                            ? ''
-                            : line.moisture != null && line.moisture !== ''
-                              ? String(line.moisture)
-                              : ''
-                        }
-                        placeholder={empty ? dash : bagsCancelled ? 'Cancelled' : 'Auto'}
-                        className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5 align-middle">
-                      <input
-                        readOnly
-                        tabIndex={-1}
-                        title="Auto-fetched from Estimate Purchase"
-                        value={
-                          empty || bagsCancelled
-                            ? ''
-                            : line.estimatedBags != null && line.estimatedBags !== ''
-                              ? String(line.estimatedBags)
-                              : ''
-                        }
-                        placeholder={empty ? dash : bagsCancelled ? '' : 'Auto'}
-                        className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5 align-middle">
-                      <input
-                        readOnly
-                        tabIndex={-1}
-                        title="Auto-fetched from Estimate Purchase"
-                        value={
-                          empty || bagsCancelled
-                            ? ''
-                            : line.rate != null && line.rate !== ''
-                              ? String(line.rate)
-                              : ''
-                        }
-                        placeholder={empty ? dash : bagsCancelled ? '' : 'Auto'}
-                        className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5 align-middle">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={3}
-                        disabled={empty || !billYes || bagsCancelled}
-                        title={
-                          empty
-                            ? 'Empty line (no boli on this slot)'
-                            : bagsCancelled
-                              ? 'Cancelled (Bags = 0) — Final Bags not applicable'
-                              : billYes
-                                ? 'Enter Final Bags manually (max 999, whole numbers)'
-                                : 'Set Artia Bill Checked = Yes to enable'
-                        }
-                        value={
-                          empty || bagsCancelled
-                            ? ''
-                            : finalForm.finalBagsById[line.id] || ''
-                        }
-                        onChange={(e) => {
-                          if (empty || !line?.id) return;
-                          const raw = e.target.value.replace(/\D/g, '').slice(0, 3);
-                          setFinalForm((f) => ({
-                            ...f,
-                            finalBagsById: {
-                              ...f.finalBagsById,
-                              [line.id]: raw,
-                            },
-                          }));
-                        }}
-                        placeholder={
-                          empty
-                            ? dash
-                            : bagsCancelled
-                              ? '—'
-                              : billYes
-                                ? 'Manual'
-                                : 'Locked'
-                        }
-                        className={`w-full min-w-[6rem] bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] outline-none focus:border-[#e67e00] ${
-                          empty || !billYes || bagsCancelled
-                            ? 'opacity-40 cursor-not-allowed'
-                            : ''
-                        }`}
-                      />
-                    </td>
-                  </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              <p className="text-[10px] text-[var(--text-muted-alt)] px-3 pt-1">
-                One Boli No. covers all today&apos;s lines for this Artia (Estimate Purchase).
-                M/C, Estimate Bags and Rate auto-fetch per line; empty slots show (-). Enter
-                Final Bags on each filled line when Artia Bill = Yes.
-              </p>
-            </div>
+                <div className="overflow-x-auto rounded-lg bg-[var(--bg-base)] px-1 py-2">
+                  <table className="w-full text-sm border-separate border-spacing-0">
+                    {showHeaders && (
+                      <thead>
+                        <tr className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wide">
+                          <th className="font-medium text-left px-3 py-2 w-10">
+                            #
+                          </th>
+                          <th className="font-medium text-left px-3 py-2">
+                            Boli No.
+                          </th>
+                          <th className="font-medium text-left px-3 py-2">
+                            M/C
+                          </th>
+                          <th className="font-medium text-left px-3 py-2">
+                            Estimate Bags
+                          </th>
+                          <th className="font-medium text-left px-3 py-2">
+                            Rate
+                          </th>
+                          <th className="font-medium text-left px-3 py-2">
+                            Final Bags{" "}
+                            <span className="text-red-500 normal-case">*</span>
+                          </th>
+                        </tr>
+                      </thead>
+                    )}
+                    <tbody>
+                      {finalBoliLines.map((line: any, idx: number) => {
+                        const bagsCancelled =
+                          !!line &&
+                          (line.isCancelled ||
+                            (!Number.isNaN(Number(line.estimatedBags)) &&
+                              Number(line.estimatedBags) === 0));
+                        const empty = !line;
+                        const dash = "-";
+                        return (
+                          <tr
+                            key={line?.id || `empty-${idx}`}
+                            className="border-t border-[var(--border-subtle)]/40"
+                          >
+                            <td className="px-3 py-1.5 text-[var(--text-muted-alt)] text-xs">
+                              {idx + 1}
+                            </td>
+                            <td className="px-3 py-1.5 align-middle text-[var(--text-muted)] text-xs">
+                              {empty ? dash : line.boliNo || dash}
+                            </td>
+                            <td className="px-3 py-1.5 align-middle">
+                              <input
+                                readOnly
+                                tabIndex={-1}
+                                title="Auto-fetched from Estimate Purchase"
+                                value={
+                                  empty || bagsCancelled
+                                    ? ""
+                                    : line.moisture != null &&
+                                        line.moisture !== ""
+                                      ? String(line.moisture)
+                                      : ""
+                                }
+                                placeholder={
+                                  empty
+                                    ? dash
+                                    : bagsCancelled
+                                      ? "Cancelled"
+                                      : "Auto"
+                                }
+                                className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
+                              />
+                            </td>
+                            <td className="px-3 py-1.5 align-middle">
+                              <input
+                                readOnly
+                                tabIndex={-1}
+                                title="Auto-fetched from Estimate Purchase"
+                                value={
+                                  empty || bagsCancelled
+                                    ? ""
+                                    : line.estimatedBags != null &&
+                                        line.estimatedBags !== ""
+                                      ? String(line.estimatedBags)
+                                      : ""
+                                }
+                                placeholder={
+                                  empty ? dash : bagsCancelled ? "" : "Auto"
+                                }
+                                className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
+                              />
+                            </td>
+                            <td className="px-3 py-1.5 align-middle">
+                              <input
+                                readOnly
+                                tabIndex={-1}
+                                title="Auto-fetched from Estimate Purchase"
+                                value={
+                                  empty || bagsCancelled
+                                    ? ""
+                                    : line.rate != null && line.rate !== ""
+                                      ? String(line.rate)
+                                      : ""
+                                }
+                                placeholder={
+                                  empty ? dash : bagsCancelled ? "" : "Auto"
+                                }
+                                className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
+                              />
+                            </td>
+                            <td className="px-3 py-1.5 align-middle">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={3}
+                                disabled={empty || !billYes || bagsCancelled}
+                                title={
+                                  empty
+                                    ? "Empty line (no boli on this slot)"
+                                    : bagsCancelled
+                                      ? "Cancelled (Bags = 0) — Final Bags not applicable"
+                                      : billYes
+                                        ? "Enter Final Bags manually (max 999, whole numbers)"
+                                        : "Set Artia Bill Checked = Yes to enable"
+                                }
+                                value={
+                                  empty || bagsCancelled
+                                    ? ""
+                                    : finalForm.finalBagsById[line.id] || ""
+                                }
+                                onChange={(e) => {
+                                  if (empty || !line?.id) return;
+                                  const raw = e.target.value
+                                    .replace(/\D/g, "")
+                                    .slice(0, 3);
+                                  setFinalForm((f) => ({
+                                    ...f,
+                                    finalBagsById: {
+                                      ...f.finalBagsById,
+                                      [line.id]: raw,
+                                    },
+                                  }));
+                                }}
+                                placeholder={
+                                  empty
+                                    ? dash
+                                    : bagsCancelled
+                                      ? "—"
+                                      : billYes
+                                        ? "Manual"
+                                        : "Locked"
+                                }
+                                className={`w-full min-w-[6rem] bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] outline-none focus:border-[#e67e00] ${
+                                  empty || !billYes || bagsCancelled
+                                    ? "opacity-40 cursor-not-allowed"
+                                    : ""
+                                }`}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <p className="text-[10px] text-[var(--text-muted-alt)] px-3 pt-1">
+                    One Boli No. covers all today&apos;s lines for this Artia
+                    (Estimate Purchase). M/C, Estimate Bags and Rate auto-fetch
+                    per line; empty slots show (-). Enter Final Bags on each
+                    filled line when Artia Bill = Yes.
+                  </p>
+                </div>
               );
             })()}
 
@@ -1054,17 +1221,17 @@ export default function BoliRecordPanel({
                 className="px-3 py-2 rounded border border-[var(--border-subtle)] text-sm disabled:opacity-40"
               >
                 {scanning
-                  ? 'Scanning…'
+                  ? "Scanning…"
                   : finalForm.biometricData
-                    ? 'Fingerprint ✓'
-                    : 'Scan Fingerprint'}
+                    ? "Fingerprint ✓"
+                    : "Scan Fingerprint"}
               </button>
               <button
                 type="submit"
                 disabled={!billYes || !selectedOpen || finalSaving}
                 className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {finalSaving ? 'Submitting…' : 'Submit with Fingerprint'}
+                {finalSaving ? "Submitting…" : "Submit with Fingerprint"}
               </button>
               {selectedOpen && (
                 <>
@@ -1075,7 +1242,7 @@ export default function BoliRecordPanel({
                     className="px-3 py-2 rounded border border-red-500/40 text-red-400 text-sm font-medium hover:bg-red-500/10 disabled:opacity-40"
                     title="Cancel this Boli (supervisor allowed here)"
                   >
-                    {cancelling ? 'Cancelling…' : 'Cancel this Boli'}
+                    {cancelling ? "Cancelling…" : "Cancel this Boli"}
                   </button>
                   <button
                     type="button"
@@ -1091,18 +1258,25 @@ export default function BoliRecordPanel({
             </div>
             {selectedOpen && (
               <p className="text-[10px] text-[var(--text-muted-alt)]">
-                Cancel is allowed here for supervisors (max 3 per soda). Cancel is
-                blocked in Add Estimate Purchase.
+                Cancel is allowed here for supervisors (max 3 per soda). Cancel
+                is blocked in Add Estimate Purchase.
               </p>
             )}
           </form>
         </div>
-
       </div>
 
       <CustomModal
         isOpen={adminEdit.isOpen}
-        onClose={() => setAdminEdit({ isOpen: false, row: null, payment: '', note: '', finalBags: '' })}
+        onClose={() =>
+          setAdminEdit({
+            isOpen: false,
+            row: null,
+            payment: "",
+            note: "",
+            finalBags: "",
+          })
+        }
         title="Admin Edit — Table 01"
       >
         {adminEdit.row && (
@@ -1111,35 +1285,48 @@ export default function BoliRecordPanel({
               Boli {adminEdit.row.boliNo} · {adminEdit.row.partyName}
             </p>
             <div>
-              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Final Bags</label>
+              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                Final Bags
+              </label>
               <input
                 type="number"
                 min="0"
                 max="999"
                 step="1"
                 value={adminEdit.finalBags}
-                onChange={(e) => setAdminEdit((s) => ({ ...s, finalBags: e.target.value }))}
+                onChange={(e) =>
+                  setAdminEdit((s) => ({ ...s, finalBags: e.target.value }))
+                }
                 className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
               />
             </div>
             <div>
-              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Payment (H)</label>
+              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                Payment (H)
+              </label>
               <input
                 type="number"
                 step="0.01"
                 value={adminEdit.payment}
-                onChange={(e) => setAdminEdit((s) => ({ ...s, payment: e.target.value }))}
+                onChange={(e) =>
+                  setAdminEdit((s) => ({ ...s, payment: e.target.value }))
+                }
                 className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
               />
               <p className="text-[10px] text-[var(--text-muted-alt)] mt-1">
-                Leave blank to auto-calc from Final Bags × 0.375 × (Govt − Rate). Final Hisab (I) recompounds from Payment.
+                Leave blank to auto-calc from Final Bags × 0.375 × (Govt −
+                Rate). Final Hisab (I) recompounds from Payment.
               </p>
             </div>
             <div>
-              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">Note</label>
+              <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                Note
+              </label>
               <textarea
                 value={adminEdit.note}
-                onChange={(e) => setAdminEdit((s) => ({ ...s, note: e.target.value }))}
+                onChange={(e) =>
+                  setAdminEdit((s) => ({ ...s, note: e.target.value }))
+                }
                 rows={2}
                 className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
               />
@@ -1147,13 +1334,25 @@ export default function BoliRecordPanel({
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setAdminEdit({ isOpen: false, row: null, payment: '', note: '', finalBags: '' })}
+                onClick={() =>
+                  setAdminEdit({
+                    isOpen: false,
+                    row: null,
+                    payment: "",
+                    note: "",
+                    finalBags: "",
+                  })
+                }
                 className="px-3 py-2 text-[var(--text-muted-alt)]"
               >
                 Cancel
               </button>
-              <button type="submit" disabled={adminEditLock.pending} className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold disabled:opacity-50">
-                {adminEditLock.pending ? 'Saving...' : 'Save'}
+              <button
+                type="submit"
+                disabled={adminEditLock.pending}
+                className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold disabled:opacity-50"
+              >
+                {adminEditLock.pending ? "Saving..." : "Save"}
               </button>
             </div>
           </form>

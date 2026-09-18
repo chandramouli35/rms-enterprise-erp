@@ -9,15 +9,16 @@ RMS is on **HTTPS**, so RD Service must work with `https://127.0.0.1` (or Mantra
 
 ---
 
-## Client path (daily use) — after one-time setup
+## How RMS Scan works (simple)
 
-1. Mantra **MFS110** plugged into USB on this PC.  
-2. Open **Chrome** or **Edge** → log into RMS on **this same PC**.  
-3. Click **Scan** / **Scan Finger** where asked.  
-4. Place finger **firmly and flat** on the MFS110 glass → hold 1–2 seconds.  
-5. Success = green tick / “Fingerprint captured”.
+```
+1. Browser asks Mantra RD Service on this PC: are you READY?
+2. If READY → send CAPTURE + finger on MFS110
+3. Success only if RD returns real biometric Data (errCode=0)
+4. Otherwise show the RD error (NOTREADY / timeout / etc.)
+```
 
----
+No backend USB check (server cannot see the client scanner). All of this runs in Chrome/Edge on the mill PC.
 
 ## One-time setup (each PC that will scan)
 

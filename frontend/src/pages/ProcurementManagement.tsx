@@ -48,7 +48,7 @@ import Combobox from "../components/Combobox";
 import { useSubmitLock } from "../hooks/useSubmitLock";
 
 export const ProcurementManagement = () => {
- const [searchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const activeTab = searchParams.get("tab") || "supplier_master";
   const activePlant = usePlantStore((state) => state.activePlant);
@@ -115,16 +115,16 @@ export const ProcurementManagement = () => {
       fetchPlants();
   }, [activePlant?.id, user?.role, activeTab]);
 
- const defaultFormData = {
+  const defaultFormData = {
     plantId: activePlant?.id || "",
     supplierId: "",
     purchaseType: "PADDY_BOLI",
- netWeight: 0,
- ratePerQuintal: 0,
- transportCharges: 0,
- otherCharges: 0,
- moisture: 0,
- bugs: 0,
+    netWeight: 0,
+    ratePerQuintal: 0,
+    transportCharges: 0,
+    otherCharges: 0,
+    moisture: 0,
+    bugs: 0,
     gpNo: "",
     mandiEgpNo: "",
     rstNo: "",
@@ -134,25 +134,25 @@ export const ProcurementManagement = () => {
     allocationType: "Hoodi",
     originalBardanaClass: "A_Class",
     agencyGpBardanaClass: "A_Class",
- bagsRecAtMill: 0,
+    bagsRecAtMill: 0,
     gatePassId: "",
     weighbridgeId: "",
     category: "OPERATIONAL",
-  baseRate: 0,
-  finalRate: 0,
-  arhtiaCorrection: 0,
-  nextDayCorrection: 0,
-  amount: 0,
-  deductions: 0,
-  netAmount: 0,
-  balanceShortageArhtia: 0,
- };
+    baseRate: 0,
+    finalRate: 0,
+    arhtiaCorrection: 0,
+    nextDayCorrection: 0,
+    amount: 0,
+    deductions: 0,
+    netAmount: 0,
+    balanceShortageArhtia: 0,
+  };
 
- const [formData, setFormData] = useState<any>(defaultFormData);
- const [suppliers, setSuppliers] = useState<any[]>([]);
- const [pahunchs, setPahunchs] = useState<any[]>([]);
- const [sodaPending, setSodaPending] = useState<any[]>([]);
- const [recentPurchases, setRecentPurchases] = useState<any[]>([]);
+  const [formData, setFormData] = useState<any>(defaultFormData);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [pahunchs, setPahunchs] = useState<any[]>([]);
+  const [sodaPending, setSodaPending] = useState<any[]>([]);
+  const [recentPurchases, setRecentPurchases] = useState<any[]>([]);
   const [inwardList, setInwardList] = useState<any[]>([]);
   const [inwardTotalItems, setInwardTotalItems] = useState(0);
   const [inwardCurrentPage, setInwardCurrentPage] = useState(1);
@@ -165,11 +165,11 @@ export const ProcurementManagement = () => {
     supplierId: "",
     activeReportTab: "",
   });
-  
+
   const [recentPurchasesTotalItems, setRecentPurchasesTotalItems] = useState(0);
   const [recentPurchasesCurrentPage, setRecentPurchasesCurrentPage] =
     useState(1);
-  
+
   const [sodaPendingTotalItems, setSodaPendingTotalItems] = useState(0);
   const [paddyStockReportData, setPaddyStockReportData] = useState<any[]>([]);
   const [paddyStackDocRows, setPaddyStackDocRows] = useState<any[]>([]);
@@ -187,13 +187,13 @@ export const ProcurementManagement = () => {
   const settleHisabLock = useSubmitLock();
   const [isPaddyPurchaseSaving, setIsPaddyPurchaseSaving] = useState(false);
   const paddyPurchaseSavingRef = useRef(false);
- const [isScanningFingerprint, setIsScanningFingerprint] = useState(false);
+  const [isScanningFingerprint, setIsScanningFingerprint] = useState(false);
 
- // Stack Selection State
+  // Stack Selection State
   const [isStackModalOpen, setIsStackModalOpen] = useState(false);
   const [occupiedStacks, setOccupiedStacks] = useState<Record<string, any>>({});
 
- // Inward Form States
+  // Inward Form States
   const [unrecoveredShortagesCount, setUnrecoveredShortagesCount] = useState(0);
   /** Till-date Artia shortage balance (confirmed entries only) — Ref table "Total shortage of Artia" */
   const [artiaTillDateShortage, setArtiaTillDateShortage] = useState({
@@ -335,7 +335,7 @@ export const ProcurementManagement = () => {
     meterNotWorking: false,
     informBaujiBagsLess: false,
     informBaujiExcessWeight: false,
-    
+
     // NEW FIELDS FROM FORM IMAGE
     previousTruckReading: "",
     newTruckReading: "",
@@ -376,10 +376,10 @@ export const ProcurementManagement = () => {
     refreshArtiaTillDateShortage(inwardFormData.supplierId, activePlant?.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inwardFormData.supplierId, activePlant?.id]);
-  
+
   // Track Boli bags input from supervisor
   const [boliInputs, setBoliInputs] = useState<Record<string, string>>({});
-  
+
   // Plant Procurement Settings
   const [plantSettings, setPlantSettings] = useState({
     govtRate: "",
@@ -515,10 +515,7 @@ export const ProcurementManagement = () => {
     if (!Number.isFinite(g) || !Number.isFinite(t)) return;
     const net = (g - t).toFixed(3);
     setInwardFormData((prev: any) => {
-      if (
-        String(prev.netWeightWb) === net &&
-        String(prev.netWtMill) === net
-      ) {
+      if (String(prev.netWeightWb) === net && String(prev.netWtMill) === net) {
         return prev;
       }
       return {
@@ -545,8 +542,7 @@ export const ProcurementManagement = () => {
             .addToast("No weighbridge reading found for this truck", "error");
         return;
       }
-      const gross =
-        wb.grossWeight != null ? Number(wb.grossWeight) : null;
+      const gross = wb.grossWeight != null ? Number(wb.grossWeight) : null;
       const tare = wb.tareWeight != null ? Number(wb.tareWeight) : null;
       const netFromWb =
         wb.netWeight != null
@@ -627,10 +623,10 @@ export const ProcurementManagement = () => {
     const agencyTotal = agencyA + agencyB;
     const shortTotal = shortA + shortB;
     const req = ((agencyTotal + shortTotal) * bagWt).toFixed(3);
-    
+
     const actualWt = parseFloat(inwardFormData.netWtMill) || 0;
     const netDiff = parseFloat(req) - actualWt;
-    
+
     const qualityCutType = inwardFormData.qualityCutType || "NONE";
     const qualityCutValue = parseFloat(inwardFormData.qualityCutValue) || 0;
     let qualityCutQtl = 0;
@@ -639,7 +635,7 @@ export const ProcurementManagement = () => {
     } else if (qualityCutType === "PERCENTAGE") {
       qualityCutQtl = (actualWt * qualityCutValue) / 100;
     }
-    
+
     const shortageQtlRaw = netDiff + qualityCutQtl;
     // Feedback 34 — Section 5 shortage bags received reduce Artia liability
     const shortageBagsRec =
@@ -723,8 +719,8 @@ export const ProcurementManagement = () => {
         ? bdTruckTotalQtl / bagWt
         : bdQualityBags + bdWeightBags + bdBagsBags;
 
-    setInwardFormData((prev: any) => ({ 
-      ...prev, 
+    setInwardFormData((prev: any) => ({
+      ...prev,
       reqNetWt: req,
       netWtDiff: Number.isFinite(netDiff) ? netDiff.toFixed(3) : prev.netWtDiff,
       qualityCutQtl,
@@ -875,7 +871,7 @@ export const ProcurementManagement = () => {
     ]);
   };
 
- // Modal States
+  // Modal States
   const [addSupplierModal, setAddSupplierModal] = useState({
     isOpen: false,
     name: "",
@@ -963,17 +959,14 @@ export const ProcurementManagement = () => {
       activePlant?.govtRate != null ? String(activePlant.govtRate) : "3000";
     const firstRate = parseFloat(sampleBolis[0].rate) || 0;
     const g = parseFloat(govtRate) || 0;
-    const diff =
-      g && firstRate ? (g - firstRate).toFixed(2) : "150.00";
+    const diff = g && firstRate ? (g - firstRate).toFixed(2) : "150.00";
     const totalBags = sampleBolis.reduce(
       (s, b) => s + (parseFloat(b.bags) || 0),
       0,
     );
-    const finalHisabAmt = (
-      totalBags *
-      0.375 *
-      (parseFloat(diff) || 0)
-    ).toFixed(2);
+    const finalHisabAmt = (totalBags * 0.375 * (parseFloat(diff) || 0)).toFixed(
+      2,
+    );
 
     setPaddyPurchaseModal({
       ...emptyPaddyPurchaseModal(),
@@ -1089,7 +1082,13 @@ export const ProcurementManagement = () => {
             }))
           : p.bolis?.length
             ? [{ moisture: "", bags: "", rate: "" }]
-            : [{ moisture: p.mc || "", bags: p.bags || "", rate: p.rate || "" }];
+            : [
+                {
+                  moisture: p.mc || "",
+                  bags: p.bags || "",
+                  rate: p.rate || "",
+                },
+              ];
       while (bolis.length < 4) bolis.push({ moisture: "", bags: "", rate: "" });
       const cleanNote = (() => {
         const n = String(p.note || "").trim();
@@ -1208,10 +1207,10 @@ export const ProcurementManagement = () => {
     paddyPurchaseSavingRef.current = true;
 
     const isEdit = !!paddyPurchaseModal.id;
-      const payload = { 
-        ...paddyPurchaseModal, 
+    const payload = {
+      ...paddyPurchaseModal,
       bolis: filledBolis,
-        plantId: selectedPlantId,
+      plantId: selectedPlantId,
       updatePlantGovtRate: user?.role === "SUPER_ADMIN",
     };
 
@@ -1238,19 +1237,19 @@ export const ProcurementManagement = () => {
       setIsPaddyPurchaseSaving(false);
     }
   };
- const [settleHisabModal, setSettleHisabModal] = useState<{
- isOpen: boolean;
- hisab: any;
- payment: string;
- note: string;
- finalHisabAmt: string;
- }>({
- isOpen: false,
- hisab: null,
+  const [settleHisabModal, setSettleHisabModal] = useState<{
+    isOpen: boolean;
+    hisab: any;
+    payment: string;
+    note: string;
+    finalHisabAmt: string;
+  }>({
+    isOpen: false,
+    hisab: null,
     payment: "",
     note: "",
     finalHisabAmt: "",
- });
+  });
 
   useEffect(() => {
     if (activePlant?.id) {
@@ -1262,7 +1261,7 @@ export const ProcurementManagement = () => {
       fetchSodaPending();
       fetchMandis();
 
-  const fetchMasterData = async () => {
+      const fetchMasterData = async () => {
         try {
           const res = await api.get("/api/master-data/trucks");
           setTrucks(res.data);
@@ -1311,7 +1310,7 @@ export const ProcurementManagement = () => {
           console.error("Failed to fetch pahunchs", e);
         }
       };
-      
+
       fetchMasterData();
     };
     if (activeTab !== "inward_register") {
@@ -1324,7 +1323,7 @@ export const ProcurementManagement = () => {
   ) => {
     const { name, value } = e.target;
     if (!value) return;
-    
+
     try {
       if (name === "truckNo" && !trucks.find((t) => t.truckNumber === value)) {
         await api.post("/api/master-data/trucks", { truckNumber: value });
@@ -1395,7 +1394,7 @@ export const ProcurementManagement = () => {
     listFilters.dateTo,
     sodaPendingCurrentPage,
   ]);
- 
+
   const handleViewInward = async (inward: any) => {
     try {
       const res = await api.get(`/api/procurement/inward-details/${inward.id}`);
@@ -1482,12 +1481,12 @@ export const ProcurementManagement = () => {
             d.unloaderName ||
             d.stackNo ||
             (d.bagsInMainStack != null && Number(d.bagsInMainStack) > 0)) &&
-            !d.secondPartStackNo &&
-            !(
-              d.bagsInSecondPartStack != null &&
-              Number(d.bagsInSecondPartStack) > 0
-            ) &&
-            !d.partUnloaderName,
+          !d.secondPartStackNo &&
+          !(
+            d.bagsInSecondPartStack != null &&
+            Number(d.bagsInSecondPartStack) > 0
+          ) &&
+          !d.partUnloaderName,
         ),
         labour: d.labourType || "",
         unloadingStartTime: toTimeInput(d.unloadingStartTime),
@@ -1623,9 +1622,9 @@ export const ProcurementManagement = () => {
   };
 
   const fetchRecentPurchases = async () => {
- try {
+    try {
       const pid = activePlant?.id || "global";
- const params = new URLSearchParams();
+      const params = new URLSearchParams();
       if (listFilters.dateFrom) params.append("dateFrom", listFilters.dateFrom);
       if (listFilters.dateTo) params.append("dateTo", listFilters.dateTo);
       params.append("page", recentPurchasesCurrentPage.toString());
@@ -1633,14 +1632,14 @@ export const ProcurementManagement = () => {
       const res = await api.get(
         `/api/procurement/recent/${pid}?${params.toString()}`,
       );
- if (res.data && Array.isArray(res.data.data)) {
-   setRecentPurchases(res.data.data);
-   setRecentPurchasesTotalItems(res.data.total || 0);
- } else {
-   setRecentPurchases(res.data);
-   setRecentPurchasesTotalItems(res.data.length || 0);
- }
- } catch (error) {
+      if (res.data && Array.isArray(res.data.data)) {
+        setRecentPurchases(res.data.data);
+        setRecentPurchasesTotalItems(res.data.total || 0);
+      } else {
+        setRecentPurchases(res.data);
+        setRecentPurchasesTotalItems(res.data.length || 0);
+      }
+    } catch (error) {
       console.error("Error fetching recent purchases", error);
     }
   };
@@ -1652,11 +1651,11 @@ export const ProcurementManagement = () => {
         params: pid ? { plantId: pid } : {},
       });
       setSuppliers(Array.isArray(res.data) ? res.data : []);
- } catch (error) {
+    } catch (error) {
       console.error("Error fetching suppliers", error);
- }
- };
-  
+    }
+  };
+
   const fetchPaddyStockReport = async () => {
     try {
       const pid = activePlant?.id;
@@ -1695,9 +1694,9 @@ export const ProcurementManagement = () => {
   }, [activePlant?.id, activeTab, listFilters.activeReportTab]);
 
   const fetchSodaPending = async () => {
- try {
+    try {
       const pid = activePlant?.id || "global";
- const params = new URLSearchParams();
+      const params = new URLSearchParams();
       if (listFilters.dateFrom) params.append("dateFrom", listFilters.dateFrom);
       if (listFilters.dateTo) params.append("dateTo", listFilters.dateTo);
       if (listFilters.supplierId)
@@ -1709,37 +1708,37 @@ export const ProcurementManagement = () => {
       const res = await api.get(
         `/api/procurement/soda-pending/${pid}?${params.toString()}`,
       );
- if (res.data && Array.isArray(res.data.data)) {
-   setSodaPending(res.data.data);
-   setSodaPendingTotalItems(res.data.total || 0);
- } else {
-   setSodaPending(res.data);
-   setSodaPendingTotalItems(res.data.length || 0);
- }
- } catch (error) {
+      if (res.data && Array.isArray(res.data.data)) {
+        setSodaPending(res.data.data);
+        setSodaPendingTotalItems(res.data.total || 0);
+      } else {
+        setSodaPending(res.data);
+        setSodaPendingTotalItems(res.data.length || 0);
+      }
+    } catch (error) {
       console.error("Error fetching soda pending", error);
- }
- };
+    }
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
- const { name, value } = e.target;
- setFormData((prev: any) => ({ ...prev, [name]: value }));
- };
+    const { name, value } = e.target;
+    setFormData((prev: any) => ({ ...prev, [name]: value }));
+  };
 
- const calculateTotal = () => {
- const netWt = parseFloat(formData.netWeight) || 0;
- const rate = parseFloat(formData.ratePerQuintal) || 0;
- const trans = parseFloat(formData.transportCharges) || 0;
- const other = parseFloat(formData.otherCharges) || 0;
+  const calculateTotal = () => {
+    const netWt = parseFloat(formData.netWeight) || 0;
+    const rate = parseFloat(formData.ratePerQuintal) || 0;
+    const trans = parseFloat(formData.transportCharges) || 0;
+    const other = parseFloat(formData.otherCharges) || 0;
     const baseAmt = netWt * 10 * rate;
- return (baseAmt + trans + other).toFixed(2);
- };
+    return (baseAmt + trans + other).toFixed(2);
+  };
 
- const handleSubmitPurchase = async () => {
- try {
- setIsSubmitting(true);
+  const handleSubmitPurchase = async () => {
+    try {
+      setIsSubmitting(true);
       await api.post("/api/procurement/save-purchase", {
         ...formData,
         category,
@@ -1748,19 +1747,19 @@ export const ProcurementManagement = () => {
         .getState()
         .addToast("Purchase Entry Saved successfully", "success");
       setFormData({ ...defaultFormData, plantId: activePlant?.id || "" });
- } catch (error) {
+    } catch (error) {
       console.error("Failed to save purchase", error);
       useUiStore
         .getState()
         .addToast("Failed to save purchase. Please try again.", "error");
- } finally {
- setIsSubmitting(false);
- }
- };
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleAddSupplier = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!addSupplierModal.name) return;
+    e.preventDefault();
+    if (!addSupplierModal.name) return;
     const supplierPlantId = addSupplierModal.plantId || activePlant?.id;
     if (!supplierPlantId) {
       useUiStore
@@ -1802,41 +1801,41 @@ export const ProcurementManagement = () => {
           );
       }
     });
-   };
-  
-    const handleToggleMandiStatus = async (m: any) => {
-      try {
-        await updateMandi(m.id, { name: m.name, isActive: !m.isActive });
+  };
+
+  const handleToggleMandiStatus = async (m: any) => {
+    try {
+      await updateMandi(m.id, { name: m.name, isActive: !m.isActive });
       useUiStore
         .getState()
         .addToast(
           `Mandi ${m.name} marked as ${!m.isActive ? "Active" : "Inactive"}`,
           "success",
         );
+      fetchMandis();
+    } catch (error) {
+      console.error("Failed to toggle status", error);
+    }
+  };
+
+  const handleDeleteMandi = async (id: string) => {
+    if (window.confirm("Are you sure you want to delete this Mandi?")) {
+      try {
+        await deleteMandi(id);
+        useUiStore.getState().addToast("Mandi deleted successfully", "success");
         fetchMandis();
       } catch (error) {
-      console.error("Failed to toggle status", error);
-      }
-    };
-
-    const handleDeleteMandi = async (id: string) => {
-      if (window.confirm("Are you sure you want to delete this Mandi?")) {
-        try {
-          await deleteMandi(id);
-        useUiStore.getState().addToast("Mandi deleted successfully", "success");
-          fetchMandis();
-        } catch (error) {
         console.error("Failed to delete mandi", error);
-        }
       }
-    };
-  
-   const handleAddMandi = async (e: React.FormEvent) => {
-     e.preventDefault();
-     if (!addMandiModal.name) return;
+    }
+  };
+
+  const handleAddMandi = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addMandiModal.name) return;
     await addMandiLock.wrapSubmit(async () => {
-     try {
-       if (addMandiModal.id) {
+      try {
+        if (addMandiModal.id) {
           await updateMandi(addMandiModal.id, {
             name: addMandiModal.name,
             isActive: addMandiModal.isActive,
@@ -1844,7 +1843,7 @@ export const ProcurementManagement = () => {
           useUiStore
             .getState()
             .addToast("Mandi updated successfully", "success");
-       } else {
+        } else {
           await createMandi({
             name: addMandiModal.name,
             isActive: addMandiModal.isActive,
@@ -1852,14 +1851,14 @@ export const ProcurementManagement = () => {
           useUiStore.getState().addToast("Mandi added successfully", "success");
         }
         setAddMandiModal({ isOpen: false, id: "", name: "", isActive: true });
-       fetchMandis();
-     } catch (error) {
+        fetchMandis();
+      } catch (error) {
         console.error("Failed to save mandi", error);
-     }
+      }
     });
-   };
+  };
 
-    const openStackModal = async () => {
+  const openStackModal = async () => {
     const selectedPlantId = activePlant?.id;
     if (!selectedPlantId) {
       useUiStore
@@ -2010,16 +2009,11 @@ export const ProcurementManagement = () => {
 
     const requiredFields =
       working.isHold && effectiveStatus === "DRAFT"
-        ? ([
-            "truckNo",
-            "allocateUnloader",
-            "date",
-            "timeIn",
-          ] as string[])
+        ? (["truckNo", "allocateUnloader", "date", "timeIn"] as string[])
         : effectiveStatus === "DRAFT"
           ? draftRequired
           : confirmRequired;
-    
+
     let hasError = false;
     const newErrors: Record<string, string> = {};
 
@@ -2027,7 +2021,7 @@ export const ProcurementManagement = () => {
       newErrors.holdReason = "Hold reason is required";
       hasError = true;
     }
-    
+
     requiredFields.forEach((field) => {
       if (!working[field] && working[field] !== 0) {
         newErrors[field] = "This field is mandatory";
@@ -2064,16 +2058,20 @@ export const ProcurementManagement = () => {
         return Number.isFinite(ms) ? ms : null;
       };
       const entryDate = String(working.date || "").slice(0, 10);
-      const outDate = String(working.gpCompleteDate || working.date || "").slice(
-        0,
-        10,
-      );
+      const outDate = String(
+        working.gpCompleteDate || working.date || "",
+      ).slice(0, 10);
       const inMs = toMs(entryDate, working.timeIn);
       const startMs = toMs(entryDate, working.unloadingStartTime);
       const finishMs = toMs(entryDate, working.unloadingFinishTime);
       const outMs = toMs(outDate, working.timeOut);
 
-      if (inMs != null && startMs != null && finishMs != null && outMs != null) {
+      if (
+        inMs != null &&
+        startMs != null &&
+        finishMs != null &&
+        outMs != null
+      ) {
         if (startMs < inMs) {
           newErrors.unloadingStartTime =
             "Unload Start must be after Paddy Inward (In Time)";
@@ -2153,7 +2151,10 @@ export const ProcurementManagement = () => {
           hasError = true;
         }
       }
-      if (!working.noPartStack && !String(working.partUnloaderName || "").trim()) {
+      if (
+        !working.noPartStack &&
+        !String(working.partUnloaderName || "").trim()
+      ) {
         newErrors.partUnloaderName =
           "Select Part Unloader (Unloader 2) for part stack";
         hasError = true;
@@ -2180,7 +2181,7 @@ export const ProcurementManagement = () => {
     }
     try {
       setIsSubmitting(true);
-      
+
       // Refresh unloader truck serials before confirm (backend also assigns on CONFIRMED)
       let truckCounts: {
         mainUnloaderTruckCount?: string | number;
@@ -2328,15 +2329,15 @@ export const ProcurementManagement = () => {
     }
   };
 
- const handleInspect = async (e: React.FormEvent) => {
- e.preventDefault();
+  const handleInspect = async (e: React.FormEvent) => {
+    e.preventDefault();
     await inspectLock.wrapSubmit(async () => {
- try {
- await api.post(`/api/procurement/quality/${inspectModal.batchId}`, {
- moisture: parseFloat(inspectModal.moisture as any),
- broken: parseFloat(inspectModal.broken as any),
- discoloration: parseFloat(inspectModal.discoloration as any),
- foreignMatter: parseFloat(inspectModal.foreignMatter as any),
+      try {
+        await api.post(`/api/procurement/quality/${inspectModal.batchId}`, {
+          moisture: parseFloat(inspectModal.moisture as any),
+          broken: parseFloat(inspectModal.broken as any),
+          discoloration: parseFloat(inspectModal.discoloration as any),
+          foreignMatter: parseFloat(inspectModal.foreignMatter as any),
           status: "COMPLETED",
         });
         setInspectModal({
@@ -2347,32 +2348,32 @@ export const ProcurementManagement = () => {
           discoloration: 0,
           foreignMatter: 0,
         });
- fetchRecentPurchases();
- } catch (error) {
+        fetchRecentPurchases();
+      } catch (error) {
         console.error("Failed to update quality", error);
- }
+      }
     });
- };
+  };
 
- const handleSettleHisabSubmit = async (e: React.FormEvent) => {
- e.preventDefault();
- if (!settleHisabModal.hisab) return;
+  const handleSettleHisabSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!settleHisabModal.hisab) return;
     await settleHisabLock.wrapSubmit(async () => {
- try {
+      try {
         await api.post("/api/procurement/settle-hisab", {
- id: settleHisabModal.hisab.id,
- payment: parseFloat(settleHisabModal.payment) || 0,
- note: settleHisabModal.note,
+          id: settleHisabModal.hisab.id,
+          payment: parseFloat(settleHisabModal.payment) || 0,
+          note: settleHisabModal.note,
           finalHisabAmt: parseFloat(settleHisabModal.finalHisabAmt) || 0,
- });
- setSettleHisabModal({ ...settleHisabModal, isOpen: false });
- fetchSodaPending();
- } catch (error) {
+        });
+        setSettleHisabModal({ ...settleHisabModal, isOpen: false });
+        fetchSodaPending();
+      } catch (error) {
         console.error("Settle Hisab failed", error);
         useUiStore.getState().addToast("Failed to settle hisab", "error");
- }
+      }
     });
- };
+  };
 
   const filteredSodaPending = sodaPending.filter((p) => {
     let matches = true;
@@ -2397,7 +2398,7 @@ export const ProcurementManagement = () => {
         overPricedValue: number;
       }
     > = {};
-    
+
     filteredSodaPending.forEach((p: any) => {
       const d = new Date(p.date).toLocaleDateString();
       const govtRate = parseFloat(p.govtRate) || activePlant?.govtRate || 0;
@@ -2411,7 +2412,7 @@ export const ProcurementManagement = () => {
           overPricedValue: 0,
         };
       }
-      
+
       const processRate = (rate: number, bags: number, moisture: number) => {
         if (rate > 0) {
           if (rate > stats[d].maxRate) stats[d].maxRate = rate;
@@ -2421,13 +2422,13 @@ export const ProcurementManagement = () => {
             const safaiCut = activePlant?.safaiCut ?? 2;
             const procCut = activePlant?.processingCut ?? 4;
             const mCut = moisture > bMoisture ? moisture - bMoisture : 0;
-             const totalCut = mCut + safaiCut + procCut;
+            const totalCut = mCut + safaiCut + procCut;
             const requiredRate =
               stats[d].govtRate - stats[d].govtRate * (totalCut / 100);
-             
-             if (rate > requiredRate) {
-                stats[d].overPricedValue += (rate - requiredRate) * bags;
-             }
+
+            if (rate > requiredRate) {
+              stats[d].overPricedValue += (rate - requiredRate) * bags;
+            }
           }
         }
       };
@@ -2439,7 +2440,7 @@ export const ProcurementManagement = () => {
             parseFloat(b.bags) || 0,
             parseFloat(b.moisture || p.mc) || 0,
           );
-           stats[d].totalBags += parseFloat(b.bags) || 0;
+          stats[d].totalBags += parseFloat(b.bags) || 0;
         });
         stats[d].purchases += p.bolis.length;
       } else {
@@ -2452,50 +2453,50 @@ export const ProcurementManagement = () => {
         stats[d].purchases += 1;
       }
     });
-    
+
     Object.keys(stats).forEach((k) => {
-       if (stats[k].minRate === Infinity) stats[k].minRate = 0;
+      if (stats[k].minRate === Infinity) stats[k].minRate = 0;
     });
     return Object.entries(stats).map(([date, data]) => ({ date, ...data }));
   }, [filteredSodaPending, activePlant]);
 
- return (
- <div className="flex flex-col h-full bg-[var(--bg-base)]">
- {/* Header & Category Toggle */}
- <div className="flex items-center justify-between px-6 py-2 border-b border-[var(--border-subtle)] shrink-0 bg-[var(--bg-panel)]">
-   <div className="flex items-center gap-2">
-   <Package size={16} className="text-[#e67e00]" />
+  return (
+    <div className="flex flex-col h-full bg-[var(--bg-base)]">
+      {/* Header & Category Toggle */}
+      <div className="flex items-center justify-between px-6 py-2 border-b border-[var(--border-subtle)] shrink-0 bg-[var(--bg-panel)]">
+        <div className="flex items-center gap-2">
+          <Package size={16} className="text-[#e67e00]" />
           <h1 className="text-sm font-semibold text-[var(--text-muted)]">
             Procurement Module
           </h1>
-   </div>
- 
- <div className="flex bg-[var(--bg-base)] rounded-md p-0.5 border border-[var(--border-subtle-alt)] scale-90 origin-right">
- <button 
+        </div>
+
+        <div className="flex bg-[var(--bg-base)] rounded-md p-0.5 border border-[var(--border-subtle-alt)] scale-90 origin-right">
+          <button
             className={`px-4 py-1.5 rounded-sm font-bold text-xs transition-colors ${category === "OPERATIONAL" ? "bg-[#e67e00] text-black" : "text-[var(--text-muted-alt)] hover:text-[var(--text-muted)]"}`}
             onClick={() => setCategory("OPERATIONAL")}
- >
- Operational
- </button>
- <button 
+          >
+            Operational
+          </button>
+          <button
             className={`px-4 py-1.5 rounded-sm font-bold text-xs transition-colors ${category === "NON_OPERATIONAL" ? "bg-[#e67e00] text-black" : "text-[var(--text-muted-alt)] hover:text-[var(--text-muted)]"}`}
             onClick={() => setCategory("NON_OPERATIONAL")}
- >
- Non-Operational
- </button>
- </div>
- </div>
+          >
+            Non-Operational
+          </button>
+        </div>
+      </div>
 
- {/* Main Content Area */}
-   <div className="flex-1 overflow-x-hidden overflow-y-auto p-6">
-   {/* TAB: MANDI MASTER */}
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-x-hidden overflow-y-auto p-6">
+        {/* TAB: MANDI MASTER */}
         {activeTab === "mandi_master" && (
-   <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
-     <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold flex items-center gap-2 text-[var(--text-main)]">
-            <Users className="text-[#e67e00]" /> Mandi Master
-          </h2>
+          <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
+            <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold flex items-center gap-2 text-[var(--text-main)]">
+                  <Users className="text-[#e67e00]" /> Mandi Master
+                </h2>
                 <button
                   onClick={() =>
                     setAddMandiModal({
@@ -2507,21 +2508,21 @@ export const ProcurementManagement = () => {
                   }
                   className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
                 >
-            + Add Mandi
-          </button>
-        </div>
-     </div>
-     <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
-       <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
-         <thead>
-           <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left">
-             <th className="p-3">Name</th>
-             <th className="p-3">Status</th>
-             <th className="p-3">Actions</th>
-           </tr>
-         </thead>
-         <tbody>
-           {mandis.map((m: any) => (
+                  + Add Mandi
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
+              <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left">
+                    <th className="p-3">Name</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mandis.map((m: any) => (
                     <tr
                       key={m.id}
                       className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-panel)]"
@@ -2529,18 +2530,18 @@ export const ProcurementManagement = () => {
                       <td className="p-3 font-medium text-[var(--text-main)]">
                         {m.name}
                       </td>
-                <td className="p-3">
-                  <label className="relative inline-flex items-center cursor-pointer">
+                      <td className="p-3">
+                        <label className="relative inline-flex items-center cursor-pointer">
                           <input
                             type="checkbox"
                             className="sr-only peer"
                             checked={m.isActive}
                             onChange={() => handleToggleMandiStatus(m)}
                           />
-                    <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
-                  </label>
-                </td>
-                <td className="p-3 flex gap-2">
+                          <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                        </label>
+                      </td>
+                      <td className="p-3 flex gap-2">
                         <button
                           onClick={() =>
                             setAddMandiModal({
@@ -2552,36 +2553,36 @@ export const ProcurementManagement = () => {
                           }
                           className="text-amber-500 hover:text-amber-400 p-1 bg-amber-500/10 rounded"
                         >
-                    <Edit size={14} />
-                  </button>
+                          <Edit size={14} />
+                        </button>
                         <button
                           onClick={() => handleDeleteMandi(m.id)}
                           className="text-red-500 hover:text-red-400 p-1 bg-red-500/10 rounded"
                         >
-                    <Trash size={14} />
-                  </button>
-               </td>
-             </tr>
-           ))}
-         </tbody>
-       </table>
-     </div>
-   </div>
-   )}
+                          <Trash size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
-   {/* TAB 1: SUPPLIER MASTER */}
+        {/* TAB 1: SUPPLIER MASTER */}
         {activeTab === "supplier_master" && (
- <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
- <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold flex items-center gap-2 text-[var(--text-main)]">
-          <Users className="text-[#e67e00]" /> Arthiya Master
+          <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
+            <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold flex items-center gap-2 text-[var(--text-main)]">
+                  <Users className="text-[#e67e00]" /> Arthiya Master
                   {activePlant && (
                     <span className="text-sm font-medium text-[var(--text-muted)]">
                       ({activePlant.name})
                     </span>
                   )}
-        </h2>
+                </h2>
                 <button
                   onClick={() =>
                     setAddSupplierModal({
@@ -2595,47 +2596,47 @@ export const ProcurementManagement = () => {
                   }
                   className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
                 >
-          + Add Arthiya
-        </button>
-      </div>
- </div>
- <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
- <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
- <thead>
- <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left">
- <th className="p-3">Name</th>
+                  + Add Arthiya
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
+              <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left">
+                    <th className="p-3">Name</th>
                     <th className="p-3">Mill</th>
- <th className="p-3">Firm Names</th>
- <th className="p-3">Mandi</th>
- <th className="p-3">Contact</th>
- <th className="p-3">Status</th>
- </tr>
- </thead>
- <tbody>
- {suppliers.map((s, i) => (
+                    <th className="p-3">Firm Names</th>
+                    <th className="p-3">Mandi</th>
+                    <th className="p-3">Contact</th>
+                    <th className="p-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {suppliers.map((s, i) => (
                     <tr
                       key={s.id}
                       className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)]"
                     >
                       <td className="p-3 font-medium text-[var(--text-main)]">
                         {s.name}
-                  </td>
+                      </td>
                       <td className="p-3 text-[var(--text-main)]">
                         {s.plant?.name || activePlant?.name || "—"}
-                  </td>
-                <td className="p-3">
+                      </td>
+                      <td className="p-3">
                         {s.firmNames && s.firmNames.length > 0
                           ? s.firmNames.join(", ")
                           : "-"}
-                </td>
+                      </td>
                       <td className="p-3">{s.mandi || "-"}</td>
                       <td className="p-3">{s.contact || "-"}</td>
-                <td className="p-3">
+                      <td className="p-3">
                         <span className="px-2 py-1 rounded bg-green-900/50 text-green-400 text-xs font-bold">
                           Active
                         </span>
-                </td>
-              </tr>
+                      </td>
+                    </tr>
                   ))}
                   {suppliers.length === 0 && (
                     <tr>
@@ -2646,13 +2647,13 @@ export const ProcurementManagement = () => {
                         No Arthiya found for this mill. Add one for the selected
                         mill.
                       </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )}
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* TAB 2: BOLI RECORD (Feedback 32) */}
         {activeTab === "paddy_purchase" && (
@@ -2665,12 +2666,12 @@ export const ProcurementManagement = () => {
           />
         )}
 
-  {/* View Bolis Modal */}
-  {viewBolisModal.isOpen && viewBolisModal.soda && (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[var(--bg-panel)] rounded-xl w-full max-w-4xl shadow-2xl border border-[var(--border-subtle)] overflow-hidden">
-        <div className="flex justify-between items-center p-5 border-b border-[var(--border-subtle)] bg-[var(--bg-base)]">
-          <div>
+        {/* View Bolis Modal */}
+        {viewBolisModal.isOpen && viewBolisModal.soda && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-[var(--bg-panel)] rounded-xl w-full max-w-4xl shadow-2xl border border-[var(--border-subtle)] overflow-hidden">
+              <div className="flex justify-between items-center p-5 border-b border-[var(--border-subtle)] bg-[var(--bg-base)]">
+                <div>
                   <h3 className="text-lg font-bold text-[var(--text-main)]">
                     Bolis Breakdown & Completion
                   </h3>
@@ -2678,41 +2679,41 @@ export const ProcurementManagement = () => {
                     {viewBolisModal.partyMandi} -{" "}
                     {new Date(viewBolisModal.date).toLocaleDateString()}
                   </p>
-          </div>
+                </div>
                 <button
                   onClick={() =>
                     setViewBolisModal({ isOpen: false, soda: null })
                   }
                   className="text-[var(--text-muted)] hover:text-white transition-colors"
                 >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="p-5 overflow-auto max-h-[70vh]">
-          <BoliCompletionTable
-            sodaPending={[viewBolisModal.soda]}
-            supplierId={viewBolisModal.soda.supplierId}
-            boliInputs={boliInputs}
-            setBoliInputs={setBoliInputs}
-            onSodaComplete={fetchSodaPending}
-          />
-        </div>
-      </div>
-    </div>
-  )}
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-5 overflow-auto max-h-[70vh]">
+                <BoliCompletionTable
+                  sodaPending={[viewBolisModal.soda]}
+                  supplierId={viewBolisModal.soda.supplierId}
+                  boliInputs={boliInputs}
+                  setBoliInputs={setBoliInputs}
+                  onSodaComplete={fetchSodaPending}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
-  {/* TAB 3: PADDY INWARD (GOODS RECEIPT) */}
+        {/* TAB 3: PADDY INWARD (GOODS RECEIPT) */}
         {activeTab === "paddy_inward" && (
- <div className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-6 shadow-2xl flex flex-col h-full overflow-y-auto">
- {/* Top Toolbar */}
+          <div className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl p-6 shadow-2xl flex flex-col h-full overflow-y-auto">
+            {/* Top Toolbar */}
             <div className="flex items-center justify-between gap-3 mb-3 border-b border-[var(--border-subtle-alt)] pb-3">
               <div className="flex items-center gap-3 min-w-0">
                 <span className="text-[#e67e00] text-[10px] bg-[#e67e00]/10 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider shrink-0">
                   {activePlant?.name || "MILL"}
                 </span>
                 <h1 className="text-base font-bold text-[var(--text-muted)] shrink-0">
- Paddy Inward (Goods Receipt)
- </h1>
+                  Paddy Inward (Goods Receipt)
+                </h1>
                 {inwardFormData.id && (
                   <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 shrink-0">
                     Editing Draft
@@ -2721,7 +2722,7 @@ export const ProcurementManagement = () => {
                 <p className="text-[var(--text-muted-alt)] text-xs border-l border-[var(--border-subtle)] pl-3 hidden lg:block truncate">
                   Procurement &gt; Paddy Inward
                 </p>
- </div>
+              </div>
               <button
                 type="button"
                 onClick={() => openDraftModal()}
@@ -2733,7 +2734,7 @@ export const ProcurementManagement = () => {
                   {draftInwards.length}
                 </span>
               </button>
- </div>
+            </div>
 
             <div
               data-paddy-inward-form
@@ -2758,9 +2759,9 @@ export const ProcurementManagement = () => {
                   focusable[idx + 1].focus();
               }}
             >
- {/* LEFT COLUMN */}
- <div className="col-span-12 xl:col-span-7 space-y-6">
- {/* 1. Basic Information */}
+              {/* LEFT COLUMN */}
+              <div className="col-span-12 xl:col-span-7 space-y-6">
+                {/* 1. Basic Information */}
                 <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-visible relative z-10">
                   <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm flex flex-wrap items-center justify-between gap-2">
                     <span>1. Basic Information</span>
@@ -2780,8 +2781,8 @@ export const ProcurementManagement = () => {
                       {autoUpdateDateTime ? "ON" : "OFF"}
                     </span>
                   </div>
- <div className="p-4 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4 text-sm">
- <div>
+                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4 text-sm">
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         GP No. <span className="text-red-500">*</span>
                       </label>
@@ -2798,8 +2799,8 @@ export const ProcurementManagement = () => {
                           {inwardErrors.gpNo}
                         </span>
                       )}
- </div>
- <div>
+                    </div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-[11px] mb-1 truncate">
                         Date <span className="text-red-500">*</span>
                       </label>
@@ -2816,8 +2817,8 @@ export const ProcurementManagement = () => {
                           {inwardErrors.date}
                         </span>
                       )}
-  </div>
-  <div>
+                    </div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Time In <span className="text-red-500">*</span>
                       </label>
@@ -2834,28 +2835,28 @@ export const ProcurementManagement = () => {
                           {inwardErrors.timeIn}
                         </span>
                       )}
-  </div>
-  <div>
+                    </div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Truck No. <span className="text-red-500">*</span>
                       </label>
-  <Combobox
-    name="truckNo"
-    value={inwardFormData.truckNo}
-    onChange={handleInwardChange}
-    onBlur={handleMasterDataBlur}
-    options={trucks}
-    className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
-    placeholder="Select or enter truck no"
-  />
+                      <Combobox
+                        name="truckNo"
+                        value={inwardFormData.truckNo}
+                        onChange={handleInwardChange}
+                        onBlur={handleMasterDataBlur}
+                        options={trucks}
+                        className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+                        placeholder="Select or enter truck no"
+                      />
                       {inwardErrors.truckNo && (
                         <span className="text-red-500 text-[10px] mt-1 block">
                           {inwardErrors.truckNo}
                         </span>
                       )}
-  </div>
-  <div>
-  <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between">
+                    </div>
+                    <div>
+                      <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center justify-between">
                         <span>
                           New Truck Reading{" "}
                           <span className="text-red-500">*</span>
@@ -2876,9 +2877,9 @@ export const ProcurementManagement = () => {
                             }}
                             className="accent-red-500"
                           />
-      Meter Not Working
-    </label>
-  </label>
+                          Meter Not Working
+                        </label>
+                      </label>
                       <input
                         type="number"
                         name="newTruckReading"
@@ -2892,29 +2893,29 @@ export const ProcurementManagement = () => {
                           {inwardErrors.newTruckReading}
                         </span>
                       )}
-  </div>
-  <div>
+                    </div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Party / Supplier Name{" "}
                         <span className="text-red-500">*</span>
                       </label>
-  <Combobox
-    name="supplierId"
-    value={inwardFormData.supplierId}
-    onChange={handleInwardChange}
-    options={suppliers}
-    valueKey="id"
+                      <Combobox
+                        name="supplierId"
+                        value={inwardFormData.supplierId}
+                        onChange={handleInwardChange}
+                        options={suppliers}
+                        valueKey="id"
                         selectOnly
-    placeholder="Select Supplier"
-    className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
-   />
+                        placeholder="Select Supplier"
+                        className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+                      />
                       {inwardErrors.supplierId && (
                         <span className="text-red-500 text-[10px] mt-1 block">
                           {inwardErrors.supplierId}
                         </span>
                       )}
-  </div>
- <div>
+                    </div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Mandi Parchi No. <span className="text-red-500">*</span>
                       </label>
@@ -2931,8 +2932,8 @@ export const ProcurementManagement = () => {
                           {inwardErrors.mandiParchiNo}
                         </span>
                       )}
- </div>
- <div>
+                    </div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Mandi e-GP / Bill No.{" "}
                         <span className="text-red-500">*</span>
@@ -2950,8 +2951,8 @@ export const ProcurementManagement = () => {
                           {inwardErrors.mandiEgpNo}
                         </span>
                       )}
- </div>
- <div>
+                    </div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Mandi Type <span className="text-red-500">*</span>
                       </label>
@@ -2962,16 +2963,16 @@ export const ProcurementManagement = () => {
                         className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
                       >
                         <option value="">Select Mandi Type</option>
-  <option value="Control">Control</option>
-  <option value="Boli">Boli</option>
-</select>
+                        <option value="Control">Control</option>
+                        <option value="Boli">Boli</option>
+                      </select>
                       {inwardErrors.mandiType && (
                         <span className="text-red-500 text-[10px] mt-1 block">
                           {inwardErrors.mandiType}
                         </span>
                       )}
-</div>
-  <div>
+                    </div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         RST No. <span className="text-red-500">*</span>
                       </label>
@@ -2988,19 +2989,19 @@ export const ProcurementManagement = () => {
                           {inwardErrors.rstNo}
                         </span>
                       )}
-  </div>
- <div>
+                    </div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center gap-2">
                         Supervisor <span className="text-red-500">*</span>
                       </label>
- <Combobox
-    name="pahunchPersonName"
-    value={inwardFormData.pahunchPersonName}
-    onChange={handleInwardChange}
-    options={pahunchs}
+                      <Combobox
+                        name="pahunchPersonName"
+                        value={inwardFormData.pahunchPersonName}
+                        onChange={handleInwardChange}
+                        options={pahunchs}
                         selectOnly
                         listMaxHeightClass="max-h-48"
-    className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+                        className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
                         placeholder="Select Supervisor"
                       />
                       {inwardErrors.pahunchPersonName && (
@@ -3008,17 +3009,17 @@ export const ProcurementManagement = () => {
                           {inwardErrors.pahunchPersonName}
                         </span>
                       )}
- </div>
- </div>
- </div>
+                    </div>
+                  </div>
+                </div>
 
- {/* 2. Quality Details */}
- <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
+                {/* 2. Quality Details */}
+                <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
                   <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">
                     2. Quality Details
                   </div>
- <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
- <div>
+                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Moisture (%) <span className="text-red-500">*</span>
                       </label>
@@ -3037,13 +3038,13 @@ export const ProcurementManagement = () => {
                           {inwardErrors.moisture}
                         </span>
                       )}
- </div>
- <div>
-   <div className="col-span-1 sm:col-span-1">
+                    </div>
+                    <div>
+                      <div className="col-span-1 sm:col-span-1">
                         <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                           Safai <span className="text-red-500">*</span>
                         </label>
-   <div className="flex items-center gap-4 mt-2">
+                        <div className="flex items-center gap-4 mt-2">
                           <label className="flex items-center gap-1 text-[var(--text-main)]">
                             <input
                               type="radio"
@@ -3066,21 +3067,21 @@ export const ProcurementManagement = () => {
                             />{" "}
                             Patal
                           </label>
-   </div>
+                        </div>
                         {inwardErrors.safai && (
                           <span className="text-red-500 text-[10px] mt-1 block">
                             {inwardErrors.safai}
                           </span>
                         )}
-   </div>
- </div>
- <div className="col-span-1 sm:col-span-2">
+                      </div>
+                    </div>
+                    <div className="col-span-1 sm:col-span-2">
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         If Not As Per Standards (Mandi Intimation given or not){" "}
                         <span className="text-red-500">*</span>
                       </label>
- <div className="flex flex-col gap-2 mt-2">
- <div className="flex flex-wrap items-center gap-4">
+                      <div className="flex flex-col gap-2 mt-2">
+                        <div className="flex flex-wrap items-center gap-4">
                           <label className="flex items-center gap-1 text-[var(--text-main)]">
                             <input
                               type="radio"
@@ -3105,15 +3106,15 @@ export const ProcurementManagement = () => {
                             />{" "}
                             Incoming quality/standard is not as per requirement
                           </label>
- </div>
+                        </div>
                         {inwardErrors.mandiIntimation && (
                           <span className="text-red-500 text-[10px] mt-1 block">
                             {inwardErrors.mandiIntimation}
                           </span>
                         )}
- </div>
- </div>
- <div className="col-span-1 sm:col-span-2">
+                      </div>
+                    </div>
+                    <div className="col-span-1 sm:col-span-2">
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Remarks <span className="text-red-500">*</span>
                       </label>
@@ -3129,22 +3130,22 @@ export const ProcurementManagement = () => {
                           {inwardErrors.remarks}
                         </span>
                       )}
- </div>
- </div>
- </div>
+                    </div>
+                  </div>
+                </div>
 
- {/* 3. Vehicle Verification */}
- <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
+                {/* 3. Vehicle Verification */}
+                <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
                   <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">
                     3. Vehicle Verification
                   </div>
- <div className="p-4 grid grid-cols-2 gap-4 text-sm">
- <div>
+                  <div className="p-4 grid grid-cols-2 gap-4 text-sm">
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Bhari (Loaded) Video Upload{" "}
                         <span className="text-red-500">*</span>
                       </label>
- <div className="flex items-center gap-4 py-2">
+                      <div className="flex items-center gap-4 py-2">
                         <label className="flex items-center gap-1 text-[var(--text-main)]">
                           <input
                             type="checkbox"
@@ -3162,23 +3163,23 @@ export const ProcurementManagement = () => {
                           />{" "}
                           Yes Done
                         </label>
- </div>
+                      </div>
                       {inwardErrors.bhariVideoUpload && (
                         <span className="text-red-500 text-[10px] mt-1 block">
                           {inwardErrors.bhariVideoUpload}
                         </span>
                       )}
- </div>
-  </div>
- </div>
+                    </div>
+                  </div>
+                </div>
 
- {/* 4. Unloading Management */}
- <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-visible relative z-[5]">
+                {/* 4. Unloading Management */}
+                <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-visible relative z-[5]">
                   <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">
                     4. Unloading Management
                   </div>
                   <div className="p-4 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 text-sm">
- <div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Allocation Type <span className="text-red-500">*</span>
                       </label>
@@ -3204,11 +3205,11 @@ export const ProcurementManagement = () => {
                           <option value="" disabled>
                             Select Allocation Type
                           </option>
-   <option value="Hoodi">Hoodi</option>
-   <option value="Stacking">Stacking</option>
-   </select>
+                          <option value="Hoodi">Hoodi</option>
+                          <option value="Stacking">Stacking</option>
+                        </select>
                         {inwardFormData.allocationType === "Hoodi" && (
-     <label className="flex items-center gap-1 text-[10px] text-gray-500 font-medium whitespace-nowrap whitespace-nowrap cursor-pointer">
+                          <label className="flex items-center gap-1 text-[10px] text-gray-500 font-medium whitespace-nowrap whitespace-nowrap cursor-pointer">
                             <input
                               type="checkbox"
                               name="informBauji"
@@ -3221,22 +3222,22 @@ export const ProcurementManagement = () => {
                               }
                               className="accent-[#e67e00]"
                             />
-       Inform Bauji
-     </label>
-   )}
- </div>
+                            Inform Bauji
+                          </label>
+                        )}
+                      </div>
                       {inwardErrors.allocationType && (
                         <span className="text-red-500 text-[10px] mt-1 block">
                           {inwardErrors.allocationType}
                         </span>
                       )}
- </div>
- <div>
+                    </div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Upload @ Hoodi Reg.{" "}
                         <span className="text-red-500">*</span>
                       </label>
- <div className="flex items-center gap-4 mt-2">
+                      <div className="flex items-center gap-4 mt-2">
                         {inwardFormData.allocationType !== "Hoodi" && (
                           <label className="flex items-center gap-1 text-[var(--text-main)]">
                             <input
@@ -3278,27 +3279,27 @@ export const ProcurementManagement = () => {
                           />{" "}
                           Yes
                         </label>
- </div>
+                      </div>
                       {inwardErrors.hoodiUpload && (
                         <span className="text-red-500 text-[10px] mt-1 block">
                           {inwardErrors.hoodiUpload}
                         </span>
                       )}
- </div>
+                    </div>
 
                     {/* Row 1: Main Unloader */}
                     <div className="col-span-1 sm:col-span-2 2xl:col-span-4 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
- <div>
+                      <div>
                         <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                           Allocate Main Unloader{" "}
                           <span className="text-red-500">*</span>
                         </label>
- <Combobox
-    name="allocateUnloader"
-    value={inwardFormData.allocateUnloader}
+                        <Combobox
+                          name="allocateUnloader"
+                          value={inwardFormData.allocateUnloader}
                           onChange={async (e: any) => {
                             if (inwardFormData.isHold) return;
-      handleInwardChange(e);
+                            handleInwardChange(e);
                             const name = e?.target?.value;
                             if (!name || !activePlant?.id) return;
                             try {
@@ -3334,15 +3335,14 @@ export const ProcurementManagement = () => {
                                     /UNLOADER/i.test(s.role || ""),
                                   ),
                                   ...staff.filter(
-                                    (s: any) =>
-                                      !/UNLOADER/i.test(s.role || ""),
+                                    (s: any) => !/UNLOADER/i.test(s.role || ""),
                                   ),
                                   ...labours,
                                 ]
                           }
                           selectOnly
                           listMaxHeightClass="max-h-48"
-    className={`bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00] ${
+                          className={`bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00] ${
                             inwardFormData.isHold
                               ? "opacity-60 pointer-events-none"
                               : ""
@@ -3362,12 +3362,13 @@ export const ProcurementManagement = () => {
                         {unloaderOptions.length === 0 &&
                           staff.length === 0 &&
                           labours.length === 0 && (
-                          <span className="text-[10px] text-amber-500 mt-1 block">
-                            No unloaders found. Add under Staff Management → UNLOADER, or create a plant user.
-                          </span>
-                        )}
- </div>
- <div>
+                            <span className="text-[10px] text-amber-500 mt-1 block">
+                              No unloaders found. Add under Staff Management →
+                              UNLOADER, or create a plant user.
+                            </span>
+                          )}
+                      </div>
+                      <div>
                         <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                           Unloader Initials
                         </label>
@@ -3376,17 +3377,17 @@ export const ProcurementManagement = () => {
                           name="unloaderInitials"
                           maxLength={6}
                           value={inwardFormData.unloaderInitials || ""}
-    onChange={handleInwardChange}
+                          onChange={handleInwardChange}
                           className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00] uppercase"
                           placeholder="e.g. RK"
                         />
- </div>
- <div>
+                      </div>
+                      <div>
                         <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                           Main Unloader Truck Count
                           <span className="block text-[10px] font-normal opacity-80">
-                            Preview only — credited on Confirm (Net Weight complete), not
-                            during unload
+                            Preview only — credited on Confirm (Net Weight
+                            complete), not during unload
                           </span>
                         </label>
                         <input
@@ -3412,8 +3413,8 @@ export const ProcurementManagement = () => {
                           </span>{" "}
                           <ScanBarcode size={14} className="text-[#e67e00]" />
                         </label>
- <div className="flex gap-2">
- <div className="relative flex-1">
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
                             <input
                               type="text"
                               name="stackNo"
@@ -3426,22 +3427,22 @@ export const ProcurementManagement = () => {
                               size={16}
                               className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none"
                             />
- </div>
+                          </div>
                           <button
                             type="button"
                             onClick={openStackModal}
                             className="px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded text-[var(--text-main)] hover:bg-[var(--glass-bg)]"
                             title="Select stack drawing (current mill)"
                           >
-   <Layers size={16} />
-   </button>
+                            <Layers size={16} />
+                          </button>
                         </div>
                         {inwardErrors.stackNo && (
                           <span className="text-red-500 text-[10px] mt-1 block">
                             {inwardErrors.stackNo}
                           </span>
- )}
- </div>
+                        )}
+                      </div>
                       <div>
                         <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                           Bags in Main Stack (Unloader 1){" "}
@@ -3460,7 +3461,7 @@ export const ProcurementManagement = () => {
                             {inwardErrors.bagsInMainStack}
                           </span>
                         )}
- </div>
+                      </div>
                     </div>
 
                     {/* Row 2: Part Unloader / No Part Stack */}
@@ -3504,7 +3505,7 @@ export const ProcurementManagement = () => {
                     </div>
                     {!inwardFormData.noPartStack && (
                       <div className="col-span-1 sm:col-span-2 2xl:col-span-4 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
- <div>
+                        <div>
                           <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                             Part Unloader (Unloader 2){" "}
                             <span className="text-red-500">*</span>
@@ -3561,12 +3562,13 @@ export const ProcurementManagement = () => {
                               {inwardErrors.partUnloaderName}
                             </span>
                           )}
- </div>
- <div>
+                        </div>
+                        <div>
                           <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                             Part Unloader Truck Count
                             <span className="block text-[10px] font-normal opacity-80">
-                              Preview only — credited on Confirm, not during unload
+                              Preview only — credited on Confirm, not during
+                              unload
                             </span>
                           </label>
                           <input
@@ -3578,8 +3580,8 @@ export const ProcurementManagement = () => {
                             placeholder="After confirm"
                             title="Serial credited only when Net Weight Paddy Inward is submitted"
                           />
- </div>
- <div>
+                        </div>
+                        <div>
                           <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                             Part Stack No.{" "}
                             <span className="text-red-500">*</span>
@@ -3597,8 +3599,8 @@ export const ProcurementManagement = () => {
                               {inwardErrors.secondPartStackNo}
                             </span>
                           )}
- </div>
- <div>
+                        </div>
+                        <div>
                           <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                             Bags in Part Stack (Unloader 2){" "}
                             <span className="text-red-500">*</span>
@@ -3616,11 +3618,11 @@ export const ProcurementManagement = () => {
                               {inwardErrors.bagsInSecondPartStack}
                             </span>
                           )}
- </div>
+                        </div>
                       </div>
                     )}
 
- <div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Unloading Start Time{" "}
                         <span className="text-red-500">*</span>
@@ -3641,8 +3643,8 @@ export const ProcurementManagement = () => {
                           {inwardErrors.unloadingStartTime}
                         </span>
                       )}
- </div>
- <div>
+                    </div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Unloading Finish Time{" "}
                         <span className="text-red-500">*</span>
@@ -3662,25 +3664,26 @@ export const ProcurementManagement = () => {
                           {inwardErrors.unloadingFinishTime}
                         </span>
                       )}
- </div>
- <div>
+                    </div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Labour Name <span className="text-red-500">*</span>
                       </label>
- <Combobox
-    name="labour"
-    value={inwardFormData.labour}
-    onChange={handleInwardChange}
-    onBlur={handleMasterDataBlur}
-    options={labours}
-    valueKey="name"
-    listMaxHeightClass="max-h-48"
-    className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
-    placeholder="Select labour name"
-  />
+                      <Combobox
+                        name="labour"
+                        value={inwardFormData.labour}
+                        onChange={handleInwardChange}
+                        onBlur={handleMasterDataBlur}
+                        options={labours}
+                        valueKey="name"
+                        listMaxHeightClass="max-h-48"
+                        className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+                        placeholder="Select labour name"
+                      />
                       {labours.length === 0 && (
                         <p className="text-[10px] text-amber-500 mt-1">
-                          No labour in master — add via Staff Management → Add Staff → Labour
+                          No labour in master — add via Staff Management → Add
+                          Staff → Labour
                         </p>
                       )}
                       {inwardErrors.labour && (
@@ -3688,7 +3691,7 @@ export const ProcurementManagement = () => {
                           {inwardErrors.labour}
                         </span>
                       )}
- </div>
+                    </div>
 
                     {/* Feedback 39 — Hold (frees unloader for another truck; vehicle stays blocked) */}
                     <div className="col-span-1 sm:col-span-2 2xl:col-span-4 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
@@ -3765,11 +3768,11 @@ export const ProcurementManagement = () => {
                     {inwardFormData.id && (
                       <div className="col-span-1 sm:col-span-2 2xl:col-span-4">
                         <div className="bg-[#e67e00]/10 p-3 rounded-lg border border-[#e67e00]/30 grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div className="space-y-3">
+                          <div className="space-y-3">
                             <div className="font-bold text-[#e67e00] text-xs">
                               UNLOADING START VERIFICATION
                             </div>
-      <label className="flex items-center gap-2 text-sm text-[var(--text-main)]">
+                            <label className="flex items-center gap-2 text-sm text-[var(--text-main)]">
                               <input
                                 type="checkbox"
                                 checked={inwardFormData.loadedVideoVerified}
@@ -3781,9 +3784,9 @@ export const ProcurementManagement = () => {
                                 }
                                 className="accent-[#e67e00] w-4 h-4"
                               />
-        Loaded Truck Video Captured & Verified
-      </label>
-      <div>
+                              Loaded Truck Video Captured & Verified
+                            </label>
+                            <div>
                               <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                                 Supervisor PIN
                               </label>
@@ -3795,14 +3798,14 @@ export const ProcurementManagement = () => {
                                 onChange={handleInwardChange}
                                 className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-sm outline-none"
                               />
-       </div>
-    </div>
-    
-    <div className="space-y-3">
+                            </div>
+                          </div>
+
+                          <div className="space-y-3">
                             <div className="font-bold text-[#e67e00] text-xs">
                               UNLOADING FINISH VERIFICATION
                             </div>
-      <label className="flex items-center gap-2 text-sm text-[var(--text-main)]">
+                            <label className="flex items-center gap-2 text-sm text-[var(--text-main)]">
                               <input
                                 type="checkbox"
                                 checked={inwardFormData.emptyVideoVerified}
@@ -3814,9 +3817,9 @@ export const ProcurementManagement = () => {
                                 }
                                 className="accent-[#e67e00] w-4 h-4"
                               />
-        Empty Truck Video Captured & Verified
-      </label>
-      <div>
+                              Empty Truck Video Captured & Verified
+                            </label>
+                            <div>
                               <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                                 Supervisor PIN
                               </label>
@@ -3828,41 +3831,41 @@ export const ProcurementManagement = () => {
                                 onChange={handleInwardChange}
                                 className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-sm outline-none"
                               />
-       </div>
-       </div>
-       </div>
-    </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     )}
- </div>
- </div>
+                  </div>
+                </div>
 
- {/* Pending Bolis & Quality Cut (Supervisor Input) */}
-   <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[#e67e00]/30 overflow-hidden mt-6">
-     <div className="bg-[#e67e00]/10 px-4 py-2 border-b border-[#e67e00]/20 text-[#e67e00] font-bold text-sm flex items-center justify-between">
+                {/* Pending Bolis & Quality Cut (Supervisor Input) */}
+                <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[#e67e00]/30 overflow-hidden mt-6">
+                  <div className="bg-[#e67e00]/10 px-4 py-2 border-b border-[#e67e00]/20 text-[#e67e00] font-bold text-sm flex items-center justify-between">
                     <span>Pending Bolis (Selected Arthia)</span>
-     </div>
-     <div className="p-4">
-        <BoliCompletionTable 
-          sodaPending={sodaPending} 
-          supplierId={inwardFormData.supplierId} 
-          boliInputs={boliInputs} 
-          setBoliInputs={setBoliInputs} 
-          onSodaComplete={fetchSodaPending}
+                  </div>
+                  <div className="p-4">
+                    <BoliCompletionTable
+                      sodaPending={sodaPending}
+                      supplierId={inwardFormData.supplierId}
+                      boliInputs={boliInputs}
+                      setBoliInputs={setBoliInputs}
+                      onSodaComplete={fetchSodaPending}
                       editable={inwardFormData.mandiType === "Boli"}
-        />
-       </div>
-       
-       <div className="bg-[var(--bg-base)] rounded border border-[var(--border-subtle)] p-3">
+                    />
+                  </div>
+
+                  <div className="bg-[var(--bg-base)] rounded border border-[var(--border-subtle)] p-3">
                     <h4 className="text-xs font-bold text-[var(--text-muted-alt)] mb-2 uppercase">
                       Quality Cut
                     </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-            <div className="sm:col-span-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                      <div className="sm:col-span-5">
                         <label className="block text-[var(--text-muted-alt)] text-[10px] mb-1">
                           Cut Type
                         </label>
-              <div className="flex flex-wrap items-center gap-3 py-1">
-                <label className="flex items-center gap-1 text-[var(--text-main)] text-sm cursor-pointer whitespace-nowrap">
+                        <div className="flex flex-wrap items-center gap-3 py-1">
+                          <label className="flex items-center gap-1 text-[var(--text-main)] text-sm cursor-pointer whitespace-nowrap">
                             <input
                               type="radio"
                               name="qualityCutType"
@@ -3871,9 +3874,9 @@ export const ProcurementManagement = () => {
                               onChange={handleInwardChange}
                               className="accent-[#e67e00]"
                             />
-                  None
-                </label>
-                <label className="flex items-center gap-1 text-[var(--text-main)] text-sm cursor-pointer whitespace-nowrap">
+                            None
+                          </label>
+                          <label className="flex items-center gap-1 text-[var(--text-main)] text-sm cursor-pointer whitespace-nowrap">
                             <input
                               type="radio"
                               name="qualityCutType"
@@ -3882,9 +3885,9 @@ export const ProcurementManagement = () => {
                               onChange={handleInwardChange}
                               className="accent-[#e67e00]"
                             />
-                  Bags
-                </label>
-                <label className="flex items-center gap-1 text-[var(--text-main)] text-sm cursor-pointer whitespace-nowrap">
+                            Bags
+                          </label>
+                          <label className="flex items-center gap-1 text-[var(--text-main)] text-sm cursor-pointer whitespace-nowrap">
                             <input
                               type="radio"
                               name="qualityCutType"
@@ -3895,20 +3898,20 @@ export const ProcurementManagement = () => {
                               onChange={handleInwardChange}
                               className="accent-[#e67e00]"
                             />
-                  %age
-                </label>
-              </div>
-            </div>
-            <div className="sm:col-span-3">
-              <label className="block text-[var(--text-muted-alt)] text-[10px] mb-1">
+                            %age
+                          </label>
+                        </div>
+                      </div>
+                      <div className="sm:col-span-3">
+                        <label className="block text-[var(--text-muted-alt)] text-[10px] mb-1">
                           Cut{" "}
                           {inwardFormData.qualityCutType === "PERCENTAGE"
                             ? "(%)"
                             : inwardFormData.qualityCutType === "BAGS"
                               ? "(Bags)"
                               : ""}
-              </label>
-              <div className="relative">
+                        </label>
+                        <div className="relative">
                           <input
                             type="number"
                             min="0"
@@ -3924,19 +3927,19 @@ export const ProcurementManagement = () => {
                           />
                           {inwardFormData.qualityCutType === "BAGS" &&
                             liveQualityCut.qtl > 0 && (
-                  <span className="absolute right-2 top-1.5 text-[10px] font-bold text-orange-400 flex items-center h-5">
+                              <span className="absolute right-2 top-1.5 text-[10px] font-bold text-orange-400 flex items-center h-5">
                                 {liveQualityCut.qtl.toFixed(2)} Qtl
-                  </span>
-                )}
+                              </span>
+                            )}
                           {inwardFormData.qualityCutType === "PERCENTAGE" &&
                             liveQualityCut.value > 0 && (
-                  <span className="absolute right-2 top-1.5 text-[10px] font-bold text-orange-400 flex items-center h-5">
+                              <span className="absolute right-2 top-1.5 text-[10px] font-bold text-orange-400 flex items-center h-5">
                                 {liveQualityCut.needsNetWt
                                   ? "Wait for Net Wt"
                                   : `${liveQualityCut.qtl.toFixed(2)} Qtl`}
-                  </span>
-                )}
-              </div>
+                              </span>
+                            )}
+                        </div>
                         {(inwardFormData.qualityCutType === "BAGS" ||
                           inwardFormData.qualityCutType === "PERCENTAGE") && (
                           <p className="text-[10px] text-orange-400 mt-1 font-medium">
@@ -3952,8 +3955,8 @@ export const ProcurementManagement = () => {
                               : ""}
                           </p>
                         )}
-            </div>
-            <div className="sm:col-span-4">
+                      </div>
+                      <div className="sm:col-span-4">
                         <label className="block text-[var(--text-muted-alt)] text-[10px] mb-1">
                           Reason
                         </label>
@@ -3966,26 +3969,26 @@ export const ProcurementManagement = () => {
                           className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)] outline-none disabled:opacity-50"
                           placeholder="e.g. High Moisture"
                         />
-            </div>
-          </div>
-          </div>
-        </div>
-  </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
- {/* RIGHT COLUMN */}
- <div className="col-span-12 xl:col-span-5 space-y-6">
- {/* 5. Bardana Details & 6. Weight Details */}
- <div className="flex flex-col gap-6 mt-6">
- {/* 5. Bardana */}
- <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
+              {/* RIGHT COLUMN */}
+              <div className="col-span-12 xl:col-span-5 space-y-6">
+                {/* 5. Bardana Details & 6. Weight Details */}
+                <div className="flex flex-col gap-6 mt-6">
+                  {/* 5. Bardana */}
+                  <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
                     <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">
                       5. Bardana Details
                     </div>
- <div className="p-4">
- <table className="w-full text-sm text-left">
- <thead>
- <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)]">
- <th className="pb-2 font-medium w-1/3"></th>
+                    <div className="p-4">
+                      <table className="w-full text-sm text-left">
+                        <thead>
+                          <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)]">
+                            <th className="pb-2 font-medium w-1/3"></th>
                             <th
                               className="pb-2 font-medium text-center"
                               colSpan={2}
@@ -4001,11 +4004,11 @@ export const ProcurementManagement = () => {
                             <th className="pb-2 font-medium text-center text-right">
                               Total Bags
                             </th>
- </tr>
- <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)]">
- <th className="pb-2 font-medium"></th>
- <th className="pb-2 font-medium">A Class</th>
- <th className="pb-2 font-medium">B Class</th>
+                          </tr>
+                          <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)]">
+                            <th className="pb-2 font-medium"></th>
+                            <th className="pb-2 font-medium">A Class</th>
+                            <th className="pb-2 font-medium">B Class</th>
                             <th className="pb-2 font-medium text-[#e67e00]">
                               A Class
                             </th>
@@ -4013,14 +4016,14 @@ export const ProcurementManagement = () => {
                               B Class
                             </th>
                             <th className="pb-2 font-medium text-right"></th>
- </tr>
- </thead>
- <tbody>
- <tr className="border-b border-[var(--border-subtle-alt)]">
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-b border-[var(--border-subtle-alt)]">
                             <td className="py-3 text-[var(--text-muted)] font-medium">
                               Bags Rec. @ Mill
                             </td>
- <td className="py-3">
+                            <td className="py-3">
                               <input
                                 type="number"
                                 min="0"
@@ -4034,8 +4037,8 @@ export const ProcurementManagement = () => {
                                   {inwardErrors.origAClass}
                                 </span>
                               )}
- </td>
- <td className="py-3">
+                            </td>
+                            <td className="py-3">
                               <input
                                 type="number"
                                 min="0"
@@ -4049,8 +4052,8 @@ export const ProcurementManagement = () => {
                                   {inwardErrors.origBClass}
                                 </span>
                               )}
- </td>
- <td className="py-3">
+                            </td>
+                            <td className="py-3">
                               <input
                                 type="number"
                                 min="0"
@@ -4064,8 +4067,8 @@ export const ProcurementManagement = () => {
                                   {inwardErrors.shortageAClass}
                                 </span>
                               )}
- </td>
- <td className="py-3">
+                            </td>
+                            <td className="py-3">
                               <input
                                 type="number"
                                 min="0"
@@ -4087,13 +4090,13 @@ export const ProcurementManagement = () => {
                                   0) +
                                 (parseFloat(inwardFormData.shortageBClass) ||
                                   0)}
- </td>
- </tr>
- <tr>
+                            </td>
+                          </tr>
+                          <tr>
                             <td className="py-3 text-[var(--text-muted)] font-medium">
                               Bags @ Agency GP
                             </td>
- <td className="py-3">
+                            <td className="py-3">
                               <input
                                 type="number"
                                 min="0"
@@ -4107,8 +4110,8 @@ export const ProcurementManagement = () => {
                                   {inwardErrors.origAClassAg}
                                 </span>
                               )}
- </td>
- <td className="py-3">
+                            </td>
+                            <td className="py-3">
                               <input
                                 type="number"
                                 min="0"
@@ -4122,7 +4125,7 @@ export const ProcurementManagement = () => {
                                   {inwardErrors.origBClassAg}
                                 </span>
                               )}
- </td>
+                            </td>
                             <td
                               className="py-3 text-center text-gray-500"
                               colSpan={2}
@@ -4133,9 +4136,9 @@ export const ProcurementManagement = () => {
                               {(parseFloat(inwardFormData.origAClassAg) || 0) +
                                 (parseFloat(inwardFormData.origBClassAg) || 0)}
                             </td>
- </tr>
- </tbody>
- </table>
+                          </tr>
+                        </tbody>
+                      </table>
                       {(() => {
                         const millExclShortage =
                           (parseFloat(inwardFormData.origAClass) || 0) +
@@ -4186,11 +4189,11 @@ export const ProcurementManagement = () => {
                           </div>
                         );
                       })()}
- </div>
- </div>
+                    </div>
+                  </div>
 
- {/* 6. Weight Details */}
- <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden flex flex-col">
+                  {/* 6. Weight Details */}
+                  <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden flex flex-col">
                     <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm flex items-center justify-between gap-2">
                       <span>6. Weight Details</span>
                       <button
@@ -4226,10 +4229,10 @@ export const ProcurementManagement = () => {
                         Fetch WB
                       </button>
                     </div>
-  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 content-start">
+                    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 content-start">
                       <p className="sm:col-span-2 text-[10px] text-[var(--text-muted-alt)] -mt-1 mb-1">
-                        Gross, Tare and Net at Mill are auto-fetched from the mill
-                        weighbridge (select truck). Only{" "}
+                        Gross, Tare and Net at Mill are auto-fetched from the
+                        mill weighbridge (select truck). Only{" "}
                         <span className="text-[var(--text-main)] font-medium">
                           Net Wt. at Party
                         </span>{" "}
@@ -4335,13 +4338,13 @@ export const ProcurementManagement = () => {
                           title="Gross − Tare from weighbridge"
                         />
                       </div>
-  <div>
-    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
-      Required Nt Wt. : (Qtl)
+                      <div>
+                        <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                          Required Nt Wt. : (Qtl)
                           <span className="block text-[10px] opacity-80">
                             (agency + shortage bags)
                           </span>
-    </label>
+                        </label>
                         <input
                           type="number"
                           min="0"
@@ -4351,9 +4354,9 @@ export const ProcurementManagement = () => {
                           className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed"
                           title="Auto calculated"
                         />
-  </div>
-  <div>
-    <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                      </div>
+                      <div>
+                        <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                           <span>
                             Net Wt. at Mill : (Qtl){" "}
                             <span className="text-red-500">*</span>
@@ -4361,7 +4364,7 @@ export const ProcurementManagement = () => {
                               (weighbridge)
                             </span>
                           </span>
-    </label>
+                        </label>
                         <input
                           type="number"
                           min="0"
@@ -4376,8 +4379,8 @@ export const ProcurementManagement = () => {
                             {inwardErrors.netWtMill}
                           </span>
                         )}
-  </div>
-  <div>
+                      </div>
+                      <div>
                         <label className="block text-[var(--text-main)] font-bold text-xs mb-1">
                           Net Wt. Difference : (Qtl){" "}
                           <span className="text-red-500">*</span>
@@ -4398,15 +4401,15 @@ export const ProcurementManagement = () => {
                             {inwardErrors.netWtDiff}
                           </span>
                         )}
-  </div>
-  <div>
+                      </div>
+                      <div>
                         <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                           Net Wt. at Party : (Qtl){" "}
                           <span className="text-red-500">*</span>
                           <span className="ml-1 text-[10px] text-[#e67e00]">
                             (manual entry)
                           </span>
-    </label>
+                        </label>
                         <input
                           type="number"
                           min="0"
@@ -4419,8 +4422,8 @@ export const ProcurementManagement = () => {
                           <span className="text-red-500 text-[10px] mt-1 block">
                             {inwardErrors.netWtParty}
                           </span>
-    )}
-  </div>
+                        )}
+                      </div>
                       <div className="sm:col-span-2">
                         <label
                           className={`flex items-start gap-2 text-xs ${parseFloat(inwardFormData.netWtDiff) < 0 ? "cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
@@ -4457,32 +4460,32 @@ export const ProcurementManagement = () => {
                           </span>
                         </label>
                       </div>
-  </div>
- </div>
- </div>
- 
- {/* 7. Dhank / Lot Details */}
- <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
+                    </div>
+                  </div>
+                </div>
+
+                {/* 7. Dhank / Lot Details */}
+                <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
                   <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">
                     7. Dhank / Lot Details
                   </div>
- <div className="p-4">
- <table className="w-full text-sm text-center">
- <thead>
- <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)] uppercase font-medium bg-[var(--bg-base)]">
+                  <div className="p-4">
+                    <table className="w-full text-sm text-center">
+                      <thead>
+                        <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)] uppercase font-medium bg-[var(--bg-base)]">
                           <th className="py-2">Dhank No.</th>
- <th className="py-2">Bags</th>
- <th className="py-2">Moisture (%)</th>
- <th className="py-2">Bardana Class</th>
- </tr>
- </thead>
- <tbody>
- {dhanakLots.map((lot, idx) => (
+                          <th className="py-2">Bags</th>
+                          <th className="py-2">Moisture (%)</th>
+                          <th className="py-2">Bardana Class</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dhanakLots.map((lot, idx) => (
                           <tr
                             key={lot.id}
                             className="border-b border-[var(--border-subtle-alt)]"
                           >
- <td className="py-2">
+                            <td className="py-2">
                               <input
                                 type="text"
                                 value={
@@ -4537,14 +4540,14 @@ export const ProcurementManagement = () => {
                                 }
                                 className="w-24 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-1 py-1 text-[var(--text-main)] text-xs"
                               >
- <option value="">Select</option>
- <option value="A_Class">A Class</option>
- <option value="B_Class">B Class</option>
- </select>
- </td>
- </tr>
- ))}
- <tr className="font-bold bg-[var(--bg-panel)]">
+                                <option value="">Select</option>
+                                <option value="A_Class">A Class</option>
+                                <option value="B_Class">B Class</option>
+                              </select>
+                            </td>
+                          </tr>
+                        ))}
+                        <tr className="font-bold bg-[var(--bg-panel)]">
                           <td className="py-3 text-right pr-4 text-[var(--text-main)]">
                             TOTAL
                           </td>
@@ -4555,187 +4558,227 @@ export const ProcurementManagement = () => {
                               0,
                             )}
                           </td>
- <td colSpan={2}></td>
- </tr>
- </tbody>
- </table>
+                          <td colSpan={2}></td>
+                        </tr>
+                      </tbody>
+                    </table>
                     <button
                       onClick={addDhanakRow}
                       className="mt-3 text-blue-400 text-sm font-bold flex items-center gap-1 hover:text-blue-300"
                     >
- <Plus size={14} /> Add Row
- </button>
- </div>
- </div>
+                      <Plus size={14} /> Add Row
+                    </button>
+                  </div>
+                </div>
 
- {/* 8. Shortage Management */}
- <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
+                {/* 8. Shortage Management */}
+                <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
                   <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">
                     8. Shortage Management
                   </div>
-  <div className="p-4 grid grid-cols-2 gap-4 text-sm">
-  <div className="col-span-2 bg-red-900/10 border border-red-500/20 p-3 rounded-lg space-y-3">
-    <div className="flex items-center justify-between gap-3 flex-wrap">
-      <div>
-        <span className="text-red-400 font-bold block">
-          Calculated Shortage
-        </span>
-        <span className="text-[10px] text-[var(--text-muted-alt)]">
-          Based on Standard Bag Weight (
-          {plants.find((p) => p.id === activePlant?.id)
-            ?.standardBagWeight || 0.382}{" "}
-          Qtl)
-        </span>
-      </div>
-    </div>
-    {/* Feedback 33 — Ref table: quality cut / weight / bags separately */}
-    <div className="overflow-x-auto rounded-lg border border-red-500/20 bg-[var(--bg-base)]/40">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-red-500/20 text-[var(--text-muted-alt)]">
-            <th className="text-left px-3 py-2 font-medium">Calculated Shortage</th>
-            <th className="text-right px-3 py-2 font-medium w-28">Qtl</th>
-            <th className="text-right px-3 py-2 font-medium w-28">Bags</th>
-          </tr>
-        </thead>
-        <tbody className="text-[var(--text-main)] font-mono">
-          <tr className="border-b border-[var(--border-subtle)]">
-            <td className="px-3 py-2 font-sans">
-              Quality Cut Shortage
-              {liveQualityCut.label ? (
-                <span className="block text-[10px] text-orange-400 font-medium mt-0.5">
-                  {liveQualityCut.narration}
-                  {liveQualityCut.needsNetWt
-                    ? " (waiting for Net Wt at Mill)"
-                    : ""}
-                </span>
-              ) : (
-                <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
-                  From Quality Cut (Bags or %age) — live
-                </span>
-              )}
-            </td>
-            <td className="px-3 py-2 text-right text-orange-300">
-              {liveQualityCut.qtl.toFixed(3)}
-            </td>
-            <td className="px-3 py-2 text-right text-orange-300">
-              {liveQualityCut.bags.toFixed(2)}
-            </td>
-          </tr>
-          <tr className="border-b border-[var(--border-subtle)]">
-            <td className="px-3 py-2 font-sans">
-              Shortage by weight
-              {Number(inwardFormData.bdWeightShortageQtl || 0) < -0.0005 ? (
-                <span className="block text-[10px] text-emerald-400 font-medium mt-0.5">
-                  Excess Weight Received (Inform Bauji) — negative
-                </span>
-              ) : Number(inwardFormData.bdWeightShortageQtl || 0) > 0.0005 ? (
-                <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
-                  Mill wt &lt; required · bags = Qtl ÷ {plantBagWt}
-                </span>
-              ) : null}
-            </td>
-            <td
-              className={`px-3 py-2 text-right ${
-                Number(inwardFormData.bdWeightShortageQtl || 0) < 0
-                  ? "text-emerald-400"
-                  : ""
-              }`}
-            >
-              {Number(inwardFormData.bdWeightShortageQtl || 0).toFixed(3)}
-            </td>
-            <td
-              className={`px-3 py-2 text-right ${
-                Number(inwardFormData.bdWeightShortageBags || 0) < 0
-                  ? "text-emerald-400"
-                  : ""
-              }`}
-            >
-              {Number(inwardFormData.bdWeightShortageBags || 0).toFixed(2)}
-            </td>
-          </tr>
-          <tr className="border-b border-[var(--border-subtle)]">
-            <td className="px-3 py-2 font-sans">
-              Shortage by bags
-              {inwardFormData.informBaujiBagsLess ||
-              inwardFormData.bagsRecLessThanAgencyGp ? (
-                <span className="block text-[10px] text-amber-400 font-medium mt-0.5">
-                  Hidden — Bags less than Agency GP, Inform Bauji
-                </span>
-              ) : Number(inwardFormData.bdBagsShortageBags || 0) > 0 ? (
-                <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
-                  Mill bags (excl. shortage) &lt; Agency GP · × {plantBagWt} Qtl
-                </span>
-              ) : null}
-            </td>
-            <td className="px-3 py-2 text-right">
-              {Number(inwardFormData.bdBagsShortageQtl || 0).toFixed(3)}
-            </td>
-            <td className="px-3 py-2 text-right">
-              {Number(inwardFormData.bdBagsShortageBags || 0).toFixed(2)}
-            </td>
-          </tr>
-          <tr className="border-b border-red-500/30 bg-red-900/10 font-bold">
-            <td className="px-3 py-2 font-sans text-red-300">
-              Total shortage of this truck
-              <span className="block text-[10px] text-red-300/70 font-normal mt-0.5">
-                Quality cut + Weight + Bags
-              </span>
-            </td>
-            <td className="px-3 py-2 text-right text-red-300">
-              {(
-                liveQualityCut.qtl +
-                Number(inwardFormData.bdWeightShortageQtl || 0) +
-                Number(inwardFormData.bdBagsShortageQtl || 0)
-              ).toFixed(3)}
-            </td>
-            <td className="px-3 py-2 text-right text-red-300">
-              {(() => {
-                const qtl =
-                  liveQualityCut.qtl +
-                  Number(inwardFormData.bdWeightShortageQtl || 0) +
-                  Number(inwardFormData.bdBagsShortageQtl || 0);
-                return plantBagWt > 0
-                  ? (qtl / plantBagWt).toFixed(2)
-                  : (
-                      liveQualityCut.bags +
-                      Number(inwardFormData.bdWeightShortageBags || 0) +
-                      Number(inwardFormData.bdBagsShortageBags || 0)
-                    ).toFixed(2);
-              })()}
-            </td>
-          </tr>
-          <tr className="bg-amber-900/10 font-bold">
-            <td className="px-3 py-2 font-sans text-amber-300">
-              Total shortage of Artia
-              <span className="block text-[10px] text-amber-300/70 font-normal mt-0.5">
-                Till-date balance for selected Artia (confirmed entries) — not
-                this truck alone
-              </span>
-            </td>
-            <td className="px-3 py-2 text-right text-amber-300">
-              {inwardFormData.supplierId
-                ? artiaTillDateShortage.qtl.toFixed(3)
-                : "—"}
-            </td>
-            <td className="px-3 py-2 text-right text-amber-300">
-              {inwardFormData.supplierId
-                ? artiaTillDateShortage.bags.toFixed(2)
-                : "—"}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
+                  <div className="p-4 grid grid-cols-2 gap-4 text-sm">
+                    <div className="col-span-2 bg-red-900/10 border border-red-500/20 p-3 rounded-lg space-y-3">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                          <span className="text-red-400 font-bold block">
+                            Calculated Shortage
+                          </span>
+                          <span className="text-[10px] text-[var(--text-muted-alt)]">
+                            Based on Standard Bag Weight (
+                            {plants.find((p) => p.id === activePlant?.id)
+                              ?.standardBagWeight || 0.382}{" "}
+                            Qtl)
+                          </span>
+                        </div>
+                      </div>
+                      {/* Feedback 33 — Ref table: quality cut / weight / bags separately */}
+                      <div className="overflow-x-auto rounded-lg border border-red-500/20 bg-[var(--bg-base)]/40">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-red-500/20 text-[var(--text-muted-alt)]">
+                              <th className="text-left px-3 py-2 font-medium">
+                                Calculated Shortage
+                              </th>
+                              <th className="text-right px-3 py-2 font-medium w-28">
+                                Qtl
+                              </th>
+                              <th className="text-right px-3 py-2 font-medium w-28">
+                                Bags
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="text-[var(--text-main)] font-mono">
+                            <tr className="border-b border-[var(--border-subtle)]">
+                              <td className="px-3 py-2 font-sans">
+                                Quality Cut Shortage
+                                {liveQualityCut.label ? (
+                                  <span className="block text-[10px] text-orange-400 font-medium mt-0.5">
+                                    {liveQualityCut.narration}
+                                    {liveQualityCut.needsNetWt
+                                      ? " (waiting for Net Wt at Mill)"
+                                      : ""}
+                                  </span>
+                                ) : (
+                                  <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
+                                    From Quality Cut (Bags or %age) — live
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-right text-orange-300">
+                                {liveQualityCut.qtl.toFixed(3)}
+                              </td>
+                              <td className="px-3 py-2 text-right text-orange-300">
+                                {liveQualityCut.bags.toFixed(2)}
+                              </td>
+                            </tr>
+                            <tr className="border-b border-[var(--border-subtle)]">
+                              <td className="px-3 py-2 font-sans">
+                                Shortage by weight
+                                {Number(
+                                  inwardFormData.bdWeightShortageQtl || 0,
+                                ) < -0.0005 ? (
+                                  <span className="block text-[10px] text-emerald-400 font-medium mt-0.5">
+                                    Excess Weight Received (Inform Bauji) —
+                                    negative
+                                  </span>
+                                ) : Number(
+                                    inwardFormData.bdWeightShortageQtl || 0,
+                                  ) > 0.0005 ? (
+                                  <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
+                                    Mill wt &lt; required · bags = Qtl ÷{" "}
+                                    {plantBagWt}
+                                  </span>
+                                ) : null}
+                              </td>
+                              <td
+                                className={`px-3 py-2 text-right ${
+                                  Number(
+                                    inwardFormData.bdWeightShortageQtl || 0,
+                                  ) < 0
+                                    ? "text-emerald-400"
+                                    : ""
+                                }`}
+                              >
+                                {Number(
+                                  inwardFormData.bdWeightShortageQtl || 0,
+                                ).toFixed(3)}
+                              </td>
+                              <td
+                                className={`px-3 py-2 text-right ${
+                                  Number(
+                                    inwardFormData.bdWeightShortageBags || 0,
+                                  ) < 0
+                                    ? "text-emerald-400"
+                                    : ""
+                                }`}
+                              >
+                                {Number(
+                                  inwardFormData.bdWeightShortageBags || 0,
+                                ).toFixed(2)}
+                              </td>
+                            </tr>
+                            <tr className="border-b border-[var(--border-subtle)]">
+                              <td className="px-3 py-2 font-sans">
+                                Shortage by bags
+                                {inwardFormData.informBaujiBagsLess ||
+                                inwardFormData.bagsRecLessThanAgencyGp ? (
+                                  <span className="block text-[10px] text-amber-400 font-medium mt-0.5">
+                                    Hidden — Bags less than Agency GP, Inform
+                                    Bauji
+                                  </span>
+                                ) : Number(
+                                    inwardFormData.bdBagsShortageBags || 0,
+                                  ) > 0 ? (
+                                  <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
+                                    Mill bags (excl. shortage) &lt; Agency GP ·
+                                    × {plantBagWt} Qtl
+                                  </span>
+                                ) : null}
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                {Number(
+                                  inwardFormData.bdBagsShortageQtl || 0,
+                                ).toFixed(3)}
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                {Number(
+                                  inwardFormData.bdBagsShortageBags || 0,
+                                ).toFixed(2)}
+                              </td>
+                            </tr>
+                            <tr className="border-b border-red-500/30 bg-red-900/10 font-bold">
+                              <td className="px-3 py-2 font-sans text-red-300">
+                                Total shortage of this truck
+                                <span className="block text-[10px] text-red-300/70 font-normal mt-0.5">
+                                  Quality cut + Weight + Bags
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-right text-red-300">
+                                {(
+                                  liveQualityCut.qtl +
+                                  Number(
+                                    inwardFormData.bdWeightShortageQtl || 0,
+                                  ) +
+                                  Number(inwardFormData.bdBagsShortageQtl || 0)
+                                ).toFixed(3)}
+                              </td>
+                              <td className="px-3 py-2 text-right text-red-300">
+                                {(() => {
+                                  const qtl =
+                                    liveQualityCut.qtl +
+                                    Number(
+                                      inwardFormData.bdWeightShortageQtl || 0,
+                                    ) +
+                                    Number(
+                                      inwardFormData.bdBagsShortageQtl || 0,
+                                    );
+                                  return plantBagWt > 0
+                                    ? (qtl / plantBagWt).toFixed(2)
+                                    : (
+                                        liveQualityCut.bags +
+                                        Number(
+                                          inwardFormData.bdWeightShortageBags ||
+                                            0,
+                                        ) +
+                                        Number(
+                                          inwardFormData.bdBagsShortageBags ||
+                                            0,
+                                        )
+                                      ).toFixed(2);
+                                })()}
+                              </td>
+                            </tr>
+                            <tr className="bg-amber-900/10 font-bold">
+                              <td className="px-3 py-2 font-sans text-amber-300">
+                                Total shortage of Artia
+                                <span className="block text-[10px] text-amber-300/70 font-normal mt-0.5">
+                                  Till-date balance for selected Artia
+                                  (confirmed entries) — not this truck alone
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-right text-amber-300">
+                                {inwardFormData.supplierId
+                                  ? artiaTillDateShortage.qtl.toFixed(3)
+                                  : "—"}
+                              </td>
+                              <td className="px-3 py-2 text-right text-amber-300">
+                                {inwardFormData.supplierId
+                                  ? artiaTillDateShortage.bags.toFixed(2)
+                                  : "—"}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
 
-  {/* Removed Shortage Received / Occurred as per feedback */}
-  <div>
+                    {/* Removed Shortage Received / Occurred as per feedback */}
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Update in Shortage Register
                       </label>
-    <div className="flex items-center gap-4 mt-2">
-      <label className="flex items-center gap-1 text-[var(--text-main)]">
+                      <div className="flex items-center gap-4 mt-2">
+                        <label className="flex items-center gap-1 text-[var(--text-main)]">
                           <input
                             type="radio"
                             name="updateShortageReg"
@@ -4745,8 +4788,8 @@ export const ProcurementManagement = () => {
                             className="accent-blue-500"
                           />{" "}
                           Yes
-      </label>
-      <label className="flex items-center gap-1 text-[var(--text-main)]">
+                        </label>
+                        <label className="flex items-center gap-1 text-[var(--text-main)]">
                           <input
                             type="radio"
                             name="updateShortageReg"
@@ -4756,12 +4799,12 @@ export const ProcurementManagement = () => {
                             className="accent-blue-500"
                           />{" "}
                           N/A
-      </label>
-    </div>
-  </div>
-  
-  <div className="grid grid-cols-2 gap-4">
-    <div>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
                         <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                           Total shortage of Artia (Qtl) — till date
                         </label>
@@ -4776,8 +4819,8 @@ export const ProcurementManagement = () => {
                           className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed font-bold text-red-400"
                         />
                         <span className="text-[10px] text-[var(--text-muted-alt)] mt-1 block">
-                          Confirmed ledger balance for selected Artia. This truck
-                          preview:{" "}
+                          Confirmed ledger balance for selected Artia. This
+                          truck preview:{" "}
                           {Number(
                             inwardFormData.artiaNetShortageQtl ??
                               inwardFormData.shortageQtl ??
@@ -4795,8 +4838,8 @@ export const ProcurementManagement = () => {
                             qtl for shortage bags received
                           </span>
                         )}
-    </div>
-    <div>
+                      </div>
+                      <div>
                         <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                           Total shortage of Artia (Bags) — till date
                         </label>
@@ -4810,8 +4853,8 @@ export const ProcurementManagement = () => {
                           disabled
                           className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed font-bold text-red-400"
                         />
-    </div>
-  </div>
+                      </div>
+                    </div>
 
                     {/* Feedback 34 — Auto Narration option in Shortage section */}
                     <div className="col-span-2 mt-2 p-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]">
@@ -4861,20 +4904,20 @@ export const ProcurementManagement = () => {
                       />
                     </div>
 
-  {inwardFormData.actualShortageQtl < 0 && (
-    <div className="col-span-2 mt-4 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-      <div className="flex items-center gap-2 text-emerald-500 font-bold mb-3">
-        <CheckCircle2 size={18} />
+                    {inwardFormData.actualShortageQtl < 0 && (
+                      <div className="col-span-2 mt-4 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                        <div className="flex items-center gap-2 text-emerald-500 font-bold mb-3">
+                          <CheckCircle2 size={18} />
                           <span>Plus Weight (Excess) Detected</span>
-      </div>
-      <p className="text-xs text-[var(--text-muted)] mb-3">
+                        </div>
+                        <p className="text-xs text-[var(--text-muted)] mb-3">
                           {inwardFormData.informBaujiExcessWeight
                             ? "Inform Bauji is checked — this excess will be applied as Shortage Recovery against the Artia."
                             : "Tick “Excess Weight Received, Inform Bauji” in Weight Details to apply this excess as Shortage Recovery. Excess bags alone are not added to shortage."}
-      </p>
-      
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-[var(--bg-panel)] p-3 rounded border border-[var(--border-subtle)]">
+                        </p>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-[var(--bg-panel)] p-3 rounded border border-[var(--border-subtle)]">
                             <label className="block text-[10px] text-[var(--text-muted-alt)] uppercase tracking-wider mb-1">
                               {inwardFormData.informBaujiExcessWeight
                                 ? "Artia Net Recovery (Qtl)"
@@ -4887,9 +4930,9 @@ export const ProcurementManagement = () => {
                                 inwardFormData.actualShortageQtl,
                               ).toFixed(2)}{" "}
                               Qtl
-          </div>
-        </div>
-        <div className="bg-[var(--bg-panel)] p-3 rounded border border-[var(--border-subtle)]">
+                            </div>
+                          </div>
+                          <div className="bg-[var(--bg-panel)] p-3 rounded border border-[var(--border-subtle)]">
                             <label className="block text-[10px] text-[var(--text-muted-alt)] uppercase tracking-wider mb-1">
                               {inwardFormData.informBaujiExcessWeight
                                 ? "Artia Net Recovery (Bags)"
@@ -4904,13 +4947,13 @@ export const ProcurementManagement = () => {
                                   ?.standardBagWeight || 0.382)
                               ).toFixed(2)}{" "}
                               Bags
-          </div>
-        </div>
-      </div>
-    </div>
-  )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-  <div className="col-span-2">
+                    <div className="col-span-2">
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Any Discrepancy / Point Raise{" "}
                         <span className="text-red-500">*</span>
@@ -4927,12 +4970,12 @@ export const ProcurementManagement = () => {
                           {inwardErrors.discrepancy}
                         </span>
                       )}
-  </div>
- </div>
- </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* 9. GP Complete Date & Time Out — below Shortage Management */}
- <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
+                <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
                   <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm flex flex-wrap items-center justify-between gap-2">
                     <span>9. GP Complete Date &amp; Time Out</span>
                     <span
@@ -5066,38 +5109,38 @@ export const ProcurementManagement = () => {
                   <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">
                     10. Driver Information
                   </div>
- <div className="p-4 grid grid-cols-2 gap-4 text-sm">
- <div>
+                  <div className="p-4 grid grid-cols-2 gap-4 text-sm">
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1 flex items-center gap-2">
                         Driver Name <span className="text-red-500">*</span>
                       </label>
- <Combobox
-    name="driverName"
-    value={inwardFormData.driverName}
-    onChange={(e: any) => {
-      handleInwardChange(e);
+                      <Combobox
+                        name="driverName"
+                        value={inwardFormData.driverName}
+                        onChange={(e: any) => {
+                          handleInwardChange(e);
                           const match = drivers.find(
                             (d: any) => d.name === e.target.value,
                           );
-      if (match && match.phone) {
+                          if (match && match.phone) {
                             setInwardFormData((prev: any) => ({
                               ...prev,
                               mobileNumber: match.phone,
                             }));
-      }
-    }}
-    onBlur={handleMasterDataBlur}
-    options={drivers}
-    className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"
-    placeholder="Select or enter driver name"
-  />
+                          }
+                        }}
+                        onBlur={handleMasterDataBlur}
+                        options={drivers}
+                        className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"
+                        placeholder="Select or enter driver name"
+                      />
                       {inwardErrors.driverName && (
                         <span className="text-red-500 text-[10px] mt-1 block">
                           {inwardErrors.driverName}
                         </span>
                       )}
- </div>
- <div>
+                    </div>
+                    <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                         Mobile Number <span className="text-red-500">*</span>
                       </label>
@@ -5116,13 +5159,13 @@ export const ProcurementManagement = () => {
                           {inwardErrors.mobileNumber}
                         </span>
                       )}
- </div>
- </div>
- </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* 11. Authentication (Biometric) */}
- <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
- <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm flex items-center justify-between">
+                <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
+                  <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm flex items-center justify-between">
                     <span>11. Authentication (Biometric)</span>
                     {inwardFormData.shortageRecoveryOpt === "Yes" && (
                       <span className="text-red-400 text-xs flex items-center gap-1">
@@ -5130,24 +5173,24 @@ export const ProcurementManagement = () => {
                         Required
                       </span>
                     )}
- </div>
- <div className="p-4 flex flex-col gap-4 text-sm">
- {/* First Punch - Supervisor */}
- <div className="flex flex-wrap gap-6 items-center justify-between p-3 rounded bg-[var(--bg-base)] border border-[var(--border-subtle)]">
-   <div className="flex items-center gap-3 flex-wrap flex-1">
+                  </div>
+                  <div className="p-4 flex flex-col gap-4 text-sm">
+                    {/* First Punch - Supervisor */}
+                    <div className="flex flex-wrap gap-6 items-center justify-between p-3 rounded bg-[var(--bg-base)] border border-[var(--border-subtle)]">
+                      <div className="flex items-center gap-3 flex-wrap flex-1">
                         <div className="w-24 text-[var(--text-muted-alt)] font-medium text-xs">
                           Supervisor
                         </div>
-     {inwardFormData.biometricData ? (
-       <div className="text-green-400 font-bold bg-green-900/10 border border-green-900/20 px-3 py-1.5 rounded flex items-center gap-2">
-         <ShieldCheck size={16} /> Authenticated
-       </div>
-     ) : (
-        <div className="flex gap-2 items-center">
-          <button 
-            type="button" 
-            onClick={async () => {
-              try {
+                        {inwardFormData.biometricData ? (
+                          <div className="text-green-400 font-bold bg-green-900/10 border border-green-900/20 px-3 py-1.5 rounded flex items-center gap-2">
+                            <ShieldCheck size={16} /> Authenticated
+                          </div>
+                        ) : (
+                          <div className="flex gap-2 items-center">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
                                   const xml =
                                     await biometricService.captureFingerprint();
                                   setInwardFormData((p: any) =>
@@ -5165,10 +5208,10 @@ export const ProcurementManagement = () => {
                                   useUiStore
                                     .getState()
                                     .addToast(e.message, "error");
-              }
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white border border-blue-500 rounded px-4 py-1.5 text-sm font-bold flex items-center gap-2 transition-colors"
-          >
+                                }
+                              }}
+                              className="bg-blue-600 hover:bg-blue-700 text-white border border-blue-500 rounded px-4 py-1.5 text-sm font-bold flex items-center gap-2 transition-colors"
+                            >
                               <svg
                                 className="w-4 h-4"
                                 fill="none"
@@ -5182,15 +5225,15 @@ export const ProcurementManagement = () => {
                                   d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4"
                                 />
                               </svg>
-            Scan Fingerprint
-          </button>
+                              Scan Fingerprint
+                            </button>
                             <span className="text-xs text-[var(--text-muted-alt)]">
                               Place finger on device
                             </span>
-        </div>
-     )}
-   </div>
-   <div className="text-right min-w-[120px]">
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right min-w-[120px]">
                         <div className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wider mb-0.5">
                           Entry Completion
                         </div>
@@ -5201,26 +5244,26 @@ export const ProcurementManagement = () => {
                               ).toLocaleString()
                             : "-"}
                         </div>
-   </div>
- </div>
+                      </div>
+                    </div>
 
- {/* Second Punch - Head Supervisor (Conditional) */}
+                    {/* Second Punch - Head Supervisor (Conditional) */}
                     {inwardFormData.shortageRecoveryOpt === "Yes" && (
-  <div className="flex flex-wrap gap-6 items-center justify-between p-3 rounded bg-red-900/10 border border-red-500/20">
-    <div className="flex items-center gap-3 flex-wrap flex-1">
+                      <div className="flex flex-wrap gap-6 items-center justify-between p-3 rounded bg-red-900/10 border border-red-500/20">
+                        <div className="flex items-center gap-3 flex-wrap flex-1">
                           <div className="w-24 text-red-400 font-medium text-xs">
                             Head Supervisor
                           </div>
-      {inwardFormData.headBiometricData ? (
-        <div className="text-green-400 font-bold bg-green-900/10 border border-green-900/20 px-3 py-1.5 rounded flex items-center gap-2">
-          <ShieldCheck size={16} /> Authenticated
-        </div>
-      ) : (
-        <div className="flex gap-2 items-center">
-          <button 
-            type="button" 
-            onClick={async () => {
-              try {
+                          {inwardFormData.headBiometricData ? (
+                            <div className="text-green-400 font-bold bg-green-900/10 border border-green-900/20 px-3 py-1.5 rounded flex items-center gap-2">
+                              <ShieldCheck size={16} /> Authenticated
+                            </div>
+                          ) : (
+                            <div className="flex gap-2 items-center">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
                                     const xml =
                                       await biometricService.captureFingerprint();
                                     setInwardFormData((p: any) => ({
@@ -5237,10 +5280,10 @@ export const ProcurementManagement = () => {
                                     useUiStore
                                       .getState()
                                       .addToast(e.message, "error");
-              }
-            }}
-            className="bg-red-900/50 hover:bg-red-800 text-red-200 border border-red-500/50 rounded px-4 py-1.5 text-sm font-bold flex items-center gap-2 transition-colors"
-          >
+                                  }
+                                }}
+                                className="bg-red-900/50 hover:bg-red-800 text-red-200 border border-red-500/50 rounded px-4 py-1.5 text-sm font-bold flex items-center gap-2 transition-colors"
+                              >
                                 <svg
                                   className="w-4 h-4"
                                   fill="none"
@@ -5254,15 +5297,15 @@ export const ProcurementManagement = () => {
                                     d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4"
                                   />
                                 </svg>
-            Scan Fingerprint
-          </button>
+                                Scan Fingerprint
+                              </button>
                               <span className="text-xs text-red-400/70">
                                 Place finger on device
                               </span>
-        </div>
-      )}
-    </div>
-    <div className="text-right min-w-[120px]">
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right min-w-[120px]">
                           <div className="text-[var(--text-muted-alt)] text-[11px] uppercase tracking-wider mb-0.5">
                             Date & Time
                           </div>
@@ -5271,18 +5314,18 @@ export const ProcurementManagement = () => {
                               ? new Date().toLocaleString()
                               : "-"}
                           </div>
-    </div>
-  </div>
- )}
- </div>
- </div>
- </div>
- </div>
- 
- {/* Bottom Actions */}
- {/* Bottom Actions */}
- <div className="mt-6 pt-4 border-t border-[var(--border-subtle)] flex justify-end gap-3 shrink-0">
- <button 
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Actions */}
+            {/* Bottom Actions */}
+            <div className="mt-6 pt-4 border-t border-[var(--border-subtle)] flex justify-end gap-3 shrink-0">
+              <button
                 type="button"
                 onClick={() => setInwardFormData(defaultInwardFormData)}
                 className="px-6 py-2.5 border border-[var(--border-subtle)] rounded-lg text-[var(--text-main)] font-bold hover:bg-[var(--glass-bg)]"
@@ -5291,17 +5334,17 @@ export const ProcurementManagement = () => {
               </button>
               <button
                 onClick={() => handleInwardSubmit("DRAFT")}
-   disabled={isSubmitting}
+                disabled={isSubmitting}
                 className="px-6 py-2.5 bg-[var(--bg-panel)] border border-blue-500/30 text-blue-400 rounded-lg font-bold hover:bg-blue-900/20 disabled:opacity-50"
               >
                 {isSubmitting ? "Saving..." : "Save Draft"}
- </button>
- <button 
- onClick={() => {
-   if (!inwardFormData.biometricData) {
-     alert("Supervisor Biometric Verification is required.");
-     return;
-   }
+              </button>
+              <button
+                onClick={() => {
+                  if (!inwardFormData.biometricData) {
+                    alert("Supervisor Biometric Verification is required.");
+                    return;
+                  }
                   if (
                     inwardFormData.shortageRecoveryOpt === "Yes" &&
                     !inwardFormData.headBiometricData
@@ -5309,18 +5352,18 @@ export const ProcurementManagement = () => {
                     alert(
                       "Head Supervisor Biometric Verification is required for Shortage Recovery.",
                     );
-     return;
-   }
+                    return;
+                  }
                   handleInwardSubmit("CONFIRMED");
- }}
- disabled={isSubmitting}
- className="px-8 py-2.5 bg-green-600 hover:bg-green-700 text-[var(--text-main)] rounded-lg font-bold shadow-lg shadow-green-600/20 disabled:opacity-50"
- >
+                }}
+                disabled={isSubmitting}
+                className="px-8 py-2.5 bg-green-600 hover:bg-green-700 text-[var(--text-main)] rounded-lg font-bold shadow-lg shadow-green-600/20 disabled:opacity-50"
+              >
                 {isSubmitting ? "Saving..." : "Save & Confirm"}
- </button>
- </div>
- </div>
- )}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Saved Drafts modal — outside tab gates so it opens from Paddy Inward */}
         <CustomModal
@@ -5329,7 +5372,7 @@ export const ProcurementManagement = () => {
           title={`Pending Draft / Hold (${draftInwards.length})`}
           maxWidthClass="max-w-6xl"
           footer={
-          <button 
+            <button
               type="button"
               onClick={() => setDraftModalOpen(false)}
               className="px-5 py-2.5 bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] text-[var(--text-main)] rounded-lg font-bold"
@@ -5386,9 +5429,9 @@ export const ProcurementManagement = () => {
                     <th className="px-3 py-2.5 text-center font-medium">
                       Action
                     </th>
-              </tr>
-            </thead>
-            <tbody>
+                  </tr>
+                </thead>
+                <tbody>
                   {draftInwards.map((row, idx) => {
                     const isActive = inwardFormData.id === row.id;
                     return (
@@ -5467,14 +5510,14 @@ export const ProcurementManagement = () => {
                           >
                             <Edit size={12} />
                             {row.isHold ? "Complete Hold" : "Continue"}
-                    </button>
-                  </td>
-                </tr>
+                          </button>
+                        </td>
+                      </tr>
                     );
                   })}
-            </tbody>
-          </table>
-        </div>
+                </tbody>
+              </table>
+            </div>
           )}
         </CustomModal>
 
@@ -5494,18 +5537,18 @@ export const ProcurementManagement = () => {
               onView={handleViewInward}
               onContinueDraft={handleContinueDraft}
             />
-        {viewInwardModal && (
+            {viewInwardModal && (
               <CustomModal
                 isOpen={!!viewInwardModal}
                 onClose={() => setViewInwardModal(null)}
                 title="Full Inward Details"
               >
-            <div className="space-y-6 max-h-[75vh] overflow-y-auto px-2">
-              <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
+                <div className="space-y-6 max-h-[75vh] overflow-y-auto px-2">
+                  <div className="bg-[var(--bg-base)] p-5 rounded-lg border border-[var(--border-subtle)] shadow-inner">
                     <h3 className="text-sm font-bold text-[#e67e00] mb-4 pb-2 border-b border-[var(--border-subtle)] uppercase tracking-wider">
                       Basic Information
                     </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
                       <div>
                         <p className="text-[var(--text-muted-alt)] text-xs">
                           Purchase No
@@ -5513,7 +5556,7 @@ export const ProcurementManagement = () => {
                         <p className="font-bold text-[var(--text-main)] font-mono">
                           {viewInwardModal.id?.substring(0, 8).toUpperCase()}
                         </p>
-                </div>
+                      </div>
                       <div>
                         <p className="text-[var(--text-muted-alt)] text-xs">
                           Date
@@ -5525,7 +5568,7 @@ export const ProcurementManagement = () => {
                               ).toLocaleDateString()
                             : "-"}
                         </p>
-              </div>
+                      </div>
                       <div>
                         <p className="text-[var(--text-muted-alt)] text-xs">
                           Supplier
@@ -5533,7 +5576,7 @@ export const ProcurementManagement = () => {
                         <p className="font-bold text-[var(--text-main)]">
                           {viewInwardModal.supplier?.name || "-"}
                         </p>
-                </div>
+                      </div>
                       <div>
                         <p className="text-[var(--text-muted-alt)] text-xs">
                           GP No
@@ -5541,7 +5584,7 @@ export const ProcurementManagement = () => {
                         <p className="font-bold text-[var(--text-main)]">
                           {viewInwardModal.paddyInwardDetails?.gpNo || "-"}
                         </p>
-              </div>
+                      </div>
                       <div>
                         <p className="text-[var(--text-muted-alt)] text-xs">
                           Mandi EG No
@@ -5549,7 +5592,7 @@ export const ProcurementManagement = () => {
                         <p className="font-bold text-[var(--text-main)]">
                           {viewInwardModal.paddyInwardDetails?.mandiEgNo || "-"}
                         </p>
-                </div>
+                      </div>
                       <div>
                         <p className="text-[var(--text-muted-alt)] text-xs">
                           Mandi
@@ -5557,7 +5600,7 @@ export const ProcurementManagement = () => {
                         <p className="font-bold text-[var(--text-main)]">
                           {viewInwardModal.paddyInwardDetails?.mandi || "-"}
                         </p>
-              </div>
+                      </div>
                       <div>
                         <p className="text-[var(--text-muted-alt)] text-xs">
                           Vehicle / Truck No
@@ -5567,10 +5610,10 @@ export const ProcurementManagement = () => {
                             viewInwardModal.paddyInwardDetails?.truckNo ||
                             "-"}
                         </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-                </div>
-              </div>
                 <div className="mt-6 flex justify-end gap-2">
                   {viewInwardModal.status === "DRAFT" && (
                     <button
@@ -5586,11 +5629,11 @@ export const ProcurementManagement = () => {
                   >
                     Close
                   </button>
-            </div>
-          </CustomModal>
-        )}
+                </div>
+              </CustomModal>
+            )}
           </>
-   )}
+        )}
 
         {/* TAB: LOADER & UNLOADER — Feedback 39 system report */}
         {activeTab === "loader_unloader" && (
@@ -5599,51 +5642,51 @@ export const ProcurementManagement = () => {
           </div>
         )}
 
-{/* TAB: PLANT SETTINGS (GOVT RATE) */}
+        {/* TAB: PLANT SETTINGS (GOVT RATE) */}
         {activeTab === "global_settings" && (
-      <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden shadow-2xl">
-        <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
-          <div>
-            <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
-              <Settings className="text-[#e67e00]" /> Plant Settings
-            </h2>
+          <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden shadow-2xl">
+            <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
+              <div>
+                <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
+                  <Settings className="text-[#e67e00]" /> Plant Settings
+                </h2>
                 <p className="text-xs text-[var(--text-muted-alt)] mt-1">
                   Configure variables for the selected mill
                 </p>
-          </div>
-        </div>
-        
-        <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
-          <div className="max-w-4xl mx-auto space-y-6">
-            {/* General Procurement Settings */}
-            <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle)] overflow-hidden">
-              <div className="bg-amber-500/10 px-5 py-3 border-b border-[var(--border-subtle)] flex items-center gap-2">
-                <FileText size={18} className="text-amber-500" />
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
+              <div className="max-w-4xl mx-auto space-y-6">
+                {/* General Procurement Settings */}
+                <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+                  <div className="bg-amber-500/10 px-5 py-3 border-b border-[var(--border-subtle)] flex items-center gap-2">
+                    <FileText size={18} className="text-amber-500" />
                     <h3 className="font-bold text-[var(--text-main)]">
                       Procurement Defaults
                     </h3>
-              </div>
-              
-              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* Procurement Cut Settings */}
-                  <div className="col-span-1 md:col-span-2 bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle)] p-6 mt-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-2">
-                        <Settings className="w-4 h-4 text-amber-500" />
-                        Procurement & Cut Configurations
-                      </h4>
-                      {!isEditingSettings && (
+                  </div>
+
+                  <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Procurement Cut Settings */}
+                    <div className="col-span-1 md:col-span-2 bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle)] p-6 mt-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-2">
+                          <Settings className="w-4 h-4 text-amber-500" />
+                          Procurement & Cut Configurations
+                        </h4>
+                        {!isEditingSettings && (
                           <button
                             onClick={() => setIsEditingSettings(true)}
                             className="text-amber-500 hover:text-amber-400 px-3 py-1 bg-amber-500/10 rounded font-bold text-xs"
                           >
-                          Edit Settings
-                        </button>
-                      )}
-                    </div>
+                            Edit Settings
+                          </button>
+                        )}
+                      </div>
 
-                    {!isEditingSettings ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {!isEditingSettings ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                           <div className="sm:col-span-2 lg:col-span-4">
                             <p className="text-xs text-[var(--text-muted-alt)] mb-1">
                               Mill
@@ -5683,7 +5726,7 @@ export const ProcurementManagement = () => {
                               </p>
                             )}
                           </div>
-                        <div>
+                          <div>
                             <p className="text-xs text-[var(--text-muted-alt)] mb-1">
                               Govt Purchase Rate
                             </p>
@@ -5693,8 +5736,8 @@ export const ProcurementManagement = () => {
                                 / Qtl
                               </span>
                             </p>
-                        </div>
-                        <div>
+                          </div>
+                          <div>
                             <p className="text-xs text-[var(--text-muted-alt)] mb-1">
                               Benchmark Moisture
                             </p>
@@ -5704,8 +5747,8 @@ export const ProcurementManagement = () => {
                                 : "17"}
                               %
                             </p>
-                        </div>
-                        <div>
+                          </div>
+                          <div>
                             <p className="text-xs text-[var(--text-muted-alt)] mb-1">
                               Safai Cut
                             </p>
@@ -5715,8 +5758,8 @@ export const ProcurementManagement = () => {
                                 : "2"}
                               %
                             </p>
-                        </div>
-                        <div>
+                          </div>
+                          <div>
                             <p className="text-xs text-[var(--text-muted-alt)] mb-1">
                               Processing Cut
                             </p>
@@ -5774,10 +5817,10 @@ export const ProcurementManagement = () => {
                                 ? "ON"
                                 : "OFF"}
                             </p>
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                           <div className="col-span-1 sm:col-span-2 lg:col-span-4">
                             <label className="text-xs text-[var(--text-muted-alt)] mb-1 block">
                               Mill
@@ -5817,7 +5860,7 @@ export const ProcurementManagement = () => {
                               />
                             )}
                           </div>
-                        <div>
+                          <div>
                             <label className="text-xs text-[var(--text-muted-alt)] mb-1 block">
                               Govt Rate (₹)
                             </label>
@@ -5834,8 +5877,8 @@ export const ProcurementManagement = () => {
                               }
                               className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-amber-500"
                             />
-                        </div>
-                        <div>
+                          </div>
+                          <div>
                             <label className="text-xs text-[var(--text-muted-alt)] mb-1 block">
                               Benchmark Moisture (%)
                             </label>
@@ -5852,8 +5895,8 @@ export const ProcurementManagement = () => {
                               }
                               className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-amber-500"
                             />
-                        </div>
-                        <div>
+                          </div>
+                          <div>
                             <label className="text-xs text-[var(--text-muted-alt)] mb-1 block">
                               Safai Cut (%)
                             </label>
@@ -5870,8 +5913,8 @@ export const ProcurementManagement = () => {
                               }
                               className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-amber-500"
                             />
-                        </div>
-                        <div>
+                          </div>
+                          <div>
                             <label className="text-xs text-[var(--text-muted-alt)] mb-1 block">
                               Processing Cut (%)
                             </label>
@@ -5918,7 +5961,9 @@ export const ProcurementManagement = () => {
                                 },
                               ] as const
                             ).map((row) => {
-                              const manualOn = !!(plantSettings as any)[row.key];
+                              const manualOn = !!(plantSettings as any)[
+                                row.key
+                              ];
                               const autoOn = !manualOn;
                               return (
                                 <div
@@ -5972,7 +6017,7 @@ export const ProcurementManagement = () => {
                               );
                             })}
                           </div>
-                        <div className="col-span-1 sm:col-span-2 lg:col-span-4 flex justify-end gap-3 mt-2">
+                          <div className="col-span-1 sm:col-span-2 lg:col-span-4 flex justify-end gap-3 mt-2">
                             <button
                               onClick={() => setIsEditingSettings(false)}
                               className="bg-[var(--bg-panel)] hover:bg-[var(--glass-bg)] border border-[var(--border-subtle)] text-[var(--text-main)] px-4 py-2 rounded-lg font-bold text-sm transition-all"
@@ -5985,34 +6030,34 @@ export const ProcurementManagement = () => {
                             >
                               Save Changes
                             </button>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    <p className="text-[10px] text-[var(--text-muted-alt)] mt-4 pt-3 border-t border-[var(--border-subtle)]">
+                      )}
+                      <p className="text-[10px] text-[var(--text-muted-alt)] mt-4 pt-3 border-t border-[var(--border-subtle)]">
                         These settings are applied globally to this active plant
                         and directly affect the Overpriced Purchase Tagging
                         algorithms.
-                    </p>
-                  </div>    
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-   )}
+        )}
 
-{/* TAB 3: QUALITY INSPECTION DESK */}
+        {/* TAB 3: QUALITY INSPECTION DESK */}
         {activeTab === "quality_inspection" && (
- <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
- <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
- <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
+          <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
+            <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
+              <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
                 <ShieldCheck className="text-[#e67e00]" /> Quality Inspection
                 Desk
- </h2>
- <button 
-            onClick={async () => {
-              try {
-                const params = new URLSearchParams();
+              </h2>
+              <button
+                onClick={async () => {
+                  try {
+                    const params = new URLSearchParams();
                     params.append("limit", "1000000");
                     params.append("page", "1");
                     const pid = activePlant?.id || "global";
@@ -6027,39 +6072,39 @@ export const ProcurementManagement = () => {
                       (p: any) =>
                         p.qcStatus === "PENDING" || p.qcStatus === "Pending",
                     );
-                
-                const exportData = pendingItems.map((item: any) => ({
-                  "Purchase No": item.purchaseNo,
+
+                    const exportData = pendingItems.map((item: any) => ({
+                      "Purchase No": item.purchaseNo,
                       Date: item.date,
                       Supplier: item.supplierName || item.supplier,
-                  "Net Wt": item.netWeight,
+                      "Net Wt": item.netWeight,
                       Moisture: item.moisture,
                       "QC Status": item.qcStatus,
-                }));
-                exportToExcel(exportData, `Quality_Inspection_Full`);
-              } catch (error) {
+                    }));
+                    exportToExcel(exportData, `Quality_Inspection_Full`);
+                  } catch (error) {
                     console.error("Failed to export all records", error);
-              }
-            }}
-            className="flex items-center gap-2 bg-[#107c41] text-white px-3 py-1.5 rounded hover:bg-[#1f8c51] transition-colors text-sm font-medium"
-          >
-            <Download size={16} /> Export All to Excel
-          </button>
- </div>
- <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
- <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
- <thead>
- <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left">
- <th className="p-3">Purchase No</th>
- <th className="p-3">Date</th>
- <th className="p-3">Supplier</th>
- <th className="p-3">Net Wt</th>
- <th className="p-3">Moisture</th>
- <th className="p-3">QC Status</th>
- <th className="p-3">Action</th>
- </tr>
- </thead>
- <tbody>
+                  }
+                }}
+                className="flex items-center gap-2 bg-[#107c41] text-white px-3 py-1.5 rounded hover:bg-[#1f8c51] transition-colors text-sm font-medium"
+              >
+                <Download size={16} /> Export All to Excel
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
+              <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left">
+                    <th className="p-3">Purchase No</th>
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Supplier</th>
+                    <th className="p-3">Net Wt</th>
+                    <th className="p-3">Moisture</th>
+                    <th className="p-3">QC Status</th>
+                    <th className="p-3">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {recentPurchases
                     .filter(
                       (p) =>
@@ -6073,18 +6118,18 @@ export const ProcurementManagement = () => {
                         <td className="p-3 font-mono text-xs">
                           {p.purchaseNo}
                         </td>
- <td className="p-3">{p.date}</td>
+                        <td className="p-3">{p.date}</td>
                         <td className="p-3 font-bold text-[var(--text-main)]">
                           {p.supplier}
                         </td>
- <td className="p-3 text-right">{p.netWeight} MT</td>
- <td className="p-3 text-right">{p.moisture}%</td>
- <td className="p-3">
+                        <td className="p-3 text-right">{p.netWeight} MT</td>
+                        <td className="p-3 text-right">{p.moisture}%</td>
+                        <td className="p-3">
                           <span className="px-2 py-1 rounded bg-yellow-900/50 text-yellow-400 text-xs font-bold">
                             Pending
                           </span>
- </td>
- <td className="p-3">
+                        </td>
+                        <td className="p-3">
                           <button
                             onClick={() =>
                               setInspectModal({
@@ -6100,9 +6145,9 @@ export const ProcurementManagement = () => {
                           >
                             Inspect
                           </button>
- </td>
- </tr>
- ))}
+                        </td>
+                      </tr>
+                    ))}
                   {recentPurchases.filter(
                     (p) => p.qcStatus === "PENDING" || p.qcStatus === "Pending",
                   ).length === 0 && (
@@ -6113,33 +6158,33 @@ export const ProcurementManagement = () => {
                       >
                         No pending inspections.
                       </td>
- </tr>
- )}
- </tbody>
- </table>
- <Pagination
-            currentPage={recentPurchasesCurrentPage}
-            totalItems={recentPurchasesTotalItems}
-            onPageChange={setRecentPurchasesCurrentPage}
-          />
- </div>
- </div>
- )}
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <Pagination
+                currentPage={recentPurchasesCurrentPage}
+                totalItems={recentPurchasesTotalItems}
+                onPageChange={setRecentPurchasesCurrentPage}
+              />
+            </div>
+          </div>
+        )}
 
- {/* TAB 4: SODA PENDING */}
+        {/* TAB 4: SODA PENDING */}
         {activeTab === "purchase_register" && (
- <div className="flex flex-col gap-6 h-full overflow-y-auto">
- {/* Hisab / Paddy Soda Pending */}
- <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col shrink-0">
- <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
- <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
+          <div className="flex flex-col gap-6 h-full overflow-y-auto">
+            {/* Hisab / Paddy Soda Pending */}
+            <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col shrink-0">
+              <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
+                <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
                   <FileText className="text-[#e67e00]" /> Hisab / Paddy Soda
                   Pending
- </h2>
- <button 
-              onClick={async () => {
-                try {
-                  const params = new URLSearchParams();
+                </h2>
+                <button
+                  onClick={async () => {
+                    try {
+                      const params = new URLSearchParams();
                       if (listFilters.dateFrom)
                         params.append("dateFrom", listFilters.dateFrom);
                       if (listFilters.dateTo)
@@ -6158,32 +6203,32 @@ export const ProcurementManagement = () => {
                       const data = Array.isArray(res.data)
                         ? res.data
                         : res.data?.data || [];
-                  
-                  const exportData = data.map((item: any) => ({
+
+                      const exportData = data.map((item: any) => ({
                         Party: item.partyMandi,
                         Date: item.date,
                         Bags: item.bags,
-                    "Govt Rate": item.govtRate,
+                        "Govt Rate": item.govtRate,
                         Rate: item.rate,
                         Diff: item.diff,
                         Payment: item.payment,
                         "Final Hisab Amt": item.finalHisabAmt,
                       }));
                       exportToExcel(exportData, "Soda_Pending_Full.xlsx");
-                } catch (error) {
+                    } catch (error) {
                       console.error("Failed to export all records", error);
-                }
-              }}
-            className="text-blue-500 hover:text-blue-400 text-xs font-bold flex items-center gap-1 bg-[var(--bg-base)] px-2 py-1 rounded border border-[var(--border-subtle)]"
-          >
-            <Download size={14} /> Export
-          </button>
- </div>
- 
- <div className="flex-1 overflow-auto bg-[var(--bg-panel)] rounded-b-xl">
- <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
- <thead>
- <tr className="bg-[var(--bg-panel-alt)] font-bold uppercase text-xs text-[var(--text-muted-alt)]">
+                    }
+                  }}
+                  className="text-blue-500 hover:text-blue-400 text-xs font-bold flex items-center gap-1 bg-[var(--bg-base)] px-2 py-1 rounded border border-[var(--border-subtle)]"
+                >
+                  <Download size={14} /> Export
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-auto bg-[var(--bg-panel)] rounded-b-xl">
+                <table className="w-full border-collapse text-[var(--text-muted)] text-sm">
+                  <thead>
+                    <tr className="bg-[var(--bg-panel-alt)] font-bold uppercase text-xs text-[var(--text-muted-alt)]">
                       <th className="border-b border-[var(--border-subtle)] p-3 text-left font-medium">
                         Party - Supplier
                       </th>
@@ -6217,10 +6262,10 @@ export const ProcurementManagement = () => {
                       <th className="border-b border-[var(--border-subtle)] p-3 text-center font-medium">
                         Action
                       </th>
- </tr>
- </thead>
- <tbody>
- {filteredSodaPending.map((p, i) => (
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredSodaPending.map((p, i) => (
                       <tr
                         key={p.id}
                         className={`border-b border-[var(--border-subtle-alt)] transition-colors hover:bg-[var(--glass-bg)] ${i % 2 === 0 ? "bg-[var(--bg-panel)]" : "bg-[var(--bg-panel-hover)]"}`}
@@ -6231,7 +6276,7 @@ export const ProcurementManagement = () => {
                         <td className="p-3">
                           {new Date(p.date).toLocaleDateString()}
                         </td>
- <td className="p-3 text-right">
+                        <td className="p-3 text-right">
                           {p.bolis?.length ? (
                             <button
                               onClick={() =>
@@ -6249,44 +6294,44 @@ export const ProcurementManagement = () => {
                           ) : (
                             p.mc
                           )}
- </td>
- <td className="p-3 text-right font-bold text-[var(--text-muted)]">
+                        </td>
+                        <td className="p-3 text-right font-bold text-[var(--text-muted)]">
                           {p.bolis?.length ? "-" : p.bags}
- </td>
+                        </td>
                         <td className="p-3 text-right text-[var(--text-muted)]">
                           {p.govtRate || "-"}
                         </td>
- <td className="p-3 text-right font-bold text-[var(--text-muted)]">
+                        <td className="p-3 text-right font-bold text-[var(--text-muted)]">
                           {p.bolis?.length ? "-" : p.rate}
- </td>
+                        </td>
                         <td className="p-3 text-right text-red-400 font-medium">
                           {p.diff}
                         </td>
- <td className="p-3 text-right">{p.payment}</td>
+                        <td className="p-3 text-right">{p.payment}</td>
                         <td className="p-3 text-[var(--text-muted-alt)]">
                           {p.note}
                         </td>
                         <td className="p-3 text-right font-bold text-[#e67e00]">
                           {p.finalHisabAmt}
                         </td>
- <td className="p-3 text-center">
+                        <td className="p-3 text-center">
                           {user?.role === "SUPER_ADMIN" ||
                           user?.role === "PLANT_MANAGER" ? (
- <button 
+                            <button
                               onClick={() =>
                                 setSettleHisabModal({
- isOpen: true, 
- hisab: p, 
+                                  isOpen: true,
+                                  hisab: p,
                                   payment: p.payment?.toString() || "",
                                   note: p.note || "",
                                   finalHisabAmt:
                                     p.finalHisabAmt?.toString() || "",
                                 })
                               }
- className="px-3 py-1 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded font-bold text-xs transition-colors"
- >
- Settle
- </button>
+                              className="px-3 py-1 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded font-bold text-xs transition-colors"
+                            >
+                              Settle
+                            </button>
                           ) : (
                             <span
                               className="text-[10px] text-[var(--text-muted-alt)]"
@@ -6295,46 +6340,46 @@ export const ProcurementManagement = () => {
                               View only
                             </span>
                           )}
- </td>
- </tr>
- ))}
- {filteredSodaPending.length === 0 && (
- <tr>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredSodaPending.length === 0 && (
+                      <tr>
                         <td
                           colSpan={11}
                           className="p-6 text-center text-[var(--text-muted-alt)] font-medium italic border-b border-[var(--border-subtle-alt)]"
                         >
                           No outstanding pending Hisabs found. Try adding a Boli
                           purchase!
- </td>
- </tr>
- )}
- </tbody>
- </table>
- <Pagination
-     currentPage={sodaPendingCurrentPage}
-     totalItems={sodaPendingTotalItems}
-     onPageChange={setSodaPendingCurrentPage}
-   />
- </div>
- </div>
- </div>
- )}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+                <Pagination
+                  currentPage={sodaPendingCurrentPage}
+                  totalItems={sodaPendingTotalItems}
+                  onPageChange={setSodaPendingCurrentPage}
+                />
+              </div>
+            </div>
+          </div>
+        )}
         {activeTab === "reports" && (
- <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col min-h-0 shadow-2xl">
-   <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
-     <div className="mb-6">
-        <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
-          <FileText className="text-[#e67e00]" /> Reports
-        </h2>
+          <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col min-h-0 shadow-2xl">
+            <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
+              <div className="mb-6">
+                <h2 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
+                  <FileText className="text-[#e67e00]" /> Reports
+                </h2>
                 <p className="text-xs text-[var(--text-muted-alt)] mt-1">
                   View various procurement reports
                 </p>
-        
-        {isSupervisor && unrecoveredShortagesCount > 0 && (
-          <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-600 dark:text-red-400 text-sm flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={16} />
+
+                {isSupervisor && unrecoveredShortagesCount > 0 && (
+                  <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-600 dark:text-red-400 text-sm flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle size={16} />
                       <span>
                         You have{" "}
                         <strong>
@@ -6343,32 +6388,32 @@ export const ProcurementManagement = () => {
                         . Please check the <strong>Shortage Recovery</strong>{" "}
                         tab.
                       </span>
-            </div>
-            <button 
+                    </div>
+                    <button
                       onClick={() =>
                         setListFilters((prev) => ({
                           ...prev,
                           activeReportTab: "shortage_recovery",
                         }))
                       }
-              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold transition-colors"
-            >
-              View Now
-            </button>
-          </div>
-        )}
-      </div>
-   </div>
-   <div className="flex-1 flex flex-col p-6 bg-[var(--bg-base)]">
-     {/* 
+                      className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold transition-colors"
+                    >
+                      View Now
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex-1 flex flex-col p-6 bg-[var(--bg-base)]">
+              {/* 
         IMPORTANT: DO NOT REMOVE THIS LOGIC.
         By default, no report tab is selected/opened when the Reports section is loaded.
         Data should only be shown when a specific report tab is explicitly clicked by the user.
         Please keep this empty default state for future modifications!
      */}
-     
-     {/* Reports Inner Navigation */}
-     <div className="flex border-b border-[var(--border-subtle)] mb-6">
+
+              {/* Reports Inner Navigation */}
+              <div className="flex border-b border-[var(--border-subtle)] mb-6">
                 {[
                   "shortage_recovery",
                   "daily_inward_summary",
@@ -6377,58 +6422,61 @@ export const ProcurementManagement = () => {
                   "paddy_stack",
                   "stack_layout",
                 ].map((reportTab) => (
-          <button 
-            key={reportTab}
+                  <button
+                    key={reportTab}
                     onClick={() =>
                       setListFilters((prev) => ({
                         ...prev,
                         activeReportTab: reportTab,
                       }))
                     }
-            className={`px-4 py-2 font-semibold text-sm transition-colors border-b-2 ${
-              listFilters.activeReportTab === reportTab 
+                    className={`px-4 py-2 font-semibold text-sm transition-colors border-b-2 ${
+                      listFilters.activeReportTab === reportTab
                         ? "border-[#e67e00] text-[#e67e00]"
                         : "border-transparent text-[var(--text-muted-alt)] hover:text-[var(--text-main)]"
-            }`}
-          >
+                    }`}
+                  >
                     {reportTab
                       .split("_")
                       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                       .join(" ")}
-          </button>
-       ))}
-     </div>
-     
-     {/* Reports Content */}
+                  </button>
+                ))}
+              </div>
+
+              {/* Reports Content */}
               <div
                 className={`flex-1 bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] p-6 flex flex-col overflow-auto min-h-0 min-w-0 ${!listFilters.activeReportTab ? "items-center justify-center" : ""}`}
               >
-        {!listFilters.activeReportTab ? (
-           <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-[#e67e00]/10 text-[#e67e00] rounded-full flex items-center justify-center">
-                 <FileText size={32} />
-              </div>
-              <h3 className="text-xl font-bold text-[var(--text-main)]">
-                 Select a Report
-              </h3>
-              <p className="text-[var(--text-muted-alt)] mt-2 max-w-md mx-auto">
+                {!listFilters.activeReportTab ? (
+                  <div className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-[#e67e00]/10 text-[#e67e00] rounded-full flex items-center justify-center">
+                      <FileText size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-[var(--text-main)]">
+                      Select a Report
+                    </h3>
+                    <p className="text-[var(--text-muted-alt)] mt-2 max-w-md mx-auto">
                       Please click on one of the report tabs above to view its
                       data.
-              </p>
-           </div>
+                    </p>
+                  </div>
                 ) : listFilters.activeReportTab === "shortage_recovery" ? (
-            <ShortageRecoveryReport activePlant={activePlant} />
+                  <ShortageRecoveryReport activePlant={activePlant} />
                 ) : listFilters.activeReportTab === "daily_inward_summary" ? (
                   <DailyInwardSummary activePlant={activePlant} />
                 ) : listFilters.activeReportTab === "mandi_balance" ? (
                   <MandiBalanceDashboard />
                 ) : listFilters.activeReportTab === "hoodi_report" ? (
-            <DailyHoodiReport />
+                  <DailyHoodiReport />
                 ) : listFilters.activeReportTab === "stack_layout" ? (
                   <StackLayoutView plantId={activePlant?.id || ""} />
                 ) : listFilters.activeReportTab === "paddy_stack" ? (
-           <div className="w-full flex flex-col h-full" id="paddy-stack-print-root">
-              <div className="flex justify-between items-center mb-4 print:mb-2">
+                  <div
+                    className="w-full flex flex-col h-full"
+                    id="paddy-stack-print-root"
+                  >
+                    <div className="flex justify-between items-center mb-4 print:mb-2">
                       <h3 className="text-lg font-bold text-[var(--text-main)]">
                         Paddy Stock Documentation
                         {activePlant?.name ? (
@@ -6437,7 +6485,7 @@ export const ProcurementManagement = () => {
                           </span>
                         ) : null}
                       </h3>
-                 <div className="flex gap-2 print:hidden">
+                      <div className="flex gap-2 print:hidden">
                         <button
                           type="button"
                           onClick={() => fetchPaddyStockReport()}
@@ -6470,7 +6518,8 @@ export const ProcurementManagement = () => {
                                 );
                               return;
                             }
-                            win.document.write(`<!DOCTYPE html><html><head><title>Paddy Stack — ${activePlant?.name || "Mill"}</title>
+                            win.document
+                              .write(`<!DOCTYPE html><html><head><title>Paddy Stack — ${activePlant?.name || "Mill"}</title>
 <style>
   body{font-family:system-ui,sans-serif;padding:16px;color:#111}
   h3{margin:0 0 12px}
@@ -6495,8 +6544,8 @@ export const ProcurementManagement = () => {
                           }}
                           className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded border border-[var(--border-subtle)] text-sm transition-colors"
                         >
-                       <Printer size={16} /> Print
-                    </button>
+                          <Printer size={16} /> Print
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
@@ -6550,15 +6599,15 @@ export const ProcurementManagement = () => {
                           }}
                           className="flex items-center gap-2 px-3 py-1.5 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded border border-[#e67e00]/40 text-sm font-bold transition-colors"
                         >
-                       <Download size={16} /> Export
-                    </button>
-                 </div>
-              </div>
-              <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
-                 <table className="w-full text-left border-collapse">
-                    <thead>
-                       <tr className="bg-[var(--bg-panel-hover)] border-b border-[var(--border-subtle)]">
-                          <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]"></th>
+                          <Download size={16} /> Export
+                        </button>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-[var(--bg-panel-hover)] border-b border-[var(--border-subtle)]">
+                            <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]"></th>
                             <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">
                               A
                             </th>
@@ -6583,8 +6632,8 @@ export const ProcurementManagement = () => {
                             <th className="p-3 text-sm font-semibold text-[var(--text-main)]">
                               H
                             </th>
-                       </tr>
-                       <tr className="bg-[var(--bg-panel-hover)] border-b border-[var(--border-subtle)]">
+                          </tr>
+                          <tr className="bg-[var(--bg-panel-hover)] border-b border-[var(--border-subtle)]">
                             <th className="p-3 text-sm font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">
                               Date
                             </th>
@@ -6620,9 +6669,9 @@ export const ProcurementManagement = () => {
                             <th className="p-3 text-sm font-semibold text-[var(--text-main)]">
                               Stack no. in use
                             </th>
-                       </tr>
-                    </thead>
-                    <tbody>
+                          </tr>
+                        </thead>
+                        <tbody>
                           {paddyStackDocRows.length === 0 ? (
                             <tr className="border-b border-[var(--border-subtle)]">
                               <td
@@ -6631,7 +6680,7 @@ export const ProcurementManagement = () => {
                               >
                                 No stack documentation for this mill yet.
                               </td>
-                       </tr>
+                            </tr>
                           ) : (
                             paddyStackDocRows.map((r: any) => (
                               <tr
@@ -6668,38 +6717,38 @@ export const ProcurementManagement = () => {
                               </tr>
                             ))
                           )}
-                    </tbody>
-                 </table>
-              </div>
-           </div>
-        ) : (
-           <div className="text-center w-full h-full flex flex-col justify-center items-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-[#e67e00]/10 text-[#e67e00] rounded-full flex items-center justify-center">
-                 <FileText size={32} />
-              </div>
-              <h3 className="text-xl font-bold text-[var(--text-main)]">
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center w-full h-full flex flex-col justify-center items-center">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-[#e67e00]/10 text-[#e67e00] rounded-full flex items-center justify-center">
+                      <FileText size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-[var(--text-main)]">
                       {listFilters.activeReportTab
                         .split("_")
                         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                         .join(" ")}{" "}
                       Report
-              </h3>
-              <p className="text-[var(--text-muted-alt)] mt-2 max-w-md mx-auto">
+                    </h3>
+                    <p className="text-[var(--text-muted-alt)] mt-2 max-w-md mx-auto">
                       This report is currently being developed. Data
                       visualization and export options will appear here once
                       ready.
-              </p>
-           </div>
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
-     </div>
-   </div>
- </div>
- )}
- </div>
+      </div>
 
- {/* MODALS */}
-  <CustomModal 
-    isOpen={paddyPurchaseModal.isOpen} 
+      {/* MODALS */}
+      <CustomModal
+        isOpen={paddyPurchaseModal.isOpen}
         onClose={() => {
           if (isPaddyPurchaseSaving) return;
           setPaddyPurchaseModal(emptyPaddyPurchaseModal());
@@ -6709,10 +6758,10 @@ export const ProcurementManagement = () => {
             ? "Edit Estimate Purchase"
             : "Add Estimate Purchase"
         }
-  >
-    <form onSubmit={handlePaddyPurchaseSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
+      >
+        <form onSubmit={handlePaddyPurchaseSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                 Rice Mill
               </label>
@@ -6743,37 +6792,37 @@ export const ProcurementManagement = () => {
                   className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
                   required
                 >
-            <option value="">Select Plant</option>
+                  <option value="">Select Plant</option>
                   {plants.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
                     </option>
-            ))}
-          </select>
+                  ))}
+                </select>
               )}
-        </div>
+            </div>
 
-        <div>
+            <div>
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                 Party - Arthiya
               </label>
-          <Combobox
-            name="supplierId"
-            value={paddyPurchaseModal.supplierId}
+              <Combobox
+                name="supplierId"
+                value={paddyPurchaseModal.supplierId}
                 onChange={(e: any) =>
                   setPaddyPurchaseModal({
                     ...paddyPurchaseModal,
                     supplierId: e.target.value,
                   })
                 }
-            options={suppliers}
-            valueKey="id"
+                options={suppliers}
+                valueKey="id"
                 placeholder="Select Arthiya (this mill)"
-            className="bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"
-            required
-          />
-        </div>
-        <div>
+                className="bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"
+                required
+              />
+            </div>
+            <div>
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                 Date
               </label>
@@ -6789,7 +6838,7 @@ export const ProcurementManagement = () => {
                 className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
                 required
               />
-        </div>
+            </div>
             <div>
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                 Supervisor Name
@@ -6827,13 +6876,13 @@ export const ProcurementManagement = () => {
             <div
               className={`col-span-2 border border-[var(--border-subtle)] rounded p-4 space-y-4 transition-opacity duration-300 ${!isPaddyBlock1Valid ? "opacity-40 pointer-events-none" : ""}`}
             >
-          {String(paddyPurchaseModal.note || "").startsWith("TEMP:") && (
-            <div className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-              Temporary sample Boli rows are pre-filled for testing. Edit or clear
-              before saving a real estimate.
-            </div>
-          )}
-          <div className="flex justify-between items-center mb-2 gap-2 flex-wrap">
+              {String(paddyPurchaseModal.note || "").startsWith("TEMP:") && (
+                <div className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  Temporary sample Boli rows are pre-filled for testing. Edit or
+                  clear before saving a real estimate.
+                </div>
+              )}
+              <div className="flex justify-between items-center mb-2 gap-2 flex-wrap">
                 <h3 className="text-sm font-bold text-[var(--text-main)]">
                   Boli Details (leave unused rows empty
                   {!isSupervisor ? "; use 0 bags to cancel" : ""})
@@ -6843,158 +6892,169 @@ export const ProcurementManagement = () => {
                     ? "← → or Enter → next column · Cancel soda only in Add Final Boli"
                     : "← → or Enter → next column (Rate → next Boli row)"}
                 </span>
-          </div>
-          <div data-boli-grid className="space-y-4">
-          {paddyPurchaseModal.bolis.map((boli: any, index: number) => {
-            const bagsCancelled = String(boli.bags ?? "").trim() === "0";
-            return (
-            <div key={index} className="grid grid-cols-3 gap-2 items-end">
-              <div>
-                    {!bagsCancelled && (
-                    <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
-                      Moisture (Mc)
-                    </label>
-                    )}
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      data-boli-cell={`${index}-moisture`}
-                      value={bagsCancelled ? "" : boli.moisture}
-                      disabled={bagsCancelled}
-                      onKeyDown={(e) =>
-                        focusNextBoliField(e, index, "moisture")
-                      }
-                      onChange={(e) => {
-                  const newBolis = [...paddyPurchaseModal.bolis];
-                  newBolis[index].moisture = e.target.value;
-                        setPaddyPurchaseModal({
-                          ...paddyPurchaseModal,
-                          bolis: newBolis,
-                        });
-                      }}
-                      placeholder={bagsCancelled ? "Cancelled" : undefined}
-                      className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm ${
-                        bagsCancelled ? "opacity-40 cursor-not-allowed" : ""
-                      }`}
-                    />
               </div>
-              <div>
-                    {!bagsCancelled && (
-                    <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
-                      {isSupervisor ? "Bags" : "Bags (0=cancel)"}
-                    </label>
-                    )}
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      data-boli-cell={`${index}-bags`}
-                      value={boli.bags}
-                      onKeyDown={(e) => focusNextBoliField(e, index, "bags")}
-                      onChange={(e) => {
-                  const newBolis = [...paddyPurchaseModal.bolis];
-                  newBolis[index].bags = e.target.value;
-                        const totalBags = newBolis.reduce(
-                          (s, b) => s + (parseFloat(b.bags) || 0),
-                          0,
-                        );
-                        const finalAmt = (
-                          totalBags *
-                          0.375 *
-                          (parseFloat(paddyPurchaseModal.diff) || 0)
-                        ).toFixed(2);
-                        setPaddyPurchaseModal({
-                          ...paddyPurchaseModal,
-                          bolis: newBolis,
-                          finalHisabAmt: finalAmt,
-                        });
-                      }}
-                      className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm ${
-                        bagsCancelled ? "opacity-50" : ""
-                      }`}
-                    />
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                      {!bagsCancelled && (
-                      <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
-                        Rate (Boli)
-                      </label>
-                      )}
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        data-boli-cell={`${index}-rate`}
-                        value={bagsCancelled ? "" : boli.rate}
-                        disabled={bagsCancelled}
-                        onKeyDown={(e) => focusNextBoliField(e, index, "rate")}
-                        onChange={(e) => {
-                    const newBolis = [...paddyPurchaseModal.bolis];
-                    newBolis[index].rate = e.target.value;
-                    const r = parseFloat(e.target.value) || 0;
-                          const g =
-                            parseFloat(paddyPurchaseModal.govtRate) || 0;
-                    
-                    let diff = paddyPurchaseModal.diff;
-                    if (index === 0 && g && r) {
-                      diff = (g - r).toFixed(2);
-                    }
-                    
-                          const totalBags = newBolis.reduce(
-                            (s, b) => s + (parseFloat(b.bags) || 0),
-                            0,
-                          );
-                          const finalAmt = (
-                            totalBags *
-                            0.375 *
-                            (parseFloat(diff) || 0)
-                          ).toFixed(2);
+              <div data-boli-grid className="space-y-4">
+                {paddyPurchaseModal.bolis.map((boli: any, index: number) => {
+                  const bagsCancelled = String(boli.bags ?? "").trim() === "0";
+                  return (
+                    <div
+                      key={index}
+                      className="grid grid-cols-3 gap-2 items-end"
+                    >
+                      <div>
+                        {!bagsCancelled && (
+                          <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                            Moisture (Mc)
+                          </label>
+                        )}
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          data-boli-cell={`${index}-moisture`}
+                          value={bagsCancelled ? "" : boli.moisture}
+                          disabled={bagsCancelled}
+                          onKeyDown={(e) =>
+                            focusNextBoliField(e, index, "moisture")
+                          }
+                          onChange={(e) => {
+                            const newBolis = [...paddyPurchaseModal.bolis];
+                            newBolis[index].moisture = e.target.value;
+                            setPaddyPurchaseModal({
+                              ...paddyPurchaseModal,
+                              bolis: newBolis,
+                            });
+                          }}
+                          placeholder={bagsCancelled ? "Cancelled" : undefined}
+                          className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm ${
+                            bagsCancelled ? "opacity-40 cursor-not-allowed" : ""
+                          }`}
+                        />
+                      </div>
+                      <div>
+                        {!bagsCancelled && (
+                          <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                            {isSupervisor ? "Bags" : "Bags (0=cancel)"}
+                          </label>
+                        )}
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          data-boli-cell={`${index}-bags`}
+                          value={boli.bags}
+                          onKeyDown={(e) =>
+                            focusNextBoliField(e, index, "bags")
+                          }
+                          onChange={(e) => {
+                            const newBolis = [...paddyPurchaseModal.bolis];
+                            newBolis[index].bags = e.target.value;
+                            const totalBags = newBolis.reduce(
+                              (s, b) => s + (parseFloat(b.bags) || 0),
+                              0,
+                            );
+                            const finalAmt = (
+                              totalBags *
+                              0.375 *
+                              (parseFloat(paddyPurchaseModal.diff) || 0)
+                            ).toFixed(2);
+                            setPaddyPurchaseModal({
+                              ...paddyPurchaseModal,
+                              bolis: newBolis,
+                              finalHisabAmt: finalAmt,
+                            });
+                          }}
+                          className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm ${
+                            bagsCancelled ? "opacity-50" : ""
+                          }`}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          {!bagsCancelled && (
+                            <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                              Rate (Boli)
+                            </label>
+                          )}
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            data-boli-cell={`${index}-rate`}
+                            value={bagsCancelled ? "" : boli.rate}
+                            disabled={bagsCancelled}
+                            onKeyDown={(e) =>
+                              focusNextBoliField(e, index, "rate")
+                            }
+                            onChange={(e) => {
+                              const newBolis = [...paddyPurchaseModal.bolis];
+                              newBolis[index].rate = e.target.value;
+                              const r = parseFloat(e.target.value) || 0;
+                              const g =
+                                parseFloat(paddyPurchaseModal.govtRate) || 0;
 
-                          setPaddyPurchaseModal({
-                            ...paddyPurchaseModal,
-                            bolis: newBolis,
-                            diff,
-                            finalHisabAmt: finalAmt,
-                          });
-                        }}
-                        className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm ${
-                          bagsCancelled ? "opacity-40 cursor-not-allowed" : ""
-                        }`}
-                      />
-                </div>
-                {paddyPurchaseModal.bolis.length > 1 && !bagsCancelled && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newBolis = paddyPurchaseModal.bolis.filter(
-                            (_: any, i: number) => i !== index,
-                          );
-                          const totalBags = newBolis.reduce(
-                            (s: number, b: any) =>
-                              s + (parseFloat(b.bags) || 0),
-                            0,
-                          );
-                          const finalAmt = (
-                            totalBags *
-                            0.375 *
-                            (parseFloat(paddyPurchaseModal.diff) || 0)
-                          ).toFixed(2);
-                          setPaddyPurchaseModal({
-                            ...paddyPurchaseModal,
-                            bolis: newBolis,
-                            finalHisabAmt: finalAmt,
-                          });
-                        }}
-                        className="mb-0.5 px-2 py-1.5 text-red-400 hover:bg-red-400/10 rounded"
-                      >
-                        ✕
-                      </button>
-                )}
+                              let diff = paddyPurchaseModal.diff;
+                              if (index === 0 && g && r) {
+                                diff = (g - r).toFixed(2);
+                              }
+
+                              const totalBags = newBolis.reduce(
+                                (s, b) => s + (parseFloat(b.bags) || 0),
+                                0,
+                              );
+                              const finalAmt = (
+                                totalBags *
+                                0.375 *
+                                (parseFloat(diff) || 0)
+                              ).toFixed(2);
+
+                              setPaddyPurchaseModal({
+                                ...paddyPurchaseModal,
+                                bolis: newBolis,
+                                diff,
+                                finalHisabAmt: finalAmt,
+                              });
+                            }}
+                            className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm ${
+                              bagsCancelled
+                                ? "opacity-40 cursor-not-allowed"
+                                : ""
+                            }`}
+                          />
+                        </div>
+                        {paddyPurchaseModal.bolis.length > 1 &&
+                          !bagsCancelled && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newBolis =
+                                  paddyPurchaseModal.bolis.filter(
+                                    (_: any, i: number) => i !== index,
+                                  );
+                                const totalBags = newBolis.reduce(
+                                  (s: number, b: any) =>
+                                    s + (parseFloat(b.bags) || 0),
+                                  0,
+                                );
+                                const finalAmt = (
+                                  totalBags *
+                                  0.375 *
+                                  (parseFloat(paddyPurchaseModal.diff) || 0)
+                                ).toFixed(2);
+                                setPaddyPurchaseModal({
+                                  ...paddyPurchaseModal,
+                                  bolis: newBolis,
+                                  finalHisabAmt: finalAmt,
+                                });
+                              }}
+                              className="mb-0.5 px-2 py-1.5 text-red-400 hover:bg-red-400/10 rounded"
+                            >
+                              ✕
+                            </button>
+                          )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-            );
-          })}
-          </div>
-          <div className="flex justify-end mt-2 pt-2 border-t border-[var(--border-subtle-alt)]">
+              <div className="flex justify-end mt-2 pt-2 border-t border-[var(--border-subtle-alt)]">
                 <button
                   type="button"
                   onClick={() => {
@@ -7008,14 +7068,14 @@ export const ProcurementManagement = () => {
                   }}
                   className="text-xs bg-[var(--bg-panel)] text-[#e67e00] px-3 py-1 rounded font-bold border border-[#e67e00]/30 hover:bg-[#e67e00]/10 transition-colors"
                 >
-              + Add Boli
-            </button>
-          </div>
-        </div>
-        
-        {!isSupervisor && (
-          <>
-            <div>
+                  + Add Boli
+                </button>
+              </div>
+            </div>
+
+            {!isSupervisor && (
+              <>
+                <div>
                   <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                     Govt Rate
                   </label>
@@ -7025,8 +7085,8 @@ export const ProcurementManagement = () => {
                     step="0.01"
                     value={paddyPurchaseModal.govtRate || ""}
                     onChange={(e) => {
-                const govtRate = e.target.value;
-                const g = parseFloat(govtRate) || 0;
+                      const govtRate = e.target.value;
+                      const g = parseFloat(govtRate) || 0;
                       const firstRate =
                         parseFloat(paddyPurchaseModal.bolis[0]?.rate) || 0;
                       const diff =
@@ -7053,8 +7113,8 @@ export const ProcurementManagement = () => {
                     }}
                     className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
                   />
-            </div>
-            <div>
+                </div>
+                <div>
                   <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                     Diff
                   </label>
@@ -7064,7 +7124,7 @@ export const ProcurementManagement = () => {
                     step="0.01"
                     value={paddyPurchaseModal.diff}
                     onChange={(e) => {
-                const diff = e.target.value;
+                      const diff = e.target.value;
                       const totalBags = paddyPurchaseModal.bolis.reduce(
                         (s: number, b: any) => s + (parseFloat(b.bags) || 0),
                         0,
@@ -7082,8 +7142,8 @@ export const ProcurementManagement = () => {
                     }}
                     className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
                   />
-            </div>
-            <div>
+                </div>
+                <div>
                   <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                     Payment
                   </label>
@@ -7100,8 +7160,8 @@ export const ProcurementManagement = () => {
                     }
                     className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
                   />
-            </div>
-            <div>
+                </div>
+                <div>
                   <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                     Final Hisab Amt
                   </label>
@@ -7120,7 +7180,7 @@ export const ProcurementManagement = () => {
                   />
                   {paddyPurchaseModal.bolis.length > 0 &&
                     paddyPurchaseModal.diff && (
-                <div className="mt-2 text-xs text-[var(--text-muted)] bg-blue-900/10 p-2 rounded border border-blue-900/20 text-blue-400">
+                      <div className="mt-2 text-xs text-[var(--text-muted)] bg-blue-900/10 p-2 rounded border border-blue-900/20 text-blue-400">
                         <span className="font-semibold block mb-1">
                           Payment note (Feedback 32):
                         </span>
@@ -7129,12 +7189,12 @@ export const ProcurementManagement = () => {
                         <br />
                         (Govt − Boli Rate) × (Final Bags × 0.375). Estimate bags
                         are not used for Payment.
+                      </div>
+                    )}
                 </div>
-              )}
-            </div>
-          </>
-        )}
-        <div className="col-span-2">
+              </>
+            )}
+            <div className="col-span-2">
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                 Note
               </label>
@@ -7149,8 +7209,8 @@ export const ProcurementManagement = () => {
                 }
                 className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
               />
-        </div>
-      </div>
+            </div>
+          </div>
           <div className="flex flex-wrap justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
             <button
               type="button"
@@ -7220,17 +7280,17 @@ export const ProcurementManagement = () => {
                   ? "Update with Fingerprint"
                   : "Submit with Fingerprint"}
             </button>
-      </div>
-    </form>
-  </CustomModal>
+          </div>
+        </form>
+      </CustomModal>
 
- <CustomModal 
-     isOpen={addMandiModal.isOpen} 
-     onClose={() => setAddMandiModal({ ...addMandiModal, isOpen: false })}
-     title={addMandiModal.id ? "Edit Mandi" : "Add New Mandi"}
-   >
-     <form onSubmit={handleAddMandi} className="space-y-4">
-       <div>
+      <CustomModal
+        isOpen={addMandiModal.isOpen}
+        onClose={() => setAddMandiModal({ ...addMandiModal, isOpen: false })}
+        title={addMandiModal.id ? "Edit Mandi" : "Add New Mandi"}
+      >
+        <form onSubmit={handleAddMandi} className="space-y-4">
+          <div>
             <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
               Mandi Name
             </label>
@@ -7243,8 +7303,8 @@ export const ProcurementManagement = () => {
               className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
               required
             />
-       </div>
-       <div className="flex items-center gap-2">
+          </div>
+          <div className="flex items-center gap-2">
             <input
               type="checkbox"
               id="mandiStatus"
@@ -7263,8 +7323,8 @@ export const ProcurementManagement = () => {
             >
               Active Status
             </label>
-       </div>
-       <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
+          </div>
+          <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
             <button
               type="button"
               onClick={() =>
@@ -7285,20 +7345,20 @@ export const ProcurementManagement = () => {
                   ? "Update Mandi"
                   : "Add Mandi"}
             </button>
-       </div>
-     </form>
-   </CustomModal>
+          </div>
+        </form>
+      </CustomModal>
 
- <CustomModal 
-    isOpen={addSupplierModal.isOpen} 
+      <CustomModal
+        isOpen={addSupplierModal.isOpen}
         onClose={() =>
           setAddSupplierModal({ ...addSupplierModal, isOpen: false })
         }
-    title="Add New Arthiya"
-  >
-    <form onSubmit={handleAddSupplier} className="space-y-4">
+        title="Add New Arthiya"
+      >
+        <form onSubmit={handleAddSupplier} className="space-y-4">
           {activePlant && user?.role !== "SUPER_ADMIN" ? (
-        <div>
+            <div>
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                 Mill
               </label>
@@ -7322,7 +7382,7 @@ export const ProcurementManagement = () => {
                 className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
                 required
               >
-            <option value="">Select Mill</option>
+                <option value="">Select Mill</option>
                 {(plants.length
                   ? plants
                   : activePlant
@@ -7333,10 +7393,10 @@ export const ProcurementManagement = () => {
                     {p.name}
                   </option>
                 ))}
-          </select>
-        </div>
-      )}
-      <div>
+              </select>
+            </div>
+          )}
+          <div>
             <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
               Arthiya Name
             </label>
@@ -7352,8 +7412,8 @@ export const ProcurementManagement = () => {
               className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
               required
             />
-      </div>
-      <div>
+          </div>
+          <div>
             <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
               Firm Names (comma separated)
             </label>
@@ -7369,8 +7429,8 @@ export const ProcurementManagement = () => {
               className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
               placeholder="E.g. Balaji Traders, Shivam Rice"
             />
-      </div>
-      <div>
+          </div>
+          <div>
             <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
               Mandi
             </label>
@@ -7384,17 +7444,17 @@ export const ProcurementManagement = () => {
               }
               className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
             >
-          <option value="">Select Mandi</option>
+              <option value="">Select Mandi</option>
               {mandis
                 .filter((m: any) => m.isActive)
                 .map((m: any) => (
                   <option key={m.id} value={m.name}>
                     {m.name}
                   </option>
-          ))}
-        </select>
-      </div>
-      <div>
+                ))}
+            </select>
+          </div>
+          <div>
             <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
               Contact Details
             </label>
@@ -7412,8 +7472,8 @@ export const ProcurementManagement = () => {
               }
               className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
             />
-      </div>
-      <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
+          </div>
+          <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
             <button
               type="button"
               onClick={() =>
@@ -7430,18 +7490,18 @@ export const ProcurementManagement = () => {
             >
               {addSupplierLock.pending ? "Saving..." : "Add Arthiya"}
             </button>
-      </div>
-    </form>
-  </CustomModal>
+          </div>
+        </form>
+      </CustomModal>
 
- <CustomModal 
- isOpen={inspectModal.isOpen} 
- onClose={() => setInspectModal({ ...inspectModal, isOpen: false })}
- title="Quality Inspection"
- >
- <form onSubmit={handleInspect} className="space-y-4">
- <div className="grid grid-cols-2 gap-4">
- <div>
+      <CustomModal
+        isOpen={inspectModal.isOpen}
+        onClose={() => setInspectModal({ ...inspectModal, isOpen: false })}
+        title="Quality Inspection"
+      >
+        <form onSubmit={handleInspect} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                 Moisture (%)
               </label>
@@ -7459,8 +7519,8 @@ export const ProcurementManagement = () => {
                 className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
                 required
               />
- </div>
- <div>
+            </div>
+            <div>
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                 Broken (%)
               </label>
@@ -7478,8 +7538,8 @@ export const ProcurementManagement = () => {
                 className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
                 required
               />
- </div>
- <div>
+            </div>
+            <div>
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                 Discoloration (%)
               </label>
@@ -7496,8 +7556,8 @@ export const ProcurementManagement = () => {
                 }
                 className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
               />
- </div>
- <div>
+            </div>
+            <div>
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                 Foreign Matter (%)
               </label>
@@ -7514,9 +7574,9 @@ export const ProcurementManagement = () => {
                 }
                 className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
               />
- </div>
- </div>
- <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
             <button
               type="button"
               onClick={() =>
@@ -7533,20 +7593,20 @@ export const ProcurementManagement = () => {
             >
               {inspectLock.pending ? "Submitting..." : "Complete Inspection"}
             </button>
- </div>
- </form>
- </CustomModal>
+          </div>
+        </form>
+      </CustomModal>
 
- <CustomModal 
- isOpen={settleHisabModal.isOpen} 
+      <CustomModal
+        isOpen={settleHisabModal.isOpen}
         onClose={() =>
           setSettleHisabModal({ ...settleHisabModal, isOpen: false })
         }
- title="Settle Hisab (Final Settlement)"
- >
- {settleHisabModal.hisab && (
- <form onSubmit={handleSettleHisabSubmit} className="space-y-4">
- <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+        title="Settle Hisab (Final Settlement)"
+      >
+        {settleHisabModal.hisab && (
+          <form onSubmit={handleSettleHisabSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm mb-4">
               <div className="text-[var(--text-muted-alt)]">
                 Party / Mandi:{" "}
                 <span className="text-[var(--text-main)] font-bold">
@@ -7571,10 +7631,10 @@ export const ProcurementManagement = () => {
                   {settleHisabModal.hisab.diff}
                 </span>
               </div>
- </div>
- 
- <div className="border-t border-[var(--border-subtle)] pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
- <div>
+            </div>
+
+            <div className="border-t border-[var(--border-subtle)] pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
                 <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                   Payment
                 </label>
@@ -7591,8 +7651,8 @@ export const ProcurementManagement = () => {
                   className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
                   placeholder="Enter payment amount"
                 />
- </div>
- <div>
+              </div>
+              <div>
                 <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                   Final Hisab Amount
                 </label>
@@ -7609,8 +7669,8 @@ export const ProcurementManagement = () => {
                   className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
                   placeholder="Enter final amount"
                 />
- </div>
- <div className="col-span-1 md:col-span-2">
+              </div>
+              <div className="col-span-1 md:col-span-2">
                 <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
                   Notes
                 </label>
@@ -7626,10 +7686,10 @@ export const ProcurementManagement = () => {
                   rows={2}
                   placeholder="Add any settlement notes"
                 ></textarea>
- </div>
- </div>
- 
- <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
               <button
                 type="button"
                 onClick={() =>
@@ -7646,27 +7706,27 @@ export const ProcurementManagement = () => {
               >
                 {settleHisabLock.pending ? "Submitting..." : "Settle Hisab"}
               </button>
- </div>
- </form>
- )}
- </CustomModal>
+            </div>
+          </form>
+        )}
+      </CustomModal>
 
-  <StackSelectionModal 
-    isOpen={isStackModalOpen} 
-    onClose={() => setIsStackModalOpen(false)} 
-    onSelect={(stack, bagType) => {
+      <StackSelectionModal
+        isOpen={isStackModalOpen}
+        onClose={() => setIsStackModalOpen(false)}
+        onSelect={(stack, bagType) => {
           setInwardFormData((prev: any) => ({
             ...prev,
             stackNo: stack,
             bagType,
           }));
-      setIsStackModalOpen(false);
-    }} 
-    occupiedStacks={occupiedStacks}
-    currentMoisture={parseFloat(inwardFormData.moisture) || 0}
+          setIsStackModalOpen(false);
+        }}
+        occupiedStacks={occupiedStacks}
+        currentMoisture={parseFloat(inwardFormData.moisture) || 0}
         plantName={activePlant?.name || ""}
         plantId={activePlant?.id || ""}
-  />
+      />
     </div>
   );
 };

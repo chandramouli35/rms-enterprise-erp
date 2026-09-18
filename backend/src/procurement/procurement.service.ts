@@ -900,7 +900,7 @@ export class ProcurementService {
             `GP Complete: ${data.gpCompleteDate || '-'} ${data.timeOut || '-'}; ` +
             `Truck: ${data.truckNo || '-'}; GP: ${data.gpNo || '-'}`,
           batch.id,
-          plantId,
+            plantId,
         );
       }
 
