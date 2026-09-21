@@ -86,12 +86,19 @@ On that PC (MFS110 plugged in, Mantra RD Service **READY**):
 
 | Result | What happens |
 |--------|----------------|
-| Match OK (or enrolled + valid scan when only encrypted PidData is stored) | Scan accepted; form can continue / submit with that biometric |
-| Wrong finger / no match (when match templates exist) | Error: **Fingerprint not matched** — submit blocked |
+| Match OK (same enrolled finger) | Scan accepted; form can continue / submit |
+| Wrong finger | Error: **Fingerprint not matched** — no bypass, no dummy accept |
+| Match templates missing | Re-enroll Finger 1 and Finger 2 (must be real ISO templates) |
 | No fingerprints on this user | Error: **No fingerprint enrolled for your login…** |
-| Device not READY / RD Service down | Device / RD error — fix scanner first (see setup guide) |
+| Device not READY / RD Service down | Device / RD error — fix scanner first |
 
-**Admins** (Super Admin / Admin / Plant Manager, etc.) may bypass when the device is unavailable.
+**Admins** are not bypassed on Scan. A wrong finger or a failed match always shows an error.
+
+### Important fix (wrong finger was accepting)
+
+Older builds used a soft “presence” check when Mantra encrypted PidData (any valid scan passed). That is **removed**.  
+
+Verify is now **strict 1:1**. Supervisors enrolled before this fix must **re-enroll Finger 1 + Finger 2** so match templates are stored.
 
 ---
 
@@ -109,7 +116,7 @@ On that PC (MFS110 plugged in, Mantra RD Service **READY**):
 
 1. Choose destination mill.  
 2. Enter new User ID + password for the new mill account.  
-3. **Scan Finger 1 + Finger 2 again** for the new account.  
+3. **Scan Finger 1 + Finger 2 again** for the new account (must get match templates).  
 4. Confirm transfer.
 
 - New mill account is created with the new fingerprints.  
@@ -121,9 +128,9 @@ On that PC (MFS110 plugged in, Mantra RD Service **READY**):
 
 | Action | Who | Match? |
 |--------|-----|--------|
-| Users & Roles — Add / Transfer supervisor | Admin | **No** — only enroll / store fingers |
-| Staff — Unloader registration | Admin | **No** — enroll unloader fingers |
-| Form Scan (inward, truck, gate pass, etc.) | Logged-in supervisor | **Yes** — verify against logged-in user |
+| Users & Roles — Add / Transfer supervisor | Admin | Enroll only — must capture **matchable** templates |
+| Staff — Unloader registration | Admin | Enroll only |
+| Form Scan (inward, truck, gate pass, etc.) | Logged-in supervisor | **Yes — strict match** vs logged-in user |
 
 ---
 
@@ -131,10 +138,10 @@ On that PC (MFS110 plugged in, Mantra RD Service **READY**):
 
 1. Mantra RD Service tray = **READY** (not NOTREADY).  
 2. Prove Capture on [https://rdtest.aadhaardevice.com/](https://rdtest.aadhaardevice.com/) first.  
-3. Supervisor has **two enrolled fingerprints** in Users & Roles.  
-4. Same person is **logged in** who enrolled (or re-enrolled) those fingers.  
-5. On form → Scan with an enrolled finger.  
-6. Wrong finger (when match templates are available) → expect **Fingerprint not matched**.
+3. **Re-enroll** supervisor Finger 1 + Finger 2 after this update.  
+4. Log in as that supervisor.  
+5. Form → Scan with an **enrolled** finger → should pass.  
+6. Scan with a **different** finger → must show **Fingerprint not matched**.
 
 ---
 

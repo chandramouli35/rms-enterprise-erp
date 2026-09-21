@@ -265,12 +265,7 @@ export default function InwardListReport({
       setBiometricData(xml);
       toast("Fingerprint captured", "success");
     } catch (err: any) {
-      if (user?.role === "SUPER_ADMIN" || user?.role === "PLANT_MANAGER") {
-        setBiometricData("ADMIN_BYPASS");
-        toast("Admin bypass fingerprint (scanner unavailable)", "success");
-      } else {
-        toast(err.message || "Fingerprint capture failed", "error");
-      }
+      toast(err.message || "Fingerprint not matched", "error");
     } finally {
       setScanning(false);
     }

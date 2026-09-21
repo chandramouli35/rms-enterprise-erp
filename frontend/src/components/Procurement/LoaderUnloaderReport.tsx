@@ -379,34 +379,11 @@ export default function LoaderUnloaderReport({
         "success",
       );
     } catch (err: any) {
-      const isAdmin =
-        user?.role === "SUPER_ADMIN" || user?.role === "PLANT_MANAGER";
-      if (isAdmin) {
-        setSigs((prev) => ({
-          ...prev,
-          [key]: {
-            ...prev[key],
-            scanning: null,
-            ...(which === "unloader"
-              ? {
-                  unloaderFp: "ADMIN_BYPASS",
-                  unloaderName: prev[key]?.unloaderName || defaultName,
-                }
-              : {
-                  supervisorFp: "ADMIN_BYPASS",
-                  supervisorName:
-                    prev[key]?.supervisorName || user?.username || "",
-                }),
-          },
-        }));
-        toast("Admin bypass fingerprint (scanner unavailable)", "success");
-      } else {
-        setSigs((prev) => ({
-          ...prev,
-          [key]: { ...prev[key], scanning: null },
-        }));
-        toast(err?.message || "Fingerprint capture failed", "error");
-      }
+      setSigs((prev) => ({
+        ...prev,
+        [key]: { ...prev[key], scanning: null },
+      }));
+      toast(err?.message || "Fingerprint not matched", "error");
     }
   };
 

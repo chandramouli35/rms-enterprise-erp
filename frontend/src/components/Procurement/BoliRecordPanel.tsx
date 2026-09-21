@@ -385,19 +385,9 @@ export default function BoliRecordPanel({
       setFinalForm((f) => ({ ...f, biometricData: xml }));
       useUiStore.getState().addToast("Fingerprint captured", "success");
     } catch (e: any) {
-      if (isAdmin) {
-        setFinalForm((f) => ({ ...f, biometricData: "ADMIN_BYPASS" }));
-        useUiStore
-          .getState()
-          .addToast(
-            "Admin bypass fingerprint (scanner unavailable)",
-            "success",
-          );
-      } else {
-        useUiStore
-          .getState()
-          .addToast(e.message || "Fingerprint capture failed", "error");
-      }
+      useUiStore
+        .getState()
+        .addToast(e.message || "Fingerprint not matched", "error");
     } finally {
       setScanning(false);
     }

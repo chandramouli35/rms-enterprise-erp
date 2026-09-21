@@ -10,7 +10,6 @@
  */
 
 import api from '../api/axios';
-import { useAuthStore } from '../store/authStore';
 
 /** Single finger (fCount=1), FMR minutiae */
 const PID_OPTIONS_FMR = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="0" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="P"/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
@@ -18,15 +17,16 @@ const PID_OPTIONS_FMR = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount
 /** Single finger, FMR+FIR — often required by L1 RD builds */
 const PID_OPTIONS_L1 = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="2" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="P"/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
 
-/** Demo capture — some RD builds return clearer FMR for local matching */
+/** Demo / local-style captures — try to get clear FMR for matching */
 const PID_OPTIONS_DEMO_FMR = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="0" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="P"/><Demo/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
+
+const PID_OPTIONS_PP_FMR = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="0" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="PP"/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
+
+const PID_OPTIONS_DEMO_L1 = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="2" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="P"/><Demo/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
 
 const PORTS = Array.from({ length: 21 }, (_, i) => 11100 + i);
 const PROBE_TIMEOUT_MS = 900;
 const CAPTURE_TIMEOUT_MS = 25000;
-
-const ADMIN_ROLES =
-  /SUPER_ADMIN|SUPERADMIN|PLANT_MANAGER|ADMIN|ADMINISTRATOR/i;
 
 type RdService = {
   baseUrl: string;
@@ -269,58 +269,66 @@ async function capturePidData(): Promise<string> {
   }
 }
 
-/** Best-effort extract of matchable FMR/ISO base64 from PidData XML. */
+/** Only a real ISO 19794-2 FMR (header FMR\\0). Encrypted PidData is rejected. */
 export function extractIsoTemplateFromPidXml(xml: string): string | undefined {
   if (!xml) return undefined;
 
-  const bio =
-    xml.match(/<Bio\b[^>]*type\s*=\s*["']FMR["'][^>]*>([^<]{32,})<\/Bio>/i)?.[1] ||
+  const chunks = [
+    xml.match(/<Bio\b[^>]*>([^<]+)<\/Bio>/i)?.[1],
     xml.match(
-      /<Param\b[^>]*name\s*=\s*["'][^"']*(?:iso|fmr|template|Fmrt)[^"']*["'][^>]*value\s*=\s*["']([^"']+)["']/i,
-    )?.[1];
-  if (bio && bio.replace(/\s+/g, '').length >= 64) {
-    return bio.replace(/\s+/g, '');
-  }
+      /<Param\b[^>]*name\s*=\s*["'][^"']*(?:iso|fmr|template)[^"']*["'][^>]*value\s*=\s*["']([^"']+)["']/i,
+    )?.[1],
+    xml.match(/<Data\b[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/Data>/i)?.[1],
+    xml.match(/<Data\b[^>]*>([^<]+)<\/Data>/i)?.[1],
+  ];
 
-  const data =
-    xml.match(/<Data\b[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/Data>/i)?.[1]?.trim() ||
-    xml.match(/<Data\b[^>]*>([^<]{32,})<\/Data>/i)?.[1]?.trim();
-  if (!data) return undefined;
-
-  const cleaned = data.replace(/\s+/g, '');
-  try {
-    const bin = atob(cleaned);
-    if (
-      bin.length >= 4 &&
-      bin.charCodeAt(0) === 0x46 &&
-      bin.charCodeAt(1) === 0x4d &&
-      bin.charCodeAt(2) === 0x52
-    ) {
-      return cleaned;
-    }
-    for (let i = 0; i < bin.length - 4; i++) {
+  for (const chunk of chunks) {
+    if (!chunk) continue;
+    const cleaned = chunk.trim().replace(/\s+/g, '');
+    try {
+      const bin = atob(cleaned);
       if (
-        bin.charCodeAt(i) === 0x46 &&
-        bin.charCodeAt(i + 1) === 0x4d &&
-        bin.charCodeAt(i + 2) === 0x52 &&
-        bin.charCodeAt(i + 3) === 0
+        bin.length >= 36 &&
+        bin.charCodeAt(0) === 0x46 &&
+        bin.charCodeAt(1) === 0x4d &&
+        bin.charCodeAt(2) === 0x52 &&
+        bin.charCodeAt(3) === 0
       ) {
-        return btoa(bin.slice(i));
+        return cleaned;
       }
+    } catch {
+      /* not a template */
     }
-  } catch {
-    /* encrypted / not base64 */
   }
   return undefined;
 }
 
-async function tryDemoIsoTemplate(rd: RdService): Promise<string | undefined> {
-  try {
-    const xml = await capturePid(rd, PID_OPTIONS_DEMO_FMR);
-    return extractIsoTemplateFromPidXml(xml);
-  } catch {
-    return undefined;
+async function captureMatchable(rd: RdService): Promise<EnrollmentCapture> {
+  let lastError: Error | undefined;
+  for (const opts of [
+    PID_OPTIONS_FMR,
+    PID_OPTIONS_DEMO_FMR,
+    PID_OPTIONS_PP_FMR,
+    PID_OPTIONS_DEMO_L1,
+    PID_OPTIONS_L1,
+  ]) {
+    try {
+      const xml = await capturePid(rd, opts);
+      const isoTemplate = extractIsoTemplateFromPidXml(xml);
+      if (isoTemplate) return { pidData: xml, isoTemplate };
+      lastError = new Error(
+        'Scanner returned an encrypted scan, not a matchable fingerprint template.',
+      );
+    } catch (e: any) {
+      lastError = e instanceof Error ? e : new Error(String(e?.message || e));
+    }
   }
+  throw (
+    lastError ||
+    new Error(
+      'Could not capture a matchable fingerprint. Confirm Mantra RD is READY and Scan again.',
+    )
+  );
 }
 
 function apiErrorMessage(err: any): string {
@@ -356,74 +364,22 @@ export const biometricService = {
   /** Raw capture — PidData XML only. */
   captureFingerprint: async (): Promise<string> => capturePidData(),
 
-  /**
-   * Enrollment capture: PidData + best-effort ISO/FMR template for later 1:1 match.
-   */
   captureForEnrollment: async (): Promise<EnrollmentCapture> => {
     const rd = await findReadyRdService();
-    let pidData: string;
-    try {
-      pidData = await capturePid(rd, PID_OPTIONS_L1);
-    } catch (e: any) {
-      if (e?.message && /pidoptions|strictly adhere|ftype/i.test(e.message)) {
-        pidData = await capturePid(rd, PID_OPTIONS_FMR);
-      } else {
-        throw e;
-      }
-    }
-
-    let isoTemplate = extractIsoTemplateFromPidXml(pidData);
-    if (!isoTemplate) {
-      isoTemplate = await tryDemoIsoTemplate(rd);
-    }
-
-    return { pidData, isoTemplate };
+    return captureMatchable(rd);
   },
 
   /**
-   * Form Scan: capture live finger → verify against logged-in user's enrolled fingerprints.
-   * Throws "Fingerprint not matched" (or enroll message) when verify fails.
-   * Admins may bypass without a device.
+   * Form Scan: one matchable template → strict 1:1 vs logged-in user.
+   * Wrong finger throws "Fingerprint not matched". No bypass.
    */
   captureAndVerifyLoggedInUser: async (): Promise<string> => {
-    const role = useAuthStore.getState().user?.role || '';
-    const isAdmin = ADMIN_ROLES.test(String(role));
-
-    if (isAdmin) {
-      try {
-        const pidData = await capturePidData();
-        try {
-          await api.post('/auth/verify-fingerprint', {
-            biometricData: pidData,
-            isoTemplate: extractIsoTemplateFromPidXml(pidData),
-          });
-        } catch {
-          /* admin: keep capture even if match templates missing */
-        }
-        return pidData;
-      } catch {
-        await api.post('/auth/verify-fingerprint', {
-          biometricData: 'ADMIN_BYPASS',
-        });
-        return 'ADMIN_BYPASS';
-      }
-    }
-
     const rd = await findReadyRdService();
-    let pidData: string;
-    try {
-      pidData = await capturePid(rd, PID_OPTIONS_L1);
-    } catch (e: any) {
-      if (e?.message && /pidoptions|strictly adhere|ftype/i.test(e.message)) {
-        pidData = await capturePid(rd, PID_OPTIONS_FMR);
-      } else {
-        throw e;
-      }
-    }
-
-    let isoTemplate = extractIsoTemplateFromPidXml(pidData);
+    const { pidData, isoTemplate } = await captureMatchable(rd);
     if (!isoTemplate) {
-      isoTemplate = await tryDemoIsoTemplate(rd);
+      throw new Error(
+        'Fingerprint not matched. Scanner did not return a matchable template.',
+      );
     }
 
     try {

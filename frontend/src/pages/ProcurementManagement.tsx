@@ -7227,28 +7227,12 @@ export const ProcurementManagement = () => {
                     .getState()
                     .addToast("Fingerprint captured", "success");
                 } catch (err: any) {
-                  if (
-                    user?.role === "SUPER_ADMIN" ||
-                    user?.role === "PLANT_MANAGER"
-                  ) {
-                    setPaddyPurchaseModal((prev: any) => ({
-                      ...prev,
-                      biometricData: "ADMIN_BYPASS",
-                    }));
-                    useUiStore
-                      .getState()
-                      .addToast(
-                        "Admin bypass fingerprint (scanner unavailable)",
-                        "success",
-                      );
-                  } else {
-                    useUiStore
-                      .getState()
-                      .addToast(
-                        err.message || "Fingerprint capture failed",
-                        "error",
-                      );
-                  }
+                  useUiStore
+                    .getState()
+                    .addToast(
+                      err.message || "Fingerprint not matched",
+                      "error",
+                    );
                 } finally {
                   setIsScanningFingerprint(false);
                 }
