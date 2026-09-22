@@ -554,14 +554,66 @@ export class UsersRolesService {
     }
   }
 
+  async updateRole(
+    roleId: string,
+    data: { name?: string; description?: string },
+  ) {
+    const role = await this.prisma.role.findUnique({ where: { id: roleId } });
+    if (!role) throw new BadRequestException('Role not found.');
+
+    const trimmed =
+      data.name != null ? String(data.name).trim().toUpperCase() : role.name;
+    if (!trimmed) {
+      throw new BadRequestException('Role name is required.');
+    }
+
+    if (trimmed !== role.name) {
+      const clash = await this.prisma.role.findFirst({
+        where: {
+          name: { equals: trimmed, mode: 'insensitive' },
+          id: { not: roleId },
+        },
+        select: { id: true },
+      });
+      if (clash) {
+        throw new BadRequestException(
+          `Role name "${trimmed}" already exists. Choose a different name.`,
+        );
+      }
+    }
+
+    try {
+      return await this.prisma.role.update({
+        where: { id: roleId },
+        data: {
+          name: trimmed,
+          description:
+            data.description !== undefined
+              ? data.description
+              : role.description,
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw new BadRequestException(
+          `Role name "${trimmed}" already exists. Choose a different name.`,
+        );
+      }
+      throw err;
+    }
+  }
+
   /** Live duplicate check while typing role name. */
-  async checkRoleExists(name: string) {
+  async checkRoleExists(name: string, excludeId?: string) {
     const trimmed = String(name || '').trim().toUpperCase();
     if (!trimmed || trimmed.length < 2) {
       return { exists: false, name: trimmed || null };
     }
     const existing = await this.prisma.role.findFirst({
-      where: { name: { equals: trimmed, mode: 'insensitive' } },
+      where: {
+        name: { equals: trimmed, mode: 'insensitive' },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
       select: { id: true, name: true },
     });
     return {

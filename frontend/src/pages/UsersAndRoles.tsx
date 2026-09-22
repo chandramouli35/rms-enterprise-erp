@@ -69,8 +69,9 @@ export const UsersAndRoles: React.FC = () => {
   const [checkingUsername, setCheckingUsername] = useState(false);
   const usernameCheckSeq = useRef(0);
 
- // Add Role Modal State
+ // Add / Edit Role Modal State
  const [isAddRoleModalOpen, setIsAddRoleModalOpen] = useState(false);
+ const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
  const [newRoleForm, setNewRoleForm] = useState({ name: '', description: '' });
  const [roleNameExists, setRoleNameExists] = useState(false);
  const [checkingRoleName, setCheckingRoleName] = useState(false);
@@ -233,7 +234,10 @@ export const UsersAndRoles: React.FC = () => {
     const timer = setTimeout(async () => {
       try {
         const res = await api.get('/users-roles/check-role', {
-          params: { name: trimmed },
+          params: {
+            name: trimmed,
+            ...(editingRoleId ? { excludeId: editingRoleId } : {}),
+          },
         });
         if (seq !== roleNameCheckSeq.current) return;
         setRoleNameExists(!!res.data?.exists);
@@ -246,7 +250,7 @@ export const UsersAndRoles: React.FC = () => {
       }
     }, 350);
     return () => clearTimeout(timer);
-  }, [isAddRoleModalOpen, newRoleForm.name]);
+  }, [isAddRoleModalOpen, newRoleForm.name, editingRoleId]);
 
   const usernameBlocksForm = usernameExists;
   const addUserFieldsDisabled = usernameBlocksForm;
@@ -297,8 +301,16 @@ export const UsersAndRoles: React.FC = () => {
  setAuditList(auditListRes.data);
  setPlants(plantsRes.data);
 
- if (rolesRes.data.length > 0) {
- handleRoleSelect(rolesRes.data[0]);
+ const roleList = Array.isArray(rolesRes.data) ? rolesRes.data : [];
+ if (roleList.length > 0) {
+   const roleIdFromUrl = searchParams.get('roleId');
+   const prefer =
+     (roleIdFromUrl && roleList.find((r: any) => r.id === roleIdFromUrl)) ||
+     (selectedRole?.id &&
+       roleList.find((r: any) => r.id === selectedRole.id)) ||
+     null;
+   // Keep the role the user clicked; only default to first when none selected
+   await handleRoleSelect(prefer || selectedRole || roleList[0]);
  }
  } catch (err) {
  console.error('Failed to fetch user roles data', err);
@@ -426,6 +438,32 @@ export const UsersAndRoles: React.FC = () => {
  });
  };
 
+ const resetRoleModal = () => {
+   setIsAddRoleModalOpen(false);
+   setEditingRoleId(null);
+   setRoleNameExists(false);
+   setCheckingRoleName(false);
+   roleNameCheckSeq.current += 1;
+   setNewRoleForm({ name: '', description: '' });
+ };
+
+ const handleOpenAddRole = () => {
+   setEditingRoleId(null);
+   setNewRoleForm({ name: '', description: '' });
+   setRoleNameExists(false);
+   setIsAddRoleModalOpen(true);
+ };
+
+ const handleEditRoleClick = (role: any) => {
+   setEditingRoleId(role.id);
+   setNewRoleForm({
+     name: role.name || '',
+     description: role.description || '',
+   });
+   setRoleNameExists(false);
+   setIsAddRoleModalOpen(true);
+ };
+
  const handleAddRole = async (e: React.FormEvent) => {
  e.preventDefault();
  if (roleNameExists) {
@@ -438,24 +476,31 @@ export const UsersAndRoles: React.FC = () => {
  }
  await addRoleLock.wrapSubmit(async () => {
  try {
- await api.post('/users-roles/roles', newRoleForm);
- setIsAddRoleModalOpen(false);
- setRoleNameExists(false);
- setCheckingRoleName(false);
- roleNameCheckSeq.current += 1;
- setModalConfig({ isOpen: true, title: 'Success', content: 'Role created successfully!' });
+ const isEdit = !!editingRoleId;
+ if (isEdit) {
+   await api.patch(`/users-roles/roles/${editingRoleId}`, newRoleForm);
+ } else {
+   await api.post('/users-roles/roles', newRoleForm);
+ }
+ resetRoleModal();
+ setModalConfig({
+   isOpen: true,
+   title: 'Success',
+   content: isEdit
+     ? 'Role updated successfully!'
+     : 'Role created successfully!',
+ });
  
  const rolesRes = await api.get('/users-roles/roles');
  setRoles(rolesRes.data);
  const statsRes = await api.get('/users-roles/summary-metrics');
  setStats(statsRes.data);
- setNewRoleForm({ name: '', description: '' });
  } catch (err: any) {
- console.error('Failed to create role', err);
+ console.error('Failed to save role', err);
  setModalConfig({
    isOpen: true,
    title: 'Error',
-   content: err?.response?.data?.message || 'Failed to create role. Please try again.',
+   content: err?.response?.data?.message || 'Failed to save role. Please try again.',
  });
  }
  });
@@ -652,22 +697,6 @@ export const UsersAndRoles: React.FC = () => {
 
  return (
  <div className="space-y-6 max-w-[1600px] mx-auto text-[var(--text-muted)] bg-[var(--bg-base)] min-h-screen">
- 
- <div className="flex items-center justify-between px-6 py-2 border-b border-[var(--border-subtle)] shrink-0 bg-[var(--bg-panel)] mb-6">
- <div className="flex items-center gap-2">
- <h1 className="text-sm font-semibold text-[var(--text-muted)]">User & Role Management</h1>
- </div>
- <div>
- <button 
- onClick={() => setIsAddUserModalOpen(true)}
- className="bg-[#e67e00] hover:bg-[#cc7000] text-black px-3 py-1.5 rounded-sm font-bold text-xs transition-colors flex items-center gap-1"
- >
- <Plus size={14} /> Add User
- </button>
- </div>
- </div>
-
-
 
  {loading ? (
  <div className="flex justify-center items-center h-64 text-amber-500">Loading Management Data...</div>
@@ -718,7 +747,7 @@ export const UsersAndRoles: React.FC = () => {
  <h3 className="text-[var(--text-main)] font-semibold text-lg">Users List</h3>
  <button 
  onClick={() => setIsAddUserModalOpen(true)}
- className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] hover:border-[var(--border-subtle)] text-[var(--text-muted)] px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors"
+ className="bg-[#e67e00] hover:bg-[#cc7000] text-black px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
  >
  <Plus size={16} /> Add User
  </button>
@@ -782,8 +811,8 @@ export const UsersAndRoles: React.FC = () => {
  <span className="font-medium text-[var(--text-main)]">{user.username}</span>
  </div>
  </td>
- <td className="px-3 py-3">
- <span className="px-2.5 py-1 rounded-full text-xs font-medium border bg-amber-500/10 text-[#e67e00] border-amber-500/20">{user.role}</span>
+ <td className="px-3 py-3 max-w-[12rem]">
+ <span className="inline-block max-w-full px-2.5 py-1 rounded-full text-xs font-medium border bg-amber-500/10 text-[#e67e00] border-amber-500/20 break-words [overflow-wrap:anywhere]">{user.role}</span>
  </td>
  <td className="px-3 py-3 text-[var(--text-muted)]">{user.plant}</td>
  <td className="px-3 py-3 cursor-pointer" onClick={() => handleToggleStatus(user.id)}>
@@ -821,29 +850,52 @@ export const UsersAndRoles: React.FC = () => {
  <div className="flex justify-between items-center mb-6">
  <h3 className="text-[var(--text-main)] font-semibold text-lg">System Roles</h3>
  <button 
- onClick={() => setIsAddRoleModalOpen(true)}
- className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] hover:border-[var(--border-subtle)] text-[var(--text-muted)] px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors"
+ onClick={handleOpenAddRole}
+ className="bg-[#e67e00] hover:bg-[#cc7000] text-black px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
  >
  <Plus size={16} /> Add Role
  </button>
  </div>
  <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
  {roles.map(r => (
- <div key={r.id} className="p-5 rounded-lg bg-[var(--bg-panel)] border border-[var(--border-subtle-alt)] hover:border-[var(--border-subtle)] transition-colors">
- <div className="flex items-center justify-between mb-3">
- <div className="flex items-center gap-2">
- <Shield size={20} className="text-blue-400" />
- <h4 className="text-[var(--text-main)] font-medium">{r.name}</h4>
+ <div
+ key={r.id}
+ className="p-5 rounded-lg bg-[var(--bg-panel)] border border-[var(--border-subtle-alt)] hover:border-[var(--border-subtle)] transition-colors min-w-0 overflow-hidden flex flex-col"
+ >
+ <div className="relative mb-3 pr-8 min-w-0">
+ <div className="flex items-start gap-2 min-w-0">
+ <Shield size={20} className="text-blue-400 shrink-0 mt-0.5" />
+ <h4
+ className="min-w-0 flex-1 text-[var(--text-main)] font-medium text-sm leading-snug"
+ style={{
+ overflowWrap: 'anywhere',
+ wordBreak: 'break-word',
+ }}
+ title={r.name}
+ >
+ {String(r.name || '').replace(/_/g, '_\u200B')}
+ </h4>
  </div>
- <button className="text-[var(--text-muted-alt)] hover:text-[var(--text-main)] p-1 hover:bg-[var(--glass-bg)] rounded transition-colors"><Edit2 size={14}/></button>
+ <button
+ type="button"
+ onClick={() => handleEditRoleClick(r)}
+ className="absolute top-0 right-0 text-[var(--text-muted-alt)] hover:text-[var(--text-main)] p-1 hover:bg-[var(--glass-bg)] rounded transition-colors"
+ aria-label={`Edit ${r.name}`}
+ title="Edit role"
+ >
+ <Edit2 size={14} />
+ </button>
  </div>
- <p className="text-sm text-[var(--text-muted-alt)] mb-4">{r.description || 'System role with predefined permissions.'}</p>
- <button 
+ <p className="text-sm text-[var(--text-muted-alt)] mb-4 break-words [overflow-wrap:anywhere]">
+ {r.description || 'System role with predefined permissions.'}
+ </p>
+ <button
+ type="button"
  onClick={() => {
  handleRoleSelect(r);
- setSearchParams({tab: 'Permissions'});
+ setSearchParams({ tab: 'Permissions', roleId: r.id });
  }}
- className="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1"
+ className="mt-auto text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1"
  >
  View Permissions &rarr;
  </button>
@@ -860,21 +912,24 @@ export const UsersAndRoles: React.FC = () => {
  <h3 className="text-[var(--text-main)] font-semibold text-lg mb-1">Master Permission Configuration</h3>
  <p className="text-sm text-[var(--text-muted-alt)]">Select a role and configure granular access control matrix.</p>
  </div>
- <div className="flex items-center gap-4">
- <div className="flex items-center gap-3">
- <span className="text-sm font-medium text-[var(--text-muted)]">Target Role:</span>
+ <div className="flex items-center gap-4 min-w-0 flex-wrap justify-end">
+ <div className="flex items-center gap-3 min-w-0">
+ <span className="text-sm font-medium text-[var(--text-muted)] shrink-0">Target Role:</span>
  <Combobox
  name="selectedRole"
  value={selectedRole?.id || ''}
  onChange={(e: any) => {
  const role = roles.find(r => r.id === e.target.value);
- if(role) handleRoleSelect(role);
+ if(role) {
+   handleRoleSelect(role);
+   setSearchParams({ tab: 'Permissions', roleId: role.id });
+ }
  }}
  options={roles}
  valueKey="id"
  placeholder="Select Role"
  listMaxHeightClass="max-h-56"
- className="min-w-[200px] bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 shadow-sm"
+ className="min-w-[12rem] max-w-[min(100%,20rem)] bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 shadow-sm"
  />
  </div>
  <button onClick={savePermissions} disabled={permissionsLock.pending} className="bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50">
@@ -1389,13 +1444,15 @@ export const UsersAndRoles: React.FC = () => {
  </div>
  )}
 
- {/* Add Role Modal */}
+ {/* Add / Edit Role Modal */}
  {isAddRoleModalOpen && (
  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
  <div className="relative w-full max-w-md bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-2xl shadow-2xl overflow-visible">
  <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] rounded-t-2xl">
- <h2 className="text-lg font-semibold text-[var(--text-main)]">Create New Role</h2>
- <button onClick={() => { setIsAddRoleModalOpen(false); setRoleNameExists(false); setCheckingRoleName(false); roleNameCheckSeq.current += 1; setNewRoleForm({ name: '', description: '' }); }} className="text-[var(--text-muted-alt)] hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)] p-1.5 rounded-lg transition-colors">
+ <h2 className="text-lg font-semibold text-[var(--text-main)]">
+ {editingRoleId ? 'Edit Role' : 'Create New Role'}
+ </h2>
+ <button onClick={resetRoleModal} className="text-[var(--text-muted-alt)] hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)] p-1.5 rounded-lg transition-colors">
  <X size={20} />
  </button>
  </div>
@@ -1435,8 +1492,12 @@ export const UsersAndRoles: React.FC = () => {
  </form>
  </div>
  <div className="px-6 py-4 border-t border-[var(--border-subtle-alt)] bg-[var(--bg-panel)] flex justify-end gap-3 rounded-b-2xl">
- <button onClick={() => { setIsAddRoleModalOpen(false); setRoleNameExists(false); setCheckingRoleName(false); roleNameCheckSeq.current += 1; setNewRoleForm({ name: '', description: '' }); }} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
- <button form="addRoleForm" type="submit" disabled={addRoleLock.pending || roleNameBlocksForm || checkingRoleName} className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium transition-colors disabled:opacity-50">{addRoleLock.pending ? 'Creating...' : 'Create Role'}</button>
+ <button type="button" onClick={resetRoleModal} className="px-4 py-2 text-sm font-medium text-[var(--text-muted-alt)] hover:text-[var(--text-main)] transition-colors">Cancel</button>
+ <button form="addRoleForm" type="submit" disabled={addRoleLock.pending || roleNameBlocksForm || checkingRoleName} className="px-4 py-2 bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
+ {addRoleLock.pending
+   ? (editingRoleId ? 'Saving...' : 'Creating...')
+   : (editingRoleId ? 'Save Changes' : 'Create Role')}
+ </button>
  </div>
  </div>
  </div>

@@ -65,14 +65,23 @@ export class UsersRolesController {
 
   @Get('check-role')
   @RequirePermission('Users and Roles', 'canView')
-  checkRoleExists(@Query('name') name?: string) {
-    return this.service.checkRoleExists(name || '');
+  checkRoleExists(
+    @Query('name') name?: string,
+    @Query('excludeId') excludeId?: string,
+  ) {
+    return this.service.checkRoleExists(name || '', excludeId);
   }
 
   @Post('roles')
   @RequirePermission('Users and Roles', 'canAdd')
   createRole(@Body() body: any) {
     return this.service.createRole(body);
+  }
+
+  @Patch('roles/:roleId')
+  @RequirePermission('Users and Roles', 'canEdit')
+  updateRole(@Param('roleId') roleId: string, @Body() body: any) {
+    return this.service.updateRole(roleId, body);
   }
 
   @Get('roles/:roleId/permissions')
