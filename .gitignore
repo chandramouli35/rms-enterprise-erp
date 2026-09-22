@@ -32,3 +32,6 @@ scratch/
 # Weighbridge bridge local config (may contain plantId / secrets)
 weighbridge-bridge/config.json
 
+# Local / ops docs — keep on laptop only, not on RDP deploy
+docs/
+
