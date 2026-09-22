@@ -145,6 +145,7 @@ export const DashboardShell: React.FC = () => {
         { label: "Mandi Master", tab: "mandi_master" },
         { label: "Boli Record", tab: "paddy_purchase" },
         { label: "Stack to Hoodi", tab: "stack_to_hoodi" },
+        { label: "Dryer Bharai to Stack", tab: "dryer_bharai_to_stack" },
         { label: "Paddy Inward", tab: "paddy_inward" },
         { label: "Inward List", tab: "inward_register" },
         { label: "Loader & Unloader", tab: "loader_unloader" },
@@ -439,6 +440,8 @@ export const DashboardShell: React.FC = () => {
       "Boli Record": ["Boli Record", "Paddy Purchase & Quality"],
       "Paddy Purchase & Quality": ["Paddy Purchase & Quality", "Boli Record"],
       "Stack to Hoodi": ["Stack to Hoodi", "Stack to Hoodi Transfer"],
+      "Dryer Bharai to Stack": ["Dryer Bharai to Stack", "Dryer Bharai"],
+      "Loader & Unloader": ["Loader & Unloader", "Loader Unloader"],
       "Global Settings (Govt Rate)": [
         "Global Settings (Govt Rate)",
         "Global Settings",

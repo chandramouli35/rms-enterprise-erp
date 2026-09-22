@@ -1,0 +1,10 @@
+-- Part-stack unitary weight + Hoodi/Stack register cross-ref
+ALTER TABLE "PaddyInwardDetails" ADD COLUMN IF NOT EXISTS "partIsHoodi" BOOLEAN DEFAULT false;
+ALTER TABLE "PaddyInwardDetails" ADD COLUMN IF NOT EXISTS "mainUnloadWeight" DOUBLE PRECISION;
+ALTER TABLE "PaddyInwardDetails" ADD COLUMN IF NOT EXISTS "partUnloadWeight" DOUBLE PRECISION;
+
+ALTER TABLE "HoodiRecord" ADD COLUMN IF NOT EXISTS "partStackNo" TEXT;
+ALTER TABLE "HoodiRecord" ADD COLUMN IF NOT EXISTS "partIsHoodi" BOOLEAN DEFAULT false;
+ALTER TABLE "HoodiRecord" ADD COLUMN IF NOT EXISTS "partBags" DOUBLE PRECISION;
+ALTER TABLE "HoodiRecord" ADD COLUMN IF NOT EXISTS "partUnloader" TEXT;
+ALTER TABLE "HoodiRecord" ADD COLUMN IF NOT EXISTS "partWeight" DOUBLE PRECISION;

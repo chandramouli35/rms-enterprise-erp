@@ -388,6 +388,11 @@ model PaddyInwardDetails {
   bagsInMainStack                  Float?
   secondPartStackNo                String?
   bagsInSecondPartStack            Float?
+  /// Part unload destination is Hoodi (instead of another stack)
+  partIsHoodi                      Boolean? @default(false)
+  /// Unitary-split weights (quintals) for main / part unload points
+  mainUnloadWeight                 Float?
+  partUnloadWeight                 Float?
   unloaderName                     String?
   cutToBeAddedInShortage           Boolean?
   totalBagsReceived                Float?
@@ -1599,7 +1604,7 @@ model HoodiRecord {
   id         String   @id @default(uuid())
   plantId    String
   date       DateTime @default(now())
-  sourceType String // 'DIRECT_INWARD' | 'STACK_TRANSFER'
+  sourceType String // 'DIRECT_INWARD' | 'STACK_TRANSFER' | 'PART_INWARD'
 
   gpNo         String?
   mandiGpNo    String?
@@ -1610,11 +1615,43 @@ model HoodiRecord {
   moisture     Float?
   bags         Float?
   unloadedBy   String?
+  /** Stack↔Paddy integration — weighbridge net weight (quintals) + RST + fingerprint */
+  netWeight    Float?
+  rstNo        String?
+  biometricData String?
+
+  /** Cross-ref part unload (other point of same truck) */
+  partStackNo    String? // stack no, or null when other part is also hoodi
+  partIsHoodi    Boolean? @default(false)
+  partBags       Float?
+  partUnloader   String?
+  partWeight     Float?
 
   inwardId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/** Dryer Bharai → Stack (dried paddy returned to paddy stack) */
+model DryerBharaiToStack {
+  id            String   @id @default(uuid())
+  plantId       String
+  date          DateTime @default(now())
+  stackNo       String
+  bags          Float
+  moisture      Float?
+  netWeight     Float? // MT — weighbridge Weight Segment
+  rstNo         String?
+  biometricData String?
+  verifiedById  String?
+  unloadedBy    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([plantId, stackNo])
+  @@index([plantId, date])
 }
 
 model PaddyStack {

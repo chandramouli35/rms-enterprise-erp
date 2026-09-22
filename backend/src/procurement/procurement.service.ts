@@ -23,6 +23,72 @@ export class ProcurementService {
     return /SUPERVISOR/i.test(this.roleName(user));
   }
 
+  /** Unitary bag weight: totalWt / totalBags * portionBags (quintals). */
+  private unitaryWeight(
+    totalWt: number,
+    totalBags: number,
+    portionBags: number,
+  ): number {
+    if (!totalBags || totalBags <= 0 || !portionBags) return 0;
+    return Number(((totalWt / totalBags) * portionBags).toFixed(2));
+  }
+
+  /** Add bags/weight into a paddy stack (create if missing). */
+  private async applyStackReceipt(
+    tx: any,
+    plantId: string,
+    stackNo: string,
+    bags: number,
+    weightQtl: number,
+    moistureVal: number,
+    isAClass: boolean,
+  ) {
+    if (!stackNo || bags <= 0) return;
+    const existing = await tx.paddyStack.findUnique({
+      where: { plantId_stackNo: { plantId, stackNo } },
+    });
+    if (existing) {
+      const newTotalBags = Number(existing.totalBags || 0) + bags;
+      const newTotalWt = Number(existing.totalWeight || 0) + weightQtl;
+      const newAvgMoisture =
+        newTotalWt > 0
+          ? ((Number(existing.averageMoisture || 0) *
+              Number(existing.totalWeight || 0)) +
+              moistureVal * weightQtl) /
+            newTotalWt
+          : moistureVal;
+      await tx.paddyStack.update({
+        where: { id: existing.id },
+        data: {
+          totalBags: newTotalBags,
+          totalWeight: newTotalWt,
+          averageMoisture: newAvgMoisture,
+          bagsAClass: isAClass
+            ? Number(existing.bagsAClass || 0) + bags
+            : existing.bagsAClass,
+          bagsBClass: !isAClass
+            ? Number(existing.bagsBClass || 0) + bags
+            : existing.bagsBClass,
+          status: 'ACTIVE',
+        },
+      });
+    } else {
+      await tx.paddyStack.create({
+        data: {
+          plantId,
+          stackNo,
+          totalBags: bags,
+          totalWeight: weightQtl,
+          averageMoisture: moistureVal,
+          bagsAClass: isAClass ? bags : 0,
+          bagsBClass: !isAClass ? bags : 0,
+          isNewAClass: isAClass,
+          status: 'ACTIVE',
+        },
+      });
+    }
+  }
+
   /** Block operational use of Arthiya until Admin confirms. */
   async assertSupplierUsable(supplierId?: string | null) {
     if (!supplierId) return;
@@ -379,7 +445,9 @@ export class ProcurementService {
       }
       const partStackNo = String(data.secondPartStackNo || data.partStackNo || '').trim();
       const partBagsRaw = data.bagsInSecondPartStack ?? data.bagsInPartStack;
+      const partIsHoodi = !!(data.partIsHoodi || data.partDestination === 'HOODI');
       const hasPartStack =
+        partIsHoodi ||
         !!partStackNo ||
         (partBagsRaw != null && partBagsRaw !== '' && Number(partBagsRaw) > 0);
       const partName = String(data.partUnloaderName || '').trim();
@@ -508,50 +576,71 @@ export class ProcurementService {
       });
       }
 
-      // 3a. Update PaddyStack if Stacking
-      if (data.allocationType === 'Stacking' && data.stackNo) {
-        const bagsRec = parseFloat(data.bagsRecAtMill) || 0;
-        const netWt = parseFloat(data.netWtAtMill) || 0;
+      // 3a. Update PaddyStack / split weights (confirm only — avoid double-count on edit)
+      if (
+        data.status !== 'DRAFT' &&
+        (!data.id || wasDraft) &&
+        (data.allocationType === 'Stacking' || data.allocationType === 'Hoodi')
+      ) {
+        const totalBags =
+          parseFloat(data.bagsRecAtMill) ||
+          (parseFloat(data.bagsInMainStack) || 0) +
+            (parseFloat(data.bagsInSecondPartStack) || 0) ||
+          0;
+        const totalWt =
+          parseFloat(data.netWtAtMill) ||
+          parseFloat(data.netWtMill) ||
+          parseFloat(data.netWeightWb) ||
+          0;
+        const noPart = !!(data.noPartStack);
+        const partIsHoodi = !!(data.partIsHoodi || data.partDestination === 'HOODI');
+        let mainBags = parseFloat(data.bagsInMainStack);
+        let partBags = noPart
+          ? 0
+          : parseFloat(data.bagsInSecondPartStack) || 0;
+        if (!Number.isFinite(mainBags) || mainBags < 0) {
+          mainBags = noPart ? totalBags : Math.max(0, totalBags - partBags);
+        }
+        if (noPart) partBags = 0;
+        const mainWt = this.unitaryWeight(totalWt, totalBags, mainBags);
+        const partWt = this.unitaryWeight(totalWt, totalBags, partBags);
+        // Persist split weights onto details payload for upsert below
+        data.mainUnloadWeight = mainWt;
+        data.partUnloadWeight = partWt;
+        data.partIsHoodi = partIsHoodi;
+
         const moistureVal = parseFloat(moisture) || 0;
-        const isAClass = data.bagType === 'NEW' && data.originalBardanaClass === 'A_Class';
+        const isAClass =
+          data.bagType === 'NEW' && data.originalBardanaClass === 'A_Class';
 
-        const existingStack = await tx.paddyStack.findUnique({
-          where: { plantId_stackNo: { plantId, stackNo: data.stackNo } }
-        });
-
-        if (existingStack) {
-          const newTotalBags = existingStack.totalBags + bagsRec;
-          const newTotalWt = existingStack.totalWeight + netWt;
-          // Weighted average moisture
-          const newAvgMoisture = newTotalWt > 0 
-            ? ((existingStack.averageMoisture * existingStack.totalWeight) + (moistureVal * netWt)) / newTotalWt
-            : moistureVal;
-
-          await tx.paddyStack.update({
-            where: { id: existingStack.id },
-            data: {
-              totalBags: newTotalBags,
-              totalWeight: newTotalWt,
-              averageMoisture: newAvgMoisture,
-              bagsAClass: isAClass ? existingStack.bagsAClass + bagsRec : existingStack.bagsAClass,
-              bagsBClass: !isAClass ? existingStack.bagsBClass + bagsRec : existingStack.bagsBClass,
-              status: 'ACTIVE' // automatically reactive if it was empty
-            }
-          });
-        } else {
-          await tx.paddyStack.create({
-            data: {
-              plantId,
-              stackNo: data.stackNo,
-              totalBags: bagsRec,
-              totalWeight: netWt,
-              averageMoisture: moistureVal,
-              bagsAClass: isAClass ? bagsRec : 0,
-              bagsBClass: !isAClass ? bagsRec : 0,
-              isNewAClass: isAClass,
-              status: 'ACTIVE'
-            }
-          });
+        if (data.allocationType === 'Stacking' && data.stackNo && mainBags > 0) {
+          await this.applyStackReceipt(
+            tx,
+            plantId,
+            String(data.stackNo).trim(),
+            mainBags,
+            mainWt,
+            moistureVal,
+            isAClass,
+          );
+        }
+        // Part to another stack
+        if (
+          data.allocationType === 'Stacking' &&
+          !noPart &&
+          !partIsHoodi &&
+          data.secondPartStackNo &&
+          partBags > 0
+        ) {
+          await this.applyStackReceipt(
+            tx,
+            plantId,
+            String(data.secondPartStackNo).trim(),
+            partBags,
+            partWt,
+            moistureVal,
+            isAClass,
+          );
         }
       }
 
@@ -837,13 +926,24 @@ export class ProcurementService {
             data.bagsInMainStack != null && data.bagsInMainStack !== ''
               ? parseFloat(data.bagsInMainStack)
               : null,
-          secondPartStackNo: data.secondPartStackNo || data.partStackNo || null,
+          secondPartStackNo: data.partIsHoodi
+            ? null
+            : data.secondPartStackNo || data.partStackNo || null,
           bagsInSecondPartStack:
             data.bagsInSecondPartStack != null && data.bagsInSecondPartStack !== ''
               ? parseFloat(data.bagsInSecondPartStack)
               : data.bagsInPartStack != null && data.bagsInPartStack !== ''
                 ? parseFloat(data.bagsInPartStack)
                 : null,
+          partIsHoodi: !!(data.partIsHoodi || data.partDestination === 'HOODI'),
+          mainUnloadWeight:
+            data.mainUnloadWeight != null && data.mainUnloadWeight !== ''
+              ? parseFloat(data.mainUnloadWeight)
+              : null,
+          partUnloadWeight:
+            data.partUnloadWeight != null && data.partUnloadWeight !== ''
+              ? parseFloat(data.partUnloadWeight)
+              : null,
           unloaderName: data.allocateUnloader || data.unloaderName || null,
           partUnloaderName: data.partUnloaderName || null,
           partUnloaderTruckCount:
@@ -999,26 +1099,138 @@ export class ProcurementService {
         );
       }
 
-      // 9. Integration with Hoodi (only on confirm)
-      if (data.status !== 'DRAFT' && data.allocationType === 'Hoodi') {
-        const supplier = supplierId ? await tx.supplier.findUnique({ where: { id: supplierId } }) : null;
-        await tx.hoodiRecord.create({
-          data: {
-            plantId,
-            sourceType: 'DIRECT_INWARD',
-            date: new Date(),
-            gpNo: data.gpNo,
-            mandiGpNo: data.mandiEgpNo || data.mandiEgNo,
-            truckNo: data.truckNo,
-            supplierName: supplier?.name || null,
-            mandiName: data.mandi,
-            stackNo: 'Direct-Inward',
-            bags: parseFloat(data.bagsRecAtMill) || 0,
-            moisture: parsedMoisture,
-            unloadedBy: data.allocateUnloader || data.unloaderName || 'System',
-            inwardId: batch.id
-          }
+      // 9. Hoodi register — full Hoodi allocation OR part unload at Hoodi
+      if (data.status !== 'DRAFT' && (!data.id || wasDraft)) {
+        const supplier = supplierId
+          ? await tx.supplier.findUnique({ where: { id: supplierId } })
+          : null;
+        const totalBags =
+          parseFloat(data.bagsRecAtMill) ||
+          (parseFloat(data.bagsInMainStack) || 0) +
+            (parseFloat(data.bagsInSecondPartStack) || 0) ||
+          0;
+        const totalWt =
+          parseFloat(data.netWtAtMill) ||
+          parseFloat(data.netWtMill) ||
+          parseFloat(data.netWeightWb) ||
+          0;
+        const noPart = !!data.noPartStack;
+        const partIsHoodi = !!(data.partIsHoodi || data.partDestination === 'HOODI');
+        let mainBags = parseFloat(data.bagsInMainStack);
+        let partBags = noPart
+          ? 0
+          : parseFloat(data.bagsInSecondPartStack) || 0;
+        if (!Number.isFinite(mainBags) || mainBags < 0) {
+          mainBags = noPart ? totalBags : Math.max(0, totalBags - partBags);
+        }
+        if (noPart) partBags = 0;
+        const mainWt =
+          data.mainUnloadWeight != null
+            ? parseFloat(data.mainUnloadWeight)
+            : this.unitaryWeight(totalWt, totalBags, mainBags);
+        const partWt =
+          data.partUnloadWeight != null
+            ? parseFloat(data.partUnloadWeight)
+            : this.unitaryWeight(totalWt, totalBags, partBags);
+
+        // Replace prior inward-linked hoodi rows on re-confirm from draft
+        await tx.hoodiRecord.deleteMany({
+          where: {
+            inwardId: batch.id,
+            sourceType: { in: ['DIRECT_INWARD', 'PART_INWARD'] },
+          },
         });
+
+        if (data.allocationType === 'Hoodi') {
+          // Entire truck unloaded at Hoodi
+          await tx.hoodiRecord.create({
+            data: {
+              plantId,
+              sourceType: 'DIRECT_INWARD',
+              date: new Date(),
+              gpNo: data.gpNo,
+              mandiGpNo: data.mandiEgpNo || data.mandiEgNo,
+              truckNo: data.truckNo,
+              supplierName: supplier?.name || null,
+              mandiName: data.mandi,
+              stackNo: 'Direct-Inward',
+              bags: totalBags || parseFloat(data.bagsRecAtMill) || 0,
+              netWeight: totalWt || null,
+              rstNo: data.rstNo || null,
+              moisture: parsedMoisture,
+              unloadedBy:
+                data.allocateUnloader || data.unloaderName || 'System',
+              partStackNo: null,
+              partIsHoodi: false,
+              partBags: null,
+              partUnloader: null,
+              partWeight: null,
+              inwardId: batch.id,
+            },
+          });
+        } else if (
+          data.allocationType === 'Stacking' &&
+          partIsHoodi &&
+          partBags > 0
+        ) {
+          // Part of truck → Hoodi; rest → main stack (cross-ref in part columns)
+          await tx.hoodiRecord.create({
+            data: {
+              plantId,
+              sourceType: 'PART_INWARD',
+              date: new Date(),
+              gpNo: data.gpNo,
+              mandiGpNo: data.mandiEgpNo || data.mandiEgNo,
+              truckNo: data.truckNo,
+              supplierName: supplier?.name || null,
+              mandiName: data.mandi,
+              stackNo: data.stackNo || null,
+              bags: partBags,
+              netWeight: partWt,
+              rstNo: data.rstNo || null,
+              moisture: parsedMoisture,
+              unloadedBy: data.partUnloaderName || 'System',
+              partStackNo: data.stackNo || null,
+              partIsHoodi: false,
+              partBags: mainBags,
+              partUnloader:
+                data.allocateUnloader || data.unloaderName || null,
+              partWeight: mainWt,
+              inwardId: batch.id,
+            },
+          });
+        } else if (
+          data.allocationType === 'Stacking' &&
+          data.hoodiUpload === 'Yes' &&
+          !partIsHoodi
+        ) {
+          // Legacy: Upload @ Hoodi Reg = Yes with stacking (full truck also noted on hoodi)
+          await tx.hoodiRecord.create({
+            data: {
+              plantId,
+              sourceType: 'DIRECT_INWARD',
+              date: new Date(),
+              gpNo: data.gpNo,
+              mandiGpNo: data.mandiEgpNo || data.mandiEgNo,
+              truckNo: data.truckNo,
+              supplierName: supplier?.name || null,
+              mandiName: data.mandi,
+              stackNo: data.stackNo || 'Stacking',
+              bags: totalBags || parseFloat(data.bagsRecAtMill) || 0,
+              netWeight: totalWt || null,
+              rstNo: data.rstNo || null,
+              moisture: parsedMoisture,
+              unloadedBy:
+                data.allocateUnloader || data.unloaderName || 'System',
+              partStackNo: data.secondPartStackNo || null,
+              partIsHoodi: false,
+              partBags: partBags || null,
+              partUnloader: data.partUnloaderName || null,
+              partWeight: partWt || null,
+              inwardId: batch.id,
+            },
+          });
+        }
       }
 
       return batch;
@@ -3889,11 +4101,14 @@ export class ProcurementService {
     }
     
     if (dateFrom && dateTo) {
-      where.createdAt = { gte: new Date(dateFrom), lte: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) };
+      where.createdAt = {
+        gte: new Date(`${dateFrom}T00:00:00`),
+        lte: new Date(`${dateTo}T23:59:59.999`),
+      };
     } else if (dateFrom) {
-      where.createdAt = { gte: new Date(dateFrom) };
+      where.createdAt = { gte: new Date(`${dateFrom}T00:00:00`) };
     } else if (dateTo) {
-      where.createdAt = { lte: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) };
+      where.createdAt = { lte: new Date(`${dateTo}T23:59:59.999`) };
     }
 
     const records = await this.prisma.procurementBatch.findMany({
@@ -4048,7 +4263,9 @@ export class ProcurementService {
 
   /** Feedback 34 — till-date Artia shortage balances (qtl + bags) per mill */
   async getArtiaShortageBalances(asOfDate?: string) {
-    const asOf = asOfDate ? new Date(new Date(asOfDate).setHours(23, 59, 59, 999)) : new Date();
+    const asOf = asOfDate
+      ? new Date(`${asOfDate}T23:59:59.999`)
+      : new Date();
     const records = await this.prisma.procurementBatch.findMany({
       where: {
         // Production: only confirmed/completed inwards — never PENDING drafts
@@ -4309,6 +4526,114 @@ export class ProcurementService {
     return { days: daysList, mills, series, trends };
   }
 
+  /** Mandi-wise / Artia-wise shortage trend (optional date range, else last N days) */
+  async getEntityShortageTrend(
+    groupBy: 'mandi' | 'artia' = 'artia',
+    days = 14,
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
+    let end: Date;
+    let start: Date;
+
+    if (dateFrom || dateTo) {
+      end = dateTo
+        ? new Date(`${dateTo}T23:59:59.999`)
+        : new Date();
+      end.setHours(23, 59, 59, 999);
+      start = dateFrom
+        ? new Date(`${dateFrom}T00:00:00`)
+        : new Date(end);
+      if (!dateFrom) {
+        start.setDate(start.getDate() - (days - 1));
+        start.setHours(0, 0, 0, 0);
+      }
+    } else {
+      end = new Date();
+      end.setHours(23, 59, 59, 999);
+      start = new Date(end);
+      start.setDate(start.getDate() - (days - 1));
+      start.setHours(0, 0, 0, 0);
+    }
+
+    const records = await this.prisma.procurementBatch.findMany({
+      where: {
+        status: { in: ['CONFIRMED', 'COMPLETED'] },
+        createdAt: { gte: start, lte: end },
+        paddyInwardDetails: { isNot: null },
+      },
+      include: { paddyInwardDetails: true, supplier: true, plant: true },
+    });
+
+    const byDayKey: Record<string, number> = {};
+    const names = new Set<string>();
+
+    for (const r of records) {
+      const d = r.paddyInwardDetails;
+      if (!d) continue;
+      const day = r.createdAt.toISOString().slice(0, 10);
+      const name =
+        groupBy === 'mandi'
+          ? d.mandi || r.supplier?.mandi || 'Unknown Mandi'
+          : r.supplier?.name || 'Walk-in';
+      names.add(name);
+      let net = 0;
+      const ledger = Array.isArray(d.shortageLedger) ? (d.shortageLedger as any[]) : null;
+      if (ledger?.length) {
+        for (const e of ledger) {
+          const amt = Number(e.amountQtl) || 0;
+          net += e.direction === 'CREDIT' ? -amt : amt;
+        }
+      } else {
+        net = (d.shortageQtl || 0) - (d.shortageRecoveryQtl || 0);
+      }
+      const key = `${day}|${name}`;
+      byDayKey[key] = (byDayKey[key] || 0) + net;
+    }
+
+    const daysList: string[] = [];
+    const cursor = new Date(start);
+    cursor.setHours(0, 0, 0, 0);
+    const endDay = new Date(end);
+    endDay.setHours(0, 0, 0, 0);
+    while (cursor <= endDay) {
+      daysList.push(cursor.toISOString().slice(0, 10));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    const entities = Array.from(names).sort();
+    const series = daysList.map((day) => {
+      const point: any = { date: day };
+      for (const name of entities) {
+        point[name] = parseFloat((byDayKey[`${day}|${name}`] || 0).toFixed(2));
+      }
+      return point;
+    });
+
+    const trends = entities.map((name) => {
+      const vals = series.map((s) => Number(s[name]) || 0);
+      const mid = Math.floor(vals.length / 2) || 1;
+      const first = vals.slice(0, mid).reduce((a, b) => a + b, 0);
+      const second = vals.slice(mid).reduce((a, b) => a + b, 0);
+      return {
+        name,
+        totalQtl: parseFloat(vals.reduce((a, b) => a + b, 0).toFixed(2)),
+        increasing: second > first,
+        deltaQtl: parseFloat((second - first).toFixed(2)),
+      };
+    });
+
+    return {
+      groupBy,
+      days: daysList,
+      entities,
+      series,
+      trends,
+      dateFrom: start.toISOString().slice(0, 10),
+      dateTo: end.toISOString().slice(0, 10),
+    };
+  }
+
   async updateShortageRecovery(inwardDetailsId: string, shortageRecoveryQtl: number) {
     const details = await this.prisma.paddyInwardDetails.findUnique({
       where: { id: inwardDetailsId },
@@ -4349,19 +4674,46 @@ export class ProcurementService {
       },
     });
   }
-  async transferStackToHoodi(plantId: string, data: any) {
-        const transferBags = parseFloat(data.bags) || 0;
-    
+  async transferStackToHoodi(plantId: string, data: any, user?: any) {
+    const transferBags = parseFloat(data.bags) || 0;
+    if (!data.stackNo) throw new BadRequestException('Stack No. is required');
+    if (transferBags <= 0) throw new BadRequestException('Bags must be greater than 0');
+    if (!data.rstNo || !String(data.rstNo).trim()) {
+      throw new BadRequestException('RST No. is required');
+    }
+    const netWeight = parseFloat(data.netWeight);
+    if (!Number.isFinite(netWeight) || netWeight <= 0) {
+      throw new BadRequestException('Net Weight (Weight Segment) is required from weighbridge');
+    }
+
+    const isAdmin = this.isAdminRole(user);
+    // Fingerprint required for supervisors only — Super Admin / Plant Manager skip
+    if (this.isSupervisorRole(user) && !isAdmin) {
+      if (!user?.id) throw new BadRequestException('Login required for Stack to Hoodi transfer');
+      if (!data.biometricData) {
+        throw new BadRequestException('Supervisor fingerprint is required');
+      }
+      await this.fingerprintVerify.verifyForUser(user.id, {
+        biometricData: data.biometricData,
+        isoTemplate: data.isoTemplate,
+      });
+    }
+
     await this.prisma.$transaction(async (tx) => {
       const stack = await tx.paddyStack.findUnique({
-        where: { plantId_stackNo: { plantId, stackNo: data.stackNo } }
+        where: { plantId_stackNo: { plantId, stackNo: data.stackNo } },
       });
       if (stack) {
         const newTotal = stack.totalBags - transferBags;
+        const newWt = Math.max(0, Number(stack.totalWeight || 0) - netWeight);
         const status = newTotal <= 0 ? 'EMPTY' : stack.status;
         await tx.paddyStack.update({
           where: { id: stack.id },
-          data: { totalBags: newTotal, status }
+          data: {
+            totalBags: Math.max(0, newTotal),
+            totalWeight: newTotal <= 0 ? 0 : newWt,
+            status,
+          },
         });
       }
       await tx.hoodiRecord.create({
@@ -4372,9 +4724,94 @@ export class ProcurementService {
           stackNo: data.stackNo,
           bags: transferBags,
           moisture: parseFloat(data.moisture) || null,
-          unloadedBy: data.unloadedBy || 'System'
-        }
+          unloadedBy: data.unloadedBy || user?.name || 'System',
+          netWeight,
+          rstNo: String(data.rstNo).trim(),
+          biometricData: data.biometricData || null,
+        },
       });
+    });
+    return { success: true };
+  }
+
+  /** Dryer Bharai → Stack (dried paddy returned to paddy stack) */
+  async transferDryerBharaiToStack(plantId: string, data: any, user?: any) {
+    const bags = parseFloat(data.bags) || 0;
+    if (!data.stackNo) throw new BadRequestException('Stack No. is required');
+    if (bags <= 0) throw new BadRequestException('Bags must be greater than 0');
+    if (!data.rstNo || !String(data.rstNo).trim()) {
+      throw new BadRequestException('RST No. is required');
+    }
+    const netWeight = parseFloat(data.netWeight);
+    if (!Number.isFinite(netWeight) || netWeight <= 0) {
+      throw new BadRequestException('Net Weight (Weight Segment) is required from weighbridge');
+    }
+
+    const isAdmin = this.isAdminRole(user);
+    // Fingerprint required for supervisors only — Super Admin / Plant Manager skip
+    if (this.isSupervisorRole(user) && !isAdmin) {
+      if (!user?.id) throw new BadRequestException('Login required for Dryer Bharai to Stack');
+      if (!data.biometricData) {
+        throw new BadRequestException('Supervisor fingerprint is required');
+      }
+      await this.fingerprintVerify.verifyForUser(user.id, {
+        biometricData: data.biometricData,
+        isoTemplate: data.isoTemplate,
+      });
+    }
+
+    const moistureVal = parseFloat(data.moisture) || 0;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.dryerBharaiToStack.create({
+        data: {
+          plantId,
+          date: new Date(),
+          stackNo: String(data.stackNo).trim(),
+          bags,
+          moisture: Number.isFinite(moistureVal) ? moistureVal : null,
+          netWeight,
+          rstNo: String(data.rstNo).trim(),
+          biometricData: data.biometricData || null,
+          verifiedById: user?.id || null,
+          unloadedBy: data.unloadedBy || user?.name || null,
+        },
+      });
+
+      const stackNo = String(data.stackNo).trim();
+      const existing = await tx.paddyStack.findUnique({
+        where: { plantId_stackNo: { plantId, stackNo } },
+      });
+      if (existing) {
+        const newTotalBags = Number(existing.totalBags || 0) + bags;
+        const newTotalWt = Number(existing.totalWeight || 0) + netWeight;
+        const newAvgMoisture =
+          newTotalWt > 0
+            ? ((Number(existing.averageMoisture || 0) * Number(existing.totalWeight || 0)) +
+                moistureVal * netWeight) /
+              newTotalWt
+            : moistureVal;
+        await tx.paddyStack.update({
+          where: { id: existing.id },
+          data: {
+            totalBags: newTotalBags,
+            totalWeight: newTotalWt,
+            averageMoisture: newAvgMoisture,
+            status: 'ACTIVE',
+          },
+        });
+      } else {
+        await tx.paddyStack.create({
+          data: {
+            plantId,
+            stackNo,
+            totalBags: bags,
+            totalWeight: netWeight,
+            averageMoisture: moistureVal,
+            status: 'ACTIVE',
+          },
+        });
+      }
     });
     return { success: true };
   }
@@ -4440,27 +4877,83 @@ export class ProcurementService {
   }
 
   async getStackHistory(plantId: string, stackNo: string) {
-    // Return all inward details for this stack
-    const inwards = await this.prisma.procurementBatch.findMany({
+    const inwardsRaw = await this.prisma.procurementBatch.findMany({
       where: {
         plantId,
-        paddyInwardDetails: { stackNo }
+        OR: [
+          { paddyInwardDetails: { stackNo } },
+          { paddyInwardDetails: { secondPartStackNo: stackNo } },
+        ],
       },
       include: {
         paddyInwardDetails: true,
         quality: true,
-        supplier: true
+        supplier: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
-    
-    // Return hoodi transfers as well
+
+    // Attribute bags/weight for THIS stack view + part cross-ref columns
+    const inwards = inwardsRaw.map((batch) => {
+      const d = batch.paddyInwardDetails || ({} as any);
+      const isPartView =
+        String(d.secondPartStackNo || '').trim() === String(stackNo).trim() &&
+        String(d.stackNo || '').trim() !== String(stackNo).trim();
+      const totalBags = Number(d.bagsRecAtMill || 0);
+      const totalWt = Number(d.netWtAtMill || 0);
+      const mainBags = Number(d.bagsInMainStack ?? (isPartView ? 0 : totalBags));
+      const partBags = Number(d.bagsInSecondPartStack || 0);
+      const mainWt =
+        d.mainUnloadWeight != null
+          ? Number(d.mainUnloadWeight)
+          : this.unitaryWeight(totalWt, totalBags, mainBags);
+      const partWt =
+        d.partUnloadWeight != null
+          ? Number(d.partUnloadWeight)
+          : this.unitaryWeight(totalWt, totalBags, partBags);
+
+      const viewBags = isPartView ? partBags || totalBags : mainBags || totalBags;
+      const viewWeight = isPartView ? partWt || totalWt : mainWt || totalWt;
+
+      // Part columns = the OTHER unload point
+      const partDestIsHoodi = !!d.partIsHoodi;
+      const partColStackNo = isPartView
+        ? d.stackNo || null
+        : partDestIsHoodi
+          ? 'HOODI'
+          : d.secondPartStackNo || null;
+      const partColBags = isPartView ? mainBags : partBags;
+      const partColWeight = isPartView ? mainWt : partWt;
+      const partColUnloader = isPartView
+        ? d.allocateUnloader || d.unloaderName || null
+        : d.partUnloaderName || null;
+
+      return {
+        ...batch,
+        stackView: {
+          bags: viewBags,
+          weight: viewWeight,
+          role: isPartView ? 'PART' : 'MAIN',
+          partStackNo: partColStackNo,
+          partIsHoodi: isPartView ? false : partDestIsHoodi,
+          partBags: partColBags,
+          partUnloader: partColUnloader,
+          partWeight: partColWeight,
+        },
+      };
+    });
+
     const transfers = await this.prisma.hoodiRecord.findMany({
       where: { plantId, stackNo, sourceType: 'STACK_TRANSFER' },
-      orderBy: { date: 'desc' }
+      orderBy: { date: 'desc' },
     });
-    
-    return { inwards, transfers };
+
+    const dryerBharai = await this.prisma.dryerBharaiToStack.findMany({
+      where: { plantId, stackNo },
+      orderBy: { date: 'desc' },
+    });
+
+    return { inwards, transfers, dryerBharai };
   }
 
   async markStackComplete(plantId: string, stackNo: string) {
@@ -4472,44 +4965,62 @@ export class ProcurementService {
 
   async sendStackToHoodi(plantId: string, stackNo: string, userId: string) {
     // 1. Calculate current balance
-    const { inwards, transfers } = await this.getStackHistory(plantId, stackNo);
+    const { inwards, transfers, dryerBharai } = await this.getStackHistory(
+      plantId,
+      stackNo,
+    );
     let totalBags = 0;
     let totalWt = 0;
-    
-    inwards.forEach(record => {
-      totalBags += Number(record.paddyInwardDetails?.bagsRecAtMill || 0);
-      totalWt += Number(record.paddyInwardDetails?.netWtAtMill || 0);
+
+    inwards.forEach((record: any) => {
+      totalBags += Number(
+        record.stackView?.bags ??
+          record.paddyInwardDetails?.bagsRecAtMill ??
+          0,
+      );
+      totalWt += Number(
+        record.stackView?.weight ??
+          record.paddyInwardDetails?.netWtAtMill ??
+          0,
+      );
     });
-    
-    transfers.forEach(record => {
+
+    dryerBharai.forEach((record) => {
+      totalBags += Number(record.bags || 0);
+      totalWt += Number(record.netWeight || 0);
+    });
+
+    transfers.forEach((record) => {
       totalBags -= Number(record.bags || 0);
+      totalWt -= Number(record.netWeight || 0);
     });
 
     if (totalBags <= 0) {
-      throw new Error("Stack is already empty");
+      throw new Error('Stack is already empty');
     }
 
-    // 2. Create negative Hoodi Record to zero out balance
+    // 2. Create Hoodi Record to zero out balance
     await this.prisma.hoodiRecord.create({
       data: {
         plantId,
         date: new Date(),
-        bags: totalBags, // Pass as number directly
+        bags: totalBags,
+        netWeight: Math.max(0, totalWt) || null,
         moisture: Number(inwards[0]?.quality?.moisture || 0) || null,
         sourceType: 'STACK_TRANSFER',
         stackNo: stackNo,
-        unloadedBy: 'System (Send to Hoodi)'
-      }
+        unloadedBy: 'System (Send to Hoodi)',
+      },
     });
 
     // 3. Mark stack as empty
     return this.prisma.paddyStack.update({
       where: { plantId_stackNo: { plantId, stackNo } },
-      data: { 
+      data: {
         status: 'EMPTY',
         totalBags: 0,
-        totalWeight: 0 
-      }
+        totalWeight: 0,
+      },
     });
   }
 
@@ -4554,6 +5065,10 @@ export class ProcurementService {
       entryCompletionAt: d.entryCompletionAt || null,
       entryMadeByName: d.entryMadeByName || null,
       isBackdated: !!d.isBackdated,
+      informBaujiBagsLess: !!(d.informBaujiBagsLess || d.bagsRecLessThanAgencyGp),
+      informBaujiExcessWeight: !!(
+        d.informBaujiExcessWeight || d.plusWtConsiderInShortageRecovery
+      ),
       millGp: d.gpNo || '-',
       agencyGp: d.mandiEgNo || d.mandiParchiNo || '-',
       truckNo: d.truckNo || b.weighbridge?.vehicleNo || '-',
@@ -4770,6 +5285,8 @@ export class ProcurementService {
           id: r.id,
           status: r.status,
           isBackdated: r.isBackdated,
+          informBaujiBagsLess: r.informBaujiBagsLess,
+          informBaujiExcessWeight: r.informBaujiExcessWeight,
           entryMadeByName: r.entryMadeByName,
           entryCompletionAt: r.entryCompletionAt,
         })),
@@ -5279,9 +5796,31 @@ export class ProcurementService {
 
     const atStack = todayBatches.reduce((s, b) => s + bagOf(b), 0);
     const active = stacks.filter((s) => !['COMPLETED', 'EMPTY'].includes(s.status));
-    const opBal = stacks.reduce((s, st) => s + Number(st.totalBags || 0), 0) - atStack;
-    const dryerBharai = 0;
-    const hoodiKatai = 0;
+
+    const [dryerRows, hoodiRows] = await Promise.all([
+      this.prisma.dryerBharaiToStack.findMany({
+        where: { plantId, date: { gte: dayStart, lte: dayEnd } },
+      }),
+      this.prisma.hoodiRecord.findMany({
+        where: {
+          plantId,
+          sourceType: 'STACK_TRANSFER',
+          date: { gte: dayStart, lte: dayEnd },
+        },
+      }),
+    ]);
+
+    const dryerBharai = dryerRows.reduce((s, r) => s + Number(r.bags || 0), 0);
+    const dryerBharaiWt = dryerRows.reduce(
+      (s, r) => s + Number(r.netWeight || 0),
+      0,
+    );
+    const hoodiKatai = hoodiRows.reduce((s, r) => s + Number(r.bags || 0), 0);
+    const opBal =
+      stacks.reduce((s, st) => s + Number(st.totalBags || 0), 0) -
+      atStack -
+      dryerBharai +
+      hoodiKatai;
     const out = 0;
     const total = Math.max(0, opBal) + atStack + dryerBharai;
     const clStock = total - hoodiKatai - out;
@@ -5294,9 +5833,10 @@ export class ProcurementService {
           date: day,
           opBal: Math.max(0, Math.round(opBal)),
           atStack: Math.round(atStack),
-          dryerBharai,
+          dryerBharai: Math.round(dryerBharai),
+          dryerBharaiWt: Number(dryerBharaiWt.toFixed(3)),
           total: Math.round(total),
-          hoodiKatai,
+          hoodiKatai: Math.round(hoodiKatai),
           out,
           clStock: Math.round(clStock),
           stacksInUse: active.map((s) => s.stackNo).join(', ') || '—',
@@ -5306,7 +5846,17 @@ export class ProcurementService {
         stackNo: s.stackNo,
         status: s.status,
         totalBags: s.totalBags,
+        totalWeight: s.totalWeight,
         averageMoisture: s.averageMoisture,
+      })),
+      dryerBharaiDetail: dryerRows.map((r) => ({
+        id: r.id,
+        stackNo: r.stackNo,
+        bags: r.bags,
+        moisture: r.moisture,
+        netWeight: r.netWeight,
+        rstNo: r.rstNo,
+        date: r.date,
       })),
       updatedAt: new Date().toISOString(),
     };

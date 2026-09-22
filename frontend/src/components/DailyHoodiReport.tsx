@@ -3,6 +3,7 @@ import api from '../api/axios';
 import { usePlantStore } from '../store/plantStore';
 import { Search, Download, Calendar } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import StackHistoryModal from './StackHistoryModal';
 
 interface HoodiRecord {
   id: string;
@@ -17,14 +18,24 @@ interface HoodiRecord {
   bags: number | null;
   unloadedBy: string | null;
   sourceType: string;
+  netWeight?: number | null;
+  rstNo?: string | null;
+  partStackNo?: string | null;
+  partIsHoodi?: boolean | null;
+  partBags?: number | null;
+  partUnloader?: string | null;
+  partWeight?: number | null;
 }
 
 export default function DailyHoodiReport() {
-  const activePlant = usePlantStore(state => state.activePlant);
+  const activePlant = usePlantStore((state) => state.activePlant);
   const [data, setData] = useState<HoodiRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0]);
+  const [dateFrom, setDateFrom] = useState(
+    new Date().toISOString().split('T')[0],
+  );
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
+  const [openStackNo, setOpenStackNo] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -38,8 +49,8 @@ export default function DailyHoodiReport() {
         params: {
           plantId: activePlant.id,
           dateFrom,
-          dateTo
-        }
+          dateTo,
+        },
       });
       setData(response.data || []);
     } catch (error) {
@@ -50,23 +61,39 @@ export default function DailyHoodiReport() {
   };
 
   const handleExport = () => {
-    const exportData = data.map(row => ({
-      "Date": new Date(row.date).toLocaleDateString(),
-      "GP No": row.gpNo || '-',
-      "Mandi GP No": row.mandiGpNo || '-',
-      "Truck No": row.truckNo || '-',
-      "Party Name": row.supplierName || '-',
-      "Mandi": row.mandiName || '-',
-      "Stack no.": row.stackNo || '-',
-      "Moisture": row.moisture || '-',
-      "Bags": row.bags || 0,
-      "Unloaded By": row.unloadedBy || '-'
+    const exportData = data.map((row) => ({
+      Date: new Date(row.date).toLocaleDateString(),
+      'GP No': row.gpNo || '-',
+      'Mandi GP No': row.mandiGpNo || '-',
+      'Truck No': row.truckNo || '-',
+      'Party Name': row.supplierName || '-',
+      Mandi: row.mandiName || '-',
+      'Stack no.': row.stackNo || '-',
+      Moisture: row.moisture || '-',
+      Bags: row.bags || 0,
+      'Net Weight (Qtl)': row.netWeight ?? '-',
+      'RST No.': row.rstNo || '-',
+      'Part Stack / Hoodi': row.partIsHoodi
+        ? 'Hoodi'
+        : row.partStackNo || '-',
+      'Part Bags': row.partBags ?? '-',
+      'Part Unloader': row.partUnloader || '-',
+      'Part Weight (Qtl)': row.partWeight ?? '-',
+      'Unloaded By': row.unloadedBy || '-',
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Daily Hoodi Record');
     XLSX.writeFile(wb, `Daily_Hoodi_Record.xlsx`);
+  };
+
+  const openPartDestination = (row: HoodiRecord) => {
+    if (row.partIsHoodi) return; // already on hoodi register
+    const sn = String(row.partStackNo || '').trim();
+    if (sn && sn !== 'HOODI' && sn !== 'Direct-Inward') {
+      setOpenStackNo(sn);
+    }
   };
 
   return (
@@ -78,33 +105,37 @@ export default function DailyHoodiReport() {
           </div>
           Daily Hoodi Record
         </h2>
-        
+
         <div className="flex gap-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <label className="text-sm text-[var(--text-muted-alt)] font-medium">From</label>
-            <input 
-              type="date" 
+            <label className="text-sm text-[var(--text-muted-alt)] font-medium">
+              From
+            </label>
+            <input
+              type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
               className="bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm text-[var(--text-main)] outline-none focus:border-[#e67e00] transition-colors"
             />
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm text-[var(--text-muted-alt)] font-medium">To</label>
-            <input 
-              type="date" 
+            <label className="text-sm text-[var(--text-muted-alt)] font-medium">
+              To
+            </label>
+            <input
+              type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
               className="bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-lg px-3 py-1.5 text-sm text-[var(--text-main)] outline-none focus:border-[#e67e00] transition-colors"
             />
           </div>
-          <button 
+          <button
             onClick={fetchData}
             className="flex items-center gap-2 bg-[#e67e00] text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors shadow-sm"
           >
             <Search size={16} /> Filter
           </button>
-          <button 
+          <button
             onClick={handleExport}
             className="flex items-center gap-2 bg-[var(--bg-app)] border border-[var(--border-subtle)] text-[var(--text-main)] px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-[var(--bg-panel-hover)] transition-colors"
           >
@@ -117,22 +148,60 @@ export default function DailyHoodiReport() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-[var(--bg-panel-hover)]">
-              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Date</th>
-              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">GP No</th>
-              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Mandi GP No</th>
-              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Truck No</th>
-              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Party Name</th>
-              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Mandi</th>
-              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Stack no.</th>
-              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Moisture</th>
-              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Bags</th>
-              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">Unloaded By</th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                Date
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                GP No
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                Mandi GP No
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                Truck No
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                Party Name
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                Mandi
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                Stack no.
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                Moisture
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                Bags
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                Net Weight
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                RST No.
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                Part Stack / Hoodi
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                Part Bags
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                Part Unloader
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                Part Weight
+              </th>
+              <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
+                Unloaded By
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border-subtle)]">
             {loading ? (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center">
+                <td colSpan={16} className="px-4 py-8 text-center">
                   <div className="flex justify-center items-center gap-2 text-[var(--text-muted-alt)]">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#e67e00]"></div>
                     Loading records...
@@ -141,26 +210,91 @@ export default function DailyHoodiReport() {
               </tr>
             ) : data.length > 0 ? (
               data.map((row) => (
-                <tr key={row.id} className="hover:bg-[var(--bg-panel-hover)] transition-colors">
-                  <td className="px-4 py-3 text-sm text-[var(--text-main)]">{new Date(row.date).toLocaleDateString()}</td>
-                  <td className="px-4 py-3 text-sm font-mono text-[var(--text-main)]">{row.gpNo || '-'}</td>
-                  <td className="px-4 py-3 text-sm font-mono text-[var(--text-main)]">{row.mandiGpNo || '-'}</td>
-                  <td className="px-4 py-3 text-sm font-mono text-[var(--text-main)]">{row.truckNo || '-'}</td>
+                <tr
+                  key={row.id}
+                  className="hover:bg-[var(--bg-panel-hover)] transition-colors"
+                >
+                  <td className="px-4 py-3 text-sm text-[var(--text-main)]">
+                    {new Date(row.date).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-[var(--text-main)]">
+                    {row.gpNo || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-[var(--text-main)]">
+                    {row.mandiGpNo || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-[var(--text-main)]">
+                    {row.truckNo || '-'}
+                  </td>
                   <td className="px-4 py-3 text-sm text-[var(--text-main)] font-medium">
-                    {row.sourceType === 'STACK_TRANSFER' ? <span className="text-xs text-gray-400 italic">N/A</span> : (row.supplierName || '-')}
+                    {row.sourceType === 'STACK_TRANSFER' ? (
+                      <span className="text-xs text-gray-400 italic">N/A</span>
+                    ) : (
+                      row.supplierName || '-'
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-[var(--text-main)]">
-                    {row.sourceType === 'STACK_TRANSFER' ? <span className="text-xs text-gray-400 italic">N/A</span> : (row.mandiName || '-')}
+                    {row.sourceType === 'STACK_TRANSFER' ? (
+                      <span className="text-xs text-gray-400 italic">N/A</span>
+                    ) : (
+                      row.mandiName || '-'
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-sm font-mono font-bold text-[var(--text-main)]">{row.stackNo || '-'}</td>
-                  <td className="px-4 py-3 text-sm font-mono text-[var(--text-main)]">{row.moisture || '-'}</td>
-                  <td className="px-4 py-3 text-sm font-mono text-[#e67e00] font-bold">{row.bags || 0}</td>
-                  <td className="px-4 py-3 text-sm text-[var(--text-main)]">{row.unloadedBy || '-'}</td>
+                  <td className="px-4 py-3 text-sm font-mono font-bold text-[var(--text-main)]">
+                    {row.stackNo || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-[var(--text-main)]">
+                    {row.moisture || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-[#e67e00] font-bold">
+                    {row.bags || 0}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-[var(--text-main)]">
+                    {row.netWeight != null ? Number(row.netWeight).toFixed(2) : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-[var(--text-main)]">
+                    {row.rstNo || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    {row.partIsHoodi ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-orange-500/15 text-[#e67e00]">
+                        Hoodi
+                      </span>
+                    ) : row.partStackNo ? (
+                      <button
+                        type="button"
+                        onClick={() => openPartDestination(row)}
+                        className="font-mono font-bold text-[#e67e00] hover:underline"
+                        title="Open stack record"
+                      >
+                        {row.partStackNo}
+                      </button>
+                    ) : (
+                      <span className="text-[var(--text-muted-alt)]">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-[var(--text-main)]">
+                    {row.partBags != null ? row.partBags : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-[var(--text-main)]">
+                    {row.partUnloader || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono text-[var(--text-main)]">
+                    {row.partWeight != null
+                      ? Number(row.partWeight).toFixed(2)
+                      : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-[var(--text-main)]">
+                    {row.unloadedBy || '-'}
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-[var(--text-muted-alt)]">
+                <td
+                  colSpan={16}
+                  className="px-4 py-8 text-center text-[var(--text-muted-alt)]"
+                >
                   No hoodi records found for the selected date range.
                 </td>
               </tr>
@@ -168,6 +302,19 @@ export default function DailyHoodiReport() {
           </tbody>
         </table>
       </div>
+
+      {activePlant && (
+        <StackHistoryModal
+          isOpen={!!openStackNo}
+          onClose={() => setOpenStackNo(null)}
+          stackNo={openStackNo || ''}
+          plantId={activePlant.id}
+          onStackCompleted={() => {
+            setOpenStackNo(null);
+            fetchData();
+          }}
+        />
+      )}
     </div>
   );
 }

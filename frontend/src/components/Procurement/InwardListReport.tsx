@@ -25,7 +25,13 @@ interface Props {
   onContinueDraft?: (row: any) => void;
 }
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
 
 /** Indian paddy season typically starts 1 Oct */
 function seasonStartStr(ref = new Date()) {
@@ -43,6 +49,16 @@ export default function InwardListReport({
   const { mandis } = useMandiStore();
   const toast = (msg: string, type: "success" | "error" | "info" = "info") =>
     useUiStore.getState().addToast(msg, type);
+
+  const roleStr = String((user as any)?.role?.name || user?.role || "");
+  const isSupervisor = /SUPERVISOR/i.test(roleStr);
+  const isAdmin =
+    user?.role === "SUPER_ADMIN" ||
+    user?.role === "PLANT_MANAGER" ||
+    /ADMIN|PLANT_MANAGER/i.test(roleStr);
+  /** Admin: print + export. Supervisor: submit only. */
+  const canPrintExport = isAdmin && !isSupervisor;
+  const today = todayStr();
 
   const [mode, setMode] = useState<ListMode>("mill");
   const [bagWt, setBagWt] = useState(0.382);
@@ -203,7 +219,21 @@ export default function InwardListReport({
     });
   };
 
+  /** Supervisors cannot select future dates on this list */
+  const setFilterDate = (key: "dateFrom" | "dateTo", value: string) => {
+    let next = value;
+    if (isSupervisor && next && next > today) {
+      toast("Future dates are not allowed for supervisors", "error");
+      next = today;
+    }
+    setFilters((f) => ({ ...f, [key]: next }));
+  };
+
   const exportCurrent = () => {
+    if (!canPrintExport) {
+      toast("Export is only available for Admin users", "error");
+      return;
+    }
     if (!report) return;
     if (mode === "govt") {
       exportToExcel(
@@ -254,9 +284,19 @@ export default function InwardListReport({
         `Mill_Inward_List_${filters.dateFrom}_${filters.dateTo}.xlsx`,
       );
     }
+    toast(
+      `${mode === "govt" ? "Govt" : "Mill"} Inward List exported`,
+      "success",
+    );
   };
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    if (!canPrintExport) {
+      toast("Print is only available for Admin users", "error");
+      return;
+    }
+    window.print();
+  };
 
   const scanFp = async () => {
     setScanning(true);
@@ -445,6 +485,18 @@ export default function InwardListReport({
           >
             Violet row = backdated
           </span>
+          <span
+            className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-200 border border-amber-500/30"
+            title="Lower Bag Count Consideration (Inform Bauji)"
+          >
+            Amber = Lower Bag Count
+          </span>
+          <span
+            className="text-[10px] px-2 py-0.5 rounded bg-rose-500/20 text-rose-200 border border-rose-500/30"
+            title="Excess Weight Consideration (Inform Bauji)"
+          >
+            Rose = Excess Weight
+          </span>
           {report?.fromSnapshot && (
             <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400">
               Submitted{" "}
@@ -461,18 +513,24 @@ export default function InwardListReport({
           >
             <Fingerprint size={16} /> Submit Evening Lists
           </button>
-          <button
-            onClick={handlePrint}
-            className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2 border border-[var(--border-subtle)]"
-          >
-            <Printer size={16} /> Print
-          </button>
-          <button
-            onClick={exportCurrent}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2"
-          >
-            <Download size={16} /> Export
-          </button>
+          {canPrintExport && (
+            <>
+              <button
+                onClick={handlePrint}
+                className="bg-[var(--bg-panel-hover)] text-[var(--text-main)] px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2 border border-[var(--border-subtle)]"
+                title="Print Govt or Mill Inward List (current filters)"
+              >
+                <Printer size={16} /> Print
+              </button>
+              <button
+                onClick={exportCurrent}
+                className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2"
+                title="Export Govt or Mill Inward List (current filters)"
+              >
+                <Download size={16} /> Export
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -533,9 +591,8 @@ export default function InwardListReport({
           <input
             type="date"
             value={filters.dateFrom}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, dateFrom: e.target.value }))
-            }
+            max={isSupervisor ? today : undefined}
+            onChange={(e) => setFilterDate("dateFrom", e.target.value)}
             className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm"
           />
         </div>
@@ -546,9 +603,8 @@ export default function InwardListReport({
           <input
             type="date"
             value={filters.dateTo}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, dateTo: e.target.value }))
-            }
+            max={isSupervisor ? today : undefined}
+            onChange={(e) => setFilterDate("dateTo", e.target.value)}
             className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] text-sm"
           />
         </div>
@@ -707,6 +763,8 @@ export default function InwardListReport({
                   bClass: r.bClassAgency,
                   millNetWeight: r.govtMillNetWt,
                   isBackdated: r.isBackdated,
+                  informBaujiBagsLess: r.informBaujiBagsLess,
+                  informBaujiExcessWeight: r.informBaujiExcessWeight,
                   entryMadeByName: r.entryMadeByName,
                   entryCompletionAt: r.entryCompletionAt,
                 }))}
@@ -886,6 +944,25 @@ function SupervisorCell({
   );
 }
 
+function rowFlagClass(r: any) {
+  if (r.informBaujiExcessWeight) return "bg-rose-500/20 text-rose-100";
+  if (r.informBaujiBagsLess) return "bg-amber-500/20 text-amber-100";
+  if (r.isBackdated) return "bg-violet-500/20 text-violet-100";
+  return "";
+}
+
+function rowFlagTitle(r: any) {
+  const parts: string[] = [];
+  if (r.informBaujiExcessWeight) parts.push("FLAG: Excess Weight Consideration");
+  if (r.informBaujiBagsLess) parts.push("FLAG: Lower Bag Count Consideration");
+  if (r.isBackdated) {
+    parts.push(
+      `Backdated${r.entryMadeByName ? ` by ${r.entryMadeByName}` : ""}${r.entryCompletionAt ? ` at ${r.entryCompletionAt}` : ""}`,
+    );
+  }
+  return parts.length ? parts.join(" · ") : undefined;
+}
+
 function GovtTable({
   rows,
   compact,
@@ -904,6 +981,7 @@ function GovtTable({
           <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left bg-[var(--glass-bg)] text-xs font-semibold tracking-wide">
             <th className="p-2.5">S.No</th>
             <th className="p-2.5">Date</th>
+            <th className="p-2.5">Flags</th>
             <th className="p-2.5">Agency GP</th>
             <th className="p-2.5">Truck No.</th>
             <th className="p-2.5">Mandi</th>
@@ -920,17 +998,14 @@ function GovtTable({
           {rows.map((r, i) => (
             <tr
               key={r.id || i}
-              className={`border-b border-[var(--border-subtle-alt)] ${
-                r.isBackdated ? "bg-violet-500/20 text-violet-100" : ""
-              }`}
-              title={
-                r.isBackdated
-                  ? `Backdated entry${r.entryMadeByName ? ` by ${r.entryMadeByName}` : ""}${r.entryCompletionAt ? ` at ${r.entryCompletionAt}` : ""}`
-                  : undefined
-              }
+              className={`border-b border-[var(--border-subtle-alt)] ${rowFlagClass(r)}`}
+              title={rowFlagTitle(r)}
             >
               <td className="p-2">{r.sno ?? i + 1}</td>
               <td className="p-2">{r.date}</td>
+              <td className="p-2">
+                <FlagBadges row={r} />
+              </td>
               <td className="p-2 font-mono text-xs">{r.agencyGp}</td>
               <td className="p-2">{r.truckNo}</td>
               <td className="p-2">{r.mandi}</td>
@@ -956,7 +1031,7 @@ function GovtTable({
           {rows.length === 0 && (
             <tr>
               <td
-                colSpan={12}
+                colSpan={13}
                 className="p-6 text-center text-[var(--text-muted-alt)]"
               >
                 No govt inward rows.
@@ -965,6 +1040,31 @@ function GovtTable({
           )}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function FlagBadges({ row }: { row: any }) {
+  if (!row.informBaujiBagsLess && !row.informBaujiExcessWeight && !row.isBackdated) {
+    return <span className="text-[var(--text-muted-alt)]">—</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {row.informBaujiBagsLess && (
+        <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500 text-black">
+          Bags Less
+        </span>
+      )}
+      {row.informBaujiExcessWeight && (
+        <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-rose-500 text-white">
+          Excess Wt
+        </span>
+      )}
+      {row.isBackdated && (
+        <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-violet-500 text-white">
+          Backdated
+        </span>
+      )}
     </div>
   );
 }
@@ -994,6 +1094,9 @@ function MillTable({
             </th>
             <th className="p-2.5" rowSpan={2}>
               Date
+            </th>
+            <th className="p-2.5" rowSpan={2}>
+              Flags
             </th>
             <th className="p-2.5" rowSpan={2}>
               RST No.
@@ -1083,17 +1186,14 @@ function MillTable({
           {rows.map((r, i) => (
             <tr
               key={r.id || i}
-              className={`border-b border-[var(--border-subtle-alt)] whitespace-nowrap ${
-                r.isBackdated ? "bg-violet-500/20 text-violet-100" : ""
-              }`}
-              title={
-                r.isBackdated
-                  ? `Backdated entry${r.entryMadeByName ? ` by ${r.entryMadeByName}` : ""}${r.entryCompletionAt ? ` at ${r.entryCompletionAt}` : ""}`
-                  : undefined
-              }
+              className={`border-b border-[var(--border-subtle-alt)] whitespace-nowrap ${rowFlagClass(r)}`}
+              title={rowFlagTitle(r)}
             >
               <td className="p-2">{r.sno ?? i + 1}</td>
               <td className="p-2">{r.date}</td>
+              <td className="p-2">
+                <FlagBadges row={r} />
+              </td>
               <td className="p-2 text-xs">{r.rstNo}</td>
               <td className="p-2">{r.timeIn || "-"}</td>
               <td className="p-2 whitespace-nowrap">

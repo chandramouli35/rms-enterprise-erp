@@ -138,7 +138,7 @@ export default function DailyInwardSummary({ activePlant }: { activePlant: any }
           <div>
             <h4 className="text-sm font-bold text-[var(--text-main)]">Artia-wise Shortage Report</h4>
             <p className="text-[10px] text-[var(--text-muted-alt)]">
-              Till-date shortage balances (also in Shortage Recovery → Daily Consolidated / Artia Till-date)
+              Till-date shortage balances
             </p>
           </div>
         </div>

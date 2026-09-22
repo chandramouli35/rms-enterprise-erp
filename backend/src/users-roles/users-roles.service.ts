@@ -583,8 +583,10 @@ export class UsersRolesService {
         'Mandi Master',
         'Boli Record',
         'Stack to Hoodi',
+        'Dryer Bharai to Stack',
         'Paddy Inward',
         'Inward List',
+        'Loader & Unloader',
         'Global Settings (Govt Rate)',
         'Reports',
         'Quality Inspection',
@@ -708,6 +710,10 @@ export class UsersRolesService {
     // F32 rename: nav/Permissions UI use Boli Record; DB may still store old label
     'Boli Record': ['Boli Record', 'Paddy Purchase & Quality'],
     'Paddy Purchase & Quality': ['Paddy Purchase & Quality', 'Boli Record'],
+    'Stack to Hoodi': ['Stack to Hoodi', 'Stack to Hoodi Transfer'],
+    'Dryer Bharai to Stack': ['Dryer Bharai to Stack', 'Dryer Bharai'],
+    'Loader & Unloader': ['Loader & Unloader', 'Loader Unloader'],
+    'Global Settings (Govt Rate)': ['Global Settings (Govt Rate)', 'Global Settings'],
   };
 
   private flagsFromPerm(row?: { canView?: boolean; canAdd?: boolean; canEdit?: boolean; canDelete?: boolean; canApprove?: boolean } | null) {

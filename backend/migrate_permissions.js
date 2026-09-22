@@ -21,9 +21,11 @@ const MODULE_STRUCTURE = [
       'Supplier Master',
       'Mandi Master',
       'Boli Record',
+      'Stack to Hoodi',
+      'Dryer Bharai to Stack',
       'Paddy Inward',
       'Inward List',
-      'Stack to Hoodi',
+      'Loader & Unloader',
       'Global Settings (Govt Rate)',
       'Reports',
       'Quality Inspection',
@@ -132,10 +134,26 @@ async function main() {
             [role.id, mod.name, sub],
           );
           if (subExists.rows.length === 0) {
+            // Inherit parent module flags when present; else Super Admin only
+            const parentFlags = await client.query(
+              `SELECT "canView","canAdd","canEdit","canDelete","canApprove" FROM "ModulePermission"
+               WHERE "roleId" = $1 AND "moduleName" = $2 AND ("subModuleName" IS NULL OR "subModuleName" = '')`,
+              [role.id, mod.name],
+            );
+            const p = parentFlags.rows[0];
+            const grant = p
+              ? [p.canView, p.canAdd, p.canEdit, p.canDelete, p.canApprove]
+              : [
+                  role.name === 'SUPER_ADMIN',
+                  role.name === 'SUPER_ADMIN',
+                  role.name === 'SUPER_ADMIN',
+                  role.name === 'SUPER_ADMIN',
+                  false,
+                ];
             await client.query(
               `INSERT INTO "ModulePermission" ("id", "roleId", "moduleName", "subModuleName", "canView", "canAdd", "canEdit", "canDelete", "canApprove", "createdAt", "updatedAt")
-               VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $4, $4, $4, false, NOW(), NOW())`,
-              [role.id, mod.name, sub, role.name === 'SUPER_ADMIN'],
+               VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())`,
+              [role.id, mod.name, sub, ...grant],
             );
             console.log(`  + ${mod.name} / ${sub}`);
           }

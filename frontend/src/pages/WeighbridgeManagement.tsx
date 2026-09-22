@@ -80,6 +80,7 @@ export const WeighbridgeManagement = () => {
 
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [manualWeightInput, setManualWeightInput] = useState("");
+  const [manualTarget, setManualTarget] = useState<"gross" | "tare">("gross");
 
   // Tab 2: History State
   const [historyData, setHistoryData] = useState<any[]>([]);
@@ -916,6 +917,22 @@ export const WeighbridgeManagement = () => {
   const handleManual = () => {
     setIsManualModalOpen(true);
     setManualWeightInput("");
+    setManualTarget("gross");
+  };
+
+  const applyManualWeight = (weight: number, target: "gross" | "tare") => {
+    if (target === "tare") {
+      setTareWeight(weight);
+      setLastReading(new Date().toLocaleString() + " (Manual Tare)");
+    } else {
+      setWeightData({
+        vehicleNo: vehicleNo || "MANUAL-ENTRY",
+        grossWeight: weight,
+      });
+      setIsStreaming(false);
+      setLastReading(new Date().toLocaleString() + " (Manual Gross)");
+    }
+    setIsManualModalOpen(false);
   };
 
   // SVG Gauge Calculations
@@ -2199,7 +2216,7 @@ export const WeighbridgeManagement = () => {
         )}
       </CustomModal>
 
-      {/* Manual Entry Modal */}
+      {/* Manual Entry Modal — available during live/auto capture too */}
       <CustomModal
         isOpen={isManualModalOpen}
         onClose={() => setIsManualModalOpen(false)}
@@ -2216,15 +2233,7 @@ export const WeighbridgeManagement = () => {
               onClick={() => {
                 const weight = parseInt(manualWeightInput, 10);
                 if (!isNaN(weight) && weight > 0) {
-                  setWeightData({
-                    vehicleNo: vehicleNo || "MANUAL-ENTRY",
-                    grossWeight: weight,
-                  });
-                  setIsStreaming(false);
-                  setLastReading(
-                    new Date().toLocaleString() + " (Manual Override)",
-                  );
-                  setIsManualModalOpen(false);
+                  applyManualWeight(weight, manualTarget);
                 } else {
                   setModalConfig({
                     isOpen: true,
@@ -2236,7 +2245,7 @@ export const WeighbridgeManagement = () => {
               }}
               className="px-4 py-2 bg-blue-600 text-[var(--text-main)] hover:bg-blue-500 rounded-lg text-sm font-medium transition-colors"
             >
-              Confirm Weight
+              Confirm {manualTarget === "tare" ? "Tare" : "Gross"}
             </button>
           </>
         }
@@ -2244,13 +2253,39 @@ export const WeighbridgeManagement = () => {
         <div className="space-y-4">
           <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
             <p className="text-sm text-amber-500">
-              <strong>Note:</strong> Manual entry overrides the live weighbridge
-              feed. This action will be flagged in the audit logs.
+              <strong>Note:</strong> Manual entry is allowed during auto/live
+              weighbridge capture. This overrides the live feed for the selected
+              field and is flagged in audit logs.
             </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setManualTarget("gross")}
+              className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                manualTarget === "gross"
+                  ? "bg-[#e67e00] border-[#e67e00] text-white"
+                  : "border-[var(--border-subtle)] text-[var(--text-muted)]"
+              }`}
+            >
+              Gross
+            </button>
+            <button
+              type="button"
+              onClick={() => setManualTarget("tare")}
+              className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                manualTarget === "tare"
+                  ? "bg-[#e67e00] border-[#e67e00] text-white"
+                  : "border-[var(--border-subtle)] text-[var(--text-muted)]"
+              }`}
+            >
+              Tare
+            </button>
           </div>
           <div>
             <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1.5">
-              Gross Weight (kg) <span className="text-red-500">*</span>
+              {manualTarget === "tare" ? "Tare" : "Gross"} Weight (kg){" "}
+              <span className="text-red-500">*</span>
             </label>
             <input
               type="number"

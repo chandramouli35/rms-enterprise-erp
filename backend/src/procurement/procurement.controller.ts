@@ -439,6 +439,24 @@ export class ProcurementController {
     return this.procurementService.getMillShortageTrend(days ? parseInt(days, 10) : 14);
   }
 
+  /** Mandi / Artia shortage trend for Mandi and Artia wise view */
+  @Get('reports/shortage-entity-trend')
+  @RequireAnyPermission(['Procurement', 'Dashboard'], 'canView')
+  async getEntityShortageTrend(
+    @Query('groupBy') groupBy?: string,
+    @Query('days') days?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    const mode = groupBy === 'mandi' ? 'mandi' : 'artia';
+    return this.procurementService.getEntityShortageTrend(
+      mode,
+      days ? parseInt(days, 10) : 14,
+      dateFrom,
+      dateTo,
+    );
+  }
+
   /** Feedback 35 — dual Govt/Mill inward list report */
   @Get('reports/inward-list')
   @RequirePermission('Procurement', 'canView')
@@ -517,11 +535,35 @@ export class ProcurementController {
   }
   @Post('hoodi-transfer')
   @RequirePermission('Procurement', 'canAdd')
-  async transferStackToHoodi(@Body() data: any) {
+  async transferStackToHoodi(@Body() data: any, @Req() req: any) {
     try {
-      return await this.procurementService.transferStackToHoodi(data.plantId, data);
+      return await this.procurementService.transferStackToHoodi(
+        data.plantId,
+        data,
+        req.user,
+      );
     } catch (error: any) {
-      throw new HttpException(`Failed to transfer: ${error.message || error}`, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        `Failed to transfer: ${error.message || error}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('dryer-bharai-transfer')
+  @RequirePermission('Procurement', 'canAdd')
+  async transferDryerBharaiToStack(@Body() data: any, @Req() req: any) {
+    try {
+      return await this.procurementService.transferDryerBharaiToStack(
+        data.plantId,
+        data,
+        req.user,
+      );
+    } catch (error: any) {
+      throw new HttpException(
+        `Failed to transfer Dryer Bharai to Stack: ${error.message || error}`,
+        HttpStatus.BAD_REQUEST,
+      );
     }
   }
 

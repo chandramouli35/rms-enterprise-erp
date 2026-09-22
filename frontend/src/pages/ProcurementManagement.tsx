@@ -35,6 +35,7 @@ import LoaderUnloaderReport from "../components/Procurement/LoaderUnloaderReport
 import api from "../api/axios";
 import ShortageRecoveryReport from "../components/ShortageRecoveryReport";
 import StackToHoodiTransfer from "../components/StackToHoodiTransfer";
+import DryerBharaiToStackTransfer from "../components/DryerBharaiToStackTransfer";
 import DailyHoodiReport from "../components/DailyHoodiReport";
 import StackLayoutView from "../components/StackLayoutView";
 import { CustomModal } from "../components/CustomModal";
@@ -68,9 +69,21 @@ export const ProcurementManagement = () => {
   const plantAllowsManualPaddy = !!activePlant?.allowManualDateTimePaddyInward;
   const autoUpdateDateTime = !plantAllowsManualPaddy;
   const canManualDateTime = plantAllowsManualPaddy;
+  /**
+   * Auto Update Date & Time only locks Date/Time fields.
+   * Weighbridge Gross/Tare may be manually punched in both Auto Update ON and OFF modes.
+   * Net at Mill still auto-calcs from Gross − Tare; Fetch WB remains available.
+   */
+  const canManualWeighbridgePunch =
+    autoUpdateDateTime || canManualDateTime || hasManualWeighbridgePermission;
   const isSupervisor = /SUPERVISOR/i.test(
     String((user as any)?.role?.name || user?.role || ""),
   );
+  /** Local calendar today (avoid UTC shift for date max checks) */
+  const todayLocal = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
   /** Supervisor must not see Payment / Diff / Final Hisab on Purchase Register */
   const hidePaymentHisab = isSupervisor;
   const isAdmin =
@@ -188,6 +201,7 @@ export const ProcurementManagement = () => {
   const [sodaPendingTotalItems, setSodaPendingTotalItems] = useState(0);
   const [paddyStockReportData, setPaddyStockReportData] = useState<any[]>([]);
   const [paddyStackDocRows, setPaddyStackDocRows] = useState<any[]>([]);
+  const [paddyStackDryerDetail, setPaddyStackDryerDetail] = useState<any[]>([]);
   const [sodaPendingCurrentPage, setSodaPendingCurrentPage] = useState(1);
   /** Saved drafts shown on Paddy Inward so supervisors can reopen & confirm after unload */
   const [draftInwards, setDraftInwards] = useState<any[]>([]);
@@ -361,6 +375,7 @@ export const ProcurementManagement = () => {
     bagsInMainStack: "",
     secondPartStackNo: "",
     bagsInSecondPartStack: "",
+    partIsHoodi: false,
     noPartStack: false,
     unloaderInitials: "",
     unloaderName: "",
@@ -831,10 +846,36 @@ export const ProcurementManagement = () => {
 
   const handleInwardChange = (e: any) => {
     const { name, value, type, checked } = e.target;
+    let nextValue = type === "checkbox" ? checked : value;
+
+    // Supervisor: never allow future dates; backdate only when Auto Update Date & Time is OFF
+    if (
+      isSupervisor &&
+      (name === "date" || name === "gpCompleteDate") &&
+      typeof nextValue === "string" &&
+      nextValue
+    ) {
+      if (nextValue > todayLocal) {
+        useUiStore
+          .getState()
+          .addToast("Future dates are not allowed for supervisors", "error");
+        nextValue = todayLocal;
+      }
+      if (!canManualDateTime && nextValue < todayLocal) {
+        useUiStore
+          .getState()
+          .addToast(
+            "Backdated entries are only allowed when Auto Update Date & Time is OFF for this mill",
+            "error",
+          );
+        nextValue = todayLocal;
+      }
+    }
+
     setInwardFormData((prev: any) => {
       const next: any = {
         ...prev,
-        [name]: type === "checkbox" ? checked : value,
+        [name]: nextValue,
       };
       // Quality Cut type switch — clear cut value when None; keep live recalc via useEffect
       if (name === "qualityCutType") {
@@ -1559,6 +1600,7 @@ export const ProcurementManagement = () => {
         partUnloaderTruckCount: d.partUnloaderTruckCount ?? "",
         secondPartStackNo: d.secondPartStackNo || "",
         bagsInSecondPartStack: d.bagsInSecondPartStack ?? "",
+        partIsHoodi: !!d.partIsHoodi,
         isHold: !!d.isHold,
         holdReason: d.holdReason || "",
         heldAt: d.heldAt || "",
@@ -1569,6 +1611,7 @@ export const ProcurementManagement = () => {
             d.stackNo ||
             (d.bagsInMainStack != null && Number(d.bagsInMainStack) > 0)) &&
           !d.secondPartStackNo &&
+          !d.partIsHoodi &&
           !(
             d.bagsInSecondPartStack != null &&
             Number(d.bagsInSecondPartStack) > 0
@@ -1748,6 +1791,7 @@ export const ProcurementManagement = () => {
       const pid = activePlant?.id;
       if (!pid) {
         setPaddyStackDocRows([]);
+        setPaddyStackDryerDetail([]);
         setPaddyStockReportData([]);
         return;
       }
@@ -1759,6 +1803,11 @@ export const ProcurementManagement = () => {
       ]);
       setPaddyStackDocRows(
         Array.isArray(docRes.data?.rows) ? docRes.data.rows : [],
+      );
+      setPaddyStackDryerDetail(
+        Array.isArray(docRes.data?.dryerBharaiDetail)
+          ? docRes.data.dryerBharaiDetail
+          : [],
       );
       setPaddyStockReportData(
         Array.isArray(stockRes.data) ? stockRes.data : [],
@@ -2170,7 +2219,11 @@ export const ProcurementManagement = () => {
       "bagsInMainStack",
       ...(working.noPartStack
         ? []
-        : ["partUnloaderName", "secondPartStackNo", "bagsInSecondPartStack"]),
+        : [
+            "partUnloaderName",
+            ...(working.partIsHoodi ? [] : ["secondPartStackNo"]),
+            "bagsInSecondPartStack",
+          ]),
       "labour",
       "unloadingStartTime",
       "unloadingFinishTime",
@@ -2198,6 +2251,37 @@ export const ProcurementManagement = () => {
 
     let hasError = false;
     const newErrors: Record<string, string> = {};
+
+    // Supervisor date rules: no future dates; backdate only when Auto Update Date & Time is OFF
+    if (isSupervisor) {
+      const entryDate = String(working.date || "").slice(0, 10);
+      const completeDate = String(working.gpCompleteDate || "").slice(0, 10);
+      if (entryDate && entryDate > todayLocal) {
+        newErrors.date = "Future dates are not allowed for supervisors";
+        hasError = true;
+      } else if (
+        entryDate &&
+        entryDate < todayLocal &&
+        !canManualDateTime
+      ) {
+        newErrors.date =
+          "Backdated entries require Auto Update Date & Time OFF for this mill";
+        hasError = true;
+      }
+      if (completeDate && completeDate > todayLocal) {
+        newErrors.gpCompleteDate =
+          "Future dates are not allowed for supervisors";
+        hasError = true;
+      } else if (
+        completeDate &&
+        completeDate < todayLocal &&
+        !canManualDateTime
+      ) {
+        newErrors.gpCompleteDate =
+          "Backdated entries require Auto Update Date & Time OFF for this mill";
+        hasError = true;
+      }
+    }
 
     if (working.isHold && !String(working.holdReason || "").trim()) {
       newErrors.holdReason = "Hold reason is required";
@@ -2458,8 +2542,14 @@ export const ProcurementManagement = () => {
               bagsInSecondPartStack: null,
               partStackNo: "",
               bagsInPartStack: null,
+              partIsHoodi: false,
             }
-          : {}),
+          : {
+              partIsHoodi: !!working.partIsHoodi,
+              secondPartStackNo: working.partIsHoodi
+                ? ""
+                : working.secondPartStackNo,
+            }),
       };
 
       const res = await api.post("/api/procurement/save-purchase", payload);
@@ -2972,6 +3062,27 @@ export const ProcurementManagement = () => {
               </button>
             </div>
 
+            {(!!inwardFormData.informBaujiBagsLess ||
+              !!inwardFormData.bagsRecLessThanAgencyGp ||
+              !!inwardFormData.informBaujiExcessWeight) && (
+              <div className="mb-4 flex flex-wrap gap-2 items-center rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                  Flagged entry
+                </span>
+                {(!!inwardFormData.informBaujiBagsLess ||
+                  !!inwardFormData.bagsRecLessThanAgencyGp) && (
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-amber-500 text-black">
+                    Sec 5 · Lower Bag Count Consideration
+                  </span>
+                )}
+                {!!inwardFormData.informBaujiExcessWeight && (
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-rose-500 text-white">
+                    Sec 6 · Excess Weight Consideration
+                  </span>
+                )}
+              </div>
+            )}
+
             <div
               data-paddy-inward-form
               className="grid grid-cols-12 gap-6 flex-1"
@@ -3046,12 +3157,26 @@ export const ProcurementManagement = () => {
                         value={inwardFormData.date}
                         onChange={handleInwardChange}
                         disabled={!canManualDateTime}
+                        max={isSupervisor ? todayLocal : undefined}
+                        title={
+                          isSupervisor
+                            ? canManualDateTime
+                              ? "Backdate allowed (Auto Update OFF). Future dates blocked."
+                              : "Auto Update ON — date locked to today"
+                            : undefined
+                        }
                         className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${canManualDateTime ? "focus:border-[#e67e00]" : "opacity-70 cursor-not-allowed"}`}
                       />
                       {inwardErrors.date && (
                         <span className="text-red-500 text-[10px] mt-1 block">
                           {inwardErrors.date}
                         </span>
+                      )}
+                      {isSupervisor && canManualDateTime && (
+                        <p className="text-[10px] text-amber-400 mt-1">
+                          Auto Update OFF — you may backdate; future dates are
+                          not allowed.
+                        </p>
                       )}
                     </div>
                     <div>
@@ -3717,6 +3842,7 @@ export const ProcurementManagement = () => {
                                     partUnloaderTruckCount: "",
                                     secondPartStackNo: "",
                                     bagsInSecondPartStack: "",
+                                    partIsHoodi: false,
                                   }
                                 : {}),
                             }));
@@ -3820,16 +3946,48 @@ export const ProcurementManagement = () => {
                         <div>
                           <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                             Part Stack No.{" "}
-                            <span className="text-red-500">*</span>
+                            {!inwardFormData.partIsHoodi && (
+                              <span className="text-red-500">*</span>
+                            )}
                           </label>
-                          <input
-                            type="text"
-                            name="secondPartStackNo"
-                            value={inwardFormData.secondPartStackNo}
-                            onChange={handleInwardChange}
-                            className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
-                            placeholder="Stack No."
-                          />
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              name="secondPartStackNo"
+                              value={
+                                inwardFormData.partIsHoodi
+                                  ? ""
+                                  : inwardFormData.secondPartStackNo
+                              }
+                              onChange={handleInwardChange}
+                              disabled={!!inwardFormData.partIsHoodi}
+                              className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00] disabled:opacity-50"
+                              placeholder="Stack No."
+                            />
+                            <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-main)] whitespace-nowrap cursor-pointer shrink-0 px-2 py-2 rounded border border-[var(--border-subtle)]">
+                              <input
+                                type="checkbox"
+                                checked={!!inwardFormData.partIsHoodi}
+                                onChange={(e) => {
+                                  const on = e.target.checked;
+                                  setInwardFormData((prev: any) => ({
+                                    ...prev,
+                                    partIsHoodi: on,
+                                    ...(on ? { secondPartStackNo: "" } : {}),
+                                  }));
+                                  if (on) {
+                                    setInwardErrors((prev) => {
+                                      const next = { ...prev };
+                                      delete next.secondPartStackNo;
+                                      return next;
+                                    });
+                                  }
+                                }}
+                                className="accent-[#e67e00] w-4 h-4"
+                              />
+                              Hoodi
+                            </label>
+                          </div>
                           {inwardErrors.secondPartStackNo && (
                             <span className="text-red-500 text-[10px] mt-1 block">
                               {inwardErrors.secondPartStackNo}
@@ -4216,11 +4374,33 @@ export const ProcurementManagement = () => {
                 {/* 5. Bardana Details & 6. Weight Details */}
                 <div className="flex flex-col gap-6 mt-6">
                   {/* 5. Bardana */}
-                  <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden">
-                    <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm">
-                      5. Bardana Details
+                  {(() => {
+                    const lowerBagFlag =
+                      !!inwardFormData.informBaujiBagsLess ||
+                      !!inwardFormData.bagsRecLessThanAgencyGp;
+                    return (
+                  <div
+                    className={`bg-[var(--bg-panel-alt)] rounded-xl overflow-hidden border ${
+                      lowerBagFlag
+                        ? "border-amber-500 ring-2 ring-amber-500/40 shadow-[0_0_0_1px_rgba(245,158,11,0.25)]"
+                        : "border-[var(--border-subtle-alt)]"
+                    }`}
+                  >
+                    <div
+                      className={`px-4 py-2 border-b font-bold text-sm flex flex-wrap items-center justify-between gap-2 ${
+                        lowerBagFlag
+                          ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                          : "bg-blue-900/10 border-[var(--border-subtle-alt)] text-blue-400"
+                      }`}
+                    >
+                      <span>5. Bardana Details</span>
+                      {lowerBagFlag && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500 text-black">
+                          FLAG · Lower Bag Count Consideration
+                        </span>
+                      )}
                     </div>
-                    <div className="p-4">
+                    <div className={`p-4 ${lowerBagFlag ? "bg-amber-500/5" : ""}`}>
                       <table className="w-full text-sm text-left">
                         <thead>
                           <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)]">
@@ -4427,11 +4607,34 @@ export const ProcurementManagement = () => {
                       })()}
                     </div>
                   </div>
+                    );
+                  })()}
 
                   {/* 6. Weight Details */}
-                  <div className="bg-[var(--bg-panel-alt)] rounded-xl border border-[var(--border-subtle-alt)] overflow-hidden flex flex-col">
-                    <div className="bg-blue-900/10 px-4 py-2 border-b border-[var(--border-subtle-alt)] text-blue-400 font-bold text-sm flex items-center justify-between gap-2">
+                  {(() => {
+                    const excessWtFlag = !!inwardFormData.informBaujiExcessWeight;
+                    return (
+                  <div
+                    className={`bg-[var(--bg-panel-alt)] rounded-xl overflow-hidden flex flex-col border ${
+                      excessWtFlag
+                        ? "border-rose-500 ring-2 ring-rose-500/40 shadow-[0_0_0_1px_rgba(244,63,94,0.25)]"
+                        : "border-[var(--border-subtle-alt)]"
+                    }`}
+                  >
+                    <div
+                      className={`px-4 py-2 border-b font-bold text-sm flex flex-wrap items-center justify-between gap-2 ${
+                        excessWtFlag
+                          ? "bg-rose-500/20 border-rose-500/40 text-rose-300"
+                          : "bg-blue-900/10 border-[var(--border-subtle-alt)] text-blue-400"
+                      }`}
+                    >
                       <span>6. Weight Details</span>
+                      <div className="flex items-center gap-2">
+                        {excessWtFlag && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-500 text-white">
+                            FLAG · Excess Weight Consideration
+                          </span>
+                        )}
                       <button
                         type="button"
                         onClick={() => {
@@ -4464,22 +4667,35 @@ export const ProcurementManagement = () => {
                         </svg>
                         Fetch WB
                       </button>
+                      </div>
                     </div>
-                    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 content-start">
+                    <div className={`p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 content-start ${excessWtFlag ? "bg-rose-500/5" : ""}`}>
                       <p className="sm:col-span-2 text-[10px] text-[var(--text-muted-alt)] -mt-1 mb-1">
-                        Gross, Tare and Net at Mill are auto-fetched from the
-                        mill weighbridge (select truck). Only{" "}
+                        Gross and Tare can be{" "}
+                        <span className="text-[var(--text-main)] font-medium">
+                          fetched from weighbridge
+                        </span>{" "}
+                        or{" "}
+                        <span className="text-[var(--text-main)] font-medium">
+                          punched manually
+                        </span>
+                        {autoUpdateDateTime
+                          ? " (allowed even when Auto Update Date & Time is ON)"
+                          : " (Auto Update Date & Time is OFF — Date/Time fields are also manual)"}
+                        . Net at Mill = Gross − Tare. Only{" "}
                         <span className="text-[var(--text-main)] font-medium">
                           Net Wt. at Party
                         </span>{" "}
-                        can be typed manually.
+                        is always typed separately.
                       </p>
                       <div>
                         <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                           Gross Weight (Qtl){" "}
                           <span className="text-red-500">*</span>
                           <span className="ml-1 text-[10px] opacity-70">
-                            (weighbridge)
+                            {canManualWeighbridgePunch
+                              ? "(weighbridge / manual)"
+                              : "(weighbridge)"}
                           </span>
                         </label>
                         <input
@@ -4488,9 +4704,22 @@ export const ProcurementManagement = () => {
                           step="0.001"
                           name="grossWeight"
                           value={inwardFormData.grossWeight}
-                          readOnly
-                          title="Auto-fetched from mill weighbridge"
-                          className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-90 cursor-not-allowed"
+                          readOnly={!canManualWeighbridgePunch}
+                          onChange={
+                            canManualWeighbridgePunch
+                              ? handleInwardChange
+                              : undefined
+                          }
+                          title={
+                            canManualWeighbridgePunch
+                              ? "Fetch from weighbridge or punch manually"
+                              : "Auto-fetched from mill weighbridge"
+                          }
+                          className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${
+                            canManualWeighbridgePunch
+                              ? "focus:border-[#e67e00]"
+                              : "opacity-90 cursor-not-allowed"
+                          }`}
                         />
                         {inwardErrors.grossWeight && (
                           <span className="text-red-500 text-[10px] mt-1 block">
@@ -4502,7 +4731,9 @@ export const ProcurementManagement = () => {
                         <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                           Tare Weight (Qtl)
                           <span className="ml-1 text-[10px] opacity-70">
-                            (weighbridge)
+                            {canManualWeighbridgePunch
+                              ? "(weighbridge / manual)"
+                              : "(weighbridge)"}
                           </span>
                         </label>
                         <div className="flex gap-2 items-start">
@@ -4512,9 +4743,22 @@ export const ProcurementManagement = () => {
                             step="0.001"
                             name="tareWeight"
                             value={inwardFormData.tareWeight}
-                            readOnly
-                            title="Auto-fetched from mill weighbridge"
-                            className="flex-1 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-90 cursor-not-allowed"
+                            readOnly={!canManualWeighbridgePunch}
+                            onChange={
+                              canManualWeighbridgePunch
+                                ? handleInwardChange
+                                : undefined
+                            }
+                            title={
+                              canManualWeighbridgePunch
+                                ? "Fetch from weighbridge or punch manually"
+                                : "Auto-fetched from mill weighbridge"
+                            }
+                            className={`flex-1 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${
+                              canManualWeighbridgePunch
+                                ? "focus:border-[#e67e00]"
+                                : "opacity-90 cursor-not-allowed"
+                            }`}
                           />
                           <button
                             type="button"
@@ -4607,7 +4851,7 @@ export const ProcurementManagement = () => {
                           name="netWtMill"
                           value={inwardFormData.netWtMill}
                           readOnly
-                          title="Auto-fetched from mill weighbridge — only Net Wt at Party is manual"
+                          title="Gross − Tare (auto). Gross/Tare may be fetched or punched manually."
                           className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] font-bold outline-none opacity-90 cursor-not-allowed"
                         />
                         {inwardErrors.netWtMill && (
@@ -4698,6 +4942,8 @@ export const ProcurementManagement = () => {
                       </div>
                     </div>
                   </div>
+                    );
+                  })()}
                 </div>
 
                 {/* 7. Dhank / Lot Details */}
@@ -5236,6 +5482,7 @@ export const ProcurementManagement = () => {
                         value={inwardFormData.gpCompleteDate}
                         onChange={handleInwardChange}
                         disabled={autoUpdateDateTime}
+                        max={isSupervisor ? todayLocal : undefined}
                         className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${!autoUpdateDateTime ? "focus:border-[#e67e00]" : "opacity-70 cursor-not-allowed"}`}
                       />
                       {inwardErrors.gpCompleteDate && (
@@ -5298,7 +5545,8 @@ export const ProcurementManagement = () => {
                       Auto Update ON: Date &amp; Time In and GP Complete Date
                       &amp; Time Out are locked. GP Complete + Time Out punch on
                       supervisor fingerprint; Entry Completion is always the
-                      fingerprint timestamp.
+                      fingerprint timestamp. Weighbridge Gross/Tare may still be
+                      punched manually or fetched.
                     </p>
                   )}
                 </div>
@@ -5764,6 +6012,13 @@ export const ProcurementManagement = () => {
           </div>
         )}
 
+        {/* TAB: DRYER BHARAI TO STACK */}
+        {activeTab === "dryer_bharai_to_stack" && (
+          <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] overflow-hidden shadow-sm">
+            <DryerBharaiToStackTransfer />
+          </div>
+        )}
+
         {/* TAB: INWARD REGISTER — Feedback 35 dual Govt/Mill lists */}
         {activeTab === "inward_register" && (
           <>
@@ -6177,7 +6432,9 @@ export const ProcurementManagement = () => {
                                 When Auto Update is <b>ON</b>, Date/Time fields
                                 are locked and stamp on fingerprint. When{" "}
                                 <b>OFF</b>, supervisors may enter Date/Time
-                                manually for that form.
+                                manually for that form. Weighbridge Gross/Tare
+                                can always be punched manually (or fetched), even
+                                when Auto Update Date &amp; Time is ON.
                               </p>
                             </div>
 
@@ -6973,6 +7230,60 @@ export const ProcurementManagement = () => {
                         </tbody>
                       </table>
                     </div>
+                    {paddyStackDryerDetail.length > 0 && (
+                      <div className="mt-6">
+                        <h4 className="text-sm font-bold text-[var(--text-main)] mb-2">
+                          Today&apos;s Dryer Bharai to Stack
+                        </h4>
+                        <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+                          <table className="w-full text-left border-collapse text-sm">
+                            <thead>
+                              <tr className="bg-[var(--bg-panel-hover)] border-b border-[var(--border-subtle)]">
+                                <th className="p-3 font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">
+                                  Stack No.
+                                </th>
+                                <th className="p-3 font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">
+                                  Bags
+                                </th>
+                                <th className="p-3 font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">
+                                  Moisture
+                                </th>
+                                <th className="p-3 font-semibold text-[var(--text-main)] border-r border-[var(--border-subtle)]">
+                                  Net Weight (MT)
+                                </th>
+                                <th className="p-3 font-semibold text-[var(--text-main)]">
+                                  RST No.
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {paddyStackDryerDetail.map((d: any) => (
+                                <tr
+                                  key={d.id}
+                                  className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-panel-hover)]"
+                                >
+                                  <td className="p-3 border-r border-[var(--border-subtle)]">
+                                    {d.stackNo}
+                                  </td>
+                                  <td className="p-3 border-r border-[var(--border-subtle)] font-mono">
+                                    {d.bags}
+                                  </td>
+                                  <td className="p-3 border-r border-[var(--border-subtle)]">
+                                    {d.moisture != null ? `${d.moisture}%` : "—"}
+                                  </td>
+                                  <td className="p-3 border-r border-[var(--border-subtle)] font-mono">
+                                    {d.netWeight != null
+                                      ? Number(d.netWeight).toFixed(3)
+                                      : "—"}
+                                  </td>
+                                  <td className="p-3 font-mono">{d.rstNo || "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center w-full h-full flex flex-col justify-center items-center">
