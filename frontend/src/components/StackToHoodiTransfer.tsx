@@ -14,7 +14,7 @@ export default function StackToHoodiTransfer() {
   const activePlant = usePlantStore((state) => state.activePlant);
   const user = useAuthStore((s) => s.user);
   const isAdmin = /SUPER_ADMIN|PLANT_MANAGER|ADMIN/i.test(
-    String(user?.role?.name || user?.role || ''),
+    String(user?.role || ''),
   );
   const [loading, setLoading] = useState(false);
   const [wbLoading, setWbLoading] = useState(false);
