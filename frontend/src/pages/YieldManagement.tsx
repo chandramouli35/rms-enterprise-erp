@@ -74,10 +74,16 @@ export const YieldManagement = () => {
     if (activeTab === 'yield_calculator') {
       const fetchBatchesOnly = async () => {
         try {
-          const batchesRes = await api.get(`/production/batches?plantId=${plantId}`);
-          setBatches(batchesRes.data || []);
+          const batchesRes = await api.get(
+            `/production/batches?plantId=${plantId}&limit=1000`,
+          );
+          const fetched = Array.isArray(batchesRes.data)
+            ? batchesRes.data
+            : batchesRes.data?.data || [];
+          setBatches(fetched);
         } catch (err) {
           console.error("Failed to fetch batches data", err);
+          setBatches([]);
         }
       };
       fetchBatchesOnly();
@@ -105,7 +111,7 @@ export const YieldManagement = () => {
 
   // Auto-select first batch if available and not selected
   useEffect(() => {
-    if (batches.length > 0 && !calcBatchInfo.batchNo) {
+    if (Array.isArray(batches) && batches.length > 0 && !calcBatchInfo.batchNo) {
       setCalcBatchInfo({ batchNo: batches[0].batchNo, variety: batches[0].variety, date: batches[0].date });
     }
   }, [batches]);
@@ -220,7 +226,9 @@ export const YieldManagement = () => {
      <label className="block text-xs uppercase font-bold text-[var(--text-muted-alt)] mb-2">Batch No.</label>
      <select id="calcBatchSelect" name="calcBatchSelect" autoComplete="off" data-lpignore="true" value={calcBatchInfo.batchNo} onChange={async (e) => {
        const selectedBatchNo = e.target.value;
-       const selectedBatch = batches.find(b => b.batchNo === selectedBatchNo);
+       const selectedBatch = Array.isArray(batches)
+         ? batches.find((b) => b.batchNo === selectedBatchNo)
+         : undefined;
        if (selectedBatch) {
          try {
            const res = await api.get(`/production/batches/${selectedBatch.id}`);
@@ -240,7 +248,8 @@ export const YieldManagement = () => {
        }
      }} className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded-lg px-4 py-2.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none">
      <option value="">Select Batch...</option>
-     {batches.map(b => (
+     {Array.isArray(batches) &&
+       batches.map((b) => (
        <option key={b.id} value={b.batchNo}>{b.batchNo}</option>
      ))}
      </select>
