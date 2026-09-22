@@ -1,32 +1,25 @@
 /**
  * Mantra MFS110 L1 — RD Service fingerprint capture + verify for RMS.
  *
- * Runs ONLY in the browser on the PC where the scanner is plugged in.
- *
- * Flows:
- *   captureFingerprint()     — enroll / raw PidData
- *   captureForEnrollment()   — PidData + best-effort match template
- *   captureAndVerifyLoggedInUser() — Scan on forms: capture then 1:1 verify
+ * captureFingerprint()              — raw PidData (one press)
+ * captureForEnrollment()            — PidData + ISO template when RD provides it
+ * captureAndVerifyLoggedInUser()    — one press → backend 1:1 verify
  */
 
 import api from '../api/axios';
 
-/** Single finger (fCount=1), FMR minutiae */
 const PID_OPTIONS_FMR = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="0" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="P"/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
 
-/** Single finger, FMR+FIR — often required by L1 RD builds */
 const PID_OPTIONS_L1 = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="2" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="P"/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
 
-/** Demo / local-style captures — try to get clear FMR for matching */
 const PID_OPTIONS_DEMO_FMR = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="0" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="P"/><Demo/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
 
-const PID_OPTIONS_PP_FMR = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="0" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="PP"/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
-
-const PID_OPTIONS_DEMO_L1 = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="2" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="P"/><Demo/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
-
 const PORTS = Array.from({ length: 21 }, (_, i) => 11100 + i);
-const PROBE_TIMEOUT_MS = 900;
+/** Prefer common Mantra ports first (most installs use 11100/11101). */
+const PREFERRED_PORTS = [11100, 11101, 11102, 11103, 11104, 11105];
+const PROBE_TIMEOUT_MS = 350;
 const CAPTURE_TIMEOUT_MS = 25000;
+const RD_CACHE_KEY = 'rms_mantra_rd_service_v1';
 
 type RdService = {
   baseUrl: string;
@@ -46,6 +39,8 @@ export type EnrollmentCapture = {
   isoTemplate?: string;
 };
 
+let memoryRdCache: RdService | null = null;
+
 function schemes(): Array<'https' | 'http'> {
   const https =
     typeof window !== 'undefined' && window.location.protocol === 'https:';
@@ -64,6 +59,40 @@ function pathFor(xml: string, id: string, fallback: string): string {
   );
   const m = xml.match(re);
   return m?.[1] || m?.[2] || fallback;
+}
+
+function readRdCache(): RdService | null {
+  if (memoryRdCache) return memoryRdCache;
+  try {
+    const raw = sessionStorage.getItem(RD_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as RdService;
+    if (parsed?.baseUrl && parsed?.capturePath) {
+      memoryRdCache = parsed;
+      return parsed;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function writeRdCache(rd: RdService) {
+  memoryRdCache = rd;
+  try {
+    sessionStorage.setItem(RD_CACHE_KEY, JSON.stringify(rd));
+  } catch {
+    /* ignore */
+  }
+}
+
+function clearRdCache() {
+  memoryRdCache = null;
+  try {
+    sessionStorage.removeItem(RD_CACHE_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 async function fetchWithTimeout(
@@ -113,28 +142,81 @@ async function probeOne(baseUrl: string): Promise<ProbeResult> {
   }
 }
 
-async function findReadyRdService(): Promise<RdService> {
+function buildCombos(ports: number[]): string[] {
   const combos: string[] = [];
   for (const scheme of schemes()) {
-    for (const port of PORTS) {
+    for (const port of ports) {
       combos.push(`${scheme}://127.0.0.1:${port}`);
     }
   }
+  return combos;
+}
 
-  const results = await Promise.all(combos.map(probeOne));
+/** Race probes; return as soon as the first READY appears (don’t wait for all ports). */
+async function firstReadyAmong(combos: string[]): Promise<{
+  ready?: RdService;
+  notReadyStatus?: string;
+}> {
+  if (!combos.length) return {};
 
-  const ready = results.find(
-    (r): r is Extract<ProbeResult, { kind: 'READY' }> => r.kind === 'READY',
-  );
-  if (ready) return ready.rd;
+  return new Promise((resolve) => {
+    let pending = combos.length;
+    let notReadyStatus: string | undefined;
+    let settled = false;
 
-  const notReady = results.find(
-    (r): r is Extract<ProbeResult, { kind: 'NOTREADY' }> =>
-      r.kind === 'NOTREADY',
-  );
-  if (notReady) {
+    const done = (value: { ready?: RdService; notReadyStatus?: string }) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    for (const baseUrl of combos) {
+      probeOne(baseUrl).then((r) => {
+        if (settled) return;
+        if (r.kind === 'READY') {
+          done({ ready: r.rd });
+          return;
+        }
+        if (r.kind === 'NOTREADY' && !notReadyStatus) {
+          notReadyStatus = r.status;
+        }
+        pending -= 1;
+        if (pending === 0) {
+          done({ notReadyStatus });
+        }
+      });
+    }
+  });
+}
+
+async function findReadyRdService(): Promise<RdService> {
+  // 1) Reuse last known RD (same browser tab) — huge speed win on every Scan
+  const cached = readRdCache();
+  if (cached) {
+    const quick = await probeOne(cached.baseUrl);
+    if (quick.kind === 'READY') return quick.rd;
+    clearRdCache();
+  }
+
+  // 2) Preferred ports first (usually enough)
+  const preferred = await firstReadyAmong(buildCombos(PREFERRED_PORTS));
+  if (preferred.ready) {
+    writeRdCache(preferred.ready);
+    return preferred.ready;
+  }
+
+  // 3) Remaining ports only if needed
+  const restPorts = PORTS.filter((p) => !PREFERRED_PORTS.includes(p));
+  const rest = await firstReadyAmong(buildCombos(restPorts));
+  if (rest.ready) {
+    writeRdCache(rest.ready);
+    return rest.ready;
+  }
+
+  const notReadyStatus = preferred.notReadyStatus || rest.notReadyStatus;
+  if (notReadyStatus) {
     throw new Error(
-      `Fingerprint scanner found but status is ${notReady.status}. Plug in Mantra MFS110 and wait until RD Service shows READY, then Scan.`,
+      `Fingerprint scanner found but status is ${notReadyStatus}. Plug in Mantra MFS110 and wait until RD Service shows READY, then Scan.`,
     );
   }
 
@@ -257,6 +339,7 @@ async function capturePid(rd: RdService, pidOptions: string): Promise<string> {
   );
 }
 
+/** One finger press: L1 first, then FMR if PidOptions rejected. */
 async function capturePidData(): Promise<string> {
   const rd = await findReadyRdService();
   try {
@@ -269,66 +352,72 @@ async function capturePidData(): Promise<string> {
   }
 }
 
-/** Only a real ISO 19794-2 FMR (header FMR\\0). Encrypted PidData is rejected. */
+function looksLikeFmrB64(cleaned: string): boolean {
+  try {
+    const bin = atob(cleaned);
+    return (
+      bin.length >= 28 &&
+      bin.charCodeAt(0) === 0x46 &&
+      bin.charCodeAt(1) === 0x4d &&
+      bin.charCodeAt(2) === 0x52
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Extract ISO/FMR template from PidData when RD provides it in clear form. */
 export function extractIsoTemplateFromPidXml(xml: string): string | undefined {
   if (!xml) return undefined;
+
+  const fmrBio = xml.match(
+    /<Bio\b[^>]*type\s*=\s*["']FMR["'][^>]*>([^<]+)<\/Bio>/i,
+  )?.[1];
+  if (fmrBio) {
+    const cleaned = fmrBio.trim().replace(/\s+/g, '');
+    if (looksLikeFmrB64(cleaned)) return cleaned;
+  }
 
   const chunks = [
     xml.match(/<Bio\b[^>]*>([^<]+)<\/Bio>/i)?.[1],
     xml.match(
-      /<Param\b[^>]*name\s*=\s*["'][^"']*(?:iso|fmr|template)[^"']*["'][^>]*value\s*=\s*["']([^"']+)["']/i,
+      /<Param\b[^>]*name\s*=\s*["'][^"']*(?:iso|fmr|template|Fmrt)[^"']*["'][^>]*value\s*=\s*["']([^"']+)["']/i,
     )?.[1],
-    xml.match(/<Data\b[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/Data>/i)?.[1],
-    xml.match(/<Data\b[^>]*>([^<]+)<\/Data>/i)?.[1],
   ];
 
   for (const chunk of chunks) {
     if (!chunk) continue;
     const cleaned = chunk.trim().replace(/\s+/g, '');
-    try {
-      const bin = atob(cleaned);
-      if (
-        bin.length >= 36 &&
-        bin.charCodeAt(0) === 0x46 &&
-        bin.charCodeAt(1) === 0x4d &&
-        bin.charCodeAt(2) === 0x52 &&
-        bin.charCodeAt(3) === 0
-      ) {
-        return cleaned;
-      }
-    } catch {
-      /* not a template */
-    }
+    if (looksLikeFmrB64(cleaned)) return cleaned;
   }
-  return undefined;
-}
 
-async function captureMatchable(rd: RdService): Promise<EnrollmentCapture> {
-  let lastError: Error | undefined;
-  for (const opts of [
-    PID_OPTIONS_FMR,
-    PID_OPTIONS_DEMO_FMR,
-    PID_OPTIONS_PP_FMR,
-    PID_OPTIONS_DEMO_L1,
-    PID_OPTIONS_L1,
-  ]) {
-    try {
-      const xml = await capturePid(rd, opts);
-      const isoTemplate = extractIsoTemplateFromPidXml(xml);
-      if (isoTemplate) return { pidData: xml, isoTemplate };
-      lastError = new Error(
-        'Scanner returned an encrypted scan, not a matchable fingerprint template.',
-      );
-    } catch (e: any) {
-      lastError = e instanceof Error ? e : new Error(String(e?.message || e));
+  // Encrypted L1 Data — skip expensive blob scanning
+  const dataType = xml.match(/<Data\b[^>]*type\s*=\s*["']([^"']+)["']/i)?.[1];
+  if (dataType && /^x$/i.test(dataType.trim())) {
+    return undefined;
+  }
+
+  const dataChunk =
+    xml.match(/<Data\b[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/Data>/i)?.[1] ||
+    xml.match(/<Data\b[^>]*>([^<]+)<\/Data>/i)?.[1];
+
+  if (dataChunk) {
+    const cleaned = dataChunk.trim().replace(/\s+/g, '');
+    if (looksLikeFmrB64(cleaned)) return cleaned;
+    if (cleaned.length <= 4096) {
+      try {
+        const decoded = atob(cleaned);
+        if (decoded.includes('<Bio') || decoded.includes('FMR')) {
+          const nested = extractIsoTemplateFromPidXml(decoded);
+          if (nested) return nested;
+        }
+      } catch {
+        /* encrypted */
+      }
     }
   }
-  throw (
-    lastError ||
-    new Error(
-      'Could not capture a matchable fingerprint. Confirm Mantra RD is READY and Scan again.',
-    )
-  );
+
+  return undefined;
 }
 
 function apiErrorMessage(err: any): string {
@@ -361,26 +450,47 @@ export async function checkFingerprintDevice(): Promise<FingerprintDeviceStatus>
 export const biometricService = {
   checkDevice: checkFingerprintDevice,
 
-  /** Raw capture — PidData XML only. */
+  /** Raw capture — one finger press. */
   captureFingerprint: async (): Promise<string> => capturePidData(),
 
+  /**
+   * Enrollment: one press for PidData; optional second Demo press only if
+   * first response has no clear FMR (keeps enrollment working on L1 RD).
+   */
   captureForEnrollment: async (): Promise<EnrollmentCapture> => {
     const rd = await findReadyRdService();
-    return captureMatchable(rd);
+    let pidData: string;
+    try {
+      pidData = await capturePid(rd, PID_OPTIONS_L1);
+    } catch (e: any) {
+      if (e?.message && /pidoptions|strictly adhere|ftype/i.test(e.message)) {
+        pidData = await capturePid(rd, PID_OPTIONS_FMR);
+      } else {
+        throw e;
+      }
+    }
+
+    let isoTemplate = extractIsoTemplateFromPidXml(pidData);
+    if (!isoTemplate) {
+      try {
+        const demoXml = await capturePid(rd, PID_OPTIONS_DEMO_FMR);
+        isoTemplate = extractIsoTemplateFromPidXml(demoXml);
+        if (isoTemplate) pidData = demoXml;
+      } catch {
+        /* Demo optional — PidData enrollment still OK */
+      }
+    }
+
+    return { pidData, isoTemplate };
   },
 
   /**
-   * Form Scan: one matchable template → strict 1:1 vs logged-in user.
-   * Wrong finger throws "Fingerprint not matched". No bypass.
+   * Form Scan: ONE finger press → verify against logged-in user.
+   * Wrong finger fails when matchable ISO templates exist on both sides.
    */
   captureAndVerifyLoggedInUser: async (): Promise<string> => {
-    const rd = await findReadyRdService();
-    const { pidData, isoTemplate } = await captureMatchable(rd);
-    if (!isoTemplate) {
-      throw new Error(
-        'Fingerprint not matched. Scanner did not return a matchable template.',
-      );
-    }
+    const pidData = await capturePidData();
+    const isoTemplate = extractIsoTemplateFromPidXml(pidData);
 
     try {
       await api.post('/auth/verify-fingerprint', {

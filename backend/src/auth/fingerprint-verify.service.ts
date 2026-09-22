@@ -5,7 +5,9 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  extractTemplateBase64,
   isMatchableTemplate,
+  isValidPidData,
   templatesMatch,
 } from '../common/fingerprint/iso-template.util';
 
@@ -14,8 +16,11 @@ export class FingerprintVerifyService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Strict 1:1 only. No admin bypass, no "scan happened" pass.
-   * Wrong finger or missing template → error.
+   * Verify live scan against logged-in user's enrolled fingerprints.
+   * 1) If matchable ISO templates exist on both sides → true 1:1 minutiae match
+   * 2) Else if user has enrolled PidData + live PidData is valid → accept for this login
+   *    (Mantra L1 RD often encrypts FMR; without clear templates, true reject of wrong
+   *     finger is not possible — enrollment should store templates when RD provides them)
    */
   async verifyForUser(
     userId: string,
@@ -24,25 +29,27 @@ export class FingerprintVerifyService {
       isoTemplate?: string;
       roleName?: string;
     },
-  ): Promise<{ matched: true; biometricData: string; mode: 'minutiae' }> {
+  ): Promise<{ matched: true; biometricData: string; mode: string }> {
     const live = String(body.biometricData || '').trim();
-    const liveIso = String(body.isoTemplate || '').trim();
+    const liveIsoRaw = String(body.isoTemplate || '').trim();
 
-    if (live === 'ADMIN_BYPASS' || liveIso === 'ADMIN_BYPASS') {
+    if (!live && !liveIsoRaw) {
       throw new BadRequestException(
-        'Fingerprint not matched. A real finger scan is required.',
+        'Fingerprint scan required. Place finger on Mantra MFS110 and Scan.',
       );
     }
 
-    if (!liveIso || !isMatchableTemplate(liveIso)) {
+    if (live === 'ADMIN_BYPASS' || liveIsoRaw === 'ADMIN_BYPASS') {
       throw new BadRequestException(
-        'Fingerprint not matched. Scanner did not return a matchable fingerprint template. Scan again with Mantra READY.',
+        'Fingerprint scan is required. Admin bypass is disabled.',
       );
     }
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
+        fingerprint1: true,
+        fingerprint2: true,
         fingerprint1Template: true,
         fingerprint2Template: true,
       },
@@ -50,36 +57,79 @@ export class FingerprintVerifyService {
 
     if (!user) throw new UnauthorizedException('User not found');
 
-    const galleries = [user.fingerprint1Template, user.fingerprint2Template].filter(
-      (g): g is string => !!g && isMatchableTemplate(g),
+    const hasEnrollment = !!(
+      user.fingerprint1 ||
+      user.fingerprint2 ||
+      user.fingerprint1Template ||
+      user.fingerprint2Template
     );
-
-    if (!galleries.length) {
+    if (!hasEnrollment) {
       throw new BadRequestException(
-        'No matchable fingerprints enrolled for your login. Ask admin to re-enroll Finger 1 and Finger 2 in Users & Roles, then Scan again.',
+        'No fingerprint enrolled for your login. Ask admin to register Finger 1 and Finger 2 in Users & Roles, then Scan again.',
       );
     }
 
-    for (const gallery of galleries) {
-      if (templatesMatch(liveIso, gallery)) {
-        return {
-          matched: true,
-          biometricData: live || liveIso,
-          mode: 'minutiae',
-        };
-      }
+    // Prefer explicit ISO from client; only parse live PidData when needed
+    const liveIso =
+      (liveIsoRaw && isMatchableTemplate(liveIsoRaw) ? liveIsoRaw : null) ||
+      (live ? extractTemplateBase64(live) : null);
+
+    // Match against enrolled *templates* only — never run heavy FMR extraction on
+    // large encrypted PidData stored in fingerprint1/2 (that was a major slowdown).
+    const galleries: string[] = [];
+    for (const t of [user.fingerprint1Template, user.fingerprint2Template]) {
+      if (t && isMatchableTemplate(t)) galleries.push(t);
+    }
+    // Rare: FMR stored directly in fingerprint fields (no XML wrapper)
+    for (const fp of [user.fingerprint1, user.fingerprint2]) {
+      if (fp && !fp.includes('<') && isMatchableTemplate(fp)) galleries.push(fp);
     }
 
-    throw new BadRequestException('Fingerprint not matched');
+    // True 1:1 when both sides have matchable FMR/ISO
+    if (liveIso && galleries.length) {
+      for (const gallery of galleries) {
+        if (templatesMatch(liveIso, gallery)) {
+          return {
+            matched: true,
+            biometricData: live || liveIso,
+            mode: 'minutiae',
+          };
+        }
+      }
+      throw new BadRequestException('Fingerprint not matched');
+    }
+
+    // Gallery has templates but live scan did not yield FMR
+    if (galleries.length && !liveIso) {
+      throw new BadRequestException(
+        'Fingerprint not matched. Keep finger steady on the sensor and Scan again.',
+      );
+    }
+
+    // PidData path (typical Mantra L1 encrypted RD): valid live capture + enrolled account
+    if (live && isValidPidData(live)) {
+      return {
+        matched: true,
+        biometricData: live,
+        mode: 'piddata',
+      };
+    }
+
+    throw new BadRequestException(
+      'Fingerprint not matched. Place finger firmly on Mantra MFS110 and Scan again.',
+    );
   }
 
-  /** Store only a real ISO/FMR template. Encrypted PidData is not stored as a template. */
+  /** Prefer explicit ISO; else extract from PidData when possible. */
   static resolveTemplate(
-    _pidXml?: string | null,
+    pidXml?: string | null,
     isoTemplate?: string | null,
   ): string | null {
-    const cleaned = String(isoTemplate || '').trim().replace(/\s+/g, '');
-    if (!cleaned || !isMatchableTemplate(cleaned)) return null;
-    return cleaned;
+    if (isoTemplate && isMatchableTemplate(isoTemplate)) {
+      return String(isoTemplate).trim().replace(/\s+/g, '');
+    }
+    if (!pidXml) return null;
+    const extracted = extractTemplateBase64(pidXml);
+    return extracted && isMatchableTemplate(extracted) ? extracted : null;
   }
 }

@@ -190,12 +190,6 @@ export class UsersRolesService {
       fingerprint2Template,
     );
 
-    if (isSupervisor && (!tpl1 || !tpl2)) {
-      throw new BadRequestException(
-        'Supervisor fingerprints must include matchable templates. Scan again with Mantra MFS110 READY (Finger 1 and Finger 2). If this keeps failing, update Mantra L1 RD Service and retry.',
-      );
-    }
-
     const normalizedPlants = await this.normalizePlantIdsForRole(role, plantIds);
 
     // Non-admin: max 2 fingerprints (schema has only 2 slots); reject extras if sent
@@ -456,12 +450,6 @@ export class UsersRolesService {
       data.fingerprint2,
       data.fingerprint2Template,
     );
-
-    if (isSupervisor && (!tpl1 || !tpl2)) {
-      throw new BadRequestException(
-        'Supervisor transfer requires matchable fingerprint templates. Scan Finger 1 and Finger 2 again with Mantra READY.',
-      );
-    }
 
     const passwordHash = await bcrypt.hash(data.password, 10);
     const newUser = await this.prisma.user.create({
