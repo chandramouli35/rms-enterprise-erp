@@ -23,6 +23,8 @@ import {
   ArrowDownRight,
   Eye,
   CheckCircle2,
+  Fingerprint,
+  Check,
 } from "lucide-react";
 import BoliCompletionTable from "../components/Procurement/BoliCompletionTable";
 import BoliRecordPanel from "../components/Procurement/BoliRecordPanel";
@@ -66,7 +68,16 @@ export const ProcurementManagement = () => {
   const plantAllowsManualPaddy = !!activePlant?.allowManualDateTimePaddyInward;
   const autoUpdateDateTime = !plantAllowsManualPaddy;
   const canManualDateTime = plantAllowsManualPaddy;
-  const isSupervisor = user?.role === "SUPERVISOR";
+  const isSupervisor = /SUPERVISOR/i.test(
+    String((user as any)?.role?.name || user?.role || ""),
+  );
+  /** Supervisor must not see Payment / Diff / Final Hisab on Purchase Register */
+  const hidePaymentHisab = isSupervisor;
+  const isAdmin =
+    user?.role === "SUPER_ADMIN" || user?.role === "PLANT_MANAGER";
+  const canApproveArtia = isAdmin;
+  /** Mandi Master mutations — Admin only (not Supervisor) */
+  const canManageMandi = isAdmin;
   const [category, setCategory] = useState<"OPERATIONAL" | "NON_OPERATIONAL">(
     "OPERATIONAL",
   );
@@ -150,6 +161,10 @@ export const ProcurementManagement = () => {
 
   const [formData, setFormData] = useState<any>(defaultFormData);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  /** Only Admin-approved Arthiya for operational forms (inward, boli, etc.) */
+  const activeSuppliers = suppliers.filter(
+    (s) => !s.status || s.status === "ACTIVE",
+  );
   const [pahunchs, setPahunchs] = useState<any[]>([]);
   const [sodaPending, setSodaPending] = useState<any[]>([]);
   const [recentPurchases, setRecentPurchases] = useState<any[]>([]);
@@ -879,7 +894,9 @@ export const ProcurementManagement = () => {
     mandi: "",
     contact: "",
     plantId: "",
+    biometricData: "",
   });
+  const [isScanningSupplierFp, setIsScanningSupplierFp] = useState(false);
   const [addMandiModal, setAddMandiModal] = useState({
     isOpen: false,
     id: "",
@@ -903,12 +920,14 @@ export const ProcurementManagement = () => {
     riceCategory: "ANY",
     date: new Date().toISOString().split("T")[0],
     bolis: [
-      { moisture: "", bags: "", rate: "" },
-      { moisture: "", bags: "", rate: "" },
-      { moisture: "", bags: "", rate: "" },
-      { moisture: "", bags: "", rate: "" },
+      { moisture: "", bags: "", rate: "", todayRate: "" },
+      { moisture: "", bags: "", rate: "", todayRate: "" },
+      { moisture: "", bags: "", rate: "", todayRate: "" },
+      { moisture: "", bags: "", rate: "", todayRate: "" },
     ],
     govtRate: "",
+    todayRate: "",
+    mcPoint: "",
     diff: "",
     payment: "",
     note: "",
@@ -935,6 +954,53 @@ export const ProcurementManagement = () => {
     paddyPurchaseModal.supplierId &&
     paddyPurchaseModal.date;
 
+  /** Auto-fill Today Rate + M/C Point from Admin Mandi Daily Rate (date + Artia mandi) */
+  React.useEffect(() => {
+    const run = async () => {
+      if (!paddyPurchaseModal.isOpen) return;
+      const plantId = paddyPurchaseModal.plantId || activePlant?.id;
+      const date = paddyPurchaseModal.date;
+      const supplier = suppliers.find(
+        (s: any) => s.id === paddyPurchaseModal.supplierId,
+      );
+      const mandi = supplier?.mandi;
+      if (!plantId || !date || !mandi) return;
+      try {
+        const res = await api.get(`/api/procurement/mandi-daily-rates/lookup`, {
+          params: { plantId, date, mandi },
+        });
+        const row = res.data;
+        if (!row) return;
+        const todayRate =
+          row.todayRate != null ? String(row.todayRate) : "";
+        const mcPoint = row.mcPoint != null ? String(row.mcPoint) : "";
+        setPaddyPurchaseModal((prev: any) => ({
+          ...prev,
+          todayRate,
+          mcPoint,
+          bolis: (prev.bolis || []).map((b: any) => ({
+            ...b,
+            // Re-apply effective bulletin rate when Date / Mandi changes
+            // (includes carried-forward prior Mandi rate until a new one is punched)
+            todayRate: todayRate || b.todayRate,
+          })),
+        }));
+      } catch {
+        /* no Mandi rate punched yet (and no prior rate to carry forward) */
+      }
+    };
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    paddyPurchaseModal.isOpen,
+    paddyPurchaseModal.plantId,
+    paddyPurchaseModal.supplierId,
+    paddyPurchaseModal.date,
+    suppliers,
+    activePlant?.id,
+  ]);
+
+
   const fetchPlantSupervisors = async (plantId?: string) => {
     const pid = plantId || activePlant?.id;
     if (!pid) return;
@@ -948,36 +1014,24 @@ export const ProcurementManagement = () => {
 
   const openEstimatePurchase = () => {
     const millId = activePlant?.id || "";
-    // Temporary sample Boli rows for QA / testing (remove when no longer needed)
-    const sampleBolis = [
-      { moisture: "16.5", bags: "120", rate: "2850" },
-      { moisture: "17.2", bags: "80", rate: "2820" },
-      { moisture: "15.8", bags: "60", rate: "2880" },
-      { moisture: "18.0", bags: "100", rate: "2800" },
-    ];
-    const govtRate =
-      activePlant?.govtRate != null ? String(activePlant.govtRate) : "3000";
-    const firstRate = parseFloat(sampleBolis[0].rate) || 0;
-    const g = parseFloat(govtRate) || 0;
-    const diff = g && firstRate ? (g - firstRate).toFixed(2) : "150.00";
-    const totalBags = sampleBolis.reduce(
-      (s, b) => s + (parseFloat(b.bags) || 0),
-      0,
-    );
-    const finalHisabAmt = (totalBags * 0.375 * (parseFloat(diff) || 0)).toFixed(
-      2,
-    );
-
     setPaddyPurchaseModal({
       ...emptyPaddyPurchaseModal(),
       isOpen: true,
       plantId: millId,
-      govtRate,
+      govtRate:
+        activePlant?.govtRate != null ? String(activePlant.govtRate) : "",
       supervisorName: isSupervisor ? user?.username || "" : "",
-      bolis: sampleBolis,
-      diff,
-      finalHisabAmt,
-      note: "TEMP: sample boli entries for testing — clear or edit before real save",
+      bolis: [
+        { moisture: "", bags: "", rate: "", todayRate: "" },
+        { moisture: "", bags: "", rate: "", todayRate: "" },
+        { moisture: "", bags: "", rate: "", todayRate: "" },
+        { moisture: "", bags: "", rate: "", todayRate: "" },
+      ],
+      diff: "",
+      finalHisabAmt: "",
+      note: "",
+      todayRate: "",
+      mcPoint: "",
     });
     if (millId) {
       fetchSuppliers(millId);
@@ -988,11 +1042,12 @@ export const ProcurementManagement = () => {
   const focusNextBoliField = (
     e: React.KeyboardEvent<HTMLInputElement>,
     rowIndex: number,
-    col: "moisture" | "bags" | "rate",
+    col: "moisture" | "bags" | "todayRate" | "rate",
   ) => {
-    const cols: Array<"moisture" | "bags" | "rate"> = [
+    const cols: Array<"moisture" | "bags" | "todayRate" | "rate"> = [
       "moisture",
       "bags",
+      "todayRate",
       "rate",
     ];
     const colIdx = cols.indexOf(col);
@@ -1032,14 +1087,17 @@ export const ProcurementManagement = () => {
     if (goNext) {
       let nextCol = colIdx + 1;
       let nextRow = rowIndex;
-      if (nextCol > 2) {
+      if (nextCol > 3) {
         nextCol = 0;
         nextRow = rowIndex + 1;
       }
       if (nextRow >= rowCount) {
         setPaddyPurchaseModal((prev: any) => ({
           ...prev,
-          bolis: [...(prev.bolis || []), { moisture: "", bags: "", rate: "" }],
+          bolis: [
+            ...(prev.bolis || []),
+            { moisture: "", bags: "", todayRate: "", rate: "" },
+          ],
         }));
         // Wait for new row DOM, then focus Moisture of that row
         requestAnimationFrame(() => {
@@ -1052,7 +1110,7 @@ export const ProcurementManagement = () => {
       let prevCol = colIdx - 1;
       let prevRow = rowIndex;
       if (prevCol < 0) {
-        prevCol = 2;
+        prevCol = 3;
         prevRow = rowIndex - 1;
       }
       if (prevRow < 0) return;
@@ -1078,18 +1136,26 @@ export const ProcurementManagement = () => {
               boliNo: b.boliNo,
               moisture: b.moisture ?? "",
               bags: b.bags ?? "",
+              todayRate:
+                b.todayRate != null
+                  ? String(b.todayRate)
+                  : p.todayRate != null
+                    ? String(p.todayRate)
+                    : "",
               rate: b.rate ?? "",
             }))
           : p.bolis?.length
-            ? [{ moisture: "", bags: "", rate: "" }]
+            ? [{ moisture: "", bags: "", todayRate: "", rate: "" }]
             : [
                 {
                   moisture: p.mc || "",
                   bags: p.bags || "",
+                  todayRate: p.todayRate != null ? String(p.todayRate) : "",
                   rate: p.rate || "",
                 },
               ];
-      while (bolis.length < 4) bolis.push({ moisture: "", bags: "", rate: "" });
+      while (bolis.length < 4)
+        bolis.push({ moisture: "", bags: "", todayRate: "", rate: "" });
       const cleanNote = (() => {
         const n = String(p.note || "").trim();
         if (!n) return "";
@@ -1110,6 +1176,8 @@ export const ProcurementManagement = () => {
         note: cleanNote,
         finalHisabAmt: p.finalHisabAmt || "",
         govtRate: p.govtRate != null ? String(p.govtRate) : "",
+        todayRate: p.todayRate != null ? String(p.todayRate) : "",
+        mcPoint: p.mcPoint != null ? String(p.mcPoint) : "",
         supervisorName:
           p.supervisorName || (isSupervisor ? user?.username : "") || "",
         supervisorUserId: p.supervisorUserId || "",
@@ -1394,6 +1462,25 @@ export const ProcurementManagement = () => {
     listFilters.dateTo,
     sodaPendingCurrentPage,
   ]);
+
+  // Realtime: keep Estimate Purchase list current while on related tabs
+  useEffect(() => {
+    if (activeTab !== "paddy_purchase" && activeTab !== "soda_pending") return;
+    if (!activePlant?.id) return;
+    const tick = () => {
+      if (document.visibilityState === "hidden") return;
+      fetchSodaPending();
+    };
+    const id = window.setInterval(tick, 3000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [activeTab, activePlant?.id]);
 
   const handleViewInward = async (inward: any) => {
     try {
@@ -1767,6 +1854,15 @@ export const ProcurementManagement = () => {
         .addToast("Select a mill before adding Arthiya", "error");
       return;
     }
+    if (isSupervisor && !addSupplierModal.biometricData) {
+      useUiStore
+        .getState()
+        .addToast(
+          "Scan your fingerprint to submit Arthiya for Admin approval",
+          "error",
+        );
+      return;
+    }
     await addSupplierLock.wrapSubmit(async () => {
       try {
         await api.post("/api/procurement/suppliers", {
@@ -1778,6 +1874,9 @@ export const ProcurementManagement = () => {
             .filter(Boolean),
           mandi: addSupplierModal.mandi,
           plantId: supplierPlantId,
+          ...(addSupplierModal.biometricData
+            ? { biometricData: addSupplierModal.biometricData }
+            : {}),
         });
         setAddSupplierModal({
           isOpen: false,
@@ -1786,11 +1885,17 @@ export const ProcurementManagement = () => {
           mandi: "",
           contact: "",
           plantId: "",
+          biometricData: "",
         });
         fetchSuppliers(supplierPlantId);
         useUiStore
           .getState()
-          .addToast("Arthiya added for this mill", "success");
+          .addToast(
+            isSupervisor
+              ? "Arthiya sent to Admin for confirmation"
+              : "Arthiya added for this mill",
+            "success",
+          );
       } catch (error: any) {
         console.error("Failed to add supplier", error);
         useUiStore
@@ -1803,7 +1908,66 @@ export const ProcurementManagement = () => {
     });
   };
 
+  const handleScanSupplierFingerprint = async () => {
+    setIsScanningSupplierFp(true);
+    try {
+      const xml = await biometricService.captureAndVerifyLoggedInUser();
+      setAddSupplierModal((prev) => ({ ...prev, biometricData: xml }));
+      useUiStore.getState().addToast("Fingerprint matched", "success");
+    } catch (err: any) {
+      useUiStore
+        .getState()
+        .addToast(err?.message || "Fingerprint scan failed", "error");
+    } finally {
+      setIsScanningSupplierFp(false);
+    }
+  };
+
+  const handleApproveSupplier = async (id: string) => {
+    if (!canApproveArtia) return;
+    try {
+      await api.put(`/api/procurement/suppliers/${id}/approve`);
+      useUiStore.getState().addToast("Arthiya approved", "success");
+      fetchSuppliers();
+    } catch (error: any) {
+      useUiStore
+        .getState()
+        .addToast(
+          error?.response?.data?.message || "Failed to approve Arthiya",
+          "error",
+        );
+    }
+  };
+
+  const handleRejectSupplier = async (id: string) => {
+    if (!canApproveArtia) return;
+    if (
+      !window.confirm(
+        "Decline and remove this Arthiya application?",
+      )
+    )
+      return;
+    try {
+      await api.put(`/api/procurement/suppliers/${id}/reject`);
+      useUiStore.getState().addToast("Arthiya application declined", "success");
+      fetchSuppliers();
+    } catch (error: any) {
+      useUiStore
+        .getState()
+        .addToast(
+          error?.response?.data?.message || "Failed to decline Arthiya",
+          "error",
+        );
+    }
+  };
+
   const handleToggleMandiStatus = async (m: any) => {
+    if (!canManageMandi) {
+      useUiStore
+        .getState()
+        .addToast("Only Admin can change Mandi status", "error");
+      return;
+    }
     try {
       await updateMandi(m.id, { name: m.name, isActive: !m.isActive });
       useUiStore
@@ -1819,6 +1983,12 @@ export const ProcurementManagement = () => {
   };
 
   const handleDeleteMandi = async (id: string) => {
+    if (!canManageMandi) {
+      useUiStore
+        .getState()
+        .addToast("Only Admin can delete Mandis", "error");
+      return;
+    }
     if (window.confirm("Are you sure you want to delete this Mandi?")) {
       try {
         await deleteMandi(id);
@@ -1832,6 +2002,12 @@ export const ProcurementManagement = () => {
 
   const handleAddMandi = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageMandi) {
+      useUiStore
+        .getState()
+        .addToast("Only Admin can add or edit Mandis", "error");
+      return;
+    }
     if (!addMandiModal.name) return;
     await addMandiLock.wrapSubmit(async () => {
       try {
@@ -1852,8 +2028,14 @@ export const ProcurementManagement = () => {
         }
         setAddMandiModal({ isOpen: false, id: "", name: "", isActive: true });
         fetchMandis();
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to save mandi", error);
+        useUiStore
+          .getState()
+          .addToast(
+            error?.response?.data?.message || "Failed to save Mandi",
+            "error",
+          );
       }
     });
   };
@@ -2493,23 +2675,29 @@ export const ProcurementManagement = () => {
         {activeTab === "mandi_master" && (
           <div className="bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl flex flex-col h-full overflow-hidden">
             <div className="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-panel-hover)]">
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-center mb-6 w-full">
                 <h2 className="text-xl font-bold flex items-center gap-2 text-[var(--text-main)]">
                   <Users className="text-[#e67e00]" /> Mandi Master
                 </h2>
-                <button
-                  onClick={() =>
-                    setAddMandiModal({
-                      isOpen: true,
-                      id: "",
-                      name: "",
-                      isActive: true,
-                    })
-                  }
-                  className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
-                >
-                  + Add Mandi
-                </button>
+                {canManageMandi ? (
+                  <button
+                    onClick={() =>
+                      setAddMandiModal({
+                        isOpen: true,
+                        id: "",
+                        name: "",
+                        isActive: true,
+                      })
+                    }
+                    className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
+                  >
+                    + Add Mandi
+                  </button>
+                ) : (
+                  <span className="text-xs text-[var(--text-muted)]">
+                    Only Admin can add Mandis
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
@@ -2518,7 +2706,7 @@ export const ProcurementManagement = () => {
                   <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left">
                     <th className="p-3">Name</th>
                     <th className="p-3">Status</th>
-                    <th className="p-3">Actions</th>
+                    {canManageMandi && <th className="p-3">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -2531,37 +2719,51 @@ export const ProcurementManagement = () => {
                         {m.name}
                       </td>
                       <td className="p-3">
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="sr-only peer"
-                            checked={m.isActive}
-                            onChange={() => handleToggleMandiStatus(m)}
-                          />
-                          <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
-                        </label>
+                        {canManageMandi ? (
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
+                              checked={m.isActive}
+                              onChange={() => handleToggleMandiStatus(m)}
+                            />
+                            <div className="w-9 h-5 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                          </label>
+                        ) : (
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-bold ${
+                              m.isActive
+                                ? "bg-green-900/50 text-green-400"
+                                : "bg-gray-700/50 text-gray-400"
+                            }`}
+                          >
+                            {m.isActive ? "Active" : "Inactive"}
+                          </span>
+                        )}
                       </td>
-                      <td className="p-3 flex gap-2">
-                        <button
-                          onClick={() =>
-                            setAddMandiModal({
-                              isOpen: true,
-                              id: m.id,
-                              name: m.name,
-                              isActive: m.isActive,
-                            })
-                          }
-                          className="text-amber-500 hover:text-amber-400 p-1 bg-amber-500/10 rounded"
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteMandi(m.id)}
-                          className="text-red-500 hover:text-red-400 p-1 bg-red-500/10 rounded"
-                        >
-                          <Trash size={14} />
-                        </button>
-                      </td>
+                      {canManageMandi && (
+                        <td className="p-3 flex gap-2">
+                          <button
+                            onClick={() =>
+                              setAddMandiModal({
+                                isOpen: true,
+                                id: m.id,
+                                name: m.name,
+                                isActive: m.isActive,
+                              })
+                            }
+                            className="text-amber-500 hover:text-amber-400 p-1 bg-amber-500/10 rounded"
+                          >
+                            <Edit size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMandi(m.id)}
+                            className="text-red-500 hover:text-red-400 p-1 bg-red-500/10 rounded"
+                          >
+                            <Trash size={14} />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -2592,11 +2794,12 @@ export const ProcurementManagement = () => {
                       mandi: "",
                       contact: "",
                       plantId: activePlant?.id || "",
+                      biometricData: "",
                     })
                   }
                   className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
                 >
-                  + Add Arthiya
+                  + {isSupervisor ? "Add Arthiya (Admin Approval)" : "Add Arthiya"}
                 </button>
               </div>
             </div>
@@ -2610,10 +2813,13 @@ export const ProcurementManagement = () => {
                     <th className="p-3">Mandi</th>
                     <th className="p-3">Contact</th>
                     <th className="p-3">Status</th>
+                    {canApproveArtia && (
+                      <th className="p-3 text-right">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  {suppliers.map((s, i) => (
+                  {suppliers.map((s) => (
                     <tr
                       key={s.id}
                       className="border-b border-[var(--border-subtle-alt)] hover:bg-[var(--glass-bg)]"
@@ -2632,16 +2838,46 @@ export const ProcurementManagement = () => {
                       <td className="p-3">{s.mandi || "-"}</td>
                       <td className="p-3">{s.contact || "-"}</td>
                       <td className="p-3">
-                        <span className="px-2 py-1 rounded bg-green-900/50 text-green-400 text-xs font-bold">
-                          Active
-                        </span>
+                        {s.status === "PENDING_APPROVAL" ? (
+                          <span className="px-2 py-1 rounded bg-yellow-900/50 text-yellow-400 text-xs font-bold">
+                            Pending Admin
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 rounded bg-green-900/50 text-green-400 text-xs font-bold">
+                            Active
+                          </span>
+                        )}
                       </td>
+                      {canApproveArtia && (
+                        <td className="p-3 text-right">
+                          {s.status === "PENDING_APPROVAL" && (
+                            <div className="inline-flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleApproveSupplier(s.id)}
+                                className="p-2 bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded"
+                                title="Approve"
+                              >
+                                <Check size={16} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRejectSupplier(s.id)}
+                                className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded"
+                                title="Decline"
+                              >
+                                <X size={16} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                   {suppliers.length === 0 && (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={canApproveArtia ? 7 : 6}
                         className="p-6 text-center text-[var(--text-muted-alt)]"
                       >
                         No Arthiya found for this mill. Add one for the selected
@@ -2658,7 +2894,7 @@ export const ProcurementManagement = () => {
         {/* TAB 2: BOLI RECORD (Feedback 32) */}
         {activeTab === "paddy_purchase" && (
           <BoliRecordPanel
-            suppliers={suppliers}
+            suppliers={activeSuppliers}
             fetchSuppliers={fetchSuppliers}
             onOpenEstimate={openEstimatePurchase}
             onEditEstimate={openEditEstimate}
@@ -2903,7 +3139,7 @@ export const ProcurementManagement = () => {
                         name="supplierId"
                         value={inwardFormData.supplierId}
                         onChange={handleInwardChange}
-                        options={suppliers}
+                        options={activeSuppliers}
                         valueKey="id"
                         selectOnly
                         placeholder="Select Supplier"
@@ -5533,7 +5769,7 @@ export const ProcurementManagement = () => {
           <>
             <InwardListReport
               activePlant={activePlant}
-              suppliers={suppliers}
+              suppliers={activeSuppliers}
               onView={handleViewInward}
               onContinueDraft={handleContinueDraft}
             />
@@ -6204,16 +6440,21 @@ export const ProcurementManagement = () => {
                         ? res.data
                         : res.data?.data || [];
 
-                      const exportData = data.map((item: any) => ({
-                        Party: item.partyMandi,
-                        Date: item.date,
-                        Bags: item.bags,
-                        "Govt Rate": item.govtRate,
-                        Rate: item.rate,
-                        Diff: item.diff,
-                        Payment: item.payment,
-                        "Final Hisab Amt": item.finalHisabAmt,
-                      }));
+                      const exportData = data.map((item: any) => {
+                        const row: Record<string, any> = {
+                          Party: item.partyMandi,
+                          Date: item.date,
+                          Bags: item.bags,
+                          "Govt Rate": item.govtRate,
+                          Rate: item.rate,
+                        };
+                        if (!hidePaymentHisab) {
+                          row.Diff = item.diff;
+                          row.Payment = item.payment;
+                          row["Final Hisab Amt"] = item.finalHisabAmt;
+                        }
+                        return row;
+                      });
                       exportToExcel(exportData, "Soda_Pending_Full.xlsx");
                     } catch (error) {
                       console.error("Failed to export all records", error);
@@ -6247,18 +6488,24 @@ export const ProcurementManagement = () => {
                       <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">
                         Rate
                       </th>
-                      <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">
-                        Diff
-                      </th>
-                      <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">
-                        Payment
-                      </th>
+                      {!hidePaymentHisab && (
+                        <>
+                          <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">
+                            Diff
+                          </th>
+                          <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">
+                            Payment
+                          </th>
+                        </>
+                      )}
                       <th className="border-b border-[var(--border-subtle)] p-3 text-left font-medium">
                         Note
                       </th>
-                      <th className="border-b border-[var(--border-subtle)] p-3 text-right text-[#e67e00] font-bold">
-                        Final Hisab Amt
-                      </th>
+                      {!hidePaymentHisab && (
+                        <th className="border-b border-[var(--border-subtle)] p-3 text-right text-[#e67e00] font-bold">
+                          Final Hisab Amt
+                        </th>
+                      )}
                       <th className="border-b border-[var(--border-subtle)] p-3 text-center font-medium">
                         Action
                       </th>
@@ -6304,16 +6551,22 @@ export const ProcurementManagement = () => {
                         <td className="p-3 text-right font-bold text-[var(--text-muted)]">
                           {p.bolis?.length ? "-" : p.rate}
                         </td>
-                        <td className="p-3 text-right text-red-400 font-medium">
-                          {p.diff}
-                        </td>
-                        <td className="p-3 text-right">{p.payment}</td>
+                        {!hidePaymentHisab && (
+                          <>
+                            <td className="p-3 text-right text-red-400 font-medium">
+                              {p.diff}
+                            </td>
+                            <td className="p-3 text-right">{p.payment}</td>
+                          </>
+                        )}
                         <td className="p-3 text-[var(--text-muted-alt)]">
                           {p.note}
                         </td>
-                        <td className="p-3 text-right font-bold text-[#e67e00]">
-                          {p.finalHisabAmt}
-                        </td>
+                        {!hidePaymentHisab && (
+                          <td className="p-3 text-right font-bold text-[#e67e00]">
+                            {p.finalHisabAmt}
+                          </td>
+                        )}
                         <td className="p-3 text-center">
                           {user?.role === "SUPER_ADMIN" ||
                           user?.role === "PLANT_MANAGER" ? (
@@ -6346,7 +6599,7 @@ export const ProcurementManagement = () => {
                     {filteredSodaPending.length === 0 && (
                       <tr>
                         <td
-                          colSpan={11}
+                          colSpan={hidePaymentHisab ? 8 : 11}
                           className="p-6 text-center text-[var(--text-muted-alt)] font-medium italic border-b border-[var(--border-subtle-alt)]"
                         >
                           No outstanding pending Hisabs found. Try adding a Boli
@@ -6815,7 +7068,7 @@ export const ProcurementManagement = () => {
                     supplierId: e.target.value,
                   })
                 }
-                options={suppliers}
+                options={activeSuppliers}
                 valueKey="id"
                 placeholder="Select Arthiya (this mill)"
                 className="bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"
@@ -6838,6 +7091,24 @@ export const ProcurementManagement = () => {
                 className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
                 required
               />
+            </div>
+            <div>
+              <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
+                M/C Point (₹ / 1% moisture)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={paddyPurchaseModal.mcPoint || ""}
+                readOnly
+                title="From Admin Mandi Base Rates — ₹ impact per 1% moisture (e.g. base 2200, M/C Point 50)"
+                placeholder="From Admin bulletin"
+                className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80 cursor-not-allowed"
+              />
+              <p className="text-[10px] text-[var(--text-muted-alt)] mt-1">
+                Auto-filled from Admin Mandi rate for this Date + Mandi.
+              </p>
             </div>
             <div>
               <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
@@ -6891,15 +7162,42 @@ export const ProcurementManagement = () => {
                   {isSupervisor
                     ? "← → or Enter → next column · Cancel soda only in Add Final Boli"
                     : "← → or Enter → next column (Rate → next Boli row)"}
+                  {" · "}
+                  MC Deduct = (M/C − Benchmark{" "}
+                  {activePlant?.benchmarkMoisture ?? 17}%) × M/C Point · Base
+                  Boli = Today Rate − MC Deduct · Rate: red ↑ Overpriced / green
+                  ↓ Underpriced vs Base
                 </span>
               </div>
               <div data-boli-grid className="space-y-4">
                 {paddyPurchaseModal.bolis.map((boli: any, index: number) => {
                   const bagsCancelled = String(boli.bags ?? "").trim() === "0";
+                  const bm = Number(activePlant?.benchmarkMoisture ?? 17);
+                  const mcp = parseFloat(String(paddyPurchaseModal.mcPoint || ""));
+                  const curMc = parseFloat(String(boli.moisture || ""));
+                  const mcDeductionPreview =
+                    bagsCancelled ||
+                    !Number.isFinite(mcp) ||
+                    !Number.isFinite(curMc)
+                      ? null
+                      : curMc <= bm
+                        ? 0
+                        : Math.round((curMc - bm) * mcp * 100) / 100;
+                  const lineToday =
+                    parseFloat(
+                      String(
+                        boli.todayRate ?? paddyPurchaseModal.todayRate ?? "",
+                      ),
+                    ) || NaN;
+                  const baseBoliPreview =
+                    mcDeductionPreview == null || !Number.isFinite(lineToday)
+                      ? null
+                      : Math.round((lineToday - mcDeductionPreview) * 100) /
+                        100;
                   return (
                     <div
                       key={index}
-                      className="grid grid-cols-3 gap-2 items-end"
+                      className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 items-end"
                     >
                       <div>
                         {!bagsCancelled && (
@@ -6927,6 +7225,28 @@ export const ProcurementManagement = () => {
                           placeholder={bagsCancelled ? "Cancelled" : undefined}
                           className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm ${
                             bagsCancelled ? "opacity-40 cursor-not-allowed" : ""
+                          }`}
+                        />
+                      </div>
+                      <div>
+                        {!bagsCancelled && (
+                          <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                            MC Deduct
+                          </label>
+                        )}
+                        <input
+                          type="text"
+                          readOnly
+                          value={
+                            bagsCancelled
+                              ? ""
+                              : mcDeductionPreview == null
+                                ? "—"
+                                : `₹${mcDeductionPreview}`
+                          }
+                          title="(Current Moisture − Benchmark Moisture) × M/C Point"
+                          className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm opacity-80 cursor-not-allowed ${
+                            bagsCancelled ? "opacity-40" : ""
                           }`}
                         />
                       </div>
@@ -6967,6 +7287,66 @@ export const ProcurementManagement = () => {
                           }`}
                         />
                       </div>
+                      <div>
+                        {!bagsCancelled && (
+                          <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                            Today Rate
+                          </label>
+                        )}
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          data-boli-cell={`${index}-todayRate`}
+                          value={
+                            bagsCancelled
+                              ? ""
+                              : boli.todayRate ??
+                                paddyPurchaseModal.todayRate ??
+                                ""
+                          }
+                          onKeyDown={(e) =>
+                            focusNextBoliField(e, index, "todayRate")
+                          }
+                          onChange={(e) => {
+                            const newBolis = [...paddyPurchaseModal.bolis];
+                            newBolis[index].todayRate = e.target.value;
+                            setPaddyPurchaseModal({
+                              ...paddyPurchaseModal,
+                              bolis: newBolis,
+                              todayRate:
+                                index === 0
+                                  ? e.target.value
+                                  : paddyPurchaseModal.todayRate,
+                            });
+                          }}
+                          placeholder={bagsCancelled ? "—" : "From Admin"}
+                          className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm ${
+                            bagsCancelled ? "opacity-40 cursor-not-allowed" : ""
+                          }`}
+                        />
+                      </div>
+                      <div>
+                        {!bagsCancelled && (
+                          <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
+                            Base Boli Rate
+                          </label>
+                        )}
+                        <input
+                          type="text"
+                          readOnly
+                          value={
+                            bagsCancelled
+                              ? ""
+                              : baseBoliPreview == null
+                                ? "—"
+                                : String(baseBoliPreview)
+                          }
+                          title="Base Rate (Today Rate) − M/C Deduction"
+                          className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm opacity-80 cursor-not-allowed ${
+                            bagsCancelled ? "opacity-40" : ""
+                          }`}
+                        />
+                      </div>
                       <div className="flex gap-2">
                         <div className="flex-1">
                           {!bagsCancelled && (
@@ -6974,6 +7354,7 @@ export const ProcurementManagement = () => {
                               Rate (Boli)
                             </label>
                           )}
+                          <div className="flex items-center gap-1">
                           <input
                             type="text"
                             inputMode="decimal"
@@ -7012,12 +7393,64 @@ export const ProcurementManagement = () => {
                                 finalHisabAmt: finalAmt,
                               });
                             }}
-                            className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm ${
+                            className={`w-full bg-[var(--bg-panel-alt)] border rounded px-2 py-1.5 text-sm font-bold ${
                               bagsCancelled
-                                ? "opacity-40 cursor-not-allowed"
-                                : ""
+                                ? "opacity-40 cursor-not-allowed border-[var(--border-subtle)] text-[var(--text-main)]"
+                                : (() => {
+                                    const br =
+                                      parseFloat(String(boli.rate)) || 0;
+                                    if (
+                                      baseBoliPreview == null ||
+                                      !br
+                                    )
+                                      return "border-[var(--border-subtle)] text-[var(--text-main)]";
+                                    if (br > baseBoliPreview)
+                                      return "border-red-500/60 text-red-500";
+                                    if (br < baseBoliPreview)
+                                      return "border-green-500/60 text-green-500";
+                                    return "border-[var(--border-subtle)] text-[var(--text-main)]";
+                                  })()
                             }`}
                           />
+                          {!bagsCancelled &&
+                            (() => {
+                              const br = parseFloat(String(boli.rate)) || 0;
+                              if (
+                                baseBoliPreview == null ||
+                                !Number.isFinite(br) ||
+                                br <= 0
+                              )
+                                return null;
+                              const delta =
+                                Math.round((br - baseBoliPreview) * 100) / 100;
+                              if (delta > 0)
+                                return (
+                                  <span
+                                    className="text-red-500 text-[10px] font-bold whitespace-nowrap"
+                                    title={`Overpriced: Purchase ${br} > Base ${baseBoliPreview}`}
+                                  >
+                                    ↑ Overpriced
+                                  </span>
+                                );
+                              if (delta < 0)
+                                return (
+                                  <span
+                                    className="text-green-500 text-[10px] font-bold whitespace-nowrap"
+                                    title={`Underpriced: Purchase ${br} < Base ${baseBoliPreview}`}
+                                  >
+                                    ↓ Underpriced
+                                  </span>
+                                );
+                              return (
+                                <span
+                                  className="text-[var(--text-muted-alt)] text-[10px]"
+                                  title="At Base Boli Rate"
+                                >
+                                  = Base
+                                </span>
+                              );
+                            })()}
+                          </div>
                         </div>
                         {paddyPurchaseModal.bolis.length > 1 &&
                           !bagsCancelled && (
@@ -7062,7 +7495,12 @@ export const ProcurementManagement = () => {
                       ...paddyPurchaseModal,
                       bolis: [
                         ...paddyPurchaseModal.bolis,
-                        { moisture: "", bags: "", rate: "" },
+                        {
+                          moisture: "",
+                          bags: "",
+                          todayRate: paddyPurchaseModal.todayRate || "",
+                          rate: "",
+                        },
                       ],
                     });
                   }}
@@ -7116,32 +7554,21 @@ export const ProcurementManagement = () => {
                 </div>
                 <div>
                   <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
-                    Diff
+                    Diff (Govt − Boli Rate)
                   </label>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={paddyPurchaseModal.diff}
-                    onChange={(e) => {
-                      const diff = e.target.value;
-                      const totalBags = paddyPurchaseModal.bolis.reduce(
-                        (s: number, b: any) => s + (parseFloat(b.bags) || 0),
-                        0,
-                      );
-                      const finalAmt = (
-                        totalBags *
-                        0.375 *
-                        (parseFloat(diff) || 0)
-                      ).toFixed(2);
-                      setPaddyPurchaseModal({
-                        ...paddyPurchaseModal,
-                        diff,
-                        finalHisabAmt: finalAmt,
-                      });
-                    }}
-                    className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
+                    readOnly
+                    title="Payment difference is always Govt. Paddy Rate − Boli Rate"
+                    className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] opacity-80 cursor-not-allowed"
                   />
+                  <p className="text-[10px] text-[var(--text-muted-alt)] mt-1">
+                    Payment difference uses Govt. Paddy Rate only (not Mandi
+                    Today Rate).
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
@@ -7187,8 +7614,11 @@ export const ProcurementManagement = () => {
                         Payment &amp; Final Hisab use <b>Final Bags</b> after
                         Add Final Boli:
                         <br />
-                        (Govt − Boli Rate) × (Final Bags × 0.375). Estimate bags
-                        are not used for Payment.
+                        Payment = (Govt − Boli Rate) × (Final Bags × 0.375)
+                        <br />
+                        e.g. (2441 − 2100) × (120 × 0.375) = 15,345 per line.
+                        Final Hisab = total Payment for that Boli No. Estimate
+                        bags are not used for Payment.
                       </div>
                     )}
                 </div>
@@ -7230,7 +7660,7 @@ export const ProcurementManagement = () => {
                   useUiStore
                     .getState()
                     .addToast(
-                      err.message || "Fingerprint not matched",
+                      err.message || "This fingerprint does not exist",
                       "error",
                     );
                 } finally {
@@ -7336,9 +7766,21 @@ export const ProcurementManagement = () => {
       <CustomModal
         isOpen={addSupplierModal.isOpen}
         onClose={() =>
-          setAddSupplierModal({ ...addSupplierModal, isOpen: false })
+          setAddSupplierModal({
+            isOpen: false,
+            name: "",
+            firmNames: "",
+            mandi: "",
+            contact: "",
+            plantId: "",
+            biometricData: "",
+          })
         }
-        title="Add New Arthiya"
+        title={
+          isSupervisor
+            ? "Add New Arthiya (needs Admin confirmation)"
+            : "Add New Arthiya"
+        }
       >
         <form onSubmit={handleAddSupplier} className="space-y-4">
           {activePlant && user?.role !== "SUPER_ADMIN" ? (
@@ -7457,11 +7899,48 @@ export const ProcurementManagement = () => {
               className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
             />
           </div>
+          {isSupervisor && (
+            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3 space-y-2">
+              <label className="block text-sm text-[var(--text-muted-alt)]">
+                Supervisor fingerprint (match){" "}
+                <span className="text-red-500">*</span>
+              </label>
+              <p className="text-xs text-[var(--text-muted)]">
+                Scan your enrolled finger. Entry goes to Admin for confirmation
+                before this Arthiya can be used on forms.
+              </p>
+              <button
+                type="button"
+                onClick={handleScanSupplierFingerprint}
+                disabled={isScanningSupplierFp}
+                className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-bold text-sm transition-colors ${
+                  addSupplierModal.biometricData
+                    ? "bg-green-600/20 text-green-400 border border-green-600/40"
+                    : "bg-[#e67e00]/15 text-[#e67e00] border border-[#e67e00]/40 hover:bg-[#e67e00]/25"
+                }`}
+              >
+                <Fingerprint size={18} />
+                {isScanningSupplierFp
+                  ? "Scanning…"
+                  : addSupplierModal.biometricData
+                    ? "Fingerprint matched — Scan again"
+                    : "Scan Fingerprint"}
+              </button>
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
             <button
               type="button"
               onClick={() =>
-                setAddSupplierModal({ ...addSupplierModal, isOpen: false })
+                setAddSupplierModal({
+                  isOpen: false,
+                  name: "",
+                  firmNames: "",
+                  mandi: "",
+                  contact: "",
+                  plantId: "",
+                  biometricData: "",
+                })
               }
               className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)]"
             >
@@ -7469,10 +7948,17 @@ export const ProcurementManagement = () => {
             </button>
             <button
               type="submit"
-              disabled={addSupplierLock.pending}
+              disabled={
+                addSupplierLock.pending ||
+                (isSupervisor && !addSupplierModal.biometricData)
+              }
               className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold hover:bg-[#cc7000] transition-colors disabled:opacity-50"
             >
-              {addSupplierLock.pending ? "Saving..." : "Add Arthiya"}
+              {addSupplierLock.pending
+                ? "Saving..."
+                : isSupervisor
+                  ? "Submit for Admin Approval"
+                  : "Add Arthiya"}
             </button>
           </div>
         </form>

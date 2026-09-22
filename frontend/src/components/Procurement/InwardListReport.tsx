@@ -265,7 +265,7 @@ export default function InwardListReport({
       setBiometricData(xml);
       toast("Fingerprint captured", "success");
     } catch (err: any) {
-      toast(err.message || "Fingerprint not matched", "error");
+      toast(err.message || "This fingerprint does not exist", "error");
     } finally {
       setScanning(false);
     }

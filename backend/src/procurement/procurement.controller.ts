@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, HttpException, HttpStatus, Put, Patch, UseGuards, Query, BadRequestException, Req } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, HttpException, HttpStatus, Put, Patch, Delete, UseGuards, Query, BadRequestException, Req } from '@nestjs/common';
 import { ProcurementService } from './procurement.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -114,14 +114,31 @@ export class ProcurementController {
 
   @Get('suppliers')
   @RequireAnyPermission(['Procurement', 'Gate Pass'], 'canView')
-  getSuppliers(@Query('plantId') plantId?: string) {
-    return this.procurementService.getSuppliers(plantId);
+  getSuppliers(
+    @Query('plantId') plantId?: string,
+    @Query('activeOnly') activeOnly?: string,
+  ) {
+    return this.procurementService.getSuppliers(plantId, {
+      activeOnly: activeOnly === 'true' || activeOnly === '1',
+    });
   }
 
   @Post('suppliers')
   @RequirePermission('Procurement', 'canAdd')
-  createSupplier(@Body() data: any) {
-    return this.procurementService.createSupplier(data);
+  createSupplier(@Body() data: any, @Req() req: any) {
+    return this.procurementService.createSupplier(data, req.user);
+  }
+
+  @Put('suppliers/:id/approve')
+  @RequirePermission('Procurement', 'canEdit')
+  approveSupplier(@Param('id') id: string, @Req() req: any) {
+    return this.procurementService.approveSupplier(id, req.user?.id);
+  }
+
+  @Put('suppliers/:id/reject')
+  @RequirePermission('Procurement', 'canEdit')
+  rejectSupplier(@Param('id') id: string, @Req() req: any) {
+    return this.procurementService.rejectSupplier(id, req.user?.id);
   }
 
   @Get('analytics/:plantId')
@@ -176,12 +193,53 @@ export class ProcurementController {
     @Query('limit') limit?: string,
     @Query('supplierId') supplierId?: string,
     @Query('mandi') mandi?: string,
+    @Req() req?: any,
   ) {
-    return this.procurementService.getBoliRecords(plantId, {
+    return this.procurementService.getBoliRecords(
+      plantId,
+      {
+        dateFrom,
+        dateTo,
+        page,
+        limit,
+        supplierId,
+        mandi,
+      },
+      req?.user,
+    );
+  }
+
+  /** Mandi-wise / Artia-wise Overpriced & Underpriced purchase logs */
+  @Get('boli-price-records/:plantId')
+  @RequirePermission('Procurement', 'canView')
+  getMandiPriceRecords(
+    @Param('plantId') plantId: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('supplierId') supplierId?: string,
+    @Query('mandi') mandi?: string,
+  ) {
+    return this.procurementService.getMandiPriceRecords(plantId, {
       dateFrom,
       dateTo,
-      page,
-      limit,
+      supplierId,
+      mandi,
+    });
+  }
+
+  /** Purchase Trends — High & Low (Artia-wise + Mandi-wise) */
+  @Get('boli-purchase-trends/:plantId')
+  @RequirePermission('Procurement', 'canView')
+  getPurchaseTrends(
+    @Param('plantId') plantId: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('supplierId') supplierId?: string,
+    @Query('mandi') mandi?: string,
+  ) {
+    return this.procurementService.getPurchaseTrends(plantId, {
+      dateFrom,
+      dateTo,
       supplierId,
       mandi,
     });
@@ -233,6 +291,45 @@ export class ProcurementController {
     } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
+  }
+
+  @Get('mandi-daily-rates')
+  @RequirePermission('Procurement', 'canView')
+  listMandiDailyRates(
+    @Query('plantId') plantId?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.procurementService.listMandiDailyRates(plantId || 'global', {
+      dateFrom,
+      dateTo,
+    });
+  }
+
+  @Get('mandi-daily-rates/lookup')
+  @RequirePermission('Procurement', 'canView')
+  lookupMandiDailyRate(
+    @Query('plantId') plantId?: string,
+    @Query('date') date?: string,
+    @Query('mandi') mandi?: string,
+  ) {
+    return this.procurementService.lookupMandiDailyRate(
+      plantId || 'global',
+      date || '',
+      mandi || '',
+    );
+  }
+
+  @Post('mandi-daily-rates')
+  @RequirePermission('Procurement', 'canEdit')
+  upsertMandiDailyRate(@Body() data: any, @Req() req: any) {
+    return this.procurementService.upsertMandiDailyRate(data, req.user);
+  }
+
+  @Delete('mandi-daily-rates/:id')
+  @RequirePermission('Procurement', 'canEdit')
+  deleteMandiDailyRate(@Param('id') id: string, @Req() req: any) {
+    return this.procurementService.deleteMandiDailyRate(id, req.user);
   }
 
   /** Cancel a single Boli (supervisor allowed from Final Boli section) */

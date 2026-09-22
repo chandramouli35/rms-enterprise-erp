@@ -383,7 +383,7 @@ export default function LoaderUnloaderReport({
         ...prev,
         [key]: { ...prev[key], scanning: null },
       }));
-      toast(err?.message || "Fingerprint not matched", "error");
+      toast(err?.message || "This fingerprint does not exist", "error");
     }
   };
 

@@ -1,10 +1,42 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { FingerprintVerifyService } from '../auth/fingerprint-verify.service';
 
 @Injectable()
 export class ProcurementService {
-  constructor(private prisma: PrismaService, private inventoryService: InventoryService) {}
+  constructor(
+    private prisma: PrismaService,
+    private inventoryService: InventoryService,
+    private fingerprintVerify: FingerprintVerifyService,
+  ) {}
+
+  private roleName(user: any): string {
+    return String(user?.role?.name || user?.role || '');
+  }
+
+  private isAdminRole(user: any) {
+    return /SUPER_ADMIN|PLANT_MANAGER|ADMIN/i.test(this.roleName(user));
+  }
+
+  private isSupervisorRole(user: any) {
+    return /SUPERVISOR/i.test(this.roleName(user));
+  }
+
+  /** Block operational use of Arthiya until Admin confirms. */
+  async assertSupplierUsable(supplierId?: string | null) {
+    if (!supplierId) return;
+    const s = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { id: true, name: true, status: true },
+    });
+    if (!s) throw new BadRequestException('Arthiya / supplier not found');
+    if (s.status && s.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        `Arthiya "${s.name}" is pending Admin approval. You can use it only after Admin confirms.`,
+      );
+    }
+  }
 
   async savePurchase(data: any) {
     const { 
@@ -14,6 +46,8 @@ export class ProcurementService {
       category, purchaseType, bugs, godown, biometricData,
       mandiType, boliRate, boliChecklist
     } = data;
+
+    await this.assertSupplierUsable(supplierId);
 
     // Feedback 33 — normalize Mandi GP for duplicate bypass (case / spaces / specials)
     const normalizeGpKey = (raw?: string) =>
@@ -254,15 +288,27 @@ export class ProcurementService {
     
     let finalRate = parsedRate;
     
-    // Boli Rate Calculation Engine
+    // Boli Rate Calculation Engine — MC deduction uses plant benchmark × M/C Point
     if (purchaseType === 'PADDY_BOLI') {
-      // Basic market calculation: penalize if moisture > 17
+      const plant = await this.prisma.plant.findUnique({
+        where: { id: plantId },
+        select: { benchmarkMoisture: true },
+      });
+      const benchmark = plant?.benchmarkMoisture ?? 17;
+      // Prefer explicit mcPoint on payload; else default historical 10 ₹/1% if none
+      const mcPointRaw =
+        data.mcPoint != null && data.mcPoint !== ''
+          ? Number(data.mcPoint)
+          : null;
+      const mcPoint =
+        mcPointRaw != null && Number.isFinite(mcPointRaw) ? mcPointRaw : 10;
       let moistureDeduction = 0;
-      if (parsedMoisture > 17) {
-        moistureDeduction = (parsedMoisture - 17) * 10; // example: 10 INR per 1% extra moisture
+      if (parsedMoisture > benchmark) {
+        moistureDeduction =
+          this.calcMcDeduction(parsedMoisture, benchmark, mcPoint) ?? 0;
       }
       let bugsDeduction = parsedBugs * 5; // example: 5 INR per 1% bugs
-      
+
       finalRate = parsedRate - moistureDeduction - bugsDeduction;
     }
 
@@ -1225,33 +1271,54 @@ export class ProcurementService {
     });
   }
 
-  async getSuppliers(plantId?: string) {
+  async getSuppliers(plantId?: string, opts?: { activeOnly?: boolean }) {
     // Mill-scoped Arthiya: when plantId set, only that mill's suppliers
-    const where =
+    const where: any =
       plantId && plantId !== 'global' && plantId !== 'all'
         ? { plantId }
-        : undefined;
+        : {};
+    if (opts?.activeOnly) {
+      where.status = 'ACTIVE';
+    }
     return this.prisma.supplier.findMany({
-      where,
+      where: Object.keys(where).length ? where : undefined,
       include: { plant: { select: { id: true, name: true, code: true } } },
-      orderBy: { name: 'asc' },
+      orderBy: [{ status: 'asc' }, { name: 'asc' }],
     });
   }
 
-  async createSupplier(data: {
-    name: string;
-    contact?: string;
-    email?: string;
-    address?: string;
-    firmNames?: string[];
-    mandi?: string;
-    plantId?: string;
-  }) {
+  async createSupplier(
+    data: {
+      name: string;
+      contact?: string;
+      email?: string;
+      address?: string;
+      firmNames?: string[];
+      mandi?: string;
+      plantId?: string;
+      biometricData?: string;
+      isoTemplate?: string;
+    },
+    user?: any,
+  ) {
     const { name, contact, email, address, firmNames, mandi, plantId } = data;
     const cleanName = String(name || '').trim();
     if (!cleanName) throw new BadRequestException('Arthiya name is required');
     if (!plantId || plantId === 'global') {
       throw new BadRequestException('Mill (plantId) is required — Arthiya is mill-scoped');
+    }
+
+    const isSupervisor = this.isSupervisorRole(user);
+
+    // Supervisor must match enrolled fingerprint (same as form Scan)
+    if (isSupervisor) {
+      if (!user?.id) {
+        throw new BadRequestException('Login required to add Arthiya');
+      }
+      await this.fingerprintVerify.verifyForUser(user.id, {
+        biometricData: data.biometricData,
+        isoTemplate: data.isoTemplate,
+      });
     }
 
     const existing = await this.prisma.supplier.findFirst({
@@ -1263,7 +1330,10 @@ export class ProcurementService {
       );
     }
 
-    return this.prisma.supplier.create({
+    // Supervisor → pending Admin; Admin → active immediately
+    const status = isSupervisor ? 'PENDING_APPROVAL' : 'ACTIVE';
+
+    const supplier = await this.prisma.supplier.create({
       data: {
         name: cleanName,
         contact,
@@ -1271,11 +1341,125 @@ export class ProcurementService {
         address,
         firmNames: firmNames || [],
         mandi,
-        status: 'ACTIVE',
+        status,
         plantId,
+        biometricData: data.biometricData || null,
+        createdById: user?.id || null,
       },
       include: { plant: { select: { id: true, name: true } } },
     });
+
+    if (user?.id) {
+      await this.prisma.systemAuditLog.create({
+        data: {
+          userId: user.id,
+          action: isSupervisor
+            ? 'ARTHIYA_APPLICATION_SUBMITTED'
+            : 'ARTHIYA_CREATED',
+          module: 'Procurement',
+          details: isSupervisor
+            ? `Supervisor submitted Arthiya "${cleanName}" (pending admin approval)`
+            : `Added Arthiya: ${cleanName}`,
+        },
+      });
+    }
+
+    if (isSupervisor) {
+      const submitter =
+        user?.fullName || user?.username || user?.name || 'Supervisor';
+      const mill = supplier.plant?.name || plantId;
+      const msg = `${submitter} submitted new Arthiya "${cleanName}" for mill ${mill}. Please confirm or decline.`;
+      await this.prisma.notification.createMany({
+        data: [
+          {
+            title: 'New Arthiya Application',
+            message: msg,
+            type: 'ALERT',
+            role: 'SUPER_ADMIN',
+          },
+          {
+            title: 'New Arthiya Application',
+            message: msg,
+            type: 'ALERT',
+            role: 'PLANT_MANAGER',
+          },
+        ],
+      });
+    }
+
+    return supplier;
+  }
+
+  async approveSupplier(id: string, userId?: string) {
+    const existing = await this.prisma.supplier.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Arthiya not found');
+    if (existing.status === 'ACTIVE') return existing;
+
+    const supplier = await this.prisma.supplier.update({
+      where: { id },
+      data: { status: 'ACTIVE' },
+      include: { plant: { select: { id: true, name: true } } },
+    });
+
+    if (userId) {
+      await this.prisma.systemAuditLog.create({
+        data: {
+          userId,
+          action: 'ARTHIYA_APPROVED',
+          module: 'Procurement',
+          details: `Approved Arthiya: ${supplier.name}`,
+        },
+      });
+    }
+
+    await this.prisma.notification.createMany({
+      data: [
+        {
+          title: 'Arthiya Approved',
+          message: `Arthiya "${supplier.name}" has been approved and is now available for entries.`,
+          type: 'INFO',
+          role: 'SUPERVISOR',
+        },
+      ],
+    });
+
+    return supplier;
+  }
+
+  async rejectSupplier(id: string, userId?: string) {
+    const supplier = await this.prisma.supplier.findUnique({ where: { id } });
+    if (!supplier) throw new NotFoundException('Arthiya not found');
+    if (supplier.status === 'ACTIVE') {
+      throw new BadRequestException(
+        'Cannot decline an already approved Arthiya. Remove it separately if needed.',
+      );
+    }
+
+    await this.prisma.supplier.delete({ where: { id } });
+
+    if (userId) {
+      await this.prisma.systemAuditLog.create({
+        data: {
+          userId,
+          action: 'ARTHIYA_REJECTED',
+          module: 'Procurement',
+          details: `Declined Arthiya application: ${supplier.name}`,
+        },
+      });
+    }
+
+    await this.prisma.notification.createMany({
+      data: [
+        {
+          title: 'Arthiya Declined',
+          message: `Arthiya application "${supplier.name}" was declined by Admin.`,
+          type: 'WARNING',
+          role: 'SUPERVISOR',
+        },
+      ],
+    });
+
+    return { deleted: true, name: supplier.name };
   }
 
   async getOccupiedStacks(plantId: string) {
@@ -1546,10 +1730,81 @@ export class ProcurementService {
     return inMs < madeDayStart;
   }
 
+  /**
+   * Payment (per boli line) after Final Bags.
+   * Payment difference is ALWAYS on Govt. Paddy Rate only:
+   *   Payment = (Govt Paddy Rate − Boli Rate) × (Final Bags × 0.375)
+   * Mandi Today Rate is never used for payment / diff.
+   * e.g. (2441 − 2100) × (120 × 0.375) = 341 × 45 = 15345
+   */
   private calcBoliPayment(govtRate: number, boliRate: number, finalBags: number | null | undefined) {
-    if (finalBags == null || !Number.isFinite(finalBags)) return 0;
-    const diff = (govtRate || 0) - (boliRate || 0);
-    return diff * (finalBags * 0.375);
+    if (finalBags == null || !Number.isFinite(Number(finalBags))) return 0;
+    const bags = Number(finalBags);
+    const diff = (Number(govtRate) || 0) - (Number(boliRate) || 0);
+    const raw = diff * (bags * 0.375);
+    // Money: 2 decimal places (whole rupees when inputs are whole numbers)
+    return Math.round(raw * 100) / 100;
+  }
+
+  /** Payment difference (Govt Paddy Rate − Boli Rate) — never Mandi Today Rate */
+  private paymentDiffFromGovt(govtRate: number, boliRate: number) {
+    return (Number(govtRate) || 0) - (Number(boliRate) || 0);
+  }
+
+  /**
+   * Backend Deduction Amount (₹):
+   *   (Current Moisture % − Benchmark Moisture %) × M/C Point
+   * e.g. (20 − 18) × 50 = 100. Zero when moisture ≤ benchmark; null if M/C Point missing.
+   */
+  private calcMcDeduction(
+    currentMoisture: number | null | undefined,
+    benchmarkMoisture: number | null | undefined,
+    mcPoint: number | null | undefined,
+  ): number | null {
+    if (mcPoint == null || !Number.isFinite(Number(mcPoint))) return null;
+    if (currentMoisture == null || !Number.isFinite(Number(currentMoisture))) return null;
+    const benchmark =
+      benchmarkMoisture != null && Number.isFinite(Number(benchmarkMoisture))
+        ? Number(benchmarkMoisture)
+        : 17;
+    const excess = Number(currentMoisture) - benchmark;
+    if (excess <= 0) return 0;
+    return Math.round(excess * Number(mcPoint) * 100) / 100;
+  }
+
+  /**
+   * Base Boli Rate = Base Rate (Mandi Today Rate) − M/C Deduction
+   * e.g. 2200 − 100 = 2100. Null when base rate or deduction unavailable.
+   */
+  private calcBaseBoliRate(
+    baseRate: number | null | undefined,
+    mcDeduction: number | null | undefined,
+  ): number | null {
+    if (baseRate == null || !Number.isFinite(Number(baseRate))) return null;
+    if (mcDeduction == null || !Number.isFinite(Number(mcDeduction))) return null;
+    return Math.round((Number(baseRate) - Number(mcDeduction)) * 100) / 100;
+  }
+
+  /**
+   * Classify Purchase Boli Rate vs Base Boli Rate:
+   *   > Base → OVERPRICED · < Base → UNDERPRICED · = → AT_BASE
+   */
+  private classifyPriceStatus(
+    purchaseRate: number | null | undefined,
+    baseBoliRate: number | null | undefined,
+  ): 'OVERPRICED' | 'UNDERPRICED' | 'AT_BASE' | null {
+    if (
+      purchaseRate == null ||
+      baseBoliRate == null ||
+      !Number.isFinite(Number(purchaseRate)) ||
+      !Number.isFinite(Number(baseBoliRate))
+    ) {
+      return null;
+    }
+    const delta = Number(purchaseRate) - Number(baseBoliRate);
+    if (delta > 0) return 'OVERPRICED';
+    if (delta < 0) return 'UNDERPRICED';
+    return 'AT_BASE';
   }
 
   private async nextBoliNo(tx: any, plantId: string): Promise<string> {
@@ -1712,11 +1967,6 @@ export class ProcurementService {
     }
   }
 
-  private isAdminRole(user: any) {
-    const role = user?.role?.name || user?.role || '';
-    return /SUPER_ADMIN|PLANT_MANAGER|ADMIN/i.test(String(role));
-  }
-
   private startOfToday() {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -1744,6 +1994,8 @@ export class ProcurementService {
       bags: p.bags,
       rate: p.rate,
       govtRate: p.govtRate,
+      todayRate: p.todayRate,
+      mcPoint: p.mcPoint,
       bolis: p.bolis.map((b) => ({
         ...b,
         estimatedBags: b.bags,
@@ -1773,6 +2025,7 @@ export class ProcurementService {
       page?: string;
       limit?: string;
     } = {},
+    user?: any,
   ) {
     await this.backfillMissingBoliNos(plantId);
 
@@ -1800,19 +2053,31 @@ export class ProcurementService {
       orderBy: [{ supplier: { name: 'asc' } }, { date: 'asc' }],
     });
 
+    // Supervisor record: never expose Payment / Final Hisab
+    const hideMoney = this.isSupervisorRole(user) && !this.isAdminRole(user);
+
     const rows: any[] = [];
     for (const s of sodas) {
       const govtRate = s.govtRate ?? 0;
       const bolis = s.bolis || [];
-      // Feedback 32 — Final Hisab (I) = compounding/running sum of Payment (H) in boli order
-      let runningHisab = 0;
 
-      for (const b of bolis) {
+      // Per-line Payment from Final Bags formula; Final Hisab = total Payment for this Boli No.
+      const linePayments = bolis.map((b) => {
+        const finalBags = b.finalBags;
+        if (finalBags != null) {
+          return this.calcBoliPayment(govtRate, b.rate, finalBags);
+        }
+        return b.payment ?? 0;
+      });
+      const boliNoTotalPayment = Math.round(
+        linePayments.reduce((sum, p) => sum + (p || 0), 0) * 100,
+      ) / 100;
+
+      bolis.forEach((b, idx) => {
         const finalBags = b.finalBags;
         const received = b.bagsReceived || 0;
         const balance = finalBags != null ? finalBags - received : null;
-        const payment = b.payment ?? this.calcBoliPayment(govtRate, b.rate, b.finalBags);
-        runningHisab += payment || 0;
+        const payment = linePayments[idx] || 0;
         rows.push({
           id: b.id,
           boliId: b.id,
@@ -1827,9 +2092,20 @@ export class ProcurementService {
           finalBags: b.finalBags,
           rate: b.rate,
           govtRate,
-          diff: govtRate - (b.rate || 0),
-          payment,
-          finalHisabAmt: runningHisab,
+          todayRate: b.todayRate ?? s.todayRate ?? null,
+          mcPoint: s.mcPoint ?? null,
+          mcDeduction: b.mcDeduction ?? null,
+          baseBoliRate: b.baseBoliRate ?? null,
+          /** Purchase Boli Rate − Base Boli Rate (positive = above base / overpriced) */
+          rateVsBase:
+            b.baseBoliRate != null && b.rate != null
+              ? Math.round((Number(b.rate) - Number(b.baseBoliRate)) * 100) / 100
+              : null,
+          priceStatus: this.classifyPriceStatus(b.rate, b.baseBoliRate),
+          diff: hideMoney ? null : this.paymentDiffFromGovt(govtRate, b.rate || 0),
+          payment: hideMoney ? null : payment,
+          // Same total on every line of this Boli No.
+          finalHisabAmt: hideMoney ? null : boliNoTotalPayment,
           bagsReceived: received,
           bagsRecInSoda: received,
           balanceBags: balance,
@@ -1841,7 +2117,7 @@ export class ProcurementService {
           riceCategory: s.riceCategory,
           sodaCompleted: bolis.length > 0 && bolis.every((x) => x.isCompleted || x.isCancelled || x.bags === 0),
         });
-      }
+      });
     }
 
     const pageNum = parseInt(opts.page || '1', 10);
@@ -1852,7 +2128,606 @@ export class ProcurementService {
     const total = rows.length;
     const start = opts.supplierId ? 0 : (pageNum - 1) * limitNum;
     const data = opts.supplierId ? rows : rows.slice(start, start + limitNum);
-    return { data, total, pageSize: limitNum, unpaginated: !!opts.supplierId };
+    return {
+      data,
+      total,
+      pageSize: limitNum,
+      unpaginated: !!opts.supplierId,
+      hidePaymentHisab: hideMoney,
+    };
+  }
+
+  /**
+   * Mandi-wise / Artia-wise logs of Overpriced & Underpriced purchases
+   * (Purchase Boli Rate vs Base Boli Rate), tracked separately.
+   */
+  async getMandiPriceRecords(
+    plantId: string,
+    opts: {
+      dateFrom?: string;
+      dateTo?: string;
+      mandi?: string;
+      supplierId?: string;
+    } = {},
+  ) {
+    const { data: all } = await this.getBoliRecords(plantId, {
+      ...opts,
+      page: '1',
+      limit: '1000000',
+    });
+
+    const active = (all || []).filter(
+      (r: any) => !r.isCancelled && r.priceStatus && r.priceStatus !== 'AT_BASE',
+    );
+    const overpriced = active.filter((r: any) => r.priceStatus === 'OVERPRICED');
+    const underpriced = active.filter((r: any) => r.priceStatus === 'UNDERPRICED');
+
+    type Bucket = {
+      mandi: string;
+      supplierId: string;
+      partyName: string;
+      overpriced: any[];
+      underpriced: any[];
+      overpricedCount: number;
+      underpricedCount: number;
+      overpricedDeltaSum: number;
+      underpricedDeltaSum: number;
+    };
+
+    const keyOf = (r: any) =>
+      `${String(r.mandi || '—').toLowerCase()}||${r.supplierId || r.partyName || ''}`;
+
+    const byArtiaMap = new Map<string, Bucket>();
+    const ensure = (r: any): Bucket => {
+      const k = keyOf(r);
+      let b = byArtiaMap.get(k);
+      if (!b) {
+        b = {
+          mandi: r.mandi || '—',
+          supplierId: r.supplierId || '',
+          partyName: r.partyName || '—',
+          overpriced: [],
+          underpriced: [],
+          overpricedCount: 0,
+          underpricedCount: 0,
+          overpricedDeltaSum: 0,
+          underpricedDeltaSum: 0,
+        };
+        byArtiaMap.set(k, b);
+      }
+      return b;
+    };
+
+    for (const r of overpriced) {
+      const b = ensure(r);
+      b.overpriced.push(r);
+      b.overpricedCount += 1;
+      b.overpricedDeltaSum += Number(r.rateVsBase) || 0;
+    }
+    for (const r of underpriced) {
+      const b = ensure(r);
+      b.underpriced.push(r);
+      b.underpricedCount += 1;
+      b.underpricedDeltaSum += Number(r.rateVsBase) || 0;
+    }
+
+    const byArtia = Array.from(byArtiaMap.values()).sort((a, b) =>
+      `${a.mandi}|${a.partyName}`.localeCompare(`${b.mandi}|${b.partyName}`),
+    );
+
+    // Roll up Mandi-wise
+    const mandiMap = new Map<
+      string,
+      {
+        mandi: string;
+        overpricedCount: number;
+        underpricedCount: number;
+        overpricedDeltaSum: number;
+        underpricedDeltaSum: number;
+        artias: Bucket[];
+      }
+    >();
+    for (const a of byArtia) {
+      const mk = String(a.mandi || '—').toLowerCase();
+      let m = mandiMap.get(mk);
+      if (!m) {
+        m = {
+          mandi: a.mandi,
+          overpricedCount: 0,
+          underpricedCount: 0,
+          overpricedDeltaSum: 0,
+          underpricedDeltaSum: 0,
+          artias: [],
+        };
+        mandiMap.set(mk, m);
+      }
+      m.overpricedCount += a.overpricedCount;
+      m.underpricedCount += a.underpricedCount;
+      m.overpricedDeltaSum += a.overpricedDeltaSum;
+      m.underpricedDeltaSum += a.underpricedDeltaSum;
+      m.artias.push(a);
+    }
+
+    const byMandi = Array.from(mandiMap.values()).sort((a, b) =>
+      a.mandi.localeCompare(b.mandi),
+    );
+
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+
+    return {
+      summary: {
+        overpricedCount: overpriced.length,
+        underpricedCount: underpriced.length,
+        overpricedDeltaSum: round2(
+          overpriced.reduce((s: number, r: any) => s + (Number(r.rateVsBase) || 0), 0),
+        ),
+        underpricedDeltaSum: round2(
+          underpriced.reduce((s: number, r: any) => s + (Number(r.rateVsBase) || 0), 0),
+        ),
+      },
+      byMandi: byMandi.map((m) => ({
+        ...m,
+        overpricedDeltaSum: round2(m.overpricedDeltaSum),
+        underpricedDeltaSum: round2(m.underpricedDeltaSum),
+        artias: m.artias.map((a) => ({
+          ...a,
+          overpricedDeltaSum: round2(a.overpricedDeltaSum),
+          underpricedDeltaSum: round2(a.underpricedDeltaSum),
+        })),
+      })),
+      overpriced,
+      underpriced,
+    };
+  }
+
+  /**
+   * Purchase Trends (High & Low) — Artia-wise and Mandi-wise
+   * from Estimate / Boli purchase rates in the filter window.
+   */
+  async getPurchaseTrends(
+    plantId: string,
+    opts: {
+      dateFrom?: string;
+      dateTo?: string;
+      mandi?: string;
+      supplierId?: string;
+    } = {},
+  ) {
+    const { data: all } = await this.getBoliRecords(plantId, {
+      ...opts,
+      page: '1',
+      limit: '1000000',
+    });
+
+    const lines = (all || []).filter(
+      (r: any) => !r.isCancelled && Number(r.rate) > 0,
+    );
+
+    type TrendAgg = {
+      high: number;
+      low: number;
+      sumRate: number;
+      count: number;
+      bags: number;
+      highDate: string | null;
+      lowDate: string | null;
+      highBoliNo: string | null;
+      lowBoliNo: string | null;
+    };
+
+    const bump = (
+      agg: TrendAgg,
+      rate: number,
+      bags: number,
+      date: any,
+      boliNo: string | null,
+    ) => {
+      if (rate > agg.high) {
+        agg.high = rate;
+        agg.highDate = date ? new Date(date).toISOString() : null;
+        agg.highBoliNo = boliNo;
+      }
+      if (rate < agg.low) {
+        agg.low = rate;
+        agg.lowDate = date ? new Date(date).toISOString() : null;
+        agg.lowBoliNo = boliNo;
+      }
+      agg.sumRate += rate;
+      agg.count += 1;
+      agg.bags += bags;
+    };
+
+    const emptyAgg = (): TrendAgg => ({
+      high: 0,
+      low: Infinity,
+      sumRate: 0,
+      count: 0,
+      bags: 0,
+      highDate: null,
+      lowDate: null,
+      highBoliNo: null,
+      lowBoliNo: null,
+    });
+
+    const finalize = (agg: TrendAgg) => ({
+      high: agg.count ? agg.high : 0,
+      low: agg.count && agg.low !== Infinity ? agg.low : 0,
+      avg: agg.count ? Math.round((agg.sumRate / agg.count) * 100) / 100 : 0,
+      count: agg.count,
+      bags: agg.bags,
+      highDate: agg.highDate,
+      lowDate: agg.lowDate,
+      highBoliNo: agg.highBoliNo,
+      lowBoliNo: agg.lowBoliNo,
+      spread: agg.count && agg.low !== Infinity ? Math.round((agg.high - agg.low) * 100) / 100 : 0,
+    });
+
+    // Artia-wise
+    const artiaMap = new Map<
+      string,
+      TrendAgg & { supplierId: string; partyName: string; mandi: string }
+    >();
+    for (const r of lines) {
+      const key = r.supplierId || r.partyName || '—';
+      let a = artiaMap.get(key);
+      if (!a) {
+        a = {
+          ...emptyAgg(),
+          supplierId: r.supplierId || '',
+          partyName: r.partyName || '—',
+          mandi: r.mandi || '—',
+        };
+        artiaMap.set(key, a);
+      }
+      bump(a, Number(r.rate), Number(r.estimatedBags) || 0, r.date, r.boliNo || null);
+    }
+
+    const byArtia = Array.from(artiaMap.values())
+      .map((a) => ({
+        supplierId: a.supplierId,
+        partyName: a.partyName,
+        mandi: a.mandi,
+        ...finalize(a),
+      }))
+      .sort((x, y) => y.high - x.high || x.partyName.localeCompare(y.partyName));
+
+    // Mandi-wise
+    const mandiMap = new Map<string, TrendAgg & { mandi: string }>();
+    for (const r of lines) {
+      const key = String(r.mandi || '—').toLowerCase();
+      let m = mandiMap.get(key);
+      if (!m) {
+        m = { ...emptyAgg(), mandi: r.mandi || '—' };
+        mandiMap.set(key, m);
+      }
+      bump(m, Number(r.rate), Number(r.estimatedBags) || 0, r.date, r.boliNo || null);
+    }
+
+    const byMandi = Array.from(mandiMap.values())
+      .map((m) => ({
+        mandi: m.mandi,
+        ...finalize(m),
+      }))
+      .sort((x, y) => y.high - x.high || x.mandi.localeCompare(y.mandi));
+
+    // Overall
+    const overall = emptyAgg();
+    for (const r of lines) {
+      bump(overall, Number(r.rate), Number(r.estimatedBags) || 0, r.date, r.boliNo || null);
+    }
+
+    // Day-wise: High/Low moisture alongside High/Low Boli rates
+    type DayAgg = {
+      dateKey: string;
+      dateIso: string;
+      highRate: number;
+      lowRate: number;
+      highRateBoliNo: string | null;
+      lowRateBoliNo: string | null;
+      highMoisture: number;
+      lowMoisture: number;
+      highMoistureBoliNo: string | null;
+      lowMoistureBoliNo: string | null;
+      count: number;
+    };
+    const dayMap = new Map<string, DayAgg>();
+    const dayLines = (all || []).filter((r: any) => !r.isCancelled);
+    for (const r of dayLines) {
+      const d = r.date ? new Date(r.date) : null;
+      if (!d || !Number.isFinite(d.getTime())) continue;
+      const dateKey = d.toISOString().slice(0, 10);
+      let day = dayMap.get(dateKey);
+      if (!day) {
+        day = {
+          dateKey,
+          dateIso: d.toISOString(),
+          highRate: 0,
+          lowRate: Infinity,
+          highRateBoliNo: null,
+          lowRateBoliNo: null,
+          highMoisture: 0,
+          lowMoisture: Infinity,
+          highMoistureBoliNo: null,
+          lowMoistureBoliNo: null,
+          count: 0,
+        };
+        dayMap.set(dateKey, day);
+      }
+      day.count += 1;
+      const rate = Number(r.rate);
+      if (Number.isFinite(rate) && rate > 0) {
+        if (rate > day.highRate) {
+          day.highRate = rate;
+          day.highRateBoliNo = r.boliNo || null;
+        }
+        if (rate < day.lowRate) {
+          day.lowRate = rate;
+          day.lowRateBoliNo = r.boliNo || null;
+        }
+      }
+      const mc = Number(r.moisture);
+      if (Number.isFinite(mc) && mc >= 0) {
+        if (mc > day.highMoisture) {
+          day.highMoisture = mc;
+          day.highMoistureBoliNo = r.boliNo || null;
+        }
+        if (mc < day.lowMoisture) {
+          day.lowMoisture = mc;
+          day.lowMoistureBoliNo = r.boliNo || null;
+        }
+      }
+    }
+
+    const byDay = Array.from(dayMap.values())
+      .map((d) => ({
+        date: d.dateKey,
+        dateIso: d.dateIso,
+        count: d.count,
+        highRate: d.highRate || 0,
+        lowRate: d.lowRate === Infinity ? 0 : d.lowRate,
+        highRateBoliNo: d.highRateBoliNo,
+        lowRateBoliNo: d.lowRateBoliNo,
+        highMoisture: d.highMoisture || 0,
+        lowMoisture: d.lowMoisture === Infinity ? 0 : d.lowMoisture,
+        highMoistureBoliNo: d.highMoistureBoliNo,
+        lowMoistureBoliNo: d.lowMoistureBoliNo,
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    return {
+      overall: finalize(overall),
+      byArtia,
+      byMandi,
+      byDay,
+    };
+  }
+
+  private mandiDayStart(dateInput: string | Date): Date {
+    const d = new Date(dateInput);
+    if (!Number.isFinite(d.getTime())) {
+      throw new BadRequestException('Invalid date');
+    }
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  /** Parse optional M/C Point (₹ per 1% moisture); empty / invalid → null */
+  private parseMcPoint(value: unknown): number | null {
+    if (value === '' || value == null) return null;
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return n;
+  }
+
+  /** Admin: list Mandi Daily Rate history (Date | Mandi | Today Rate | M/C Point) */
+  async listMandiDailyRates(plantId: string, opts?: { dateFrom?: string; dateTo?: string }) {
+    const where: any = {};
+    if (plantId && plantId !== 'global') where.plantId = plantId;
+    if (opts?.dateFrom || opts?.dateTo) {
+      where.date = {};
+      if (opts.dateFrom) where.date.gte = this.mandiDayStart(opts.dateFrom);
+      if (opts.dateTo) {
+        const end = this.mandiDayStart(opts.dateTo);
+        end.setHours(23, 59, 59, 999);
+        where.date.lte = end;
+      }
+    }
+    return this.prisma.mandiDailyRate.findMany({
+      where,
+      orderBy: [{ date: 'desc' }, { mandi: 'asc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  /**
+   * Lookup Today Rate + M/C Point for Estimate Purchase (date + mandi).
+   * Persistence: if no rate punched for that exact day, use the latest prior
+   * Mandi rate (continues until Admin punches a new one).
+   */
+  async lookupMandiDailyRate(plantId: string, date: string, mandi: string) {
+    const cleanMandi = String(mandi || '').trim();
+    if (!cleanMandi || !date) return null;
+    const day = this.mandiDayStart(date);
+    const dayEnd = new Date(day);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const row = await this.prisma.mandiDailyRate.findFirst({
+      where: {
+        mandi: { equals: cleanMandi, mode: 'insensitive' },
+        date: { lte: dayEnd },
+        ...(plantId && plantId !== 'global' ? { plantId } : {}),
+      },
+      orderBy: { date: 'desc' },
+    });
+    if (!row) return null;
+
+    const punchedDay = this.mandiDayStart(row.date).getTime();
+    const askedDay = day.getTime();
+    return {
+      ...row,
+      carriedForward: punchedDay < askedDay,
+      effectiveForDate: date,
+    };
+  }
+
+  /**
+   * Apply (or back-date) Mandi Today Rate to that day's Estimate Purchase rows.
+   * - Updates soda/boli Today Rate + M/C Point snapshots for matching mandi + date
+   * - Reasserts Payment / Final Hisab from Govt Paddy Rate only (never Mandi Today Rate)
+   */
+  private async applyMandiRateToDayPurchases(
+    plantId: string | null,
+    day: Date,
+    mandi: string,
+    todayRate: number,
+    mcPoint: number | null,
+  ) {
+    const dayEnd = new Date(day);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const plant = plantId
+      ? await this.prisma.plant.findUnique({
+          where: { id: plantId },
+          select: { benchmarkMoisture: true },
+        })
+      : null;
+    const benchmark = plant?.benchmarkMoisture ?? 17;
+
+    const sodas = await this.prisma.paddySodaPending.findMany({
+      where: {
+        ...(plantId ? { plantId } : {}),
+        date: { gte: day, lte: dayEnd },
+        supplier: { mandi: { equals: mandi, mode: 'insensitive' } },
+      },
+      include: { bolis: true },
+    });
+
+    let sodasUpdated = 0;
+    let bolisUpdated = 0;
+    let paymentsRecalc = 0;
+
+    for (const s of sodas) {
+      const govtRate = s.govtRate ?? 0;
+      let sodaPayment = 0;
+      let sodaHadFinal = false;
+
+      for (const b of s.bolis || []) {
+        const payment =
+          b.finalBags != null
+            ? this.calcBoliPayment(govtRate, b.rate, b.finalBags)
+            : b.payment ?? 0;
+        if (b.finalBags != null) {
+          sodaHadFinal = true;
+          sodaPayment += payment || 0;
+          paymentsRecalc += 1;
+        } else {
+          sodaPayment += payment || 0;
+        }
+        const mcDeduction = this.calcMcDeduction(b.moisture, benchmark, mcPoint);
+        await this.prisma.paddyBoli.update({
+          where: { id: b.id },
+          data: {
+            todayRate,
+            mcDeduction,
+            baseBoliRate: this.calcBaseBoliRate(todayRate, mcDeduction),
+            ...(b.finalBags != null ? { payment } : {}),
+          },
+        });
+        bolisUpdated += 1;
+      }
+
+      sodaPayment = Math.round(sodaPayment * 100) / 100;
+      await this.prisma.paddySodaPending.update({
+        where: { id: s.id },
+        data: {
+          todayRate,
+          mcPoint,
+          // Diff always vs Govt Paddy Rate (not Mandi Today Rate)
+          diff: this.paymentDiffFromGovt(govtRate, s.rate || 0),
+          ...(sodaHadFinal
+            ? { payment: sodaPayment, finalHisabAmt: sodaPayment }
+            : {}),
+        },
+      });
+      sodasUpdated += 1;
+    }
+
+    return { sodasUpdated, bolisUpdated, paymentsRecalc };
+  }
+
+  async upsertMandiDailyRate(
+    data: {
+      id?: string;
+      plantId?: string;
+      date: string;
+      mandi: string;
+      todayRate: number;
+      mcPoint?: number | null;
+    },
+    user?: any,
+  ) {
+    if (!this.isAdminRole(user)) {
+      throw new BadRequestException('Only Admin can maintain Mandi Today Rate / M/C Point');
+    }
+    const mandi = String(data.mandi || '').trim();
+    if (!mandi) throw new BadRequestException('Mandi is required');
+    const todayRate = Number(data.todayRate);
+    if (!Number.isFinite(todayRate) || todayRate < 0) {
+      throw new BadRequestException('Today Rate must be a non-negative number');
+    }
+    const mcPoint = this.parseMcPoint(data.mcPoint);
+    if (data.mcPoint != null && mcPoint == null) {
+      throw new BadRequestException('M/C Point must be a non-negative number');
+    }
+    const day = this.mandiDayStart(data.date);
+    const plantId = data.plantId && data.plantId !== 'global' ? data.plantId : null;
+
+    let row: any;
+    if (data.id) {
+      row = await this.prisma.mandiDailyRate.update({
+        where: { id: data.id },
+        data: { date: day, mandi, todayRate, mcPoint, plantId },
+      });
+    } else {
+      const next = new Date(day);
+      next.setDate(next.getDate() + 1);
+      const existing = await this.prisma.mandiDailyRate.findFirst({
+        where: {
+          mandi: { equals: mandi, mode: 'insensitive' },
+          date: { gte: day, lt: next },
+          plantId: plantId || undefined,
+        },
+      });
+      if (existing) {
+        // Same day + mandi: correct that day's punched rate (history of other dates kept)
+        row = await this.prisma.mandiDailyRate.update({
+          where: { id: existing.id },
+          data: { todayRate, mcPoint, mandi },
+        });
+      } else {
+        // New date (incl. back-date) → appends to rate history
+        row = await this.prisma.mandiDailyRate.create({
+          data: { plantId, date: day, mandi, todayRate, mcPoint },
+        });
+      }
+    }
+
+    const corrected = await this.applyMandiRateToDayPurchases(
+      plantId,
+      day,
+      mandi,
+      todayRate,
+      mcPoint,
+    );
+
+    return { ...row, corrected };
+  }
+
+  async deleteMandiDailyRate(id: string, user?: any) {
+    if (!this.isAdminRole(user)) {
+      throw new BadRequestException('Only Admin can delete Mandi Today Rate rows');
+    }
+    await this.prisma.mandiDailyRate.delete({ where: { id } });
+    return { deleted: true };
   }
 
   async getSupervisorsForPlant(plantId: string) {
@@ -1931,28 +2806,49 @@ export class ProcurementService {
     );
   }
 
-  /** Open bolis eligible for Add Final Boli (estimate done, finalBags not set, not cancelled) */
+  /**
+   * Final Boli: all lines under sodas that still need Final Bags.
+   * Returns every sibling for the same Boli No. (can be > 4), including lines
+   * that already have Final Bags (read-only on UI).
+   */
   async getOpenBolisForFinal(plantId: string) {
     await this.backfillMissingBoliNos(plantId);
 
-    const bolis = await this.prisma.paddyBoli.findMany({
+    const plantFilter =
+      plantId === 'global' ? undefined : { plantId };
+
+    const openLines = await this.prisma.paddyBoli.findMany({
       where: {
         finalBags: null,
         isCancelled: false,
         bags: { gt: 0 },
-        sodaPending: plantId === 'global' ? undefined : { plantId },
+        sodaPending: plantFilter,
+      },
+      select: { sodaPendingId: true },
+    });
+    const sodaIds = [...new Set(openLines.map((b) => b.sodaPendingId))];
+    if (!sodaIds.length) return [];
+
+    const bolis = await this.prisma.paddyBoli.findMany({
+      where: {
+        sodaPendingId: { in: sodaIds },
+        isCancelled: false,
+        bags: { gt: 0 },
       },
       include: {
         sodaPending: { include: { supplier: true } },
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ sodaPendingId: 'asc' }, { createdAt: 'asc' }],
     });
+
     return bolis.map((b) => ({
       id: b.id,
       boliNo: b.boliNo,
       moisture: b.moisture,
       estimatedBags: b.bags,
       rate: b.rate,
+      finalBags: b.finalBags,
+      needsFinal: b.finalBags == null,
       artiaBillChecked: b.artiaBillChecked,
       supervisorName: b.sodaPending.supervisorName,
       artiaName: b.sodaPending.supplier.name,
@@ -2101,6 +2997,55 @@ export class ProcurementService {
     if (!boli) throw new BadRequestException('Boli not found');
     if (boli.isCancelled || boli.bags === 0) throw new BadRequestException('Cancelled boli cannot receive Final Bags');
     if (boli.finalBags != null) throw new BadRequestException('Final Bags already submitted for this Boli');
+
+    // Final Bags = 0 → cancel this line (replaces separate "Cancel this Boli")
+    if (finalBags === 0) {
+      const soda = boli.sodaPending;
+      const prevCancel = soda.cancelCount || 0;
+      if (prevCancel >= 3 && !this.isAdminRole(user)) {
+        await this.notifyAdmin(
+          this.prisma,
+          user?.id,
+          'BOLI_CANCEL_LIMIT',
+          `Further boli cancel (Final Bags=0) after max 3 for ${soda.supplier?.name || 'Artia'}. Admin review required.`,
+          boliId,
+          soda.plantId,
+        );
+        throw new BadRequestException(
+          'Maximum 3 boli cancels per soda reached. Ask Admin to cancel further bolis.',
+        );
+      }
+
+      return this.prisma.$transaction(async (tx) => {
+        const updated = await tx.paddyBoli.update({
+          where: { id: boliId },
+          data: {
+            isCancelled: true,
+            bags: 0,
+            finalBags: 0,
+            payment: 0,
+            artiaBillChecked: true,
+          },
+        });
+        await tx.paddySodaPending.update({
+          where: { id: boli.sodaPendingId },
+          data: {
+            cancelCount: prevCancel + 1,
+            biometricData: data.biometricData,
+            supervisorName: data.supervisorName || soda.supervisorName,
+          },
+        });
+        await this.notifyAdmin(
+          tx,
+          user?.id,
+          'BOLI_CANCELLED_FINAL_BAGS_ZERO',
+          `Boli ${boli.boliNo} cancelled (Final Bags=0) by ${user?.username || user?.role || 'user'} (${soda.supplier?.name || ''})`,
+          boliId,
+          soda.plantId,
+        );
+        return updated;
+      });
+    }
 
     // Feedback 32 — Final Boli must use same supervisor who filled Estimate (unless admin)
     if (
@@ -2379,6 +3324,8 @@ export class ProcurementService {
   }
 
   async createSodaPending(data: any, user?: any) {
+    await this.assertSupplierUsable(data.supplierId);
+
     if (!data.biometricData) {
       if (this.isAdminRole(user)) {
         data.biometricData = 'ADMIN_BYPASS';
@@ -2406,6 +3353,10 @@ export class ProcurementService {
           moisture: b.moisture === '' || b.moisture == null ? null : parseFloat(b.moisture),
           bags: bagsStr == null ? null : parseInt(bagsStr, 10),
           rate: rateStr == null ? null : parseInt(rateStr, 10),
+          todayRate:
+            b.todayRate === '' || b.todayRate == null
+              ? null
+              : Number(b.todayRate),
         };
       })
       .filter((b: any) => b.moisture != null || b.bags != null || b.rate != null);
@@ -2467,16 +3418,37 @@ export class ProcurementService {
       });
     }
 
+    const plant = await this.prisma.plant.findUnique({
+      where: { id: data.plantId },
+      select: { benchmarkMoisture: true },
+    });
+    const benchmarkMoisture = plant?.benchmarkMoisture ?? 17;
+    const sodaMcPoint = this.parseMcPoint(data.mcPoint);
+
     return this.prisma.$transaction(async (tx) => {
       // One Boli No. for this entire Estimate Purchase (all lines share it)
       const sharedBoliNo = await this.nextBoliNo(tx, data.plantId);
       const createdBolis: any[] = [];
       for (const b of bolisData) {
+        const lineTodayRate =
+          b.todayRate != null && Number.isFinite(Number(b.todayRate))
+            ? Number(b.todayRate)
+            : data.todayRate != null && Number.isFinite(Number(data.todayRate))
+              ? Number(data.todayRate)
+              : null;
+        const mcDeduction = this.calcMcDeduction(
+          b.moisture,
+          benchmarkMoisture,
+          sodaMcPoint,
+        );
         createdBolis.push({
           boliNo: sharedBoliNo,
           moisture: b.moisture,
           bags: b.bags,
           rate: b.rate,
+          todayRate: lineTodayRate,
+          mcDeduction,
+          baseBoliRate: this.calcBaseBoliRate(lineTodayRate, mcDeduction),
           isCancelled: b.bags === 0,
           payment: 0,
         });
@@ -2491,7 +3463,13 @@ export class ProcurementService {
         bags: totalBags,
         rate: avgRate,
         govtRate: parseFloat(data.govtRate) || 0,
-        diff: parseFloat(data.diff) || 0,
+        todayRate:
+          data.todayRate != null && Number.isFinite(Number(data.todayRate))
+            ? Number(data.todayRate)
+            : null,
+        mcPoint: this.parseMcPoint(data.mcPoint),
+        // Payment difference always on Govt Paddy Rate only (ignore client todayRate-based diffs)
+        diff: this.paymentDiffFromGovt(parseFloat(data.govtRate) || 0, avgRate),
           payment: 0,
           finalHisabAmt: 0,
         note: data.note || '',
@@ -2581,6 +3559,8 @@ export class ProcurementService {
         moisture: b.moisture === '' || b.moisture == null ? null : parseFloat(b.moisture),
         bags: b.bags === '' || b.bags == null ? null : parseInt(String(b.bags), 10),
         rate: b.rate === '' || b.rate == null ? null : parseInt(String(b.rate), 10),
+        todayRate:
+          b.todayRate === '' || b.todayRate == null ? null : Number(b.todayRate),
       }))
       .filter((b: any) => b.moisture != null || b.bags != null || b.rate != null || b.id);
 
@@ -2643,6 +3623,16 @@ export class ProcurementService {
     }
 
     const govtRate = parseFloat(data.govtRate) || existing.govtRate || 0;
+    const plantIdForBm = data.plantId || existing.plantId;
+    const plant = await this.prisma.plant.findUnique({
+      where: { id: plantIdForBm },
+      select: { benchmarkMoisture: true },
+    });
+    const benchmarkMoisture = plant?.benchmarkMoisture ?? 17;
+    const sodaMcPoint =
+      data.mcPoint !== undefined
+        ? this.parseMcPoint(data.mcPoint)
+        : existing.mcPoint ?? null;
 
     return this.prisma.$transaction(async (tx) => {
       const existingById = new Map(existing.bolis.map((b) => [b.id, b]));
@@ -2674,10 +3664,24 @@ export class ProcurementService {
         const payment =
           finalBags != null ? this.calcBoliPayment(govtRate, b.rate, finalBags) : existingBoli?.payment || 0;
 
+        const lineTodayRate =
+          b.todayRate != null && Number.isFinite(Number(b.todayRate))
+            ? Number(b.todayRate)
+            : data.todayRate != null && Number.isFinite(Number(data.todayRate))
+              ? Number(data.todayRate)
+              : existingBoli?.todayRate ?? null;
+        const mcDeduction = this.calcMcDeduction(
+          b.moisture,
+          benchmarkMoisture,
+          sodaMcPoint,
+        );
         const payload = {
           moisture: b.moisture,
           bags: b.bags,
           rate: b.rate,
+          todayRate: lineTodayRate,
+          mcDeduction,
+          baseBoliRate: this.calcBaseBoliRate(lineTodayRate, mcDeduction),
           boliNo: sharedBoliNo,
           finalBags,
           artiaBillChecked,
@@ -2725,7 +3729,15 @@ export class ProcurementService {
         bags: totalBags,
         rate: avgRate,
           govtRate,
-        diff: parseFloat(data.diff) || 0,
+          todayRate:
+            data.todayRate != null && Number.isFinite(Number(data.todayRate))
+              ? Number(data.todayRate)
+              : existing.todayRate,
+          mcPoint:
+            data.mcPoint !== undefined
+              ? this.parseMcPoint(data.mcPoint)
+              : existing.mcPoint,
+          diff: this.paymentDiffFromGovt(govtRate, avgRate),
           payment: sodaPayment,
           finalHisabAmt: sodaPayment,
           note: data.note ?? existing.note,

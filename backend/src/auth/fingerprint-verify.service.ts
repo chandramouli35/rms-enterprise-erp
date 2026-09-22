@@ -96,13 +96,13 @@ export class FingerprintVerifyService {
           };
         }
       }
-      throw new BadRequestException('Fingerprint not matched');
+      throw new BadRequestException('This fingerprint does not exist');
     }
 
     // Gallery has templates but live scan did not yield FMR
     if (galleries.length && !liveIso) {
       throw new BadRequestException(
-        'Fingerprint not matched. Keep finger steady on the sensor and Scan again.',
+        'This fingerprint does not exist. Keep finger steady on the sensor and Scan again.',
       );
     }
 
@@ -116,7 +116,7 @@ export class FingerprintVerifyService {
     }
 
     throw new BadRequestException(
-      'Fingerprint not matched. Place finger firmly on Mantra MFS110 and Scan again.',
+      'This fingerprint does not exist. Place finger firmly on Mantra MFS110 and Scan again.',
     );
   }
 

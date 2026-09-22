@@ -45,6 +45,7 @@ model Plant {
   weighbridgeTransactions WeighbridgeTransaction[]
   weighbridgeSettings     WeighbridgeSettings?
   paddySodaPendings       PaddySodaPending[]
+  mandiDailyRates         MandiDailyRate[]
   dispatches              Dispatch[]
   financeTransactions     FinanceTransaction[]
   financeSodaMills        FinanceSodaMill[]
@@ -194,7 +195,11 @@ model Supplier {
   contact   String?
   email     String?
   address   String?
+  /// ACTIVE | PENDING_APPROVAL — supervisor create needs Admin confirm
   status    String   @default("ACTIVE")
+  /// Supervisor fingerprint at create (match logged-in user)
+  biometricData String?
+  createdById   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -205,6 +210,7 @@ model Supplier {
   /// Mill-scoped Arthiya (same name allowed in other mills as separate rows)
   @@index([plantId])
   @@index([plantId, name])
+  @@index([status])
 }
 
 // -----------------------------------------------------------------------------
@@ -446,6 +452,10 @@ model PaddySodaPending {
   bags          Float?
   rate          Float?
   govtRate      Float?
+  /// Snapshot of mandi bulletin Today Rate (Admin Mandi Daily Rate)
+  todayRate     Float?
+  /// Snapshot of M/C Point (₹ per 1% moisture) from Admin Mandi Daily Rate
+  mcPoint       Float?
   diff          Float?
   payment       Float?
   note          String?
@@ -484,6 +494,13 @@ model PaddyBoli {
   /// Estimated bags from Add Estimate Purchase (0 = cancelled)
   bags     Float
   rate     Float
+  /// Today Rate from Admin mandi bulletin at estimate time (for up/down vs Boli Rate)
+  todayRate Float?
+  /// Backend MC deduction: (currentMoisture − plant.benchmarkMoisture) × M/C Point
+  /// e.g. (20 − 18) × 50 = 100. Null when M/C Point not set.
+  mcDeduction Float?
+  /// Base Boli Rate = Today Rate (Base Rate) − M/C Deduction; e.g. 2200 − 100 = 2100
+  baseBoliRate Float?
 
   /// Feedback 32 — Final Boli
   finalBags          Float?
@@ -1279,6 +1296,24 @@ model Mandi {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// Admin-maintained daily mandi bulletin: Today Rate + M/C Point (Boli Record Admin section)
+model MandiDailyRate {
+  id        String   @id @default(uuid())
+  plantId   String?
+  plant     Plant?   @relation(fields: [plantId], references: [id])
+  date      DateTime
+  mandi     String
+  todayRate Float
+  /// M/C Point: ₹ monetary impact per 1% moisture (e.g. base 2200, M/C Point 50)
+  mcPoint   Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([plantId, date, mandi])
+  @@index([plantId, date])
+  @@index([mandi])
 }
 
 model IntermillBatch {

@@ -1,9 +1,7 @@
 /**
  * Mantra MFS110 L1 — RD Service fingerprint capture + verify for RMS.
  *
- * captureFingerprint()              — raw PidData (one press)
- * captureForEnrollment()            — PidData + ISO template when RD provides it
- * captureAndVerifyLoggedInUser()    — one press → backend 1:1 verify
+ * One Scan click = one finger press on the device (never auto-retry CAPTURE).
  */
 
 import api from '../api/axios';
@@ -12,7 +10,7 @@ const PID_OPTIONS_FMR = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount
 
 const PID_OPTIONS_L1 = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="2" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="P"/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
 
-const PID_OPTIONS_DEMO_FMR = `<?xml version="1.0"?><PidOptions ver="1.0"><Opts fCount="1" fType="0" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="20000" posh="UNKNOWN" env="P"/><Demo/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
+type PidKind = 'L1' | 'FMR';
 
 const PORTS = Array.from({ length: 21 }, (_, i) => 11100 + i);
 /** Prefer common Mantra ports first (most installs use 11100/11101). */
@@ -20,6 +18,7 @@ const PREFERRED_PORTS = [11100, 11101, 11102, 11103, 11104, 11105];
 const PROBE_TIMEOUT_MS = 350;
 const CAPTURE_TIMEOUT_MS = 25000;
 const RD_CACHE_KEY = 'rms_mantra_rd_service_v1';
+const PID_KIND_CACHE_KEY = 'rms_mantra_pid_kind_v1';
 
 type RdService = {
   baseUrl: string;
@@ -40,6 +39,9 @@ export type EnrollmentCapture = {
 };
 
 let memoryRdCache: RdService | null = null;
+let memoryPidKind: PidKind | null = null;
+/** Prevent double-click starting two overlapping CAPTURE calls */
+let captureInFlight: Promise<string> | null = null;
 
 function schemes(): Array<'https' | 'http'> {
   const https =
@@ -93,6 +95,38 @@ function clearRdCache() {
   } catch {
     /* ignore */
   }
+}
+
+function readPidKind(): PidKind {
+  if (memoryPidKind) return memoryPidKind;
+  try {
+    const v = sessionStorage.getItem(PID_KIND_CACHE_KEY);
+    if (v === 'FMR' || v === 'L1') {
+      memoryPidKind = v;
+      return v;
+    }
+  } catch {
+    /* ignore */
+  }
+  // Mantra MFS110 L1 default
+  return 'L1';
+}
+
+function writePidKind(kind: PidKind) {
+  memoryPidKind = kind;
+  try {
+    sessionStorage.setItem(PID_KIND_CACHE_KEY, kind);
+  } catch {
+    /* ignore */
+  }
+}
+
+function pidOptionsFor(kind: PidKind): string {
+  return kind === 'FMR' ? PID_OPTIONS_FMR : PID_OPTIONS_L1;
+}
+
+function isPidOptionsRejected(message: string): boolean {
+  return /pidoptions|strictly adhere|ftype|invalid.*opts/i.test(message || '');
 }
 
 async function fetchWithTimeout(
@@ -190,7 +224,6 @@ async function firstReadyAmong(combos: string[]): Promise<{
 }
 
 async function findReadyRdService(): Promise<RdService> {
-  // 1) Reuse last known RD (same browser tab) — huge speed win on every Scan
   const cached = readRdCache();
   if (cached) {
     const quick = await probeOne(cached.baseUrl);
@@ -198,14 +231,12 @@ async function findReadyRdService(): Promise<RdService> {
     clearRdCache();
   }
 
-  // 2) Preferred ports first (usually enough)
   const preferred = await firstReadyAmong(buildCombos(PREFERRED_PORTS));
   if (preferred.ready) {
     writeRdCache(preferred.ready);
     return preferred.ready;
   }
 
-  // 3) Remaining ports only if needed
   const restPorts = PORTS.filter((p) => !PREFERRED_PORTS.includes(p));
   const rest = await firstReadyAmong(buildCombos(restPorts));
   if (rest.ready) {
@@ -339,16 +370,38 @@ async function capturePid(rd: RdService, pidOptions: string): Promise<string> {
   );
 }
 
-/** One finger press: L1 first, then FMR if PidOptions rejected. */
-async function capturePidData(): Promise<string> {
-  const rd = await findReadyRdService();
-  try {
-    return await capturePid(rd, PID_OPTIONS_L1);
-  } catch (e: any) {
-    if (e?.message && /pidoptions|strictly adhere|ftype/i.test(e.message)) {
-      return await capturePid(rd, PID_OPTIONS_FMR);
+/**
+ * Exactly ONE device CAPTURE per Scan click.
+ * Never auto-retries with a second PidOptions in the same click (that caused 2 finger presses).
+ * If PidOptions are rejected, switch preferred kind for the *next* Scan only.
+ */
+async function capturePidDataOnce(): Promise<string> {
+  if (captureInFlight) return captureInFlight;
+
+  captureInFlight = (async () => {
+    const rd = await findReadyRdService();
+    const kind = readPidKind();
+    try {
+      const xml = await capturePid(rd, pidOptionsFor(kind));
+      writePidKind(kind);
+      return xml;
+      } catch (e: any) {
+      const msg = String(e?.message || '');
+      if (isPidOptionsRejected(msg)) {
+        const alt: PidKind = kind === 'L1' ? 'FMR' : 'L1';
+        writePidKind(alt);
+        throw new Error(
+          'Scanner options updated for this PC. Click Scan once more and place your finger (one press only).',
+        );
+      }
+      throw e;
     }
-    throw e;
+  })();
+
+  try {
+    return await captureInFlight;
+  } finally {
+    captureInFlight = null;
   }
 }
 
@@ -451,45 +504,23 @@ export const biometricService = {
   checkDevice: checkFingerprintDevice,
 
   /** Raw capture — one finger press. */
-  captureFingerprint: async (): Promise<string> => capturePidData(),
+  captureFingerprint: async (): Promise<string> => capturePidDataOnce(),
 
   /**
-   * Enrollment: one press for PidData; optional second Demo press only if
-   * first response has no clear FMR (keeps enrollment working on L1 RD).
+   * Enrollment: one finger press only (no second Demo capture).
+   * ISO template stored when RD returns clear FMR in that same response.
    */
   captureForEnrollment: async (): Promise<EnrollmentCapture> => {
-    const rd = await findReadyRdService();
-    let pidData: string;
-    try {
-      pidData = await capturePid(rd, PID_OPTIONS_L1);
-    } catch (e: any) {
-      if (e?.message && /pidoptions|strictly adhere|ftype/i.test(e.message)) {
-        pidData = await capturePid(rd, PID_OPTIONS_FMR);
-      } else {
-        throw e;
-      }
-    }
-
-    let isoTemplate = extractIsoTemplateFromPidXml(pidData);
-    if (!isoTemplate) {
-      try {
-        const demoXml = await capturePid(rd, PID_OPTIONS_DEMO_FMR);
-        isoTemplate = extractIsoTemplateFromPidXml(demoXml);
-        if (isoTemplate) pidData = demoXml;
-      } catch {
-        /* Demo optional — PidData enrollment still OK */
-      }
-    }
-
+    const pidData = await capturePidDataOnce();
+    const isoTemplate = extractIsoTemplateFromPidXml(pidData);
     return { pidData, isoTemplate };
   },
 
   /**
-   * Form Scan: ONE finger press → verify against logged-in user.
-   * Wrong finger fails when matchable ISO templates exist on both sides.
+   * Form Scan: ONE finger press → backend verify.
    */
   captureAndVerifyLoggedInUser: async (): Promise<string> => {
-    const pidData = await capturePidData();
+    const pidData = await capturePidDataOnce();
     const isoTemplate = extractIsoTemplateFromPidXml(pidData);
 
     try {
@@ -498,7 +529,7 @@ export const biometricService = {
         isoTemplate,
       });
     } catch (err: any) {
-      throw new Error(apiErrorMessage(err) || 'Fingerprint not matched');
+      throw new Error(apiErrorMessage(err) || 'This fingerprint does not exist');
     }
 
     return pidData;
