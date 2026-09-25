@@ -13,7 +13,7 @@ export const Login: React.FC = () => {
  const [error, setError] = useState('');
  const loginLock = useSubmitLock();
  const [showPassword, setShowPassword] = useState(false); 
- const [rememberMe, setRememberMe] = useState(false);
+ // const [rememberMe, setRememberMe] = useState(false);
  
  const setAuth = useAuthStore((state) => state.setAuth);
  const setActivePlant = usePlantStore((state) => state.setActivePlant);
@@ -28,7 +28,7 @@ export const Login: React.FC = () => {
  setError('');
  await loginLock.wrapSubmit(async () => {
  try {
- const res = await axios.post(`${API_URL}/auth/login`, { username, password, rememberMe });
+ const res = await axios.post(`${API_URL}/auth/login`, { username, password /*, rememberMe */ });
  const { user, accessToken } = res.data;
  
  setAuth(user, accessToken);
@@ -178,10 +178,10 @@ export const Login: React.FC = () => {
  </div>
 
  <div className="flex items-center justify-between pt-1">
- <label className="flex items-center gap-2 cursor-pointer">
+ {/* <label className="flex items-center gap-2 cursor-pointer">
  <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded bg-[var(--bg-panel)] border-[var(--border-subtle)] text-amber-500 focus:ring-amber-500 w-4 h-4" />
  <span className="text-sm text-[var(--text-muted-alt)]">Remember Me</span>
- </label>
+ </label> */}
  <a href="#" className="text-sm text-amber-500 hover:text-amber-400 transition-colors">Forgot Password?</a>
  </div>
 

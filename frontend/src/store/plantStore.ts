@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 interface Plant {
   id: string;
@@ -36,6 +36,7 @@ export const usePlantStore = create<PlantState>()(
     }),
     {
       name: 'plant-storage',
+      storage: createJSONStorage(() => sessionStorage),
     }
   )
 );
