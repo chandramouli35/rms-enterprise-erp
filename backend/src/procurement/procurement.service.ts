@@ -2466,6 +2466,15 @@ export class ProcurementService {
 
     const round2 = (n: number) => Math.round(n * 100) / 100;
 
+    const moistureRange = (rows: any[]) => {
+      const mcs = rows
+        .map((r) => Number(r.moisture))
+        .filter((n) => Number.isFinite(n) && n > 0)
+        .map((n) => round2(n));
+      if (!mcs.length) return { min: null as number | null, max: null as number | null };
+      return { min: Math.min(...mcs), max: Math.max(...mcs) };
+    };
+
     return {
       summary: {
         overpricedCount: overpriced.length,
@@ -2481,11 +2490,16 @@ export class ProcurementService {
         ...m,
         overpricedDeltaSum: round2(m.overpricedDeltaSum),
         underpricedDeltaSum: round2(m.underpricedDeltaSum),
-        artias: m.artias.map((a) => ({
-          ...a,
-          overpricedDeltaSum: round2(a.overpricedDeltaSum),
-          underpricedDeltaSum: round2(a.underpricedDeltaSum),
-        })),
+        artias: m.artias.map((a) => {
+          const mc = moistureRange(a.overpriced);
+          return {
+            ...a,
+            overpricedDeltaSum: round2(a.overpricedDeltaSum),
+            underpricedDeltaSum: round2(a.underpricedDeltaSum),
+            overpricedMoistureMin: mc.min,
+            overpricedMoistureMax: mc.max,
+          };
+        }),
       })),
       overpriced,
       underpriced,
@@ -2525,6 +2539,10 @@ export class ProcurementService {
       lowDate: string | null;
       highBoliNo: string | null;
       lowBoliNo: string | null;
+      highMoisture: number;
+      lowMoisture: number;
+      highMoistureBoliNo: string | null;
+      lowMoistureBoliNo: string | null;
     };
 
     const bump = (
@@ -2533,6 +2551,7 @@ export class ProcurementService {
       bags: number,
       date: any,
       boliNo: string | null,
+      moisture: number | null,
     ) => {
       if (rate > agg.high) {
         agg.high = rate;
@@ -2543,6 +2562,17 @@ export class ProcurementService {
         agg.low = rate;
         agg.lowDate = date ? new Date(date).toISOString() : null;
         agg.lowBoliNo = boliNo;
+      }
+      const mc = Number(moisture);
+      if (Number.isFinite(mc) && mc > 0) {
+        if (mc > agg.highMoisture) {
+          agg.highMoisture = mc;
+          agg.highMoistureBoliNo = boliNo;
+        }
+        if (mc < agg.lowMoisture) {
+          agg.lowMoisture = mc;
+          agg.lowMoistureBoliNo = boliNo;
+        }
       }
       agg.sumRate += rate;
       agg.count += 1;
@@ -2559,6 +2589,10 @@ export class ProcurementService {
       lowDate: null,
       highBoliNo: null,
       lowBoliNo: null,
+      highMoisture: 0,
+      lowMoisture: Infinity,
+      highMoistureBoliNo: null,
+      lowMoistureBoliNo: null,
     });
 
     const finalize = (agg: TrendAgg) => ({
@@ -2571,6 +2605,16 @@ export class ProcurementService {
       lowDate: agg.lowDate,
       highBoliNo: agg.highBoliNo,
       lowBoliNo: agg.lowBoliNo,
+      highMoisture:
+        agg.highMoisture > 0
+          ? Math.round(agg.highMoisture * 100) / 100
+          : null,
+      lowMoisture:
+        agg.lowMoisture !== Infinity
+          ? Math.round(agg.lowMoisture * 100) / 100
+          : null,
+      highMoistureBoliNo: agg.highMoistureBoliNo,
+      lowMoistureBoliNo: agg.lowMoistureBoliNo,
       spread: agg.count && agg.low !== Infinity ? Math.round((agg.high - agg.low) * 100) / 100 : 0,
     });
 
@@ -2591,7 +2635,14 @@ export class ProcurementService {
         };
         artiaMap.set(key, a);
       }
-      bump(a, Number(r.rate), Number(r.estimatedBags) || 0, r.date, r.boliNo || null);
+      bump(
+        a,
+        Number(r.rate),
+        Number(r.estimatedBags) || 0,
+        r.date,
+        r.boliNo || null,
+        r.moisture ?? null,
+      );
     }
 
     const byArtia = Array.from(artiaMap.values())
@@ -2612,7 +2663,14 @@ export class ProcurementService {
         m = { ...emptyAgg(), mandi: r.mandi || '—' };
         mandiMap.set(key, m);
       }
-      bump(m, Number(r.rate), Number(r.estimatedBags) || 0, r.date, r.boliNo || null);
+      bump(
+        m,
+        Number(r.rate),
+        Number(r.estimatedBags) || 0,
+        r.date,
+        r.boliNo || null,
+        r.moisture ?? null,
+      );
     }
 
     const byMandi = Array.from(mandiMap.values())
@@ -2625,7 +2683,14 @@ export class ProcurementService {
     // Overall
     const overall = emptyAgg();
     for (const r of lines) {
-      bump(overall, Number(r.rate), Number(r.estimatedBags) || 0, r.date, r.boliNo || null);
+      bump(
+        overall,
+        Number(r.rate),
+        Number(r.estimatedBags) || 0,
+        r.date,
+        r.boliNo || null,
+        r.moisture ?? null,
+      );
     }
 
     // Day-wise: High/Low moisture alongside High/Low Boli rates
@@ -2744,9 +2809,29 @@ export class ProcurementService {
         where.date.lte = end;
       }
     }
-    return this.prisma.mandiDailyRate.findMany({
+    const rows = await this.prisma.mandiDailyRate.findMany({
       where,
-      orderBy: [{ date: 'desc' }, { mandi: 'asc' }, { createdAt: 'desc' }],
+      orderBy: [{ mandi: 'asc' }, { date: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    // Keep the same mandi together (never split by another mandi).
+    // Newest mandi group first; dates within a group stay newest-first.
+    const latestByMandi = new Map<string, number>();
+    for (const r of rows) {
+      const key = String(r.mandi || '').toLowerCase();
+      const t = new Date(r.date).getTime();
+      latestByMandi.set(key, Math.max(latestByMandi.get(key) ?? 0, t));
+    }
+    return rows.slice().sort((a, b) => {
+      const ka = String(a.mandi || '').toLowerCase();
+      const kb = String(b.mandi || '').toLowerCase();
+      const group = (latestByMandi.get(kb) ?? 0) - (latestByMandi.get(ka) ?? 0);
+      if (group !== 0) return group;
+      const name = ka.localeCompare(kb);
+      if (name !== 0) return name;
+      const date = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (date !== 0) return date;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
   }
 
@@ -3053,23 +3138,34 @@ export class ProcurementService {
       orderBy: [{ sodaPendingId: 'asc' }, { createdAt: 'asc' }],
     });
 
-    return bolis.map((b) => ({
-      id: b.id,
-      boliNo: b.boliNo,
-      moisture: b.moisture,
-      estimatedBags: b.bags,
-      rate: b.rate,
-      finalBags: b.finalBags,
-      needsFinal: b.finalBags == null,
-      artiaBillChecked: b.artiaBillChecked,
-      supervisorName: b.sodaPending.supervisorName,
-      artiaName: b.sodaPending.supplier.name,
-      mandi: b.sodaPending.supplier.mandi || '',
-      sodaId: b.sodaPendingId,
-      date: b.sodaPending.date,
-      govtRate: b.sodaPending.govtRate,
-      cancelCount: b.sodaPending.cancelCount || 0,
-    }));
+    let lineSeq = 0;
+    let lastSodaId = '';
+    return bolis.map((b) => {
+      if (b.sodaPendingId !== lastSodaId) {
+        lastSodaId = b.sodaPendingId;
+        lineSeq = 0;
+      }
+      lineSeq += 1;
+      return {
+        id: b.id,
+        boliNo: b.boliNo,
+        moisture: b.moisture,
+        estimatedBags: b.bags,
+        rate: b.rate,
+        finalBags: b.finalBags,
+        needsFinal: b.finalBags == null,
+        artiaBillChecked: b.artiaBillChecked,
+        supervisorName: b.sodaPending.supervisorName,
+        artiaName: b.sodaPending.supplier.name,
+        mandi: b.sodaPending.supplier.mandi || '',
+        sodaId: b.sodaPendingId,
+        date: b.sodaPending.date,
+        createdAt: b.createdAt,
+        lineSeq,
+        govtRate: b.sodaPending.govtRate,
+        cancelCount: b.sodaPending.cancelCount || 0,
+      };
+    });
   }
 
   /**

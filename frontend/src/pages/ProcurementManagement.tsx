@@ -1088,7 +1088,6 @@ export const ProcurementManagement = () => {
     const cols: Array<"moisture" | "bags" | "todayRate" | "rate"> = [
       "moisture",
       "bags",
-      "todayRate",
       "rate",
     ];
     const colIdx = cols.indexOf(col);
@@ -7474,10 +7473,7 @@ export const ProcurementManagement = () => {
                     ? "← → or Enter → next column · Cancel soda only in Add Final Boli"
                     : "← → or Enter → next column (Rate → next Boli row)"}
                   {" · "}
-                  MC Deduct = (M/C − Benchmark{" "}
-                  {activePlant?.benchmarkMoisture ?? 17}%) × M/C Point · Base
-                  Boli = Today Rate − MC Deduct · Rate: red ↑ Overpriced / green
-                  ↓ Underpriced vs Base
+                  Rate: red ↑ Overpriced / green ↓ Underpriced vs Base
                 </span>
               </div>
               <div data-boli-grid className="space-y-4">
@@ -7508,7 +7504,7 @@ export const ProcurementManagement = () => {
                   return (
                     <div
                       key={index}
-                      className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 items-end"
+                      className="grid grid-cols-2 sm:grid-cols-3 gap-2 items-end"
                     >
                       <div>
                         {!bagsCancelled && (
@@ -7536,28 +7532,6 @@ export const ProcurementManagement = () => {
                           placeholder={bagsCancelled ? "Cancelled" : undefined}
                           className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm ${
                             bagsCancelled ? "opacity-40 cursor-not-allowed" : ""
-                          }`}
-                        />
-                      </div>
-                      <div>
-                        {!bagsCancelled && (
-                          <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
-                            MC Deduct
-                          </label>
-                        )}
-                        <input
-                          type="text"
-                          readOnly
-                          value={
-                            bagsCancelled
-                              ? ""
-                              : mcDeductionPreview == null
-                                ? "—"
-                                : `₹${mcDeductionPreview}`
-                          }
-                          title="(Current Moisture − Benchmark Moisture) × M/C Point"
-                          className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm opacity-80 cursor-not-allowed ${
-                            bagsCancelled ? "opacity-40" : ""
                           }`}
                         />
                       </div>
@@ -7595,66 +7569,6 @@ export const ProcurementManagement = () => {
                           }}
                           className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm ${
                             bagsCancelled ? "opacity-50" : ""
-                          }`}
-                        />
-                      </div>
-                      <div>
-                        {!bagsCancelled && (
-                          <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
-                            Today Rate
-                          </label>
-                        )}
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          data-boli-cell={`${index}-todayRate`}
-                          value={
-                            bagsCancelled
-                              ? ""
-                              : boli.todayRate ??
-                                paddyPurchaseModal.todayRate ??
-                                ""
-                          }
-                          onKeyDown={(e) =>
-                            focusNextBoliField(e, index, "todayRate")
-                          }
-                          onChange={(e) => {
-                            const newBolis = [...paddyPurchaseModal.bolis];
-                            newBolis[index].todayRate = e.target.value;
-                            setPaddyPurchaseModal({
-                              ...paddyPurchaseModal,
-                              bolis: newBolis,
-                              todayRate:
-                                index === 0
-                                  ? e.target.value
-                                  : paddyPurchaseModal.todayRate,
-                            });
-                          }}
-                          placeholder={bagsCancelled ? "—" : "From Admin"}
-                          className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm ${
-                            bagsCancelled ? "opacity-40 cursor-not-allowed" : ""
-                          }`}
-                        />
-                      </div>
-                      <div>
-                        {!bagsCancelled && (
-                          <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
-                            Base Boli Rate
-                          </label>
-                        )}
-                        <input
-                          type="text"
-                          readOnly
-                          value={
-                            bagsCancelled
-                              ? ""
-                              : baseBoliPreview == null
-                                ? "—"
-                                : String(baseBoliPreview)
-                          }
-                          title="Base Rate (Today Rate) − M/C Deduction"
-                          className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-[var(--text-main)] text-sm opacity-80 cursor-not-allowed ${
-                            bagsCancelled ? "opacity-40" : ""
                           }`}
                         />
                       </div>

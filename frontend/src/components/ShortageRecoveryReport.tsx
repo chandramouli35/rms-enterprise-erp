@@ -606,12 +606,12 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
           exportData.push({
             Mandi: c.mandi,
             Artia: row.supplierName,
-            Date: new Date(row.date).toLocaleDateString(),
-            Mill: row.millName,
-            Truck: row.truckNo,
+        Date: new Date(row.date).toLocaleDateString(),
+        Mill: row.millName,
+        Truck: row.truckNo,
             Type: row.entryType || row.direction,
-            'Amount Qtl': row.amountQtl,
-            Narration: row.shortageNarration,
+        'Amount Qtl': row.amountQtl,
+        Narration: row.shortageNarration,
             'Opening Qtl': c.openingQtl,
             'Closing Qtl': c.closingQtl ?? c.pendingQtl,
             Trend: c.trend
@@ -1067,19 +1067,19 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                 Start Date / Closing Date
               </label>
               <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={filters.dateFrom}
-                  onChange={(e) => setFilters((p) => ({ ...p, dateFrom: e.target.value }))}
-                  className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-[var(--text-main)] px-3 py-1.5 rounded text-sm outline-none focus:border-[#e67e00]"
+              <input
+                type="date"
+                value={filters.dateFrom}
+                onChange={(e) => setFilters((p) => ({ ...p, dateFrom: e.target.value }))}
+                className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-[var(--text-main)] px-3 py-1.5 rounded text-sm outline-none focus:border-[#e67e00]"
                   title="Start Date — opening balance as of start of this day"
-                />
+              />
                 <span className="text-[var(--text-muted-alt)] text-xs">to</span>
-                <input
-                  type="date"
-                  value={filters.dateTo}
-                  onChange={(e) => setFilters((p) => ({ ...p, dateTo: e.target.value }))}
-                  className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-[var(--text-main)] px-3 py-1.5 rounded text-sm outline-none focus:border-[#e67e00]"
+              <input
+                type="date"
+                value={filters.dateTo}
+                onChange={(e) => setFilters((p) => ({ ...p, dateTo: e.target.value }))}
+                className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-[var(--text-main)] px-3 py-1.5 rounded text-sm outline-none focus:border-[#e67e00]"
                   title="Closing Date — closing balance as of end of this day"
                 />
                 {(filters.dateFrom || filters.dateTo) && (
@@ -1110,7 +1110,7 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
             {ledgerMode === 'artia' ? 'Artia' : 'Mandi'} Shortage Trend
             <span className="normal-case font-normal ml-2">({dateRangeLabel})</span>
           </h3>
-          <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
             {(entityTrend.trends as TrendInfo[])
               .filter((t) => Math.abs(t.deltaQtl) > 0.001 || t.totalQtl > 0)
               .slice(0, 24)
@@ -1258,7 +1258,7 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                       Closing by Mill / Mandi (as of {closingAsOfLabel})
                     </p>
                     <table className="w-full text-sm min-w-max">
-                      <thead>
+              <thead>
                         <tr className="text-[10px] uppercase text-[var(--text-muted-alt)] border-b border-[var(--border-subtle)]">
                           <th className="px-2 py-1 text-left">Mill</th>
                           <th className="px-2 py-1 text-left">Mandi</th>
@@ -1266,9 +1266,9 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                           <th className="px-2 py-1 text-right">Credit</th>
                           <th className="px-2 py-1 text-right">Closing Qtl</th>
                           <th className="px-2 py-1 text-right">Closing Bags</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                </tr>
+              </thead>
+              <tbody>
                         {selectedArtiaDetail.balanceRows.map((b: any, i: number) => (
                           <tr key={i} className="border-b border-[var(--border-subtle-alt)]">
                             <td className="px-2 py-1">{b.millName}</td>
@@ -1285,8 +1285,8 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                             <td className="px-2 py-1 text-right font-mono">
                               {Number(b.balanceBags || 0).toFixed(2)}
                             </td>
-                          </tr>
-                        ))}
+                  </tr>
+                ))}
                       </tbody>
                     </table>
                   </div>
@@ -1387,9 +1387,9 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                         <tr>
                           <td colSpan={10} className="px-3 py-4 text-center text-[var(--text-muted-alt)] text-xs">
                             No ledger entries in this date range
-                          </td>
-                        </tr>
-                      )}
+                    </td>
+                  </tr>
+                )}
                       <tr className="bg-[var(--bg-panel-hover)] font-semibold text-sm">
                         <td colSpan={6} className="px-3 py-2 text-right text-[var(--text-muted)]">
                           Opening {Number(cluster.openingQtl || 0).toFixed(2)} · Debit{' '}
@@ -1402,8 +1402,8 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                           Closing as of {closingAsOfLabel}
                         </td>
                       </tr>
-                    </tbody>
-                  </table>
+              </tbody>
+            </table>
                 </div>
               </div>
             ))}
@@ -1462,9 +1462,9 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                     </div>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left min-w-max">
-                    <thead>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left min-w-max">
+              <thead>
                       <tr className="bg-[var(--bg-muted)] border-b border-[var(--border-subtle)] text-[10px] uppercase text-[var(--text-muted-alt)]">
                         <th className="px-3 py-2">Date</th>
                         <th className="px-3 py-2">Mill</th>
@@ -1476,24 +1476,24 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                         <th className="px-3 py-2 text-right">Bags</th>
                         <th className="px-3 py-2">Recovery</th>
                         <th className="px-3 py-2">Narration</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                </tr>
+              </thead>
+              <tbody>
                       {renderEntryRows(cluster.entries, true, false)}
                       <tr className="bg-[var(--bg-panel-hover)] font-semibold text-sm">
                         <td colSpan={6} className="px-3 py-2 text-right text-[var(--text-muted)]">
                           Opening {Number(cluster.openingQtl || 0).toFixed(2)} · Debit{' '}
                           {cluster.debitQtl.toFixed(2)} · Credit {cluster.creditQtl.toFixed(2)}
-                        </td>
+                    </td>
                         <td className="px-3 py-2 text-right font-mono text-[#e67e00]">
                           {Number(cluster.closingQtl ?? cluster.pendingQtl).toFixed(2)}
-                        </td>
+                    </td>
                         <td colSpan={3} className="px-3 py-2 text-xs text-[var(--text-muted-alt)]">
                           Closing as of {closingAsOfLabel}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                    </td>
+                  </tr>
+              </tbody>
+            </table>
                 </div>
               </div>
             ))}

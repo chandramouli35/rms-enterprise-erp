@@ -137,11 +137,15 @@ export default function BoliRecordPanel({
     if (!selectedOpen) return [];
     return openBolis
       .filter((b) => b.sodaId === selectedOpen.sodaId)
-      .sort(
-        (a, b) =>
-          new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime() ||
-          String(a.id).localeCompare(String(b.id)),
-      );
+      .sort((a, b) => {
+        const seqA = Number(a.lineSeq) || 0;
+        const seqB = Number(b.lineSeq) || 0;
+        if (seqA && seqB && seqA !== seqB) return seqA - seqB;
+        const tA = new Date(a.createdAt || 0).getTime();
+        const tB = new Date(b.createdAt || 0).getTime();
+        if (tA !== tB) return tA - tB;
+        return 0;
+      });
   }, [selectedOpen, openBolis]);
 
   const [adminRates, setAdminRates] = useState<any[]>([]);
@@ -1242,617 +1246,6 @@ export default function BoliRecordPanel({
           </div>
         )}
 
-        {/* Moisture & Boli Rate highlights — highest / lowest of each day */}
-        {dayHighlights.length > 0 && (
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel-alt)] p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-bold text-[var(--text-main)]">
-                  Moisture &amp; Boli Rate Highlights
-                </h3>
-                <p className="text-[10px] text-[var(--text-muted-alt)]">
-                  Highest and lowest moisture of the day alongside highest and
-                  lowest Boli rates.
-                </p>
-              </div>
-              {lastSyncedAt && (
-                <span className="text-[10px] text-[var(--text-muted-alt)]">
-                  Live · updated {lastSyncedAt.toLocaleTimeString()}
-                </span>
-              )}
-            </div>
-            <div className="flex gap-3 overflow-x-auto pb-1">
-              {dayHighlights.map((d: any) => (
-                <div
-                  key={d.date}
-                  className="min-w-[220px] flex-shrink-0 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3 text-xs space-y-2"
-                >
-                  <div className="font-bold text-[#e67e00]">
-                    {d.date
-                      ? new Date(d.date + "T00:00:00").toLocaleDateString()
-                      : "—"}
-                    <span className="ml-2 font-normal text-[var(--text-muted-alt)]">
-                      {d.count} line{d.count === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded border border-red-500/30 bg-red-500/10 p-2">
-                      <div className="text-[10px] text-red-400/80 uppercase">
-                        High Rate
-                      </div>
-                      <div className="text-red-400 font-bold text-sm">
-                        ₹{d.highRate}
-                      </div>
-                      <div className="text-[10px] text-[var(--text-muted-alt)] truncate">
-                        {d.highRateBoliNo || "—"}
-                      </div>
-                    </div>
-                    <div className="rounded border border-green-500/30 bg-green-500/10 p-2">
-                      <div className="text-[10px] text-green-400/80 uppercase">
-                        Low Rate
-                      </div>
-                      <div className="text-green-400 font-bold text-sm">
-                        ₹{d.lowRate}
-                      </div>
-                      <div className="text-[10px] text-[var(--text-muted-alt)] truncate">
-                        {d.lowRateBoliNo || "—"}
-                      </div>
-                    </div>
-                    <div className="rounded border border-amber-500/30 bg-amber-500/10 p-2">
-                      <div className="text-[10px] text-amber-400/80 uppercase">
-                        High M/C
-                      </div>
-                      <div className="text-amber-300 font-bold text-sm">
-                        {d.highMoisture}%
-                      </div>
-                      <div className="text-[10px] text-[var(--text-muted-alt)] truncate">
-                        {d.highMoistureBoliNo || "—"}
-                      </div>
-                    </div>
-                    <div className="rounded border border-sky-500/30 bg-sky-500/10 p-2">
-                      <div className="text-[10px] text-sky-400/80 uppercase">
-                        Low M/C
-                      </div>
-                      <div className="text-sky-300 font-bold text-sm">
-                        {d.lowMoisture}%
-                      </div>
-                      <div className="text-[10px] text-[var(--text-muted-alt)] truncate">
-                        {d.lowMoistureBoliNo || "—"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Purchase Trends — High & Low (Artia-wise / Mandi-wise) */}
-        {purchaseTrends && (
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel-alt)] p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-bold text-[var(--text-main)]">
-                  Purchase Trends (High &amp; Low)
-                </h3>
-                <p className="text-[10px] text-[var(--text-muted-alt)]">
-                  Artia-wise and Mandi-wise high / low Boli purchase rates for
-                  the selected filters.
-                </p>
-              </div>
-              {purchaseTrends.overall?.count > 0 && (
-                <div className="flex gap-3 text-xs">
-                  <span className="px-2 py-1 rounded bg-red-500/15 text-red-400 font-bold">
-                    Overall High ₹{purchaseTrends.overall.high}
-                  </span>
-                  <span className="px-2 py-1 rounded bg-green-500/15 text-green-400 font-bold">
-                    Overall Low ₹{purchaseTrends.overall.low}
-                  </span>
-                  <span className="px-2 py-1 rounded border border-[var(--border-subtle)] text-[var(--text-muted-alt)]">
-                    Avg ₹{purchaseTrends.overall.avg} ·{" "}
-                    {purchaseTrends.overall.count} lines
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTrendTab("artia")}
-                className={`px-3 py-1.5 rounded text-xs font-bold border ${
-                  trendTab === "artia"
-                    ? "bg-[#e67e00]/20 border-[#e67e00]/50 text-[#e67e00]"
-                    : "border-[var(--border-subtle)] text-[var(--text-muted-alt)]"
-                }`}
-              >
-                Artia-wise ({purchaseTrends.byArtia?.length || 0})
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrendTab("mandi")}
-                className={`px-3 py-1.5 rounded text-xs font-bold border ${
-                  trendTab === "mandi"
-                    ? "bg-[#e67e00]/20 border-[#e67e00]/50 text-[#e67e00]"
-                    : "border-[var(--border-subtle)] text-[var(--text-muted-alt)]"
-                }`}
-              >
-                Mandi-wise ({purchaseTrends.byMandi?.length || 0})
-              </button>
-              <button
-                type="button"
-                className="ml-auto flex items-center gap-2 bg-[#e67e00] text-black px-5 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-orange-500/20 hover:bg-[#f08c1a]"
-                onClick={() => {
-                  const list =
-                    trendTab === "artia"
-                      ? purchaseTrends.byArtia
-                      : purchaseTrends.byMandi;
-                  if (!list?.length) {
-                    useUiStore
-                      .getState()
-                      .addToast("No trend rows to export", "error");
-                    return;
-                  }
-                  if (trendTab === "artia") {
-                    exportStyledExcel(
-                      list.map((a: any) => ({
-                        partyName: a.partyName || "",
-                        mandi: a.mandi || "",
-                        highRate: a.high ?? "",
-                        highDate: formatExcelDate(a.highDate),
-                        highBoliNo: a.highBoliNo || "",
-                        lowRate: a.low ?? "",
-                        lowDate: formatExcelDate(a.lowDate),
-                        lowBoliNo: a.lowBoliNo || "",
-                        avg: a.avg ?? "",
-                        spread: a.spread ?? "",
-                        lines: a.count ?? "",
-                        bags: a.bags ?? "",
-                      })),
-                      [
-                        { key: "partyName", header: "Artia" },
-                        { key: "mandi", header: "Mandi" },
-                        {
-                          key: "highRate",
-                          header: "High Rate",
-                          styleFor: () => boldColorStyle("EF4444"),
-                        },
-                        { key: "highDate", header: "High Date" },
-                        { key: "highBoliNo", header: "High Boli No." },
-                        {
-                          key: "lowRate",
-                          header: "Low Rate",
-                          styleFor: () => boldColorStyle("22C55E"),
-                        },
-                        { key: "lowDate", header: "Low Date" },
-                        { key: "lowBoliNo", header: "Low Boli No." },
-                        { key: "avg", header: "Avg" },
-                        { key: "spread", header: "Spread" },
-                        { key: "lines", header: "Lines" },
-                        { key: "bags", header: "Bags" },
-                      ],
-                      "Purchase_Trends_Artia",
-                      "Artia Trends",
-                    );
-                  } else {
-                    exportStyledExcel(
-                      list.map((m: any) => ({
-                        mandi: m.mandi || "",
-                        highRate: m.high ?? "",
-                        highDate: formatExcelDate(m.highDate),
-                        highBoliNo: m.highBoliNo || "",
-                        lowRate: m.low ?? "",
-                        lowDate: formatExcelDate(m.lowDate),
-                        lowBoliNo: m.lowBoliNo || "",
-                        avg: m.avg ?? "",
-                        spread: m.spread ?? "",
-                        lines: m.count ?? "",
-                        bags: m.bags ?? "",
-                      })),
-                      [
-                        { key: "mandi", header: "Mandi" },
-                        {
-                          key: "highRate",
-                          header: "High Rate",
-                          styleFor: () => boldColorStyle("EF4444"),
-                        },
-                        { key: "highDate", header: "High Date" },
-                        { key: "highBoliNo", header: "High Boli No." },
-                        {
-                          key: "lowRate",
-                          header: "Low Rate",
-                          styleFor: () => boldColorStyle("22C55E"),
-                        },
-                        { key: "lowDate", header: "Low Date" },
-                        { key: "lowBoliNo", header: "Low Boli No." },
-                        { key: "avg", header: "Avg" },
-                        { key: "spread", header: "Spread" },
-                        { key: "lines", header: "Lines" },
-                        { key: "bags", header: "Bags" },
-                      ],
-                      "Purchase_Trends_Mandi",
-                      "Mandi Trends",
-                    );
-                  }
-                }}
-              >
-                <Download size={18} /> Export {trendTab} Excel
-              </button>
-            </div>
-
-            <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)] max-h-72 overflow-y-auto">
-              {trendTab === "artia" ? (
-                <table className="w-full text-xs border-collapse">
-                  <thead className="sticky top-0 bg-[var(--bg-panel-alt)]">
-                    <tr className="text-[10px] uppercase text-[var(--text-muted-alt)] text-left border-b border-[var(--border-subtle)]">
-                      <th className="p-2">Artia</th>
-                      <th className="p-2">Mandi</th>
-                      <th className="p-2 text-red-400">High</th>
-                      <th className="p-2">High Date / Boli</th>
-                      <th className="p-2 text-green-400">Low</th>
-                      <th className="p-2">Low Date / Boli</th>
-                      <th className="p-2">Avg</th>
-                      <th className="p-2">Spread</th>
-                      <th className="p-2">Lines</th>
-                      <th className="p-2">Bags</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(purchaseTrends.byArtia || []).length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={10}
-                          className="p-4 text-center text-[var(--text-muted-alt)]"
-                        >
-                          No Artia purchase trends in this filter range.
-                        </td>
-                      </tr>
-                    )}
-                    {(purchaseTrends.byArtia || []).map((a: any) => (
-                      <tr
-                        key={a.supplierId || a.partyName}
-                        className="border-b border-[var(--border-subtle)]/40"
-                      >
-                        <td className="p-2 font-medium text-[var(--text-main)]">
-                          {a.partyName}
-                        </td>
-                        <td className="p-2 text-[var(--text-muted-alt)]">
-                          {a.mandi}
-                        </td>
-                        <td className="p-2 text-red-400 font-bold">
-                          ₹{a.high}
-                        </td>
-                        <td className="p-2 text-[10px] text-[var(--text-muted-alt)]">
-                          {a.highDate
-                            ? new Date(a.highDate).toLocaleDateString()
-                            : "—"}
-                          {a.highBoliNo ? ` · ${a.highBoliNo}` : ""}
-                        </td>
-                        <td className="p-2 text-green-400 font-bold">
-                          ₹{a.low}
-                        </td>
-                        <td className="p-2 text-[10px] text-[var(--text-muted-alt)]">
-                          {a.lowDate
-                            ? new Date(a.lowDate).toLocaleDateString()
-                            : "—"}
-                          {a.lowBoliNo ? ` · ${a.lowBoliNo}` : ""}
-                        </td>
-                        <td className="p-2">₹{a.avg}</td>
-                        <td className="p-2">₹{a.spread}</td>
-                        <td className="p-2">{a.count}</td>
-                        <td className="p-2">{a.bags}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <table className="w-full text-xs border-collapse">
-                  <thead className="sticky top-0 bg-[var(--bg-panel-alt)]">
-                    <tr className="text-[10px] uppercase text-[var(--text-muted-alt)] text-left border-b border-[var(--border-subtle)]">
-                      <th className="p-2">Mandi</th>
-                      <th className="p-2 text-red-400">High</th>
-                      <th className="p-2">High Date / Boli</th>
-                      <th className="p-2 text-green-400">Low</th>
-                      <th className="p-2">Low Date / Boli</th>
-                      <th className="p-2">Avg</th>
-                      <th className="p-2">Spread</th>
-                      <th className="p-2">Lines</th>
-                      <th className="p-2">Bags</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(purchaseTrends.byMandi || []).length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={9}
-                          className="p-4 text-center text-[var(--text-muted-alt)]"
-                        >
-                          No Mandi purchase trends in this filter range.
-                        </td>
-                      </tr>
-                    )}
-                    {(purchaseTrends.byMandi || []).map((m: any) => (
-                      <tr
-                        key={m.mandi}
-                        className="border-b border-[var(--border-subtle)]/40"
-                      >
-                        <td className="p-2 font-medium text-[var(--text-main)]">
-                          {m.mandi}
-                        </td>
-                        <td className="p-2 text-red-400 font-bold">
-                          ₹{m.high}
-                        </td>
-                        <td className="p-2 text-[10px] text-[var(--text-muted-alt)]">
-                          {m.highDate
-                            ? new Date(m.highDate).toLocaleDateString()
-                            : "—"}
-                          {m.highBoliNo ? ` · ${m.highBoliNo}` : ""}
-                        </td>
-                        <td className="p-2 text-green-400 font-bold">
-                          ₹{m.low}
-                        </td>
-                        <td className="p-2 text-[10px] text-[var(--text-muted-alt)]">
-                          {m.lowDate
-                            ? new Date(m.lowDate).toLocaleDateString()
-                            : "—"}
-                          {m.lowBoliNo ? ` · ${m.lowBoliNo}` : ""}
-                        </td>
-                        <td className="p-2">₹{m.avg}</td>
-                        <td className="p-2">₹{m.spread}</td>
-                        <td className="p-2">{m.count}</td>
-                        <td className="p-2">{m.bags}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Mandi-wise / Artia-wise Overpriced & Underpriced logs */}
-        {priceRecords && (
-          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel-alt)] p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-bold text-[var(--text-main)]">
-                  Mandi-wise Price Records
-                </h3>
-                <p className="text-[10px] text-[var(--text-muted-alt)]">
-                  Overpriced / Underpriced purchases vs Base Boli Rate, tracked
-                  separately per Mandi and Artia.
-                </p>
-              </div>
-              <div className="flex gap-2 text-xs">
-                <span className="px-2 py-1 rounded bg-red-500/15 text-red-400 font-bold">
-                  ↑ Overpriced {priceRecords.summary.overpricedCount} (Δ ₹
-                  {priceRecords.summary.overpricedDeltaSum})
-                </span>
-                <span className="px-2 py-1 rounded bg-green-500/15 text-green-400 font-bold">
-                  ↓ Underpriced {priceRecords.summary.underpricedCount} (Δ ₹
-                  {priceRecords.summary.underpricedDeltaSum})
-                </span>
-              </div>
-            </div>
-
-            {priceRecords.byMandi.length > 0 && (
-              <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="text-[10px] uppercase text-[var(--text-muted-alt)] text-left border-b border-[var(--border-subtle)]">
-                      <th className="p-2">Mandi</th>
-                      <th className="p-2">Artia</th>
-                      <th className="p-2 text-red-400">Overpriced #</th>
-                      <th className="p-2 text-red-400">Over Δ</th>
-                      <th className="p-2 text-green-400">Underpriced #</th>
-                      <th className="p-2 text-green-400">Under Δ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {priceRecords.byMandi.flatMap((m: any) =>
-                      (m.artias || []).map((a: any) => (
-                        <tr
-                          key={`${m.mandi}-${a.supplierId || a.partyName}`}
-                          className="border-b border-[var(--border-subtle)]/40"
-                        >
-                          <td className="p-2 font-medium">{m.mandi}</td>
-                          <td className="p-2">{a.partyName}</td>
-                          <td className="p-2 text-red-400 font-bold">
-                            {a.overpricedCount}
-                          </td>
-                          <td className="p-2 text-red-400">
-                            {a.overpricedDeltaSum
-                              ? `+${a.overpricedDeltaSum}`
-                              : "0"}
-                          </td>
-                          <td className="p-2 text-green-400 font-bold">
-                            {a.underpricedCount}
-                          </td>
-                          <td className="p-2 text-green-400">
-                            {a.underpricedDeltaSum || 0}
-                          </td>
-                        </tr>
-                      )),
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setPriceTab("overpriced")}
-                className={`px-3 py-1.5 rounded text-xs font-bold border ${
-                  priceTab === "overpriced"
-                    ? "bg-red-500/20 border-red-500/50 text-red-400"
-                    : "border-[var(--border-subtle)] text-[var(--text-muted-alt)]"
-                }`}
-              >
-                Overpriced log ({priceRecords.overpriced.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setPriceTab("underpriced")}
-                className={`px-3 py-1.5 rounded text-xs font-bold border ${
-                  priceTab === "underpriced"
-                    ? "bg-green-500/20 border-green-500/50 text-green-400"
-                    : "border-[var(--border-subtle)] text-[var(--text-muted-alt)]"
-                }`}
-              >
-                Underpriced log ({priceRecords.underpriced.length})
-              </button>
-              <button
-                type="button"
-                className="ml-auto flex items-center gap-2 bg-[#e67e00] text-black px-5 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-orange-500/20 hover:bg-[#f08c1a]"
-                onClick={() => {
-                  const list =
-                    priceTab === "overpriced"
-                      ? priceRecords.overpriced
-                      : priceRecords.underpriced;
-                  if (!list.length) {
-                    useUiStore
-                      .getState()
-                      .addToast("No rows to export", "error");
-                    return;
-                  }
-                  const isOver = priceTab === "overpriced";
-                  exportStyledExcel(
-                    list.map((item: any) => ({
-                      mandi: item.mandi || "",
-                      partyName: item.partyName || "",
-                      date: formatExcelDate(item.date),
-                      boliNo: item.boliNo || "",
-                      baseBoliRate:
-                        item.baseBoliRate != null
-                          ? Number(item.baseBoliRate)
-                          : "",
-                      rate: item.rate ?? "",
-                      status: isOver ? "↑ Overpriced" : "↓ Underpriced",
-                      vsBase:
-                        item.rateVsBase != null
-                          ? isOver
-                            ? `+${item.rateVsBase}`
-                            : item.rateVsBase
-                          : "",
-                      bags: item.estimatedBags ?? "",
-                    })),
-                    [
-                      { key: "mandi", header: "Mandi" },
-                      { key: "partyName", header: "Artia" },
-                      { key: "date", header: "Date" },
-                      {
-                        key: "boliNo",
-                        header: "Boli No.",
-                        styleFor: () => boldColorStyle("E67E00"),
-                      },
-                      { key: "baseBoliRate", header: "Base Boli" },
-                      {
-                        key: "rate",
-                        header: "Rate",
-                        styleFor: () =>
-                          boldColorStyle(isOver ? "EF4444" : "22C55E"),
-                      },
-                      {
-                        key: "status",
-                        header: "Status",
-                        styleFor: () =>
-                          boldColorStyle(isOver ? "EF4444" : "22C55E"),
-                      },
-                      {
-                        key: "vsBase",
-                        header: "Vs Base",
-                        styleFor: () =>
-                          boldColorStyle(isOver ? "EF4444" : "22C55E"),
-                      },
-                      { key: "bags", header: "Bags" },
-                    ],
-                    `Mandi_${priceTab}_purchases`,
-                    isOver ? "Overpriced" : "Underpriced",
-                  );
-                }}
-              >
-                <Download size={18} /> Export {priceTab} Excel
-              </button>
-            </div>
-
-            <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)] max-h-64 overflow-y-auto">
-              <table className="w-full text-xs border-collapse">
-                <thead className="sticky top-0 bg-[var(--bg-panel-alt)]">
-                  <tr className="text-[10px] uppercase text-[var(--text-muted-alt)] text-left border-b border-[var(--border-subtle)]">
-                    <th className="p-2">Mandi</th>
-                    <th className="p-2">Artia</th>
-                    <th className="p-2">Date</th>
-                    <th className="p-2">Boli No.</th>
-                    <th className="p-2">Base</th>
-                    <th className="p-2">Rate</th>
-                    <th className="p-2">Δ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(priceTab === "overpriced"
-                    ? priceRecords.overpriced
-                    : priceRecords.underpriced
-                  ).length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="p-4 text-center text-[var(--text-muted-alt)]"
-                      >
-                        No {priceTab} purchases in this filter range.
-                      </td>
-                    </tr>
-                  )}
-                  {(priceTab === "overpriced"
-                    ? priceRecords.overpriced
-                    : priceRecords.underpriced
-                  ).map((r: any) => (
-                    <tr
-                      key={r.id || `${r.boliId}-${r.date}`}
-                      className="border-b border-[var(--border-subtle)]/40"
-                    >
-                      <td className="p-2">{r.mandi || "—"}</td>
-                      <td className="p-2">{r.partyName || "—"}</td>
-                      <td className="p-2">
-                        {r.date
-                          ? new Date(r.date).toLocaleDateString()
-                          : "—"}
-                      </td>
-                      <td className="p-2 font-mono text-[#e67e00]">
-                        {r.boliNo || "—"}
-                      </td>
-                      <td className="p-2">{r.baseBoliRate ?? "—"}</td>
-                      <td
-                        className={`p-2 font-bold ${
-                          priceTab === "overpriced"
-                            ? "text-red-500"
-                            : "text-green-500"
-                        }`}
-                      >
-                        {priceTab === "overpriced" ? "↑ " : "↓ "}
-                        {r.rate ?? "—"}
-                      </td>
-                      <td
-                        className={`p-2 ${
-                          priceTab === "overpriced"
-                            ? "text-red-400"
-                            : "text-green-400"
-                        }`}
-                      >
-                        {r.rateVsBase != null
-                          ? priceTab === "overpriced"
-                            ? `+${r.rateVsBase}`
-                            : r.rateVsBase
-                          : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
         {/* Table 01 — mill-wise Boli Record (no row divider lines; F32 Pg.2/3) */}
         <div className="overflow-x-auto rounded-lg bg-[var(--bg-panel-alt)]">
           <table className="w-full border-collapse text-[var(--text-muted)] text-sm min-w-[1100px]">
@@ -2107,6 +1500,649 @@ export default function BoliRecordPanel({
           <p className="text-xs text-[var(--text-muted-alt)] py-2">
             Showing all {total} boli(s) for selected Artia (no pagination).
           </p>
+        )}
+
+        {/* Moisture & Boli Rate highlights — highest / lowest of each day */}
+        {dayHighlights.length > 0 && (
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel-alt)] p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--text-main)]">
+                  Moisture &amp; Boli Rate Highlights
+                </h3>
+                <p className="text-[10px] text-[var(--text-muted-alt)]">
+                  Highest and lowest moisture of the day alongside highest and
+                  lowest Boli rates.
+                </p>
+              </div>
+              {lastSyncedAt && (
+                <span className="text-[10px] text-[var(--text-muted-alt)]">
+                  Live · updated {lastSyncedAt.toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-1">
+              {dayHighlights.map((d: any) => (
+                <div
+                  key={d.date}
+                  className="min-w-[220px] flex-shrink-0 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3 text-xs space-y-2"
+                >
+                  <div className="font-bold text-[#e67e00]">
+                    {d.date
+                      ? new Date(d.date + "T00:00:00").toLocaleDateString()
+                      : "—"}
+                    <span className="ml-2 font-normal text-[var(--text-muted-alt)]">
+                      {d.count} line{d.count === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded border border-red-500/30 bg-red-500/10 p-2">
+                      <div className="text-[10px] text-red-400/80 uppercase">
+                        High Rate
+                      </div>
+                      <div className="text-red-400 font-bold text-sm">
+                        ₹{d.highRate}
+                      </div>
+                      <div className="text-[10px] text-[var(--text-muted-alt)] truncate">
+                        {d.highRateBoliNo || "—"}
+                      </div>
+                    </div>
+                    <div className="rounded border border-green-500/30 bg-green-500/10 p-2">
+                      <div className="text-[10px] text-green-400/80 uppercase">
+                        Low Rate
+                      </div>
+                      <div className="text-green-400 font-bold text-sm">
+                        ₹{d.lowRate}
+                      </div>
+                      <div className="text-[10px] text-[var(--text-muted-alt)] truncate">
+                        {d.lowRateBoliNo || "—"}
+                      </div>
+                    </div>
+                    <div className="rounded border border-amber-500/30 bg-amber-500/10 p-2">
+                      <div className="text-[10px] text-amber-400/80 uppercase">
+                        High M/C
+                      </div>
+                      <div className="text-amber-300 font-bold text-sm">
+                        {d.highMoisture}%
+                      </div>
+                      <div className="text-[10px] text-[var(--text-muted-alt)] truncate">
+                        {d.highMoistureBoliNo || "—"}
+                      </div>
+                    </div>
+                    <div className="rounded border border-sky-500/30 bg-sky-500/10 p-2">
+                      <div className="text-[10px] text-sky-400/80 uppercase">
+                        Low M/C
+                      </div>
+                      <div className="text-sky-300 font-bold text-sm">
+                        {d.lowMoisture}%
+                      </div>
+                      <div className="text-[10px] text-[var(--text-muted-alt)] truncate">
+                        {d.lowMoistureBoliNo || "—"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Purchase Trends — High & Low (Artia-wise / Mandi-wise) */}
+        {purchaseTrends && (
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel-alt)] p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--text-main)]">
+                  Purchase Trends (High &amp; Low)
+                </h3>
+                <p className="text-[10px] text-[var(--text-muted-alt)]">
+                  Artia-wise and Mandi-wise high / low Boli purchase rates for
+                  the selected filters.
+                </p>
+              </div>
+              {purchaseTrends.overall?.count > 0 && (
+                <div className="flex gap-3 text-xs">
+                  <span className="px-2 py-1 rounded bg-red-500/15 text-red-400 font-bold">
+                    Overall High ₹{purchaseTrends.overall.high}
+                  </span>
+                  <span className="px-2 py-1 rounded bg-green-500/15 text-green-400 font-bold">
+                    Overall Low ₹{purchaseTrends.overall.low}
+                  </span>
+                  <span className="px-2 py-1 rounded border border-[var(--border-subtle)] text-[var(--text-muted-alt)]">
+                    Avg ₹{purchaseTrends.overall.avg} ·{" "}
+                    {purchaseTrends.overall.count} lines
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTrendTab("artia")}
+                className={`px-3 py-1.5 rounded text-xs font-bold border ${
+                  trendTab === "artia"
+                    ? "bg-[#e67e00]/20 border-[#e67e00]/50 text-[#e67e00]"
+                    : "border-[var(--border-subtle)] text-[var(--text-muted-alt)]"
+                }`}
+              >
+                Artia-wise ({purchaseTrends.byArtia?.length || 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrendTab("mandi")}
+                className={`px-3 py-1.5 rounded text-xs font-bold border ${
+                  trendTab === "mandi"
+                    ? "bg-[#e67e00]/20 border-[#e67e00]/50 text-[#e67e00]"
+                    : "border-[var(--border-subtle)] text-[var(--text-muted-alt)]"
+                }`}
+              >
+                Mandi-wise ({purchaseTrends.byMandi?.length || 0})
+              </button>
+              <button
+                type="button"
+                className="ml-auto flex items-center gap-2 bg-[#e67e00] text-black px-5 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-orange-500/20 hover:bg-[#f08c1a]"
+                onClick={() => {
+                  const list =
+                    trendTab === "artia"
+                      ? purchaseTrends.byArtia
+                      : purchaseTrends.byMandi;
+                  if (!list?.length) {
+                    useUiStore
+                      .getState()
+                      .addToast("No trend rows to export", "error");
+                    return;
+                  }
+                  if (trendTab === "artia") {
+                    exportStyledExcel(
+                      list.map((a: any) => ({
+                        partyName: a.partyName || "",
+                        mandi: a.mandi || "",
+                        highRate: a.high ?? "",
+                        highDate: formatExcelDate(a.highDate),
+                        highBoliNo: a.highBoliNo || "",
+                        lowMoisture: a.lowMoisture ?? "",
+                        lowRate: a.low ?? "",
+                        lowDate: formatExcelDate(a.lowDate),
+                        lowBoliNo: a.lowBoliNo || "",
+                        highMoisture: a.highMoisture ?? "",
+                        avg: a.avg ?? "",
+                        spread: a.spread ?? "",
+                        lines: a.count ?? "",
+                        bags: a.bags ?? "",
+                      })),
+                      [
+                        { key: "partyName", header: "Artia" },
+                        { key: "mandi", header: "Mandi" },
+                        {
+                          key: "highRate",
+                          header: "High Rate",
+                          styleFor: () => boldColorStyle("EF4444"),
+                        },
+                        { key: "highDate", header: "High Date" },
+                        { key: "highBoliNo", header: "High Boli No." },
+                        { key: "lowMoisture", header: "Lowest Moisture" },
+                        {
+                          key: "lowRate",
+                          header: "Low Rate",
+                          styleFor: () => boldColorStyle("22C55E"),
+                        },
+                        { key: "lowDate", header: "Low Date" },
+                        { key: "lowBoliNo", header: "Low Boli No." },
+                        { key: "highMoisture", header: "Highest Moisture" },
+                        { key: "avg", header: "Avg" },
+                        { key: "spread", header: "Spread" },
+                        { key: "lines", header: "Lines" },
+                        { key: "bags", header: "Bags" },
+                      ],
+                      "Purchase_Trends_Artia",
+                      "Artia Trends",
+                    );
+                  } else {
+                    exportStyledExcel(
+                      list.map((m: any) => ({
+                        mandi: m.mandi || "",
+                        highRate: m.high ?? "",
+                        highDate: formatExcelDate(m.highDate),
+                        highBoliNo: m.highBoliNo || "",
+                        lowMoisture: m.lowMoisture ?? "",
+                        lowRate: m.low ?? "",
+                        lowDate: formatExcelDate(m.lowDate),
+                        lowBoliNo: m.lowBoliNo || "",
+                        highMoisture: m.highMoisture ?? "",
+                        avg: m.avg ?? "",
+                        spread: m.spread ?? "",
+                        lines: m.count ?? "",
+                        bags: m.bags ?? "",
+                      })),
+                      [
+                        { key: "mandi", header: "Mandi" },
+                        {
+                          key: "highRate",
+                          header: "High Rate",
+                          styleFor: () => boldColorStyle("EF4444"),
+                        },
+                        { key: "highDate", header: "High Date" },
+                        { key: "highBoliNo", header: "High Boli No." },
+                        { key: "lowMoisture", header: "Lowest Moisture" },
+                        {
+                          key: "lowRate",
+                          header: "Low Rate",
+                          styleFor: () => boldColorStyle("22C55E"),
+                        },
+                        { key: "lowDate", header: "Low Date" },
+                        { key: "lowBoliNo", header: "Low Boli No." },
+                        { key: "highMoisture", header: "Highest Moisture" },
+                        { key: "avg", header: "Avg" },
+                        { key: "spread", header: "Spread" },
+                        { key: "lines", header: "Lines" },
+                        { key: "bags", header: "Bags" },
+                      ],
+                      "Purchase_Trends_Mandi",
+                      "Mandi Trends",
+                    );
+                  }
+                }}
+              >
+                <Download size={18} /> Export {trendTab} Excel
+              </button>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)] max-h-72 overflow-y-auto">
+              {trendTab === "artia" ? (
+                <table className="w-full text-xs border-collapse">
+                  <thead className="sticky top-0 bg-[var(--bg-panel-alt)]">
+                    <tr className="text-[10px] uppercase text-[var(--text-muted-alt)] text-left border-b border-[var(--border-subtle)]">
+                      <th className="p-2">Artia</th>
+                      <th className="p-2">Mandi</th>
+                      <th className="p-2 text-red-400">High</th>
+                      <th className="p-2">High Date / Boli</th>
+                      <th className="p-2 text-sky-400">Lowest Moisture</th>
+                      <th className="p-2 text-green-400">Low</th>
+                      <th className="p-2">Low Date / Boli</th>
+                      <th className="p-2 text-sky-400">Highest Moisture</th>
+                      <th className="p-2">Avg</th>
+                      <th className="p-2">Spread</th>
+                      <th className="p-2">Lines</th>
+                      <th className="p-2">Bags</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(purchaseTrends.byArtia || []).length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={12}
+                          className="p-4 text-center text-[var(--text-muted-alt)]"
+                        >
+                          No Artia purchase trends in this filter range.
+                        </td>
+                      </tr>
+                    )}
+                    {(purchaseTrends.byArtia || []).map((a: any) => (
+                      <tr
+                        key={a.supplierId || a.partyName}
+                        className="border-b border-[var(--border-subtle)]/40"
+                      >
+                        <td className="p-2 font-medium text-[var(--text-main)]">
+                          {a.partyName}
+                        </td>
+                        <td className="p-2 text-[var(--text-muted-alt)]">
+                          {a.mandi}
+                        </td>
+                        <td className="p-2 text-red-400 font-bold">
+                          ₹{a.high}
+                        </td>
+                        <td className="p-2 text-[10px] text-[var(--text-muted-alt)]">
+                          {a.highDate
+                            ? new Date(a.highDate).toLocaleDateString()
+                            : "—"}
+                          {a.highBoliNo ? ` · ${a.highBoliNo}` : ""}
+                        </td>
+                        <td className="p-2 text-sky-300 font-bold">
+                          {a.lowMoisture != null ? `${a.lowMoisture}%` : "—"}
+                        </td>
+                        <td className="p-2 text-green-400 font-bold">
+                          ₹{a.low}
+                        </td>
+                        <td className="p-2 text-[10px] text-[var(--text-muted-alt)]">
+                          {a.lowDate
+                            ? new Date(a.lowDate).toLocaleDateString()
+                            : "—"}
+                          {a.lowBoliNo ? ` · ${a.lowBoliNo}` : ""}
+                        </td>
+                        <td className="p-2 text-sky-300 font-bold">
+                          {a.highMoisture != null ? `${a.highMoisture}%` : "—"}
+                        </td>
+                        <td className="p-2">₹{a.avg}</td>
+                        <td className="p-2">₹{a.spread}</td>
+                        <td className="p-2">{a.count}</td>
+                        <td className="p-2">{a.bags}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full text-xs border-collapse">
+                  <thead className="sticky top-0 bg-[var(--bg-panel-alt)]">
+                    <tr className="text-[10px] uppercase text-[var(--text-muted-alt)] text-left border-b border-[var(--border-subtle)]">
+                      <th className="p-2">Mandi</th>
+                      <th className="p-2 text-red-400">High</th>
+                      <th className="p-2">High Date / Boli</th>
+                      <th className="p-2 text-sky-400">Lowest Moisture</th>
+                      <th className="p-2 text-green-400">Low</th>
+                      <th className="p-2">Low Date / Boli</th>
+                      <th className="p-2 text-sky-400">Highest Moisture</th>
+                      <th className="p-2">Avg</th>
+                      <th className="p-2">Spread</th>
+                      <th className="p-2">Lines</th>
+                      <th className="p-2">Bags</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(purchaseTrends.byMandi || []).length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={11}
+                          className="p-4 text-center text-[var(--text-muted-alt)]"
+                        >
+                          No Mandi purchase trends in this filter range.
+                        </td>
+                      </tr>
+                    )}
+                    {(purchaseTrends.byMandi || []).map((m: any) => (
+                      <tr
+                        key={m.mandi}
+                        className="border-b border-[var(--border-subtle)]/40"
+                      >
+                        <td className="p-2 font-medium text-[var(--text-main)]">
+                          {m.mandi}
+                        </td>
+                        <td className="p-2 text-red-400 font-bold">
+                          ₹{m.high}
+                        </td>
+                        <td className="p-2 text-[10px] text-[var(--text-muted-alt)]">
+                          {m.highDate
+                            ? new Date(m.highDate).toLocaleDateString()
+                            : "—"}
+                          {m.highBoliNo ? ` · ${m.highBoliNo}` : ""}
+                        </td>
+                        <td className="p-2 text-sky-300 font-bold">
+                          {m.lowMoisture != null ? `${m.lowMoisture}%` : "—"}
+                        </td>
+                        <td className="p-2 text-green-400 font-bold">
+                          ₹{m.low}
+                        </td>
+                        <td className="p-2 text-[10px] text-[var(--text-muted-alt)]">
+                          {m.lowDate
+                            ? new Date(m.lowDate).toLocaleDateString()
+                            : "—"}
+                          {m.lowBoliNo ? ` · ${m.lowBoliNo}` : ""}
+                        </td>
+                        <td className="p-2 text-sky-300 font-bold">
+                          {m.highMoisture != null ? `${m.highMoisture}%` : "—"}
+                        </td>
+                        <td className="p-2">₹{m.avg}</td>
+                        <td className="p-2">₹{m.spread}</td>
+                        <td className="p-2">{m.count}</td>
+                        <td className="p-2">{m.bags}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Mandi-wise / Artia-wise Overpriced & Underpriced logs */}
+        {priceRecords && (
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel-alt)] p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--text-main)]">
+                  Mandi-wise Price Records
+                </h3>
+                <p className="text-[10px] text-[var(--text-muted-alt)]">
+                  Overpriced / Underpriced purchases vs Base Boli Rate, tracked
+                  separately per Mandi and Artia.
+                </p>
+              </div>
+              <div className="flex gap-2 text-xs">
+                <span className="px-2 py-1 rounded bg-red-500/15 text-red-400 font-bold">
+                  ↑ Overpriced {priceRecords.summary.overpricedCount} (Δ ₹
+                  {priceRecords.summary.overpricedDeltaSum})
+                </span>
+                <span className="px-2 py-1 rounded bg-green-500/15 text-green-400 font-bold">
+                  ↓ Underpriced {priceRecords.summary.underpricedCount} (Δ ₹
+                  {priceRecords.summary.underpricedDeltaSum})
+                </span>
+              </div>
+            </div>
+
+            {priceRecords.byMandi.length > 0 && (
+              <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="text-[10px] uppercase text-[var(--text-muted-alt)] text-left border-b border-[var(--border-subtle)]">
+                      <th className="p-2">Mandi</th>
+                      <th className="p-2">Artia</th>
+                      <th className="p-2 text-red-400">Overpriced #</th>
+                      <th className="p-2 text-sky-400">Moisture</th>
+                      <th className="p-2 text-red-400">Over Δ</th>
+                      <th className="p-2 text-green-400">Underpriced #</th>
+                      <th className="p-2 text-green-400">Under Δ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {priceRecords.byMandi.flatMap((m: any) =>
+                      (m.artias || []).map((a: any) => (
+                        <tr
+                          key={`${m.mandi}-${a.supplierId || a.partyName}`}
+                          className="border-b border-[var(--border-subtle)]/40"
+                        >
+                          <td className="p-2 font-medium">{m.mandi}</td>
+                          <td className="p-2">{a.partyName}</td>
+                          <td className="p-2 text-red-400 font-bold">
+                            {a.overpricedCount}
+                          </td>
+                          <td className="p-2 text-sky-300 font-bold">
+                            {a.overpricedMoistureMin == null
+                              ? "—"
+                              : a.overpricedMoistureMin === a.overpricedMoistureMax
+                                ? `${a.overpricedMoistureMin}%`
+                                : `${a.overpricedMoistureMin}–${a.overpricedMoistureMax}%`}
+                          </td>
+                          <td className="p-2 text-red-400">
+                            {a.overpricedDeltaSum
+                              ? `+${a.overpricedDeltaSum}`
+                              : "0"}
+                          </td>
+                          <td className="p-2 text-green-400 font-bold">
+                            {a.underpricedCount}
+                          </td>
+                          <td className="p-2 text-green-400">
+                            {a.underpricedDeltaSum || 0}
+                          </td>
+                        </tr>
+                      )),
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPriceTab("overpriced")}
+                className={`px-3 py-1.5 rounded text-xs font-bold border ${
+                  priceTab === "overpriced"
+                    ? "bg-red-500/20 border-red-500/50 text-red-400"
+                    : "border-[var(--border-subtle)] text-[var(--text-muted-alt)]"
+                }`}
+              >
+                Overpriced log ({priceRecords.overpriced.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setPriceTab("underpriced")}
+                className={`px-3 py-1.5 rounded text-xs font-bold border ${
+                  priceTab === "underpriced"
+                    ? "bg-green-500/20 border-green-500/50 text-green-400"
+                    : "border-[var(--border-subtle)] text-[var(--text-muted-alt)]"
+                }`}
+              >
+                Underpriced log ({priceRecords.underpriced.length})
+              </button>
+              <button
+                type="button"
+                className="ml-auto flex items-center gap-2 bg-[#e67e00] text-black px-5 py-2.5 rounded-lg text-sm font-bold shadow-lg shadow-orange-500/20 hover:bg-[#f08c1a]"
+                onClick={() => {
+                  const list =
+                    priceTab === "overpriced"
+                      ? priceRecords.overpriced
+                      : priceRecords.underpriced;
+                  if (!list.length) {
+                    useUiStore
+                      .getState()
+                      .addToast("No rows to export", "error");
+                    return;
+                  }
+                  const isOver = priceTab === "overpriced";
+                  exportStyledExcel(
+                    list.map((item: any) => ({
+                      mandi: item.mandi || "",
+                      partyName: item.partyName || "",
+                      date: formatExcelDate(item.date),
+                      boliNo: item.boliNo || "",
+                      baseBoliRate:
+                        item.baseBoliRate != null
+                          ? Number(item.baseBoliRate)
+                          : "",
+                      rate: item.rate ?? "",
+                      status: isOver ? "↑ Overpriced" : "↓ Underpriced",
+                      vsBase:
+                        item.rateVsBase != null
+                          ? isOver
+                            ? `+${item.rateVsBase}`
+                            : item.rateVsBase
+                          : "",
+                      bags: item.estimatedBags ?? "",
+                    })),
+                    [
+                      { key: "mandi", header: "Mandi" },
+                      { key: "partyName", header: "Artia" },
+                      { key: "date", header: "Date" },
+                      {
+                        key: "boliNo",
+                        header: "Boli No.",
+                        styleFor: () => boldColorStyle("E67E00"),
+                      },
+                      { key: "baseBoliRate", header: "Base Boli" },
+                      {
+                        key: "rate",
+                        header: "Rate",
+                        styleFor: () =>
+                          boldColorStyle(isOver ? "EF4444" : "22C55E"),
+                      },
+                      {
+                        key: "status",
+                        header: "Status",
+                        styleFor: () =>
+                          boldColorStyle(isOver ? "EF4444" : "22C55E"),
+                      },
+                      {
+                        key: "vsBase",
+                        header: "Vs Base",
+                        styleFor: () =>
+                          boldColorStyle(isOver ? "EF4444" : "22C55E"),
+                      },
+                      { key: "bags", header: "Bags" },
+                    ],
+                    `Mandi_${priceTab}_purchases`,
+                    isOver ? "Overpriced" : "Underpriced",
+                  );
+                }}
+              >
+                <Download size={18} /> Export {priceTab} Excel
+              </button>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)] max-h-64 overflow-y-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead className="sticky top-0 bg-[var(--bg-panel-alt)]">
+                  <tr className="text-[10px] uppercase text-[var(--text-muted-alt)] text-left border-b border-[var(--border-subtle)]">
+                    <th className="p-2">Mandi</th>
+                    <th className="p-2">Artia</th>
+                    <th className="p-2">Date</th>
+                    <th className="p-2">Boli No.</th>
+                    <th className="p-2">Base</th>
+                    <th className="p-2">Rate</th>
+                    <th className="p-2">Δ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(priceTab === "overpriced"
+                    ? priceRecords.overpriced
+                    : priceRecords.underpriced
+                  ).length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="p-4 text-center text-[var(--text-muted-alt)]"
+                      >
+                        No {priceTab} purchases in this filter range.
+                      </td>
+                    </tr>
+                  )}
+                  {(priceTab === "overpriced"
+                    ? priceRecords.overpriced
+                    : priceRecords.underpriced
+                  ).map((r: any) => (
+                    <tr
+                      key={r.id || `${r.boliId}-${r.date}`}
+                      className="border-b border-[var(--border-subtle)]/40"
+                    >
+                      <td className="p-2">{r.mandi || "—"}</td>
+                      <td className="p-2">{r.partyName || "—"}</td>
+                      <td className="p-2">
+                        {r.date
+                          ? new Date(r.date).toLocaleDateString()
+                          : "—"}
+                      </td>
+                      <td className="p-2 font-mono text-[#e67e00]">
+                        {r.boliNo || "—"}
+                      </td>
+                      <td className="p-2">{r.baseBoliRate ?? "—"}</td>
+                      <td
+                        className={`p-2 font-bold ${
+                          priceTab === "overpriced"
+                            ? "text-red-500"
+                            : "text-green-500"
+                        }`}
+                      >
+                        {priceTab === "overpriced" ? "↑ " : "↓ "}
+                        {r.rate ?? "—"}
+                      </td>
+                      <td
+                        className={`p-2 ${
+                          priceTab === "overpriced"
+                            ? "text-red-400"
+                            : "text-green-400"
+                        }`}
+                      >
+                        {r.rateVsBase != null
+                          ? priceTab === "overpriced"
+                            ? `+${r.rateVsBase}`
+                            : r.rateVsBase
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
 
         {/* Add Final Boli — Feedback 32 Pg.2 */}
