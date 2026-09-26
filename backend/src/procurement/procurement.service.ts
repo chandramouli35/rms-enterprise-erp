@@ -1958,6 +1958,18 @@ export class ProcurementService {
     return Math.round(raw * 100) / 100;
   }
 
+  /** Soda Govt Rate if punched; otherwise mill (plant) Govt Paddy Rate. */
+  private resolveGovtRate(
+    sodaGovt?: number | null,
+    plantGovt?: number | null,
+  ) {
+    const s = Number(sodaGovt);
+    if (Number.isFinite(s) && s > 0) return s;
+    const p = Number(plantGovt);
+    if (Number.isFinite(p) && p > 0) return p;
+    return 0;
+  }
+
   /** Payment difference (Govt Paddy Rate − Boli Rate) — never Mandi Today Rate */
   private paymentDiffFromGovt(govtRate: number, boliRate: number) {
     return (Number(govtRate) || 0) - (Number(boliRate) || 0);
@@ -2265,12 +2277,21 @@ export class ProcurementService {
       orderBy: [{ supplier: { name: 'asc' } }, { date: 'asc' }],
     });
 
+    const plantIds = [...new Set(sodas.map((s) => s.plantId).filter(Boolean))];
+    const plants = plantIds.length
+      ? await this.prisma.plant.findMany({
+          where: { id: { in: plantIds } },
+          select: { id: true, govtRate: true },
+        })
+      : [];
+    const plantGovtById = new Map(plants.map((p) => [p.id, p.govtRate]));
+
     // Supervisor record: never expose Payment / Final Hisab
     const hideMoney = this.isSupervisorRole(user) && !this.isAdminRole(user);
 
     const rows: any[] = [];
     for (const s of sodas) {
-      const govtRate = s.govtRate ?? 0;
+      const govtRate = this.resolveGovtRate(s.govtRate, plantGovtById.get(s.plantId));
       const bolis = s.bolis || [];
 
       // Per-line Payment from Final Bags formula; Final Hisab = total Payment for this Boli No.
@@ -2884,7 +2905,7 @@ export class ProcurementService {
     const plant = plantId
       ? await this.prisma.plant.findUnique({
           where: { id: plantId },
-          select: { benchmarkMoisture: true },
+          select: { benchmarkMoisture: true, govtRate: true },
         })
       : null;
     const benchmark = plant?.benchmarkMoisture ?? 17;
@@ -2903,7 +2924,7 @@ export class ProcurementService {
     let paymentsRecalc = 0;
 
     for (const s of sodas) {
-      const govtRate = s.govtRate ?? 0;
+      const govtRate = this.resolveGovtRate(s.govtRate, plant?.govtRate);
       let sodaPayment = 0;
       let sodaHadFinal = false;
 
@@ -3367,7 +3388,13 @@ export class ProcurementService {
       );
     }
 
-    const govtRate = boli.sodaPending.govtRate ?? 0;
+    const plantGovt = (
+      await this.prisma.plant.findUnique({
+        where: { id: boli.sodaPending.plantId },
+        select: { govtRate: true },
+      })
+    )?.govtRate;
+    const govtRate = this.resolveGovtRate(boli.sodaPending.govtRate, plantGovt);
     const payment = this.calcBoliPayment(govtRate, boli.rate, finalBags);
     const estimated = boli.bags || 0;
     const variance = estimated > 0 ? Math.abs(finalBags - estimated) / estimated : 0;
@@ -3430,7 +3457,14 @@ export class ProcurementService {
     if (!boli) throw new BadRequestException('Boli not found');
 
     return this.prisma.$transaction(async (tx) => {
-      const govtRate = boli.sodaPending.govtRate ?? 0;
+      const plantGovtRow = await tx.plant.findUnique({
+        where: { id: boli.sodaPending.plantId },
+        select: { govtRate: true },
+      });
+      const govtRate = this.resolveGovtRate(
+        boli.sodaPending.govtRate,
+        plantGovtRow?.govtRate,
+      );
       const nextFinal =
         data.finalBags != null && Number.isFinite(Number(data.finalBags))
           ? Number(data.finalBags)
@@ -3728,10 +3762,14 @@ export class ProcurementService {
 
     const plant = await this.prisma.plant.findUnique({
       where: { id: data.plantId },
-      select: { benchmarkMoisture: true },
+      select: { benchmarkMoisture: true, govtRate: true },
     });
     const benchmarkMoisture = plant?.benchmarkMoisture ?? 17;
     const sodaMcPoint = this.parseMcPoint(data.mcPoint);
+    const sodaGovtRate = this.resolveGovtRate(
+      parseFloat(data.govtRate),
+      plant?.govtRate,
+    );
 
     return this.prisma.$transaction(async (tx) => {
       // One Boli No. for this entire Estimate Purchase (all lines share it)
@@ -3770,14 +3808,14 @@ export class ProcurementService {
         moisture: avgMoisture,
         bags: totalBags,
         rate: avgRate,
-        govtRate: parseFloat(data.govtRate) || 0,
+        govtRate: sodaGovtRate,
         todayRate:
           data.todayRate != null && Number.isFinite(Number(data.todayRate))
             ? Number(data.todayRate)
             : null,
         mcPoint: this.parseMcPoint(data.mcPoint),
         // Payment difference always on Govt Paddy Rate only (ignore client todayRate-based diffs)
-        diff: this.paymentDiffFromGovt(parseFloat(data.govtRate) || 0, avgRate),
+        diff: this.paymentDiffFromGovt(sodaGovtRate, avgRate),
           payment: 0,
           finalHisabAmt: 0,
         note: data.note || '',
@@ -3930,12 +3968,15 @@ export class ProcurementService {
       });
     }
 
-    const govtRate = parseFloat(data.govtRate) || existing.govtRate || 0;
     const plantIdForBm = data.plantId || existing.plantId;
     const plant = await this.prisma.plant.findUnique({
       where: { id: plantIdForBm },
-      select: { benchmarkMoisture: true },
+      select: { benchmarkMoisture: true, govtRate: true },
     });
+    const govtRate = this.resolveGovtRate(
+      parseFloat(data.govtRate) || existing.govtRate,
+      plant?.govtRate,
+    );
     const benchmarkMoisture = plant?.benchmarkMoisture ?? 17;
     const sodaMcPoint =
       data.mcPoint !== undefined
