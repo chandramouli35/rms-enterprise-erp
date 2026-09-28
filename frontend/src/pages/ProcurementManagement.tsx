@@ -3946,23 +3946,23 @@ export const ProcurementManagement = () => {
                           <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                             Part Stack No.{" "}
                             {!inwardFormData.partIsHoodi && (
-                              <span className="text-red-500">*</span>
+                            <span className="text-red-500">*</span>
                             )}
                           </label>
                           <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              name="secondPartStackNo"
+                          <input
+                            type="text"
+                            name="secondPartStackNo"
                               value={
                                 inwardFormData.partIsHoodi
                                   ? ""
                                   : inwardFormData.secondPartStackNo
                               }
-                              onChange={handleInwardChange}
+                            onChange={handleInwardChange}
                               disabled={!!inwardFormData.partIsHoodi}
                               className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00] disabled:opacity-50"
-                              placeholder="Stack No."
-                            />
+                            placeholder="Stack No."
+                          />
                             <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-main)] whitespace-nowrap cursor-pointer shrink-0 px-2 py-2 rounded border border-[var(--border-subtle)]">
                               <input
                                 type="checkbox"
@@ -4666,7 +4666,7 @@ export const ProcurementManagement = () => {
                         </svg>
                         Fetch WB
                       </button>
-                      </div>
+                    </div>
                     </div>
                     <div className={`p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 content-start ${excessWtFlag ? "bg-rose-500/5" : ""}`}>
                       <p className="sm:col-span-2 text-[10px] text-[var(--text-muted-alt)] -mt-1 mb-1">
@@ -6698,11 +6698,11 @@ export const ProcurementManagement = () => {
 
                       const exportData = data.map((item: any) => {
                         const row: Record<string, any> = {
-                          Party: item.partyMandi,
-                          Date: item.date,
-                          Bags: item.bags,
-                          "Govt Rate": item.govtRate,
-                          Rate: item.rate,
+                        Party: item.partyMandi,
+                        Date: item.date,
+                        Bags: item.bags,
+                        "Govt Rate": item.govtRate,
+                        Rate: item.rate,
                         };
                         if (!hidePaymentHisab) {
                           row.Diff = item.diff;
@@ -6746,21 +6746,21 @@ export const ProcurementManagement = () => {
                       </th>
                       {!hidePaymentHisab && (
                         <>
-                          <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">
-                            Diff
-                          </th>
-                          <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">
-                            Payment
-                          </th>
+                      <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">
+                        Diff
+                      </th>
+                      <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">
+                        Payment
+                      </th>
                         </>
                       )}
                       <th className="border-b border-[var(--border-subtle)] p-3 text-left font-medium">
                         Note
                       </th>
                       {!hidePaymentHisab && (
-                        <th className="border-b border-[var(--border-subtle)] p-3 text-right text-[#e67e00] font-bold">
-                          Final Hisab Amt
-                        </th>
+                      <th className="border-b border-[var(--border-subtle)] p-3 text-right text-[#e67e00] font-bold">
+                        Final Hisab Amt
+                      </th>
                       )}
                       <th className="border-b border-[var(--border-subtle)] p-3 text-center font-medium">
                         Action
@@ -6809,19 +6809,19 @@ export const ProcurementManagement = () => {
                         </td>
                         {!hidePaymentHisab && (
                           <>
-                            <td className="p-3 text-right text-red-400 font-medium">
-                              {p.diff}
-                            </td>
-                            <td className="p-3 text-right">{p.payment}</td>
+                        <td className="p-3 text-right text-red-400 font-medium">
+                          {p.diff}
+                        </td>
+                        <td className="p-3 text-right">{p.payment}</td>
                           </>
                         )}
                         <td className="p-3 text-[var(--text-muted-alt)]">
                           {p.note}
                         </td>
                         {!hidePaymentHisab && (
-                          <td className="p-3 text-right font-bold text-[#e67e00]">
-                            {p.finalHisabAmt}
-                          </td>
+                        <td className="p-3 text-right font-bold text-[#e67e00]">
+                          {p.finalHisabAmt}
+                        </td>
                         )}
                         <td className="p-3 text-center">
                           {user?.role === "SUPER_ADMIN" ||
@@ -7472,35 +7472,11 @@ export const ProcurementManagement = () => {
                   {isSupervisor
                     ? "← → or Enter → next column · Cancel soda only in Add Final Boli"
                     : "← → or Enter → next column (Rate → next Boli row)"}
-                  {" · "}
-                  Rate: red ↑ Overpriced / green ↓ Underpriced vs Base
                 </span>
               </div>
               <div data-boli-grid className="space-y-4">
                 {paddyPurchaseModal.bolis.map((boli: any, index: number) => {
                   const bagsCancelled = String(boli.bags ?? "").trim() === "0";
-                  const bm = Number(activePlant?.benchmarkMoisture ?? 17);
-                  const mcp = parseFloat(String(paddyPurchaseModal.mcPoint || ""));
-                  const curMc = parseFloat(String(boli.moisture || ""));
-                  const mcDeductionPreview =
-                    bagsCancelled ||
-                    !Number.isFinite(mcp) ||
-                    !Number.isFinite(curMc)
-                      ? null
-                      : curMc <= bm
-                        ? 0
-                        : Math.round((curMc - bm) * mcp * 100) / 100;
-                  const lineToday =
-                    parseFloat(
-                      String(
-                        boli.todayRate ?? paddyPurchaseModal.todayRate ?? "",
-                      ),
-                    ) || NaN;
-                  const baseBoliPreview =
-                    mcDeductionPreview == null || !Number.isFinite(lineToday)
-                      ? null
-                      : Math.round((lineToday - mcDeductionPreview) * 100) /
-                        100;
                   return (
                     <div
                       key={index}
@@ -7576,10 +7552,9 @@ export const ProcurementManagement = () => {
                         <div className="flex-1">
                           {!bagsCancelled && (
                             <label className="block text-xs text-[var(--text-muted-alt)] mb-1">
-                              Rate (Boli)
+                              Price (Boli Rate)
                             </label>
                           )}
-                          <div className="flex items-center gap-1">
                           <input
                             type="text"
                             inputMode="decimal"
@@ -7618,64 +7593,12 @@ export const ProcurementManagement = () => {
                                 finalHisabAmt: finalAmt,
                               });
                             }}
-                            className={`w-full bg-[var(--bg-panel-alt)] border rounded px-2 py-1.5 text-sm font-bold ${
+                            className={`w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm font-bold text-[var(--text-main)] ${
                               bagsCancelled
-                                ? "opacity-40 cursor-not-allowed border-[var(--border-subtle)] text-[var(--text-main)]"
-                                : (() => {
-                                    const br =
-                                      parseFloat(String(boli.rate)) || 0;
-                                    if (
-                                      baseBoliPreview == null ||
-                                      !br
-                                    )
-                                      return "border-[var(--border-subtle)] text-[var(--text-main)]";
-                                    if (br > baseBoliPreview)
-                                      return "border-red-500/60 text-red-500";
-                                    if (br < baseBoliPreview)
-                                      return "border-green-500/60 text-green-500";
-                                    return "border-[var(--border-subtle)] text-[var(--text-main)]";
-                                  })()
+                                ? "opacity-40 cursor-not-allowed"
+                                : ""
                             }`}
                           />
-                          {!bagsCancelled &&
-                            (() => {
-                              const br = parseFloat(String(boli.rate)) || 0;
-                              if (
-                                baseBoliPreview == null ||
-                                !Number.isFinite(br) ||
-                                br <= 0
-                              )
-                                return null;
-                              const delta =
-                                Math.round((br - baseBoliPreview) * 100) / 100;
-                              if (delta > 0)
-                                return (
-                                  <span
-                                    className="text-red-500 text-[10px] font-bold whitespace-nowrap"
-                                    title={`Overpriced: Purchase ${br} > Base ${baseBoliPreview}`}
-                                  >
-                                    ↑ Overpriced
-                                  </span>
-                                );
-                              if (delta < 0)
-                                return (
-                                  <span
-                                    className="text-green-500 text-[10px] font-bold whitespace-nowrap"
-                                    title={`Underpriced: Purchase ${br} < Base ${baseBoliPreview}`}
-                                  >
-                                    ↓ Underpriced
-                                  </span>
-                                );
-                              return (
-                                <span
-                                  className="text-[var(--text-muted-alt)] text-[10px]"
-                                  title="At Base Boli Rate"
-                                >
-                                  = Base
-                                </span>
-                              );
-                            })()}
-                          </div>
                         </div>
                         {paddyPurchaseModal.bolis.length > 1 &&
                           !bagsCancelled && (

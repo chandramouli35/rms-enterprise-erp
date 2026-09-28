@@ -374,7 +374,7 @@ export class ProcurementService {
           this.calcMcDeduction(parsedMoisture, benchmark, mcPoint) ?? 0;
       }
       let bugsDeduction = parsedBugs * 5; // example: 5 INR per 1% bugs
-
+      
       finalRate = parsedRate - moistureDeduction - bugsDeduction;
     }
 
@@ -634,7 +634,7 @@ export class ProcurementService {
         ) {
           await this.applyStackReceipt(
             tx,
-            plantId,
+              plantId,
             String(data.secondPartStackNo).trim(),
             partBags,
             partWt,
@@ -1141,23 +1141,23 @@ export class ProcurementService {
           },
         });
 
-        if (data.allocationType === 'Hoodi') {
+      if (data.allocationType === 'Hoodi') {
           // Entire truck unloaded at Hoodi
-          await tx.hoodiRecord.create({
-            data: {
-              plantId,
-              sourceType: 'DIRECT_INWARD',
-              date: new Date(),
-              gpNo: data.gpNo,
-              mandiGpNo: data.mandiEgpNo || data.mandiEgNo,
-              truckNo: data.truckNo,
-              supplierName: supplier?.name || null,
-              mandiName: data.mandi,
-              stackNo: 'Direct-Inward',
+        await tx.hoodiRecord.create({
+          data: {
+            plantId,
+            sourceType: 'DIRECT_INWARD',
+            date: new Date(),
+            gpNo: data.gpNo,
+            mandiGpNo: data.mandiEgpNo || data.mandiEgNo,
+            truckNo: data.truckNo,
+            supplierName: supplier?.name || null,
+            mandiName: data.mandi,
+            stackNo: 'Direct-Inward',
               bags: totalBags || parseFloat(data.bagsRecAtMill) || 0,
               netWeight: totalWt || null,
               rstNo: data.rstNo || null,
-              moisture: parsedMoisture,
+            moisture: parsedMoisture,
               unloadedBy:
                 data.allocateUnloader || data.unloaderName || 'System',
               partStackNo: null,
@@ -3172,6 +3172,7 @@ export class ProcurementService {
         boliNo: b.boliNo,
         moisture: b.moisture,
         estimatedBags: b.bags,
+        todayRate: b.todayRate ?? b.sodaPending.todayRate ?? null,
         rate: b.rate,
         finalBags: b.finalBags,
         needsFinal: b.finalBags == null,
@@ -4812,7 +4813,7 @@ export class ProcurementService {
     });
   }
   async transferStackToHoodi(plantId: string, data: any, user?: any) {
-    const transferBags = parseFloat(data.bags) || 0;
+        const transferBags = parseFloat(data.bags) || 0;
     if (!data.stackNo) throw new BadRequestException('Stack No. is required');
     if (transferBags <= 0) throw new BadRequestException('Bags must be greater than 0');
     if (!data.rstNo || !String(data.rstNo).trim()) {
@@ -4835,7 +4836,7 @@ export class ProcurementService {
         isoTemplate: data.isoTemplate,
       });
     }
-
+    
     await this.prisma.$transaction(async (tx) => {
       const stack = await tx.paddyStack.findUnique({
         where: { plantId_stackNo: { plantId, stackNo: data.stackNo } },
@@ -5108,7 +5109,7 @@ export class ProcurementService {
     );
     let totalBags = 0;
     let totalWt = 0;
-
+    
     inwards.forEach((record: any) => {
       totalBags += Number(
         record.stackView?.bags ??
@@ -5153,7 +5154,7 @@ export class ProcurementService {
     // 3. Mark stack as empty
     return this.prisma.paddyStack.update({
       where: { plantId_stackNo: { plantId, stackNo } },
-      data: {
+      data: { 
         status: 'EMPTY',
         totalBags: 0,
         totalWeight: 0,

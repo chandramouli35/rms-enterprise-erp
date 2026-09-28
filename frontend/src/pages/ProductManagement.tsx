@@ -251,7 +251,7 @@ export const ProductManagement = () => {
               </tbody>
             </table>
           </div>
-
+          
           <Pagination currentPage={currentPage} totalItems={totalItems} onPageChange={setCurrentPage} />
         </div>
       </div>

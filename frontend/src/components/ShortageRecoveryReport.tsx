@@ -115,7 +115,7 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
   });
 
   const fetchLedger = async () => {
-    const params = new URLSearchParams();
+      const params = new URLSearchParams();
     if (activePlant?.id) params.append('plantId', activePlant.id);
     if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
     if (filters.dateTo) params.append('dateTo', filters.dateTo);
@@ -155,8 +155,8 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
   const fetchEntityTrend = async () => {
     const params = new URLSearchParams();
     params.append('groupBy', ledgerMode);
-    if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
-    if (filters.dateTo) params.append('dateTo', filters.dateTo);
+      if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+      if (filters.dateTo) params.append('dateTo', filters.dateTo);
     if (!filters.dateFrom && !filters.dateTo) params.append('days', '14');
     const res = await api.get(`/api/procurement/reports/shortage-entity-trend?${params.toString()}`);
     setEntityTrend(res.data);
@@ -954,9 +954,9 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
             onClick={handleExport}
             className="flex items-center gap-2 bg-[#e67e00] text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-[#cc7000] transition-colors"
           >
-            <Download size={16} />
+          <Download size={16} />
             Export
-          </button>
+        </button>
         </div>
       </div>
 
@@ -983,19 +983,19 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
 
       <div className="flex flex-wrap gap-4 items-end">
         {view === 'daily' && (
-          <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1">
             <label className="text-xs text-[var(--text-muted-alt)]">As of / Report Date</label>
-            <input
-              type="date"
+          <input 
+            type="date" 
               value={filters.reportDate}
               onChange={(e) => setFilters((p) => ({ ...p, reportDate: e.target.value }))}
-              className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-[var(--text-main)] px-3 py-1.5 rounded text-sm outline-none focus:border-[#e67e00]"
-            />
-          </div>
+            className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-[var(--text-main)] px-3 py-1.5 rounded text-sm outline-none focus:border-[#e67e00]"
+          />
+        </div>
         )}
         {view === 'ledger' && (
           <>
-            <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1">
               <label className="text-xs text-[var(--text-muted-alt)]">View as</label>
               <div className="flex gap-1">
                 {(
@@ -1075,11 +1075,11 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                   title="Start Date — opening balance as of start of this day"
               />
                 <span className="text-[var(--text-muted-alt)] text-xs">to</span>
-              <input
-                type="date"
-                value={filters.dateTo}
+          <input 
+            type="date" 
+            value={filters.dateTo}
                 onChange={(e) => setFilters((p) => ({ ...p, dateTo: e.target.value }))}
-                className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-[var(--text-main)] px-3 py-1.5 rounded text-sm outline-none focus:border-[#e67e00]"
+            className="bg-[var(--bg-base)] border border-[var(--border-subtle)] text-[var(--text-main)] px-3 py-1.5 rounded text-sm outline-none focus:border-[#e67e00]"
                   title="Closing Date — closing balance as of end of this day"
                 />
                 {(filters.dateFrom || filters.dateTo) && (
@@ -1091,7 +1091,7 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                     Clear
                   </button>
                 )}
-              </div>
+        </div>
               <p className="text-[10px] text-[var(--text-muted-alt)]">
                 Opening = as of start of Start Date
                 {openingAsOfLabel ? ` (snapshot ${openingAsOfLabel})` : ''}
@@ -1128,8 +1128,8 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                   {t.deltaQtl} qtl
                 </span>
               ))}
-          </div>
         </div>
+      </div>
       )}
 
       {/* Shortage details tables first */}
@@ -1162,15 +1162,15 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                     <h4 className="font-bold text-sm text-[#e67e00]">{col.label}</h4>
                   </div>
                   <table className="w-full text-sm">
-                    <thead>
+            <thead>
                       <tr className="text-[10px] uppercase text-[var(--text-muted-alt)] border-b border-[var(--border-subtle)]">
                         <th className="px-2 py-1.5 text-left">S.No</th>
                         <th className="px-2 py-1.5 text-left">Artia</th>
                         <th className="px-2 py-1.5 text-left">Mandi</th>
                         <th className="px-2 py-1.5 text-right">Qtl</th>
                         <th className="px-2 py-1.5 text-right">Bags</th>
-                      </tr>
-                    </thead>
+              </tr>
+            </thead>
                     <tbody>
                       {col.rows.map((r: any) => (
                         <tr key={`${col.key}-${r.sno}`} className="border-b border-[var(--border-subtle-alt)]">
@@ -1182,15 +1182,15 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                           </td>
                           <td className="px-2 py-1.5 text-right font-mono">
                             {Number(r.shortageBags).toFixed(2)}
-                          </td>
-                        </tr>
+                      </td>
+                    </tr>
                       ))}
                       {col.rows.length === 0 && (
                         <tr>
                           <td colSpan={5} className="px-2 py-4 text-center text-[var(--text-muted-alt)] text-xs">
                             No shortage balance
-                          </td>
-                        </tr>
+                        </td>
+                      </tr>
                       )}
                       <tr className="bg-[var(--bg-panel-hover)] font-bold">
                         <td colSpan={3} className="px-2 py-2 text-right text-[var(--text-main)]">
@@ -1275,7 +1275,7 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                             <td className="px-2 py-1">{b.mandi}</td>
                             <td className="px-2 py-1 text-right font-mono text-red-400">
                               {Number(b.shortageQtl || 0).toFixed(2)}
-                            </td>
+                    </td>
                             <td className="px-2 py-1 text-right font-mono text-emerald-400">
                               {Number(b.recoveryQtl || 0).toFixed(2)}
                             </td>
@@ -1387,9 +1387,9 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                         <tr>
                           <td colSpan={10} className="px-3 py-4 text-center text-[var(--text-muted-alt)] text-xs">
                             No ledger entries in this date range
-                    </td>
-                  </tr>
-                )}
+                  </td>
+                </tr>
+              )}
                       <tr className="bg-[var(--bg-panel-hover)] font-semibold text-sm">
                         <td colSpan={6} className="px-3 py-2 text-right text-[var(--text-muted)]">
                           Opening {Number(cluster.openingQtl || 0).toFixed(2)} · Debit{' '}
@@ -1402,10 +1402,10 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
                           Closing as of {closingAsOfLabel}
                         </td>
                       </tr>
-              </tbody>
-            </table>
-                </div>
-              </div>
+            </tbody>
+          </table>
+        </div>
+      </div>
             ))}
             {selectedArtiaKey && (
               <button

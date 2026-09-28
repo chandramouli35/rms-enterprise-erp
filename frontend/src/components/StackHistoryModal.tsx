@@ -52,7 +52,7 @@ export default function StackHistoryModal({
               sortDate: new Date(t.date).getTime(),
             })),
           ].sort((a, b) => a.sortDate - b.sortDate);
-
+          
           setHistory(combined);
         })
         .finally(() => setLoading(false));
@@ -445,21 +445,21 @@ export default function StackHistoryModal({
           >
             Close
           </button>
-
+          
           <button
             onClick={async () => {
-              try {
+            try {
                 await api.post(
                   `/api/procurement/stack/${activeStack}/send-to-hoodi`,
                   { plantId },
                 );
-                onStackCompleted();
-                onClose();
-              } catch (error: any) {
+              onStackCompleted();
+              onClose();
+            } catch (error: any) {
                 alert(
                   error.response?.data?.message || 'Failed to send to hoodi',
                 );
-              }
+            }
             }}
             className="px-5 py-2 bg-red-600/90 hover:bg-red-600 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
           >

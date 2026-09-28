@@ -452,29 +452,7 @@ export default function BoliRecordPanel({
           const showParty = item.partyName !== lastParty;
           lastParty = item.partyName;
 
-          const status = resolvePriceStatus(item);
-          const delta =
-            item.rateVsBase != null
-              ? Number(item.rateVsBase)
-              : item.baseBoliRate != null && item.rate != null
-                ? Math.round(
-                    (Number(item.rate) - Number(item.baseBoliRate)) * 100,
-                  ) / 100
-                : null;
-          const rateColor =
-            status === "OVERPRICED"
-              ? "#ef4444"
-              : status === "UNDERPRICED"
-                ? "#22c55e"
-                : "#e67e00";
-          let rateHtml = `<span style="color:${rateColor};font-weight:700">${item.rate ?? "-"}</span>`;
-          if (status === "OVERPRICED") {
-            rateHtml += ` <span style="color:#ef4444;font-size:10px;font-weight:700">↑ Overpriced${delta != null ? ` (+${delta})` : ""}</span>`;
-          } else if (status === "UNDERPRICED") {
-            rateHtml += ` <span style="color:#22c55e;font-size:10px;font-weight:700">↓ Underpriced${delta != null ? ` (${delta})` : ""}</span>`;
-          } else if (status === "AT_BASE") {
-            rateHtml += ` <span style="color:#888;font-size:10px">= Base</span>`;
-          }
+          const rateHtml = `<span style="color:#e67e00;font-weight:700">${item.rate ?? "-"}</span>`;
 
           const hisab = Number(item.finalHisabAmt) || 0;
           const hisabHtml =
@@ -559,7 +537,7 @@ export default function BoliRecordPanel({
         <th>Final Bags</th>
         <th>Today Rate</th>
         <th>Base Boli</th>
-        <th>Rate / Status</th>
+        <th>Price (Boli Rate)</th>
         ${hidePaymentHisab ? "" : "<th>Payment</th><th>Final Hisab</th>"}
         <th>Received</th>
         <th>Balance</th>
@@ -1260,7 +1238,7 @@ export default function BoliRecordPanel({
                 <th className="p-2 font-semibold">Final Bags</th>
                 <th className="p-2 font-semibold">Today Rate</th>
                 <th className="p-2 font-semibold">Base Boli</th>
-                <th className="p-2 font-semibold">Rate / Status</th>
+                <th className="p-2 font-semibold">Price (Boli Rate)</th>
                 {!hidePaymentHisab && (
                   <>
                     <th className="p-2 font-semibold">Payment</th>
@@ -1334,66 +1312,8 @@ export default function BoliRecordPanel({
                           ? Number(r.baseBoliRate).toFixed(2)
                           : "—"}
                       </td>
-                      <td className="p-2 font-bold">
-                        {(() => {
-                          const status =
-                            r.priceStatus ||
-                            (r.baseBoliRate != null && r.rate != null
-                              ? Number(r.rate) > Number(r.baseBoliRate)
-                                ? "OVERPRICED"
-                                : Number(r.rate) < Number(r.baseBoliRate)
-                                  ? "UNDERPRICED"
-                                  : "AT_BASE"
-                              : null);
-                          const rateColor =
-                            status === "OVERPRICED"
-                              ? "text-red-500"
-                              : status === "UNDERPRICED"
-                                ? "text-green-500"
-                                : "text-[#e67e00]";
-                          const delta =
-                            r.rateVsBase != null
-                              ? Number(r.rateVsBase)
-                              : r.baseBoliRate != null && r.rate != null
-                                ? Math.round(
-                                    (Number(r.rate) - Number(r.baseBoliRate)) *
-                                      100,
-                                  ) / 100
-                                : null;
-                          return (
-                            <span
-                              className={`inline-flex items-center gap-1 ${rateColor}`}
-                              title={
-                                status === "OVERPRICED"
-                                  ? `Overpriced: Purchase ₹${r.rate} > Base ₹${r.baseBoliRate}`
-                                  : status === "UNDERPRICED"
-                                    ? `Underpriced: Purchase ₹${r.rate} < Base ₹${r.baseBoliRate}`
-                                    : status === "AT_BASE"
-                                      ? "At Base Boli Rate"
-                                      : undefined
-                              }
-                            >
-                              <span>{r.rate ?? "-"}</span>
-                              {status === "OVERPRICED" && (
-                                <span className="text-[10px] font-bold whitespace-nowrap">
-                                  ↑ Overpriced
-                                  {delta != null ? ` (+${delta})` : ""}
-                                </span>
-                              )}
-                              {status === "UNDERPRICED" && (
-                                <span className="text-[10px] font-bold whitespace-nowrap">
-                                  ↓ Underpriced
-                                  {delta != null ? ` (${delta})` : ""}
-                                </span>
-                              )}
-                              {status === "AT_BASE" && (
-                                <span className="text-[10px] text-[var(--text-muted-alt)]">
-                                  = Base
-                                </span>
-                              )}
-                            </span>
-                          );
-                        })()}
+                      <td className="p-2 font-bold text-[#e67e00]">
+                        {r.rate ?? "-"}
                       </td>
                       {!hidePaymentHisab && (
                         <>
@@ -2319,7 +2239,7 @@ export default function BoliRecordPanel({
                           Estimate Bags
                         </th>
                         <th className="font-medium text-left px-3 py-2">
-                          Rate
+                          Price (Boli Rate)
                         </th>
                         <th className="font-medium text-left px-3 py-2">
                           Final Bags{" "}
@@ -2388,7 +2308,7 @@ export default function BoliRecordPanel({
                               <input
                                 readOnly
                                 tabIndex={-1}
-                                title="Auto-fetched from Estimate Purchase"
+                                title="Boli Rate (Price) from Estimate Purchase"
                                 value={
                                   bagsCancelled
                                     ? ""
@@ -2397,7 +2317,7 @@ export default function BoliRecordPanel({
                                       : ""
                                 }
                                 placeholder={bagsCancelled ? "" : "Auto"}
-                                className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] opacity-90 cursor-default outline-none"
+                                className="w-full min-w-[5rem] bg-transparent border-0 px-0 py-1 text-[var(--text-main)] font-bold opacity-90 cursor-default outline-none"
                               />
                             </td>
                             <td className="px-3 py-1.5 align-middle">
