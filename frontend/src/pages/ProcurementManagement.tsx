@@ -50,6 +50,35 @@ import { exportToExcel } from "../utils/exportUtils";
 import Combobox from "../components/Combobox";
 import { useSubmitLock } from "../hooks/useSubmitLock";
 
+/** Bag counts: leading/lone 0 disappears (96 not 096). */
+function wholeCountNoLeadingZero(raw: string): string {
+  const digits = String(raw ?? "").replace(/[^\d]/g, "");
+  if (!digits) return "";
+  const n = parseInt(digits, 10);
+  if (!Number.isFinite(n) || n === 0) return "";
+  return String(n);
+}
+
+/** Moisture etc.: 018.5 → 18.5; lone 0 disappears; "0." kept so 0.5 can be typed. */
+function decimalNoLeadingZero(raw: string): string {
+  let s = String(raw ?? "").replace(/[^\d.]/g, "");
+  const dot = s.indexOf(".");
+  if (dot !== -1) {
+    s = s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, "");
+  }
+  if (!s || s === "0") return "";
+  const [intPart, frac] = s.split(".");
+  let i = (intPart || "").replace(/^0+(?=\d)/, "");
+  if (frac !== undefined) return `${i || "0"}.${frac}`;
+  return i;
+}
+
+function hideZeroDisplay(v: any): string {
+  if (v === null || v === undefined || v === "" || v === 0 || v === "0")
+    return "";
+  return String(v);
+}
+
 export const ProcurementManagement = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -317,13 +346,13 @@ export const ProcurementManagement = () => {
     mandiIntimation: "",
     remarks: "",
     allocationType: "",
-    origBagsRec: 0,
-    origAClass: 0,
-    origBClass: 0,
-    origAClassAg: 0,
-    origBClassAg: 0,
-    shortageAClass: 0,
-    shortageBClass: 0,
+    origBagsRec: "",
+    origAClass: "",
+    origBClass: "",
+    origAClassAg: "",
+    origBClassAg: "",
+    shortageAClass: "",
+    shortageBClass: "",
     qualityCutType: "NONE",
     qualityCutValue: 0,
     qualityCutReason: "",
@@ -795,7 +824,7 @@ export const ProcurementManagement = () => {
     plants,
   ]);
   const [dhanakLots, setDhanakLots] = useState([
-    { id: 1, dhankNo: "1", bags: 0, moisture: 0, bardanaClass: "" },
+    { id: 1, dhankNo: "1", bags: "", moisture: "", bardanaClass: "" },
   ]);
 
   const [inwardErrors, setInwardErrors] = useState<Record<string, string>>({});
@@ -847,6 +876,25 @@ export const ProcurementManagement = () => {
   const handleInwardChange = (e: any) => {
     const { name, value, type, checked } = e.target;
     let nextValue = type === "checkbox" ? checked : value;
+
+    // Bardana bag counts: figure starts from the number, not a leading 0 (e.g. 638 not 0638)
+    const bardanaCountFields = new Set([
+      "origAClass",
+      "origBClass",
+      "origAClassAg",
+      "origBClassAg",
+      "shortageAClass",
+      "shortageBClass",
+      "origBagsRec",
+      "agencyBagsRec",
+      "agencyAClass",
+      "agencyBClass",
+      "agencyAClassAg",
+      "agencyBClassAg",
+    ]);
+    if (bardanaCountFields.has(name) && typeof nextValue === "string") {
+      nextValue = wholeCountNoLeadingZero(nextValue);
+    }
 
     // Supervisor: never allow future dates; backdate only when Auto Update Date & Time is OFF
     if (
@@ -907,8 +955,11 @@ export const ProcurementManagement = () => {
   };
 
   const handleDhanakChange = (index: number, field: string, value: any) => {
+    let next = value;
+    if (field === "bags") next = wholeCountNoLeadingZero(String(value ?? ""));
+    if (field === "moisture") next = decimalNoLeadingZero(String(value ?? ""));
     const newLots = [...dhanakLots];
-    newLots[index] = { ...newLots[index], [field]: value };
+    newLots[index] = { ...newLots[index], [field]: next };
     setDhanakLots(newLots);
   };
 
@@ -920,8 +971,8 @@ export const ProcurementManagement = () => {
       {
         id: Date.now(),
         dhankNo: nextNo,
-        bags: 0,
-        moisture: 0,
+        bags: "",
+        moisture: "",
         bardanaClass: "",
       },
     ]);
@@ -1473,6 +1524,7 @@ export const ProcurementManagement = () => {
     if (activeTab === "paddy_inward") {
       fetchRecentPurchases();
       fetchDraftInwards();
+      fetchSodaPending({ forInward: true });
       const pid = activePlant?.id;
       if (pid) {
         api
@@ -1489,6 +1541,7 @@ export const ProcurementManagement = () => {
     listFilters.dateFrom,
     listFilters.dateTo,
     recentPurchasesCurrentPage,
+    inwardFormData.supplierId,
   ]);
 
   useEffect(() => {
@@ -1503,13 +1556,18 @@ export const ProcurementManagement = () => {
     sodaPendingCurrentPage,
   ]);
 
-  // Realtime: keep Estimate Purchase list current while on related tabs
+  // Realtime: keep Estimate Purchase / Paddy Inward boli list current
   useEffect(() => {
-    if (activeTab !== "paddy_purchase" && activeTab !== "soda_pending") return;
+    if (
+      activeTab !== "paddy_purchase" &&
+      activeTab !== "soda_pending" &&
+      activeTab !== "paddy_inward"
+    )
+      return;
     if (!activePlant?.id) return;
     const tick = () => {
       if (document.visibilityState === "hidden") return;
-      fetchSodaPending();
+      fetchSodaPending({ forInward: activeTab === "paddy_inward" });
     };
     const id = window.setInterval(tick, 3000);
     const onVisible = () => {
@@ -1520,7 +1578,7 @@ export const ProcurementManagement = () => {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [activeTab, activePlant?.id]);
+  }, [activeTab, activePlant?.id, inwardFormData.supplierId]);
 
   const handleViewInward = async (inward: any) => {
     try {
@@ -1620,12 +1678,26 @@ export const ProcurementManagement = () => {
         labour: d.labourType || "",
         unloadingStartTime: toTimeInput(d.unloadingStartTime),
         unloadingFinishTime: toTimeInput(d.unloadingEndTime),
-        origAClass: d.aClassReceived ?? 0,
-        origBClass: d.bClassReceived ?? 0,
-        shortageAClass: d.shortageAClass ?? 0,
-        shortageBClass: d.shortageBClass ?? 0,
-        origAClassAg: d.aClassGiven ?? 0,
-        origBClassAg: d.bClassGiven ?? 0,
+    origAClass:
+      d.aClassReceived && Number(d.aClassReceived) !== 0
+        ? d.aClassReceived
+        : "",
+    origBClass:
+      d.bClassReceived && Number(d.bClassReceived) !== 0
+        ? d.bClassReceived
+        : "",
+    shortageAClass:
+      d.shortageAClass && Number(d.shortageAClass) !== 0
+        ? d.shortageAClass
+        : "",
+    shortageBClass:
+      d.shortageBClass && Number(d.shortageBClass) !== 0
+        ? d.shortageBClass
+        : "",
+    origAClassAg:
+      d.aClassGiven && Number(d.aClassGiven) !== 0 ? d.aClassGiven : "",
+    origBClassAg:
+      d.bClassGiven && Number(d.bClassGiven) !== 0 ? d.bClassGiven : "",
         qualityCutType: d.qualityCutType || "",
         qualityCutValue: d.qualityCutValue ?? 0,
         qualityCutReason: d.qualityCutReason || "",
@@ -1828,18 +1900,29 @@ export const ProcurementManagement = () => {
     }
   }, [activePlant?.id, activeTab, listFilters.activeReportTab]);
 
-  const fetchSodaPending = async () => {
+  const fetchSodaPending = async (opts?: { forInward?: boolean }) => {
     try {
       const pid = activePlant?.id || "global";
+      const forInward =
+        opts?.forInward === true || activeTab === "paddy_inward";
       const params = new URLSearchParams();
-      if (listFilters.dateFrom) params.append("dateFrom", listFilters.dateFrom);
-      if (listFilters.dateTo) params.append("dateTo", listFilters.dateTo);
-      if (listFilters.supplierId)
-        params.append("supplierId", listFilters.supplierId);
-      if (listFilters.mandi) params.append("mandi", listFilters.mandi);
-      params.append("page", sodaPendingCurrentPage.toString());
-      // Inward needs full pending list; purchase register still pages
-      params.append("limit", activeTab === "paddy_inward" ? "1000" : "10");
+      if (forInward) {
+        // Paddy Inward must show live Boli Record (Final Bags / Bags Rec),
+        // not a paged/date-filtered snapshot from another tab.
+        if (inwardFormData.supplierId) {
+          params.append("supplierId", inwardFormData.supplierId);
+        }
+        params.append("page", "1");
+        params.append("limit", "1000");
+      } else {
+        if (listFilters.dateFrom) params.append("dateFrom", listFilters.dateFrom);
+        if (listFilters.dateTo) params.append("dateTo", listFilters.dateTo);
+        if (listFilters.supplierId)
+          params.append("supplierId", listFilters.supplierId);
+        if (listFilters.mandi) params.append("mandi", listFilters.mandi);
+        params.append("page", sodaPendingCurrentPage.toString());
+        params.append("limit", "10");
+      }
       const res = await api.get(
         `/api/procurement/soda-pending/${pid}?${params.toString()}`,
       );
@@ -2226,12 +2309,6 @@ export const ProcurementManagement = () => {
       "labour",
       "unloadingStartTime",
       "unloadingFinishTime",
-      "origAClass",
-      "origBClass",
-      "shortageAClass",
-      "shortageBClass",
-      "origAClassAg",
-      "origBClassAg",
       "netWtMill",
       "netWtDiff",
       "netWtParty",
@@ -2293,6 +2370,18 @@ export const ProcurementManagement = () => {
         hasError = true;
       }
     });
+
+    if (effectiveStatus === "CONFIRMED") {
+      const millBagsTotal =
+        (parseFloat(String(working.origAClass ?? "")) || 0) +
+        (parseFloat(String(working.origBClass ?? "")) || 0) +
+        (parseFloat(String(working.shortageAClass ?? "")) || 0) +
+        (parseFloat(String(working.shortageBClass ?? "")) || 0);
+      if (millBagsTotal <= 0) {
+        newErrors.origBClass = "Enter Bardana bags (figure starts from the number, not 0)";
+        hasError = true;
+      }
+    }
 
     // pahunchPerson OR pahunchPersonName (not required when placing Hold pause)
     if (
@@ -4443,7 +4532,12 @@ export const ProcurementManagement = () => {
                                 type="number"
                                 min="0"
                                 name="origAClass"
-                                value={inwardFormData.origAClass}
+                                value={
+                                  inwardFormData.origAClass === 0 ||
+                                  inwardFormData.origAClass === "0"
+                                    ? ""
+                                    : inwardFormData.origAClass ?? ""
+                                }
                                 onChange={handleInwardChange}
                                 className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"
                               />
@@ -4458,7 +4552,12 @@ export const ProcurementManagement = () => {
                                 type="number"
                                 min="0"
                                 name="origBClass"
-                                value={inwardFormData.origBClass}
+                                value={
+                                  inwardFormData.origBClass === 0 ||
+                                  inwardFormData.origBClass === "0"
+                                    ? ""
+                                    : inwardFormData.origBClass ?? ""
+                                }
                                 onChange={handleInwardChange}
                                 className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"
                               />
@@ -4473,7 +4572,12 @@ export const ProcurementManagement = () => {
                                 type="number"
                                 min="0"
                                 name="shortageAClass"
-                                value={inwardFormData.shortageAClass}
+                                value={
+                                  inwardFormData.shortageAClass === 0 ||
+                                  inwardFormData.shortageAClass === "0"
+                                    ? ""
+                                    : inwardFormData.shortageAClass ?? ""
+                                }
                                 onChange={handleInwardChange}
                                 className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]"
                               />
@@ -4488,7 +4592,12 @@ export const ProcurementManagement = () => {
                                 type="number"
                                 min="0"
                                 name="shortageBClass"
-                                value={inwardFormData.shortageBClass}
+                                value={
+                                  inwardFormData.shortageBClass === 0 ||
+                                  inwardFormData.shortageBClass === "0"
+                                    ? ""
+                                    : inwardFormData.shortageBClass ?? ""
+                                }
                                 onChange={handleInwardChange}
                                 className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]"
                               />
@@ -4516,7 +4625,12 @@ export const ProcurementManagement = () => {
                                 type="number"
                                 min="0"
                                 name="origAClassAg"
-                                value={inwardFormData.origAClassAg}
+                                value={
+                                  inwardFormData.origAClassAg === 0 ||
+                                  inwardFormData.origAClassAg === "0"
+                                    ? ""
+                                    : inwardFormData.origAClassAg ?? ""
+                                }
                                 onChange={handleInwardChange}
                                 className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"
                               />
@@ -4531,7 +4645,12 @@ export const ProcurementManagement = () => {
                                 type="number"
                                 min="0"
                                 name="origBClassAg"
-                                value={inwardFormData.origBClassAg}
+                                value={
+                                  inwardFormData.origBClassAg === 0 ||
+                                  inwardFormData.origBClassAg === "0"
+                                    ? ""
+                                    : inwardFormData.origBClassAg ?? ""
+                                }
                                 onChange={handleInwardChange}
                                 className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"
                               />
@@ -4981,9 +5100,9 @@ export const ProcurementManagement = () => {
                             </td>
                             <td className="py-2">
                               <input
-                                type="number"
-                                min="0"
-                                value={lot.bags}
+                                type="text"
+                                inputMode="numeric"
+                                value={hideZeroDisplay(lot.bags)}
                                 onChange={(e) =>
                                   handleDhanakChange(
                                     idx,
@@ -4996,9 +5115,9 @@ export const ProcurementManagement = () => {
                             </td>
                             <td className="py-2">
                               <input
-                                type="number"
-                                min="0"
-                                value={lot.moisture}
+                                type="text"
+                                inputMode="decimal"
+                                value={hideZeroDisplay(lot.moisture)}
                                 onChange={(e) =>
                                   handleDhanakChange(
                                     idx,

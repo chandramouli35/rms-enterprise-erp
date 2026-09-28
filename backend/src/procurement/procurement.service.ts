@@ -1051,9 +1051,10 @@ export class ProcurementService {
       }
 
       // 5. Apply boli receive bags ONLY on confirm (not draft) — prevents double-count
+      const isBoliMandi = String(mandiType || data.mandiType || '').toLowerCase() === 'boli';
       if (
         data.status !== 'DRAFT' &&
-        (mandiType === 'Boli' || data.mandiType === 'Boli') &&
+        isBoliMandi &&
         data.boliInputs &&
         Object.keys(data.boliInputs).length > 0
       ) {
