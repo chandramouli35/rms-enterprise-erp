@@ -63,6 +63,33 @@ export class AuthController {
     });
   }
 
+  /**
+   * Enrollment check: error if this finger is already registered (do not overwrite).
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('check-fingerprint-available')
+  async checkFingerprintAvailable(
+    @Body()
+    body: {
+      biometricData?: string;
+      isoTemplate?: string;
+      otherIsoTemplates?: string[];
+      otherPidData?: string[];
+      excludeUserId?: string;
+      excludeStaffId?: string;
+    },
+  ) {
+    await this.fingerprintVerify.assertFingerprintNotAlreadyRegistered({
+      biometricData: body?.biometricData,
+      isoTemplate: body?.isoTemplate,
+      otherIsoTemplates: body?.otherIsoTemplates,
+      otherPidData: body?.otherPidData,
+      excludeUserId: body?.excludeUserId,
+      excludeStaffId: body?.excludeStaffId,
+    });
+    return { available: true };
+  }
+
   /** Whether the logged-in user has enrolled fingerprints (for UI hints). */
   @UseGuards(JwtAuthGuard)
   @Get('my-fingerprint-status')

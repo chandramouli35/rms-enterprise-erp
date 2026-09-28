@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { FingerprintVerifyService } from '../auth/fingerprint-verify.service';
 import { v2 as cloudinary } from 'cloudinary';
 import { Readable } from 'stream';
 
@@ -12,7 +13,10 @@ cloudinary.config({
 
 @Injectable()
 export class MasterDataService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly fingerprintVerify: FingerprintVerifyService,
+  ) {}
 
   private async uploadImageToCloudinary(file: Express.Multer.File): Promise<string | null> {
     if (!file) return null;
@@ -345,6 +349,12 @@ export class MasterDataService {
           'Finger 1 and Finger 2 must be two different captures.',
         );
       }
+      await this.fingerprintVerify.assertEnrollmentPairNotDuplicate(
+        data.fingerprint1,
+        null,
+        data.fingerprint2,
+        null,
+      );
     }
 
     const staff = await this.prisma.staffMaster.create({

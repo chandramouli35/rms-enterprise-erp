@@ -5,7 +5,10 @@ import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersRolesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly fingerprintVerify: FingerprintVerifyService,
+  ) {}
 
   async getStats() {
     const notDeleted = { deletedAt: null as Date | null };
@@ -188,6 +191,13 @@ export class UsersRolesService {
     const tpl2 = FingerprintVerifyService.resolveTemplate(
       fingerprint2,
       fingerprint2Template,
+    );
+
+    await this.fingerprintVerify.assertEnrollmentPairNotDuplicate(
+      fingerprint1,
+      tpl1,
+      fingerprint2,
+      tpl2,
     );
 
     const normalizedPlants = await this.normalizePlantIdsForRole(role, plantIds);
@@ -449,6 +459,13 @@ export class UsersRolesService {
     const tpl2 = FingerprintVerifyService.resolveTemplate(
       data.fingerprint2,
       data.fingerprint2Template,
+    );
+
+    await this.fingerprintVerify.assertEnrollmentPairNotDuplicate(
+      data.fingerprint1,
+      tpl1,
+      data.fingerprint2,
+      tpl2,
     );
 
     const passwordHash = await bcrypt.hash(data.password, 10);

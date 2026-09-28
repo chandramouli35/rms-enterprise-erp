@@ -259,7 +259,16 @@ export const UsersAndRoles: React.FC = () => {
   const captureUserFingerprint = async (slot: 1 | 2) => {
     try {
       const { pidData, isoTemplate } =
-        await biometricService.captureForEnrollment();
+        await biometricService.captureForEnrollment({
+          otherIsoTemplates:
+            slot === 1
+              ? [newUserForm.fingerprint2Template]
+              : [newUserForm.fingerprint1Template],
+          otherPidData:
+            slot === 1
+              ? [newUserForm.fingerprint2]
+              : [newUserForm.fingerprint1],
+        });
       setNewUserForm((prev) => ({
         ...prev,
         ...(slot === 1
@@ -278,7 +287,10 @@ export const UsersAndRoles: React.FC = () => {
     } catch (err: any) {
       useUiStore
         .getState()
-        .addToast(err?.message || `Fingerprint ${slot} capture failed`, 'error');
+        .addToast(
+          err?.message || 'This fingerprint is already registered',
+          'error',
+        );
     }
   };
 
@@ -602,7 +614,16 @@ export const UsersAndRoles: React.FC = () => {
   const captureTransferFingerprint = async (slot: 1 | 2) => {
     try {
       const { pidData, isoTemplate } =
-        await biometricService.captureForEnrollment();
+        await biometricService.captureForEnrollment({
+          otherIsoTemplates:
+            slot === 1
+              ? [transferForm.fingerprint2Template]
+              : [transferForm.fingerprint1Template],
+          otherPidData:
+            slot === 1
+              ? [transferForm.fingerprint2]
+              : [transferForm.fingerprint1],
+        });
       setTransferForm((prev) => ({
         ...prev,
         ...(slot === 1
@@ -619,7 +640,10 @@ export const UsersAndRoles: React.FC = () => {
     } catch (err: any) {
       useUiStore
         .getState()
-        .addToast(err?.message || `Fingerprint ${slot} capture failed`, 'error');
+        .addToast(
+          err?.message || 'This fingerprint is already registered',
+          'error',
+        );
     }
   };
 

@@ -120,6 +120,151 @@ export class FingerprintVerifyService {
     );
   }
 
+  /**
+   * Enrollment: reject a finger that is already registered (same form slot or another person).
+   * Does not update/overwrite existing fingerprints.
+   */
+  async assertFingerprintNotAlreadyRegistered(opts: {
+    biometricData?: string | null;
+    isoTemplate?: string | null;
+    otherIsoTemplates?: Array<string | null | undefined>;
+    otherPidData?: Array<string | null | undefined>;
+    excludeUserId?: string;
+    excludeStaffId?: string;
+  }): Promise<void> {
+    const already = 'This fingerprint is already registered';
+    const livePid = String(opts.biometricData || '').trim();
+    const liveIso = FingerprintVerifyService.resolveTemplate(
+      livePid || null,
+      opts.isoTemplate || null,
+    );
+    if (!livePid && !liveIso) return;
+
+    const otherIsos = (opts.otherIsoTemplates || []).filter(
+      (t): t is string => !!t && isMatchableTemplate(t),
+    );
+    for (const other of otherIsos) {
+      if (liveIso && templatesMatch(liveIso, other)) {
+        throw new BadRequestException(already);
+      }
+    }
+    for (const otherPid of opts.otherPidData || []) {
+      const pid = String(otherPid || '').trim();
+      if (!pid) continue;
+      if (livePid && pid === livePid) {
+        throw new BadRequestException(already);
+      }
+      const otherIso = extractTemplateBase64(pid);
+      if (liveIso && otherIso && templatesMatch(liveIso, otherIso)) {
+        throw new BadRequestException(already);
+      }
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        ...(opts.excludeUserId ? { id: { not: opts.excludeUserId } } : {}),
+      },
+      select: {
+        fingerprint1: true,
+        fingerprint2: true,
+        fingerprint1Template: true,
+        fingerprint2Template: true,
+      },
+    });
+    for (const u of users) {
+      if (this.enrollmentRowMatches(u, liveIso, livePid)) {
+        throw new BadRequestException(already);
+      }
+    }
+
+    const staff = await this.prisma.staffMaster.findMany({
+      where: opts.excludeStaffId
+        ? { id: { not: opts.excludeStaffId } }
+        : undefined,
+      select: { fingerprint1: true, fingerprint2: true },
+    });
+    for (const s of staff) {
+      if (
+        this.enrollmentRowMatches(
+          {
+            fingerprint1: s.fingerprint1,
+            fingerprint2: s.fingerprint2,
+            fingerprint1Template: null,
+            fingerprint2Template: null,
+          },
+          liveIso,
+          livePid,
+        )
+      ) {
+        throw new BadRequestException(already);
+      }
+    }
+  }
+
+  async assertEnrollmentPairNotDuplicate(
+    fingerprint1?: string | null,
+    tpl1?: string | null,
+    fingerprint2?: string | null,
+    tpl2?: string | null,
+    excludeUserId?: string,
+  ) {
+    if (fingerprint1) {
+      await this.assertFingerprintNotAlreadyRegistered({
+        biometricData: fingerprint1,
+        isoTemplate: tpl1,
+        excludeUserId,
+      });
+    }
+    if (fingerprint2) {
+      await this.assertFingerprintNotAlreadyRegistered({
+        biometricData: fingerprint2,
+        isoTemplate: tpl2,
+        otherIsoTemplates: tpl1 ? [tpl1] : [],
+        otherPidData: fingerprint1 ? [fingerprint1] : [],
+        excludeUserId,
+      });
+    }
+  }
+
+  private enrollmentRowMatches(
+    row: {
+      fingerprint1?: string | null;
+      fingerprint2?: string | null;
+      fingerprint1Template?: string | null;
+      fingerprint2Template?: string | null;
+    },
+    liveIso: string | null,
+    livePid: string,
+  ) {
+    const templates = [
+      row.fingerprint1Template,
+      row.fingerprint2Template,
+    ].filter((t): t is string => !!t && isMatchableTemplate(t));
+    if (liveIso) {
+      for (const t of templates) {
+        if (templatesMatch(liveIso, t)) return true;
+      }
+    }
+    for (const fp of [row.fingerprint1, row.fingerprint2]) {
+      if (!fp) continue;
+      if (livePid && fp === livePid) return true;
+      if (
+        liveIso &&
+        !fp.includes('<') &&
+        isMatchableTemplate(fp) &&
+        templatesMatch(liveIso, fp)
+      ) {
+        return true;
+      }
+      if (liveIso) {
+        const iso = extractTemplateBase64(fp);
+        if (iso && templatesMatch(liveIso, iso)) return true;
+      }
+    }
+    return false;
+  }
+
   /** Prefer explicit ISO; else extract from PidData when possible. */
   static resolveTemplate(
     pidXml?: string | null,

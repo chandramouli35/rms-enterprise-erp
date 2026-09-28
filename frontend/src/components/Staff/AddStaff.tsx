@@ -41,16 +41,19 @@ export const AddStaff: React.FC = () => {
     setScanningSlot(slot);
     setError('');
     try {
-      const xml = await biometricService.captureFingerprint();
+      const { pidData } = await biometricService.captureForEnrollment({
+        otherPidData:
+          slot === 1 ? [formData.fingerprint2] : [formData.fingerprint1],
+      });
       setFormData(prev => ({
         ...prev,
-        ...(slot === 1 ? { fingerprint1: xml } : { fingerprint2: xml }),
+        ...(slot === 1 ? { fingerprint1: pidData } : { fingerprint2: pidData }),
       }));
       useUiStore.getState().addToast(`Fingerprint ${slot} captured`, 'success');
     } catch (err: any) {
-      useUiStore
-        .getState()
-        .addToast(err?.message || `Fingerprint ${slot} capture failed`, 'error');
+      const msg = err?.message || 'This fingerprint is already registered';
+      setError(msg);
+      useUiStore.getState().addToast(msg, 'error');
     } finally {
       setScanningSlot(null);
     }

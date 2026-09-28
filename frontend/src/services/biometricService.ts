@@ -508,11 +508,30 @@ export const biometricService = {
 
   /**
    * Enrollment: one finger press only (no second Demo capture).
-   * ISO template stored when RD returns clear FMR in that same response.
+   * Rejects a finger that is already registered (does not overwrite).
    */
-  captureForEnrollment: async (): Promise<EnrollmentCapture> => {
+  captureForEnrollment: async (opts?: {
+    otherIsoTemplates?: Array<string | null | undefined>;
+    otherPidData?: Array<string | null | undefined>;
+    excludeUserId?: string;
+    excludeStaffId?: string;
+  }): Promise<EnrollmentCapture> => {
     const pidData = await capturePidDataOnce();
     const isoTemplate = extractIsoTemplateFromPidXml(pidData);
+    try {
+      await api.post('/auth/check-fingerprint-available', {
+        biometricData: pidData,
+        isoTemplate,
+        otherIsoTemplates: (opts?.otherIsoTemplates || []).filter(Boolean),
+        otherPidData: (opts?.otherPidData || []).filter(Boolean),
+        excludeUserId: opts?.excludeUserId,
+        excludeStaffId: opts?.excludeStaffId,
+      });
+    } catch (err: any) {
+      throw new Error(
+        apiErrorMessage(err) || 'This fingerprint is already registered',
+      );
+    }
     return { pidData, isoTemplate };
   },
 
