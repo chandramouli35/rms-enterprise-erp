@@ -255,6 +255,35 @@ export const DashboardShell: React.FC = () => {
         { label: "Payment Paid", tab: "payment_paid" },
       ],
     },
+    {
+      label: "CMS",
+      href: "/cms",
+      icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+      roles: ["SUPER_ADMIN", "ADMIN", "PLANT_MANAGER"],
+      subItems: [
+        { label: "Real-time Paddy Inward (Notified)", tab: "paddy_inward" },
+        { label: "Boli Record with Pending Boli Also", tab: "boli_record" },
+        { label: "Real-time GP Entry Tracking (Notified)", tab: "gp_tracking" },
+        { label: "Paddy Stock", tab: "paddy_stock" },
+        { label: "Production Tracking", tab: "production" },
+        { label: "Live Stock Ledger", tab: "stock_ledger" },
+        { label: "Yield Analysis", tab: "yield" },
+        { label: "Alerts on Abnormal Transactions", tab: "alerts" },
+        { label: "Real-time Basis Tracking", tab: "basis_tracking" },
+        { label: "CMS User Permission Controls", tab: "user_rights" },
+        { label: "Full Traceability", tab: "traceability" },
+        { label: "Plant-Wise Comparison", tab: "plant_compare" },
+        { label: "Manual Correction Alerts", tab: "manual_corrections" },
+        { label: "Overprice Detection", tab: "overprice" },
+        { label: "Weighment Pattern Monitoring", tab: "weighment_patterns" },
+        { label: "Correction Audit Control", tab: "correction_audit" },
+        { label: "Audit Logs Tracking", tab: "audit_logs" },
+        { label: "Transaction Severity Categories", tab: "severity" },
+        { label: "Stock Available for Dispatch", tab: "stock_dispatch" },
+        { label: "Receivables Tracking", tab: "receivables" },
+        { label: "Paddy Cost Tracking", tab: "paddy_cost" },
+      ],
+    },
     //   { label: 'Dispatch', href: '/dispatch', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', roles: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ACCOUNTANT'], subItems: [
     //     { label: 'Dispatch Mgmt', tab: 'dispatch_mgmt' },
     //     { label: 'Vehicle Allocation', tab: 'vehicle_allocation' },
@@ -445,6 +474,28 @@ export const DashboardShell: React.FC = () => {
       "Global Settings (Govt Rate)": [
         "Global Settings (Govt Rate)",
         "Global Settings",
+      ],
+      // CMS checklist labels ↔ earlier short names
+      "Real-time Paddy Inward (Notified)": [
+        "Real-time Paddy Inward (Notified)",
+        "Paddy Inward",
+      ],
+      "Boli Record with Pending Boli Also": [
+        "Boli Record with Pending Boli Also",
+        "Boli Record",
+      ],
+      "Real-time GP Entry Tracking (Notified)": [
+        "Real-time GP Entry Tracking (Notified)",
+        "GP Entry Tracking",
+      ],
+      "Alerts on Abnormal Transactions": [
+        "Alerts on Abnormal Transactions",
+        "Abnormal Alerts",
+      ],
+      "Real-time Basis Tracking": ["Real-time Basis Tracking", "Overview"],
+      "CMS User Permission Controls": [
+        "CMS User Permission Controls",
+        "User Rights Controls",
       ],
     };
     const acceptedParents = (

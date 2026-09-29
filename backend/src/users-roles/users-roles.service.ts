@@ -758,6 +758,32 @@ export class UsersRolesService {
         'Payment Paid',
       ],
     },
+    {
+      name: 'CMS',
+      subModules: [
+        'Real-time Paddy Inward (Notified)',
+        'Boli Record with Pending Boli Also',
+        'Real-time GP Entry Tracking (Notified)',
+        'Paddy Stock',
+        'Production Tracking',
+        'Live Stock Ledger',
+        'Yield Analysis',
+        'Alerts on Abnormal Transactions',
+        'Real-time Basis Tracking',
+        'CMS User Permission Controls',
+        'Full Traceability',
+        'Plant-Wise Comparison',
+        'Manual Correction Alerts',
+        'Overprice Detection',
+        'Weighment Pattern Monitoring',
+        'Correction Audit Control',
+        'Audit Logs Tracking',
+        'Transaction Severity Categories',
+        'Stock Available for Dispatch',
+        'Receivables Tracking',
+        'Paddy Cost Tracking',
+      ],
+    },
     // Milestone 4 remainder (Dispatch / Power / Backup) intentionally omitted until enabled in nav
   ];
 
@@ -783,6 +809,13 @@ export class UsersRolesService {
     'Dryer Bharai to Stack': ['Dryer Bharai to Stack', 'Dryer Bharai'],
     'Loader & Unloader': ['Loader & Unloader', 'Loader Unloader'],
     'Global Settings (Govt Rate)': ['Global Settings (Govt Rate)', 'Global Settings'],
+    // CMS renames — keep older permission rows working
+    'Real-time Paddy Inward (Notified)': ['Real-time Paddy Inward (Notified)', 'Paddy Inward', 'Overview'],
+    'Boli Record with Pending Boli Also': ['Boli Record with Pending Boli Also', 'Boli Record'],
+    'Real-time GP Entry Tracking (Notified)': ['Real-time GP Entry Tracking (Notified)', 'GP Entry Tracking'],
+    'Alerts on Abnormal Transactions': ['Alerts on Abnormal Transactions', 'Abnormal Alerts'],
+    'Real-time Basis Tracking': ['Real-time Basis Tracking', 'Overview'],
+    'CMS User Permission Controls': ['CMS User Permission Controls', 'User Rights Controls'],
   };
 
   private flagsFromPerm(row?: { canView?: boolean; canAdd?: boolean; canEdit?: boolean; canDelete?: boolean; canApprove?: boolean } | null) {

@@ -98,6 +98,32 @@ const MODULE_STRUCTURE = [
       'Payment Paid',
     ],
   },
+  {
+    name: 'CMS',
+    subModules: [
+      'Real-time Paddy Inward (Notified)',
+      'Boli Record with Pending Boli Also',
+      'Real-time GP Entry Tracking (Notified)',
+      'Paddy Stock',
+      'Production Tracking',
+      'Live Stock Ledger',
+      'Yield Analysis',
+      'Alerts on Abnormal Transactions',
+      'Real-time Basis Tracking',
+      'CMS User Permission Controls',
+      'Full Traceability',
+      'Plant-Wise Comparison',
+      'Manual Correction Alerts',
+      'Overprice Detection',
+      'Weighment Pattern Monitoring',
+      'Correction Audit Control',
+      'Audit Logs Tracking',
+      'Transaction Severity Categories',
+      'Stock Available for Dispatch',
+      'Receivables Tracking',
+      'Paddy Cost Tracking',
+    ],
+  },
 ];
 
 async function main() {
