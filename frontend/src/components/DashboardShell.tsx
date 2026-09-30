@@ -877,7 +877,7 @@ export const DashboardShell: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="h-12 bg-[var(--bg-base)]/80 backdrop-blur border-b border-[var(--border-subtle)] flex items-center justify-between px-6 gap-4">
+        <header className="relative z-50 h-12 bg-[var(--bg-base)]/80 backdrop-blur border-b border-[var(--border-subtle)] flex items-center justify-between px-6 gap-4">
           <div className="flex-1 min-w-0">
             {user?.role === "SUPER_ADMIN" ? (
               <div className="flex items-center gap-3 min-w-0">
@@ -957,7 +957,7 @@ export const DashboardShell: React.FC = () => {
                 <Moon className="w-5 h-5 text-blue-500" />
               )}
             </button>
-            <div className="relative">
+            <div className="relative z-[60]">
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
                 className="relative p-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)]"
@@ -981,7 +981,7 @@ export const DashboardShell: React.FC = () => {
                 )}
               </button>
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl shadow-2xl overflow-hidden z-50">
+                <div className="absolute right-0 mt-2 w-80 bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-xl shadow-2xl overflow-hidden z-[100]">
                   <div className="p-3 border-b border-[var(--border-subtle)] font-bold text-[var(--text-main)]">
                     Notifications
                   </div>
