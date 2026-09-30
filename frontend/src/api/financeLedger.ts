@@ -1,7 +1,10 @@
 import api from './axios';
 
 export const financeLedgerApi = {
-  partyOptions: () => api.get('/finance/ledger/party-options'),
+  partyOptions: (entryType?: 'RECEIPT' | 'PAYMENT') =>
+    api.get('/finance/ledger/party-options', {
+      params: entryType ? { entryType } : {},
+    }),
   outstanding: (kind: 'RECEIVABLES' | 'PAYABLES', owingOnly = true) =>
     api.get('/finance/ledger/outstanding', {
       params: { kind, owingOnly: owingOnly ? 'true' : 'false' },

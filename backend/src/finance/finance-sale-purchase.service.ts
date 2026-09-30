@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Inject,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FinanceLedgerService } from './finance-ledger.service';
@@ -15,6 +16,8 @@ export const BAG_WEIGHT_JUTE_QTL = 0.01;
 
 @Injectable()
 export class FinanceSalePurchaseService {
+  private readonly logger = new Logger(FinanceSalePurchaseService.name);
+
   constructor(
     private prisma: PrismaService,
     @Inject(forwardRef(() => FinanceLedgerService))
@@ -61,7 +64,13 @@ export class FinanceSalePurchaseService {
     if (gp.isDraft) return null; // F29: drafts must not push to reports
     if (gp.status === 'CANCELLED') return null;
     if (!gp.financeSodaId || !gp.financeSoda) return null;
-    if (gp.financeSalePurchaseLine) return gp.financeSalePurchaseLine;
+
+    // Existing line: still refresh Section K + Party Ledger (create/update sync)
+    if (gp.financeSalePurchaseLine) {
+      await this.resyncSodaPaymentAmount(gp.financeSodaId);
+      await this.pushLineToLedger(gp.financeSalePurchaseLine.id);
+      return gp.financeSalePurchaseLine;
+    }
 
     const soda = gp.financeSoda;
     const reportType = soda.sodaType; // SALE | PURCHASE
@@ -99,12 +108,19 @@ export class FinanceSalePurchaseService {
     });
 
     await this.resyncSodaPaymentAmount(soda.id);
-    try {
-      await this.ledger.syncReportLine(line.id);
-    } catch {
-      /* ledger sync best-effort; report line remains source of truth */
-    }
+    await this.pushLineToLedger(line.id);
     return line;
+  }
+
+  /** Push Sale/Purchase report line → Party Ledger (Section Y net payment). */
+  private async pushLineToLedger(lineId: string) {
+    try {
+      await this.ledger.syncReportLine(lineId);
+    } catch (err: any) {
+      this.logger.error(
+        `Ledger sync failed for sale-purchase line ${lineId}: ${err?.message || err}`,
+      );
+    }
   }
 
   async removeForGatePass(gatePassId: string) {
@@ -392,11 +408,7 @@ export class FinanceSalePurchaseService {
     });
 
     await this.resyncSodaPaymentAmount(line.financeSodaId);
-    try {
-      await this.ledger.syncReportLine(id);
-    } catch {
-      /* ignore */
-    }
+    await this.pushLineToLedger(id);
 
     const refreshed = await this.prisma.financeSalePurchaseLine.findUnique({
       where: { id },

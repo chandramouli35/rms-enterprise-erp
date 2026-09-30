@@ -48,6 +48,9 @@ model Plant {
   mandiDailyRates         MandiDailyRate[]
   dispatches              Dispatch[]
   financeTransactions     FinanceTransaction[]
+  expenseFunds            ExpenseFund[]
+  expenseEntries          ExpenseEntry[]
+  expenseTickets          ExpenseTicket[]
   financeSodaMills        FinanceSodaMill[]
   financeSodasAsParty     FinanceSoda[]        @relation("SodaPartyPlant")
   financeSalePurchaseLines FinanceSalePurchaseLine[]
@@ -77,6 +80,7 @@ model Plant {
   stockHealthConfig   StockHealthConfig?
   consignmentDispatches ConsignmentDispatch[]
   paddyUsageRecords     PaddyUsageRecord[]
+  dieselFuelEntries     DieselFuelEntry[]
 
   // Tracking
   createdAt DateTime  @default(now())
@@ -931,19 +935,27 @@ model Dispatch {
 // Finance Management — Feedback 28 Soda / Deals
 // -----------------------------------------------------------------------------
 model FinanceParty {
-  id        String   @id @default(uuid())
-  name      String
-  contact   String?
-  firmName  String?
-  notes     String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(uuid())
+  name       String
+  contact    String?
+  firmName   String?
+  notes      String?
+  /// Party type flags — at least one must be true (Customer / Supplier / Both)
+  isCustomer Boolean  @default(true)
+  isSupplier Boolean  @default(true)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  sodas   FinanceSoda[]
-  ledger  FinanceLedgerEntry[]
+  sodas    FinanceSoda[]
+  ledger   FinanceLedgerEntry[]
+  expenses ExpenseEntry[]
+  dieselEntries DieselFuelEntry[]
 
+  @@unique([name])
   @@index([name])
+  @@index([isActive, isCustomer])
+  @@index([isActive, isSupplier])
 }
 
 model FinanceSoda {
@@ -1099,6 +1111,83 @@ model FinanceTransaction {
 }
 
 // -----------------------------------------------------------------------------
+// Expenses — Petty Cash Book & Add Funds
+// -----------------------------------------------------------------------------
+/// Admin Add Funds entries (multiple per day / backdates allowed for Admin)
+model ExpenseFund {
+  id          String   @id @default(uuid())
+  plantId     String
+  plant       Plant    @relation(fields: [plantId], references: [id])
+  date        DateTime
+  amount      Float
+  /// "To" — who received / where funds were given (manual)
+  toName      String
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([plantId, date])
+}
+
+/// Supervisor / mill Expense entries against petty cash
+model ExpenseEntry {
+  id                     String   @id @default(uuid())
+  plantId                String
+  plant                  Plant    @relation(fields: [plantId], references: [id])
+  date                   DateTime
+  partyId                String?
+  party                  FinanceParty? @relation(fields: [partyId], references: [id])
+  partyName              String?
+  partyNotApplicable     Boolean  @default(false)
+  itemsBought            String? // Items Bought / Service Availed
+  itemsNotApplicable     Boolean  @default(false)
+  amount                 Float
+  gpNo                   String?
+  gpNotApplicable        Boolean  @default(false)
+  workOrderNo            String?
+  workOrderNotApplicable Boolean  @default(false)
+  biometricData          String?
+  /// Display name of submitter (Petty Cash "By" column)
+  submittedByName        String?
+  /// Legacy / optional notes
+  notes                  String?
+  createdById            String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([plantId, date])
+  @@index([partyId])
+}
+
+/// Admin clarification tickets on Petty Cash / Expense entries
+model ExpenseTicket {
+  id             String    @id @default(uuid())
+  ticketNo       Int
+  plantId        String
+  plant          Plant     @relation(fields: [plantId], references: [id])
+  /// Calendar day the ticket relates to
+  date           DateTime
+  expenseEntryId String?
+  expenseFundId  String?
+  section        String    @default("Expense") // Expense | Add Funds | Petty Cashbook
+  raisedToUserId String?
+  raisedToName   String?
+  status         String    @default("OPEN") // OPEN | OK | CLOSED
+  note           String?
+  createdById    String?
+  createdByName  String?
+  closedById     String?
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([plantId, ticketNo])
+  @@index([plantId, date])
+  @@index([status])
+}
+
+// -----------------------------------------------------------------------------
 // System Utility
 // -----------------------------------------------------------------------------
 model SystemUtility {
@@ -1201,15 +1290,23 @@ model TruckMaster {
   id                String   @id @default(uuid())
   plantId           String
   plant             Plant    @relation(fields: [plantId], references: [id])
+  /// Vehicle number OR manual name (for Generator)
   truckNumber       String   @unique
   capacity          Float? // Optional capacity in MT
   imageUrl          String? // Optional Cloudinary image URL
   isApproved        Boolean  @default(false)
   transportCategory String   @default("PARTY") // COMPANY, PARTY, OTHER
+  /// 06W | 10W | 12W | 14W | TRACTOR | GENERATOR | CAR | BIKE
+  vehicleType       String   @default("10W")
+  /// KM | HRS — reading unit for diesel averages
+  readingUnit       String   @default("KM")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  dieselEntries DieselFuelEntry[]
+
   @@index([plantId])
+  @@index([vehicleType])
 }
 
 model DriverMaster {
@@ -1222,6 +1319,8 @@ model DriverMaster {
   age       Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  dieselEntries DieselFuelEntry[]
 
   @@index([plantId])
 }
@@ -1238,7 +1337,48 @@ model StaffMaster {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  dieselAsDriver DieselFuelEntry[] @relation("DieselDriverStaff")
+
   @@index([plantId])
+}
+
+/// Feedback 27 — Truck diesel / refueling entries (any mill)
+model DieselFuelEntry {
+  id              String   @id @default(uuid())
+  date            DateTime
+  truckId         String
+  truck           TruckMaster @relation(fields: [truckId], references: [id])
+  plantId         String
+  plant           Plant    @relation(fields: [plantId], references: [id])
+  slipNo          Int
+  truckType       String // snapshot from truck master
+  readingUnit     String // KM | HRS
+  oldReading      Float    @default(0)
+  oldAverage      Float    @default(0)
+  newReading      Float
+  dieselQty       Float // liters
+  totalRun        Float // new - old
+  average         Float // totalRun / dieselQty
+  rate            Float
+  amount          Float // dieselQty * rate
+  partyId         String?
+  party           FinanceParty? @relation(fields: [partyId], references: [id])
+  partyName       String?
+  driverStaffId   String?
+  driverStaff     StaffMaster? @relation("DieselDriverStaff", fields: [driverStaffId], references: [id])
+  driverMasterId  String?
+  driverMaster    DriverMaster? @relation(fields: [driverMasterId], references: [id])
+  driverName      String?
+  biometricData   String?
+  submittedByName String?
+  createdById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([truckId, date])
+  @@index([plantId, date])
+  @@index([partyId])
+  @@index([slipNo])
 }
 
 // ==========================================

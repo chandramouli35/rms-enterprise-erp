@@ -1,12 +1,26 @@
 const { Client } = require('pg');
 require('dotenv').config();
 
-// Ensure the connection string is provided either directly or via .env
+/**
+ * Backfill ModulePermission rows from MODULE_STRUCTURE (Users → Roles / Permissions).
+ *
+ * RDP / production (from backend folder, with .env DB URL set):
+ *   cd backend
+ *   node migrate_permissions.js
+ *
+ * Or:
+ *   npm run migrate:permissions
+ *
+ * Safe to re-run: only inserts missing rows, then applies default grants below.
+ */
+
 const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
 
 if (!connectionString) {
-  console.error("ERROR: No database connection string found.");
-  console.error("Please set SUPABASE_DB_URL or DATABASE_URL in your .env file or environment variables.");
+  console.error('ERROR: No database connection string found.');
+  console.error(
+    'Please set SUPABASE_DB_URL or DATABASE_URL in your .env file or environment variables.',
+  );
   process.exit(1);
 }
 
@@ -88,6 +102,7 @@ const MODULE_STRUCTURE = [
   {
     name: 'Finance',
     subModules: [
+      'Master',
       'Deals / Soda Record',
       'Sale',
       'Purchase',
@@ -97,6 +112,14 @@ const MODULE_STRUCTURE = [
       'Payment Received',
       'Payment Paid',
     ],
+  },
+  {
+    name: 'Expenses',
+    subModules: ['Add Funds', 'Expenses', 'Petty Cashbook', 'COGS'],
+  },
+  {
+    name: 'Trucks & Diesel',
+    subModules: ['Add Fuel', 'Truck Average', 'Pump wise details'],
   },
   {
     name: 'CMS',
@@ -126,11 +149,64 @@ const MODULE_STRUCTURE = [
   },
 ];
 
+/**
+ * After backfill, turn on these modules for operational roles
+ * (new modules start as false for non–Super Admin).
+ * Adjust roleNames if RDP role names differ.
+ */
+const DEFAULT_GRANTS = [
+  {
+    moduleName: 'Trucks & Diesel',
+    roleNames: ['PLANT_MANAGER', 'SUPERVISOR'],
+    flags: { canView: true, canAdd: true, canEdit: true, canDelete: false, canApprove: false },
+  },
+  {
+    moduleName: 'Expenses',
+    roleNames: ['PLANT_MANAGER', 'SUPERVISOR', 'ACCOUNTANT'],
+    flags: { canView: true, canAdd: true, canEdit: true, canDelete: false, canApprove: false },
+  },
+];
+
+async function applyDefaultGrants() {
+  console.log('\nApplying default grants for new modules…');
+  for (const g of DEFAULT_GRANTS) {
+    const roles = await client.query(
+      'SELECT id, name FROM "Role" WHERE name = ANY($1)',
+      [g.roleNames],
+    );
+    for (const role of roles.rows) {
+      const u = await client.query(
+        `UPDATE "ModulePermission"
+         SET "canView" = $2,
+             "canAdd" = $3,
+             "canEdit" = $4,
+             "canDelete" = $5,
+             "canApprove" = $6,
+             "updatedAt" = NOW()
+         WHERE "roleId" = $1 AND "moduleName" = $7`,
+        [
+          role.id,
+          g.flags.canView,
+          g.flags.canAdd,
+          g.flags.canEdit,
+          g.flags.canDelete,
+          g.flags.canApprove,
+          g.moduleName,
+        ],
+      );
+      console.log(`  ${role.name} → ${g.moduleName}: ${u.rowCount} rows`);
+    }
+    if (roles.rows.length === 0) {
+      console.log(`  (no roles matched ${g.roleNames.join(', ')}) for ${g.moduleName}`);
+    }
+  }
+}
+
 async function main() {
   try {
     await client.connect();
     console.log(`Connected to database: ${connectionString.split('@')[1] || 'Local/Unknown'}`);
-    console.log('Starting migration to backfill hierarchical submodule permissions in the database...');
+    console.log('Starting migration to backfill hierarchical submodule permissions…');
 
     const rolesRes = await client.query('SELECT id, name FROM "Role"');
     const roles = rolesRes.rows;
@@ -160,7 +236,6 @@ async function main() {
             [role.id, mod.name, sub],
           );
           if (subExists.rows.length === 0) {
-            // Inherit parent module flags when present; else Super Admin only
             const parentFlags = await client.query(
               `SELECT "canView","canAdd","canEdit","canDelete","canApprove" FROM "ModulePermission"
                WHERE "roleId" = $1 AND "moduleName" = $2 AND ("subModuleName" IS NULL OR "subModuleName" = '')`,
@@ -187,7 +262,9 @@ async function main() {
       }
     }
 
-    console.log('\nDone. Open users?tab=Permissions and review/save each role.');
+    await applyDefaultGrants();
+
+    console.log('\nDone. Open Users → Roles / Permissions to review. Users should re-login.');
   } catch (err) {
     console.error(err);
     process.exit(1);

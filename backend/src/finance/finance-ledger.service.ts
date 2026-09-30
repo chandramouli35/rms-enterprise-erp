@@ -116,12 +116,15 @@ export class FinanceLedgerService {
     return { scanned: lines.length, synced };
   }
 
-  async listPartyOptions() {
+  async listPartyOptions(role?: 'CUSTOMER' | 'SUPPLIER' | 'ALL') {
+    const where: any = { isActive: true };
+    if (role === 'CUSTOMER') where.isCustomer = true;
+    if (role === 'SUPPLIER') where.isSupplier = true;
     const [parties, plantParties] = await Promise.all([
       this.prisma.financeParty.findMany({
-        where: { isActive: true },
+        where,
         orderBy: { name: 'asc' },
-        select: { id: true, name: true },
+        select: { id: true, name: true, isCustomer: true, isSupplier: true },
       }),
       this.prisma.plant.findMany({
         where: { deletedAt: null },
@@ -130,7 +133,13 @@ export class FinanceLedgerService {
       }),
     ]);
     return [
-      ...parties.map((p) => ({ key: `party:${p.id}`, name: p.name, kind: 'PARTY' as const })),
+      ...parties.map((p) => ({
+        key: `party:${p.id}`,
+        name: p.name,
+        kind: 'PARTY' as const,
+        isCustomer: p.isCustomer,
+        isSupplier: p.isSupplier,
+      })),
       ...plantParties.map((p) => ({ key: `plant:${p.id}`, name: p.name, kind: 'PLANT' as const })),
     ];
   }
@@ -163,6 +172,7 @@ export class FinanceLedgerService {
     }
 
     let financeSodaId: string | null = data.financeSodaId || null;
+    let sodaNarrationHint = '';
     if (financeSodaId) {
       const soda = await this.prisma.financeSoda.findUnique({ where: { id: financeSodaId } });
       if (!soda) throw new NotFoundException('Soda not found');
@@ -172,6 +182,8 @@ export class FinanceLedgerService {
       if (partyPlantId && soda.partyPlantId && soda.partyPlantId !== partyPlantId) {
         throw new BadRequestException('Soda does not belong to this mill party');
       }
+      const prefix = soda.sodaType === 'SALE' ? 'SO' : 'PO';
+      sodaNarrationHint = `Soda No. ${prefix}-${String(soda.sodaNumber).padStart(2, '0')}`;
     }
 
     const date = data.date ? new Date(data.date) : new Date();
@@ -180,6 +192,12 @@ export class FinanceLedgerService {
     const rounded = FinanceLedgerService.round3(amount);
     const defaultNarration =
       entryType === 'RECEIPT' ? 'Payment Received' : 'Payment Paid';
+    const trimmed = (data.narration || '').trim();
+    const narration =
+      trimmed ||
+      (sodaNarrationHint
+        ? `${defaultNarration} · ${sodaNarrationHint}`
+        : defaultNarration);
 
     return this.prisma.financeLedgerEntry.create({
       data: {
@@ -188,7 +206,7 @@ export class FinanceLedgerService {
         partyId: partyId || null,
         partyPlantId: partyPlantId || null,
         financeSodaId,
-        narration: (data.narration || '').trim() || defaultNarration,
+        narration,
         notes: data.notes?.trim() || null,
         debit: entryType === 'PAYMENT' ? rounded : 0,
         credit: entryType === 'RECEIPT' ? rounded : 0,
@@ -413,13 +431,18 @@ export class FinanceLedgerService {
         ? `${r.financeSoda.sodaType === 'SALE' ? 'SO' : 'PO'}-${String(r.financeSoda.sodaNumber).padStart(2, '0')}`
         : '';
       const typeLabel =
-        ({ SALE: 'Sale', PURCHASE: 'Purchase', RECEIPT: 'Payment Received', PAYMENT: 'Payment Paid' } as any)[
-          r.entryType
-        ] || r.entryType;
+        ({
+          SALE: 'Sale',
+          PURCHASE: 'Purchase',
+          RECEIPT: 'Payment Received',
+          PAYMENT: 'Payment Paid',
+          EXPENSE: 'Expense',
+        } as any)[r.entryType] || r.entryType;
       const line = {
         id: r.id,
         date: r.date,
         sodaDealNo: sodaNo,
+        financeSodaId: r.financeSodaId || null,
         millName: r.plant?.name || '—',
         transactionType: typeLabel,
         entryType: r.entryType,
@@ -436,9 +459,25 @@ export class FinanceLedgerService {
       lines.push(line);
     }
 
-    // If search filtered mid-stream, recompute running balance on visible lines only from full set is wrong.
-    // Prefer: filter after computing on full set but keep original running balances from full chronology.
-    // Above skips push but balance still advances — good for statement integrity when searching.
+    // Group visible lines by Soda Number / Deal Number for Party Ledger UI
+    const sodaMap = new Map<string, any>();
+    for (const line of lines) {
+      const key = line.sodaDealNo || 'UNALLOCATED';
+      if (!sodaMap.has(key)) {
+        sodaMap.set(key, {
+          sodaDealNo: line.sodaDealNo || null,
+          label: line.sodaDealNo || 'Unallocated / Payments',
+          lines: [] as any[],
+          totalDebit: 0,
+          totalCredit: 0,
+        });
+      }
+      const g = sodaMap.get(key)!;
+      g.lines.push(line);
+      g.totalDebit = FinanceLedgerService.round3(g.totalDebit + (line.debit || 0));
+      g.totalCredit = FinanceLedgerService.round3(g.totalCredit + (line.credit || 0));
+    }
+    const sodaGroups = [...sodaMap.values()];
 
     const partyName =
       rows[0] ? this.partyNameOf(rows[0]) : await this.resolvePartyName(partyKey);
@@ -447,6 +486,7 @@ export class FinanceLedgerService {
       partyKey,
       partyName,
       lines,
+      sodaGroups,
       closingBalance: FinanceLedgerService.round3(balance),
     };
   }

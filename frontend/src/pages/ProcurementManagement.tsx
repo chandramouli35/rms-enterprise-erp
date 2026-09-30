@@ -803,9 +803,28 @@ export const ProcurementManagement = () => {
         ? { shortageNarration: autoNarrationText }
         : {}),
       ...(netDiff >= 0 ? { informBaujiExcessWeight: false } : {}),
-      ...(origA + origB >= agencyA + agencyB
-        ? { informBaujiBagsLess: false, bagsRecLessThanAgencyGp: false }
-        : {}),
+      // Clear Inform Bauji unless shortfall exceeds 10% of Agency GP bags
+      ...(() => {
+        const agencyTotalBags = agencyA + agencyB;
+        const millExcl = origA + origB;
+        const thresholdMet =
+          agencyTotalBags > 0 && millExcl < agencyTotalBags * 0.9;
+        if (!thresholdMet) {
+          return { informBaujiBagsLess: false, bagsRecLessThanAgencyGp: false };
+        }
+        return {};
+      })(),
+      requiredAgencyBags: agencyA + agencyB,
+      bagsShortfallPct:
+        agencyA + agencyB > 0
+          ? parseFloat(
+              (
+                (Math.max(0, agencyA + agencyB - (origA + origB)) /
+                  (agencyA + agencyB)) *
+                100
+              ).toFixed(1),
+            )
+          : 0,
     }));
   }, [
     inwardFormData.origAClass,
@@ -4680,9 +4699,31 @@ export const ProcurementManagement = () => {
                         const agencyBags =
                           (parseFloat(inwardFormData.origAClassAg) || 0) +
                           (parseFloat(inwardFormData.origBClassAg) || 0);
-                        const bagsLessEnabled = millExclShortage < agencyBags;
+                        const bagsLess = Math.max(0, agencyBags - millExclShortage);
+                        // Client Feedback: Inform Bauji only when mill bags < 90% of Agency GP
+                        // (shortfall > 10% of Required Agency Bags). Below that = normal bags shortage.
+                        const thresholdMet =
+                          agencyBags > 0 && millExclShortage < agencyBags * 0.9;
+                        const bagsLessEnabled = bagsLess > 0 && thresholdMet;
+                        const shortfallPct =
+                          agencyBags > 0
+                            ? ((bagsLess / agencyBags) * 100).toFixed(1)
+                            : "0";
                         return (
-                          <div className="mt-3">
+                          <div className="mt-3 space-y-2">
+                            {bagsLess > 0 && !thresholdMet && (
+                              <p className="text-[10px] text-amber-400/90 leading-snug">
+                                Bags short by {bagsLess} ({shortfallPct}% of Agency GP) —
+                                within 10%. Use normal Shortage by Bags. Inform Bauji is
+                                only allowed when shortfall exceeds 10% of Agency GP bags.
+                              </p>
+                            )}
+                            {thresholdMet && (
+                              <p className="text-[10px] text-red-400/90 leading-snug">
+                                Shortfall {shortfallPct}% of Agency GP bags (&gt; 10%) —
+                                Admin will be notified. You may select Inform Bauji.
+                              </p>
+                            )}
                             <label
                               className={`flex items-start gap-2 text-xs ${bagsLessEnabled ? "cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
                             >
@@ -4704,7 +4745,6 @@ export const ProcurementManagement = () => {
                                 className="accent-red-500 w-4 h-4 mt-0.5 shrink-0"
                               />
                               <span className="leading-snug">
-                                {/* Lead line — light grey; Inform Bauji — red */}
                                 <span className="block text-gray-400 font-normal">
                                   Entry as per weight, Bags Received less than
                                   Agency GP
@@ -5190,6 +5230,26 @@ export const ProcurementManagement = () => {
                             Qtl)
                           </span>
                         </div>
+                        <div className="text-[10px] text-[var(--text-muted)] text-right space-y-0.5">
+                          <div>
+                            Required Weight:{" "}
+                            <span className="font-mono text-[var(--text-main)]">
+                              {Number(inwardFormData.reqNetWt || 0).toFixed(3)} Qtl
+                            </span>
+                          </div>
+                          <div>
+                            Required Agency Bags:{" "}
+                            <span className="font-mono text-[var(--text-main)]">
+                              {Number(
+                                inwardFormData.requiredAgencyBags ??
+                                  (parseFloat(inwardFormData.origAClassAg) ||
+                                    0) +
+                                    (parseFloat(inwardFormData.origBClassAg) ||
+                                      0),
+                              )}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                       {/* Feedback 33 — Ref table: quality cut / weight / bags separately */}
                       <div className="overflow-x-auto rounded-lg border border-red-500/20 bg-[var(--bg-base)]/40">
@@ -5238,17 +5298,27 @@ export const ProcurementManagement = () => {
                                   inwardFormData.bdWeightShortageQtl || 0,
                                 ) < -0.0005 ? (
                                   <span className="block text-[10px] text-emerald-400 font-medium mt-0.5">
-                                    Excess Weight Received (Inform Bauji) —
-                                    negative
+                                    Excess vs Required Weight{" "}
+                                    {Number(inwardFormData.reqNetWt || 0).toFixed(3)}{" "}
+                                    Qtl (Inform Bauji) — negative
                                   </span>
                                 ) : Number(
                                     inwardFormData.bdWeightShortageQtl || 0,
                                   ) > 0.0005 ? (
                                   <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
-                                    Mill wt &lt; required · bags = Qtl ÷{" "}
-                                    {plantBagWt}
+                                    Relative to Required Weight{" "}
+                                    {Number(inwardFormData.reqNetWt || 0).toFixed(3)}{" "}
+                                    Qtl · Mill Net{" "}
+                                    {Number(inwardFormData.netWtMill || 0).toFixed(3)}{" "}
+                                    Qtl
                                   </span>
-                                ) : null}
+                                ) : (
+                                  <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
+                                    vs Required Weight{" "}
+                                    {Number(inwardFormData.reqNetWt || 0).toFixed(3)}{" "}
+                                    Qtl
+                                  </span>
+                                )}
                               </td>
                               <td
                                 className={`px-3 py-2 text-right ${
@@ -5284,16 +5354,39 @@ export const ProcurementManagement = () => {
                                 inwardFormData.bagsRecLessThanAgencyGp ? (
                                   <span className="block text-[10px] text-amber-400 font-medium mt-0.5">
                                     Hidden — Bags less than Agency GP, Inform
-                                    Bauji
+                                    Bauji (entry as per weight)
                                   </span>
                                 ) : Number(
                                     inwardFormData.bdBagsShortageBags || 0,
                                   ) > 0 ? (
                                   <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
-                                    Mill bags (excl. shortage) &lt; Agency GP ·
-                                    × {plantBagWt} Qtl
+                                    Relative to Required Agency Bags{" "}
+                                    {Number(
+                                      inwardFormData.requiredAgencyBags ??
+                                        (parseFloat(
+                                          inwardFormData.origAClassAg,
+                                        ) || 0) +
+                                          (parseFloat(
+                                            inwardFormData.origBClassAg,
+                                          ) || 0),
+                                    )}{" "}
+                                    − Mill bags (excl. shortage) · × {plantBagWt}{" "}
+                                    Qtl
                                   </span>
-                                ) : null}
+                                ) : (
+                                  <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
+                                    vs Required Agency Bags{" "}
+                                    {Number(
+                                      inwardFormData.requiredAgencyBags ??
+                                        (parseFloat(
+                                          inwardFormData.origAClassAg,
+                                        ) || 0) +
+                                          (parseFloat(
+                                            inwardFormData.origBClassAg,
+                                          ) || 0),
+                                    )}
+                                  </span>
+                                )}
                               </td>
                               <td className="px-3 py-2 text-right">
                                 {Number(

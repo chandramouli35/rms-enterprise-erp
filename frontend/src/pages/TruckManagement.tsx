@@ -41,6 +41,8 @@ export default function TruckManagement() {
     capacity: string;
     image: File | null;
     transportCategory: string;
+    vehicleType: string;
+    readingUnit: string;
     biometricData: string;
   }>({
     isOpen: false,
@@ -48,6 +50,8 @@ export default function TruckManagement() {
     capacity: '',
     image: null,
     transportCategory: 'PARTY',
+    vehicleType: '10W',
+    readingUnit: 'KM',
     biometricData: '',
   });
 
@@ -120,6 +124,8 @@ export default function TruckManagement() {
       capacity: '',
       image: null,
       transportCategory: 'PARTY',
+      vehicleType: '10W',
+      readingUnit: 'KM',
       biometricData: '',
     };
   };
@@ -128,9 +134,20 @@ export default function TruckManagement() {
     e.preventDefault();
     if (isSubmitting) return;
 
-    const normalized = normalizeTruckNumber(addModal.truckNumber);
-    if (!normalized || normalized.length < 4) {
-      alert('Enter a valid truck number (letters and digits only).');
+    const normalized =
+      addModal.vehicleType === 'GENERATOR'
+        ? String(addModal.truckNumber || '').trim()
+        : normalizeTruckNumber(addModal.truckNumber);
+    if (
+      addModal.vehicleType === 'GENERATOR'
+        ? !normalized || normalized.length < 2
+        : !normalized || normalized.length < 4
+    ) {
+      alert(
+        addModal.vehicleType === 'GENERATOR'
+          ? 'Enter a generator name.'
+          : 'Enter a valid truck number (letters and digits only).',
+      );
       return;
     }
 
@@ -149,6 +166,8 @@ export default function TruckManagement() {
       const formData = new FormData();
       formData.append('truckNumber', normalized);
       formData.append('transportCategory', addModal.transportCategory);
+      formData.append('vehicleType', addModal.vehicleType);
+      formData.append('readingUnit', addModal.readingUnit);
       if (addModal.capacity) formData.append('capacity', addModal.capacity);
       if (isAdmin && addModal.image) formData.append('image', addModal.image);
       if (isSupervisor && addModal.biometricData) {
@@ -269,6 +288,8 @@ export default function TruckManagement() {
               capacity: '',
               image: null,
               transportCategory: 'PARTY',
+              vehicleType: '10W',
+              readingUnit: 'KM',
               biometricData: '',
             })
           }
@@ -283,6 +304,8 @@ export default function TruckManagement() {
           <thead>
             <tr className="bg-[var(--bg-panel-hover)] border-b border-[var(--border-subtle)]">
               <th className="p-4 font-semibold">Truck Number</th>
+              <th className="p-4 font-semibold">Type</th>
+              <th className="p-4 font-semibold">Unit</th>
               <th className="p-4 font-semibold">Category</th>
               <th className="p-4 font-semibold">Capacity (MT)</th>
               <th className="p-4 font-semibold">Status</th>
@@ -293,13 +316,13 @@ export default function TruckManagement() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={isAdmin ? 6 : 5} className="p-8 text-center text-[var(--text-muted)]">
+                <td colSpan={isAdmin ? 8 : 7} className="p-8 text-center text-[var(--text-muted)]">
                   Loading trucks...
                 </td>
               </tr>
             ) : trucks.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 6 : 5} className="p-8 text-center text-[var(--text-muted)]">
+                <td colSpan={isAdmin ? 8 : 7} className="p-8 text-center text-[var(--text-muted)]">
                   No trucks found.
                 </td>
               </tr>
@@ -310,6 +333,8 @@ export default function TruckManagement() {
                   className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-panel-hover)]"
                 >
                   <td className="p-4 font-mono font-bold">{displayTruckNumber(truck.truckNumber)}</td>
+                  <td className="p-4 text-sm">{truck.vehicleType || '10W'}</td>
+                  <td className="p-4 text-sm">{truck.readingUnit || 'KM'}</td>
                   <td className="p-4">
                     <span
                       className={`px-2 py-1 rounded text-xs font-bold ${
@@ -399,7 +424,8 @@ export default function TruckManagement() {
             <form onSubmit={handleAddTruck} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">
-                  Truck Number <span className="text-red-500">*</span>
+                  {addModal.vehicleType === 'GENERATOR' ? 'Generator Name' : 'Truck Number'}{' '}
+                  <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -407,24 +433,34 @@ export default function TruckManagement() {
                   onChange={e =>
                     setAddModal({
                       ...addModal,
-                      truckNumber: e.target.value.toUpperCase().replace(/[^A-Z0-9\s]/g, ''),
+                      truckNumber:
+                        addModal.vehicleType === 'GENERATOR'
+                          ? e.target.value
+                          : e.target.value.toUpperCase().replace(/[^A-Z0-9\s]/g, ''),
                     })
                   }
-                  className={`w-full bg-[var(--bg-panel-alt)] border rounded px-3 py-2 text-[var(--text-main)] font-mono uppercase ${
+                  className={`w-full bg-[var(--bg-panel-alt)] border rounded px-3 py-2 text-[var(--text-main)] ${
+                    addModal.vehicleType === 'GENERATOR' ? '' : 'font-mono uppercase'
+                  } ${
                     truckExists
                       ? 'border-red-500 focus:border-red-500'
                       : 'border-[var(--border-subtle)]'
                   }`}
-                  placeholder="e.g. MH12AB1234"
+                  placeholder={
+                    addModal.vehicleType === 'GENERATOR' ? 'e.g. Gen Set 1' : 'e.g. MH12AB1234'
+                  }
                   required
                 />
                 {truckExists ? (
                   <p className="text-red-500 text-xs mt-1 font-medium">
-                    Truck number already exists
+                    Truck / vehicle already exists
                   </p>
-                ) : checkingTruck && normalizeTruckNumber(addModal.truckNumber).length >= 4 ? (
-                  <p className="text-[var(--text-muted-alt)] text-xs mt-1">Checking truck number…</p>
-                ) : addModal.truckNumber ? (
+                ) : checkingTruck &&
+                  (addModal.vehicleType === 'GENERATOR'
+                    ? addModal.truckNumber.trim().length >= 2
+                    : normalizeTruckNumber(addModal.truckNumber).length >= 4) ? (
+                  <p className="text-[var(--text-muted-alt)] text-xs mt-1">Checking…</p>
+                ) : addModal.truckNumber && addModal.vehicleType !== 'GENERATOR' ? (
                   <p className="text-[var(--text-muted-alt)] text-xs mt-1">
                     Stored as:{' '}
                     <span className="font-mono text-[#e67e00]">
@@ -432,6 +468,47 @@ export default function TruckManagement() {
                     </span>
                   </p>
                 ) : null}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">
+                  Vehicle Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={addModal.vehicleType}
+                  onChange={e => {
+                    const vt = e.target.value;
+                    setAddModal({
+                      ...addModal,
+                      vehicleType: vt,
+                      readingUnit: vt === 'GENERATOR' ? 'HRS' : addModal.readingUnit,
+                    });
+                  }}
+                  disabled={formFieldsDisabled}
+                  className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="06W">06W</option>
+                  <option value="10W">10W</option>
+                  <option value="12W">12W</option>
+                  <option value="14W">14W</option>
+                  <option value="TRACTOR">Tractor</option>
+                  <option value="GENERATOR">Generator</option>
+                  <option value="CAR">Car</option>
+                  <option value="BIKE">Bike</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">
+                  Reading Unit <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={addModal.readingUnit}
+                  onChange={e => setAddModal({ ...addModal, readingUnit: e.target.value })}
+                  disabled={formFieldsDisabled}
+                  className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="KM">KM</option>
+                  <option value="HRS">HRS</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-[var(--text-muted)] mb-1">

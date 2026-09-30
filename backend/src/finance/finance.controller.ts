@@ -78,29 +78,72 @@ export class FinanceController {
     return this.financeService.getOutstanding(plantId || 'all');
   }
 
-  // ─── Parties (Deals / Soda) ──────────────────────────────────────────────
+  private assertAdmin(user: any) {
+    if (!user) throw new ForbiddenException('Unauthorized');
+    const role = user.role?.name || user.role;
+    if (role === 'SUPER_ADMIN' || role === 'ADMIN') return;
+    throw new ForbiddenException('Only Admin can manage Master parties');
+  }
+
+  // ─── Master Module (Party / Entity) — Admin only ─────────────────────────
+  @Get('masters')
+  @RequirePermission('Finance', 'canView')
+  listMasters(
+    @Req() req: any,
+    @Query('type') type?: string,
+    @Query('q') q?: string,
+  ) {
+    this.assertAdmin(req.user);
+    return this.financeSodaService.listMasters({ type, q });
+  }
+
+  @Post('masters')
+  @RequirePermission('Finance', 'canAdd')
+  createMaster(@Req() req: any, @Body() body: any) {
+    this.assertAdmin(req.user);
+    return this.financeSodaService.createParty(body);
+  }
+
+  @Patch('masters/:id')
+  @RequirePermission('Finance', 'canEdit')
+  updateMaster(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    this.assertAdmin(req.user);
+    return this.financeSodaService.updateParty(id, body);
+  }
+
+  // ─── Parties (Deals / Soda + dropdowns) ───────────────────────────────────
   @Get('parties')
   @RequirePermission('Finance', 'canView', 'Deals / Soda Record')
-  listParties() {
-    return this.financeSodaService.listParties();
+  listParties(@Query('role') role?: 'CUSTOMER' | 'SUPPLIER' | 'ALL') {
+    return this.financeSodaService.listParties(role || 'ALL');
   }
 
   @Get('party-options')
   @RequirePermission('Finance', 'canView', 'Deals / Soda Record')
-  partyOptions(@Query('excludePlantIds') excludePlantIds?: string) {
+  partyOptions(
+    @Query('excludePlantIds') excludePlantIds?: string,
+    @Query('role') role?: 'CUSTOMER' | 'SUPPLIER' | 'ALL',
+    @Query('sodaType') sodaType?: 'SALE' | 'PURCHASE',
+  ) {
     const ids = excludePlantIds ? excludePlantIds.split(',').filter(Boolean) : [];
-    return this.financeSodaService.partyOptions(ids);
+    // Sales → customers; Purchase → suppliers; Both appear in both
+    let filter: 'CUSTOMER' | 'SUPPLIER' | 'ALL' = role || 'ALL';
+    if (!role && sodaType === 'SALE') filter = 'CUSTOMER';
+    if (!role && sodaType === 'PURCHASE') filter = 'SUPPLIER';
+    return this.financeSodaService.partyOptions(ids, filter);
   }
 
   @Post('parties')
-  @RequirePermission('Finance', 'canAdd', 'Deals / Soda Record')
-  createParty(@Body() body: any) {
+  @RequirePermission('Finance', 'canAdd')
+  createParty(@Req() req: any, @Body() body: any) {
+    this.assertAdmin(req.user);
     return this.financeSodaService.createParty(body);
   }
 
   @Patch('parties/:id')
-  @RequirePermission('Finance', 'canEdit', 'Deals / Soda Record')
-  updateParty(@Param('id') id: string, @Body() body: any) {
+  @RequirePermission('Finance', 'canEdit')
+  updateParty(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    this.assertAdmin(req.user);
     return this.financeSodaService.updateParty(id, body);
   }
 
@@ -227,11 +270,18 @@ export class FinanceController {
   // ─── Feedback 31 — Party Ledger / AR / AP / Payments ─────────────────────
   @Get('ledger/party-options')
   @RequirePermission('Finance', 'canView')
-  ledgerPartyOptions(@Req() req: any) {
+  ledgerPartyOptions(
+    @Req() req: any,
+    @Query('role') role?: 'CUSTOMER' | 'SUPPLIER' | 'ALL',
+    @Query('entryType') entryType?: 'RECEIPT' | 'PAYMENT',
+  ) {
     // Used by Payment Received/Paid and AR/AP — any of those modules
     const u = req.user;
+    let filter: 'CUSTOMER' | 'SUPPLIER' | 'ALL' = role || 'ALL';
+    if (!role && entryType === 'RECEIPT') filter = 'CUSTOMER';
+    if (!role && entryType === 'PAYMENT') filter = 'SUPPLIER';
     if (u?.role?.name === 'SUPER_ADMIN' || u?.role === 'SUPER_ADMIN') {
-      return this.ledgerService.listPartyOptions();
+      return this.ledgerService.listPartyOptions(filter);
     }
     const ok = ['Payment Received', 'Payment Paid', 'Receivables', 'Payables'].some((sub) => {
       try {
@@ -242,7 +292,7 @@ export class FinanceController {
       }
     });
     if (!ok) throw new ForbiddenException('Missing Finance payment/AR-AP view permission');
-    return this.ledgerService.listPartyOptions();
+    return this.ledgerService.listPartyOptions(filter);
   }
 
   @Get('ledger/statement')

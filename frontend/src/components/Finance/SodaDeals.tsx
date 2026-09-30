@@ -92,7 +92,7 @@ export const SodaDeals: React.FC = () => {
     try {
       const [nextRes, opts] = await Promise.all([
         financeSodaApi.nextNumber(sodaType),
-        financeSodaApi.partyOptions(),
+        financeSodaApi.partyOptions(undefined, sodaType),
       ]);
       setPartyOpts(opts.data);
       setForm({
@@ -121,8 +121,11 @@ export const SodaDeals: React.FC = () => {
     }
   };
 
-  const refreshPartyOpts = async (millIds: string[]) => {
-    const opts = await financeSodaApi.partyOptions(millIds.length > 1 ? millIds : []);
+  const refreshPartyOpts = async (millIds: string[], sodaType?: 'SALE' | 'PURCHASE') => {
+    const opts = await financeSodaApi.partyOptions(
+      millIds.length > 1 ? millIds : [],
+      sodaType || form.sodaType,
+    );
     setPartyOpts(opts.data);
   };
 
@@ -385,7 +388,13 @@ export const SodaDeals: React.FC = () => {
                 onChange={async (e) => {
                   const sodaType = e.target.value as 'SALE' | 'PURCHASE';
                   const next = await financeSodaApi.nextNumber(sodaType);
-                  setForm({ ...form, sodaType, nextNumber: next.data.next });
+                  setForm({
+                    ...form,
+                    sodaType,
+                    nextNumber: next.data.next,
+                    partyId: form.partyKind === 'PARTY' ? '' : form.partyId,
+                  });
+                  await refreshPartyOpts(form.millIds, sodaType);
                 }}
                 className="mt-1 w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
               >
@@ -660,25 +669,14 @@ export const SodaDeals: React.FC = () => {
                 </div>
               </div>
             </div>
-            {form.partyKind === 'PARTY' && (
-              <button
-                type="button"
-                className="text-xs text-amber-400 underline"
-                onClick={async () => {
-                  const name = window.prompt('New party name');
-                  if (!name?.trim()) return;
-                  try {
-                    const res = await financeSodaApi.createParty({ name: name.trim() });
-                    await refreshPartyOpts(form.millIds);
-                    setForm((f) => ({ ...f, partyId: res.data.id }));
-                    addToast('Party created', 'success');
-                  } catch (e: any) {
-                    addToast(e?.response?.data?.message || 'Failed', 'error');
-                  }
-                }}
-              >
-                + Add new party
-              </button>
+            {form.partyKind === 'PARTY' && (role === 'SUPER_ADMIN' || role === 'ADMIN') && (
+              <p className="text-xs text-[var(--text-muted)]">
+                Add / edit parties in Finance →{' '}
+                <a href="/finance?tab=master" className="text-amber-400 underline">
+                  Master
+                </a>
+                .
+              </p>
             )}
 
             <div className="text-xs text-[var(--text-muted)] space-y-2">

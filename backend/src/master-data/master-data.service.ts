@@ -143,6 +143,8 @@ export class MasterDataService {
       isApproved?: boolean;
       transportCategory?: string;
       biometricData?: string;
+      vehicleType?: string;
+      readingUnit?: string;
     },
     file?: Express.Multer.File,
     user?: any,
@@ -155,15 +157,35 @@ export class MasterDataService {
       this.assertValidFingerprint(data.biometricData, user);
     }
 
-    const normalized = this.normalizeTruckNumber(data.truckNumber);
-    if (!normalized || normalized.length < 4) {
-      throw new BadRequestException('Enter a valid truck number (letters and digits only).');
+    const vehicleType = (data.vehicleType || '10W').toUpperCase();
+    const allowedTypes = ['06W', '10W', '12W', '14W', 'TRACTOR', 'GENERATOR', 'CAR', 'BIKE'];
+    if (!allowedTypes.includes(vehicleType)) {
+      throw new BadRequestException(
+        'Vehicle type must be 06W, 10W, 12W, 14W, TRACTOR, GENERATOR, CAR, or BIKE',
+      );
+    }
+    const readingUnit = (data.readingUnit || 'KM').toUpperCase() === 'HRS' ? 'HRS' : 'KM';
+
+    // Generator: manual name allowed; others: vehicle number (normalized)
+    let truckNumber: string;
+    if (vehicleType === 'GENERATOR') {
+      truckNumber = String(data.truckNumber || '').trim();
+      if (!truckNumber || truckNumber.length < 2) {
+        throw new BadRequestException('Enter generator name (manual).');
+      }
+    } else {
+      truckNumber = this.normalizeTruckNumber(data.truckNumber);
+      if (!truckNumber || truckNumber.length < 4) {
+        throw new BadRequestException('Enter a valid truck number (letters and digits only).');
+      }
     }
 
-    const existing = await this.findTruckByNormalizedNumber(normalized);
+    const existing = await this.findTruckByNormalizedNumber(
+      vehicleType === 'GENERATOR' ? truckNumber.toUpperCase() : truckNumber,
+    );
     if (existing) {
       throw new BadRequestException(
-        `Truck number ${normalized} already exists (duplicate check ignores spaces, case, and special characters).`,
+        `Truck / vehicle "${truckNumber}" already exists.`,
       );
     }
 
@@ -185,11 +207,13 @@ export class MasterDataService {
     const truck = await this.prisma.truckMaster.create({
       data: {
         plantId,
-        truckNumber: normalized,
+        truckNumber: vehicleType === 'GENERATOR' ? truckNumber : truckNumber,
         transportCategory: data.transportCategory || 'PARTY',
         capacity: capacityNum,
         isApproved: !!isApprovedBool,
         imageUrl,
+        vehicleType,
+        readingUnit,
       },
     });
 
@@ -200,8 +224,8 @@ export class MasterDataService {
           action: isSupervisor ? 'TRUCK_APPLICATION_SUBMITTED' : 'AUTO_ADD_MASTER_DATA',
           module: 'Master Data',
           details: isSupervisor
-            ? `Supervisor submitted truck application: ${normalized} (pending admin approval)`
-            : `Added Truck: ${normalized}`,
+            ? `Supervisor submitted truck application: ${truckNumber} (pending admin approval)`
+            : `Added Truck: ${truckNumber}`,
         },
       });
     }
@@ -209,7 +233,7 @@ export class MasterDataService {
     if (isSupervisor) {
       const submitter =
         user?.fullName || user?.username || user?.name || 'Supervisor';
-      const msg = `${submitter} submitted new truck application ${normalized} (${data.transportCategory || 'PARTY'}). Please confirm or decline.`;
+      const msg = `${submitter} submitted new truck application ${truckNumber} (${data.transportCategory || 'PARTY'}). Please confirm or decline.`;
       await this.prisma.notification.createMany({
         data: [
           { title: 'New Truck Application', message: msg, type: 'ALERT', role: 'SUPER_ADMIN' },

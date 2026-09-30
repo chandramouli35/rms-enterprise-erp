@@ -687,6 +687,12 @@ export class ProcurementService {
         (parseFloat(data.origAClassAg) || 0) + (parseFloat(data.origBClassAg) || 0);
       const bagsLess = Math.max(0, agencyBags - millBagsExShort);
       const bagsLessQtl = bagsLess * bagWt;
+      // Client: Inform Bauji only when shortfall > 10% of Required Agency Bags
+      // (mill excl. shortage bags < 90% of agency bags)
+      const bagsShortfallExceeds10Pct =
+        agencyBags > 0 && millBagsExShort < agencyBags * 0.9;
+      const informBaujiBagsLess =
+        !!data.informBaujiBagsLess && bagsShortfallExceeds10Pct;
 
       const reqNet = parseFloat(data.reqNetWt) || parseFloat(data.requiredNetWt) || 0;
       const millNet = parseFloat(data.netWtMill) || parsedNetWeight || 0;
@@ -725,9 +731,9 @@ export class ProcurementService {
         });
       }
 
-      // Bags less than Agency (excluding shortage bags) — unless Inform Bauji
+      // Bags less than Agency (excluding shortage bags) — unless Inform Bauji (10%+ shortfall)
       let bagsLessShortageQtl = 0;
-      if (bagsLess > 0 && !data.informBaujiBagsLess) {
+      if (bagsLess > 0 && !informBaujiBagsLess) {
         bagsLessShortageQtl = bagsLessQtl;
         ledger.push({
           type: 'BAGS_LESS',
@@ -742,10 +748,10 @@ export class ProcurementService {
       // the bags-less qtl already posted above. If Inform Bauji bags-less, full weightDiff posts.
       const residualWeightShortage = Math.max(
         0,
-        weightShortageQtl - (data.informBaujiBagsLess ? 0 : bagsLessShortageQtl),
+        weightShortageQtl - (informBaujiBagsLess ? 0 : bagsLessShortageQtl),
       );
-      if (residualWeightShortage > 0.0005 || (weightShortageQtl > 0 && data.informBaujiBagsLess)) {
-        const wAmt = data.informBaujiBagsLess ? weightShortageQtl : residualWeightShortage;
+      if (residualWeightShortage > 0.0005 || (weightShortageQtl > 0 && informBaujiBagsLess)) {
+        const wAmt = informBaujiBagsLess ? weightShortageQtl : residualWeightShortage;
         if (wAmt > 0.0005) {
           ledger.push({
             type: 'WEIGHT_SHORTAGE',
@@ -900,9 +906,9 @@ export class ProcurementService {
               : null,
           bClassPending: data.bClassPending ? parseFloat(data.bClassPending) : null,
           autoConvertedToBClass: data.autoConvertedToBClass ? parseFloat(data.autoConvertedToBClass) : null,
-          bagsRecLessThanAgencyGp: !!(data.bagsRecLessThanAgencyGp || data.informBaujiBagsLess),
+          bagsRecLessThanAgencyGp: !!informBaujiBagsLess,
           plusWtConsiderInShortageRecovery: !!(data.plusWtConsiderInShortageRecovery || data.informBaujiExcessWeight),
-          informBaujiBagsLess: !!data.informBaujiBagsLess,
+          informBaujiBagsLess: !!informBaujiBagsLess,
           informBaujiExcessWeight: !!data.informBaujiExcessWeight,
           grossWeight: data.grossWeight != null ? parseFloat(data.grossWeight) : null,
           tareWeight: data.tareWeight != null ? parseFloat(data.tareWeight) : null,
@@ -1014,12 +1020,30 @@ export class ProcurementService {
         },
       });
 
-      if (data.informBaujiBagsLess || data.informBaujiExcessWeight) {
+      if (informBaujiBagsLess || data.informBaujiExcessWeight) {
         const action = data.informBaujiExcessWeight ? 'INFORM_BAUJI_EXCESS_WEIGHT' : 'INFORM_BAUJI_BAGS_LESS';
         const details = data.informBaujiExcessWeight
           ? `Excess weight Inform Bauji for truck ${data.truckNo}. Diff: ${data.netWtDiff || data.shortageQtl}`
-          : `Bags less than Agency GP Inform Bauji for truck ${data.truckNo}`;
+          : `Bags less than Agency GP Inform Bauji for truck ${data.truckNo} (mill ${millBagsExShort} vs agency ${agencyBags}, shortfall > 10%)`;
         await this.notifyAdmin(tx, data.userId, action, details, batch.id, plantId);
+      }
+
+      // Client: notify Admin when bags shortfall exceeds 10% of Agency GP
+      // (skip if Inform Bauji already raised its own alert)
+      if (bagsShortfallExceeds10Pct && !informBaujiBagsLess && data.status !== 'DRAFT') {
+        const pct =
+          agencyBags > 0
+            ? (((agencyBags - millBagsExShort) / agencyBags) * 100).toFixed(1)
+            : '0';
+        await this.notifyAdmin(
+          tx,
+          data.userId,
+          'BAGS_SHORTFALL_OVER_10PCT',
+          `Bags shortfall ${pct}% of Agency GP for truck ${data.truckNo || '-'}: ` +
+            `Mill bags (excl. shortage) ${millBagsExShort} vs Agency ${agencyBags}`,
+          batch.id,
+          plantId,
+        );
       }
 
       // Audit trail: routine + backdated inward entries on supervisor fingerprint / confirm
@@ -2138,9 +2162,11 @@ export class ProcurementService {
     const title =
       action === 'INFORM_BAUJI_EXCESS_WEIGHT' || action === 'INFORM_BAUJI_BAGS_LESS'
         ? 'Inform Bauji — Admin Alert'
-        : action.startsWith('BOLI_')
-          ? 'Boli Record — Admin Alert'
-          : 'Procurement — Admin Alert';
+        : action === 'BAGS_SHORTFALL_OVER_10PCT'
+          ? 'Paddy Inward — Bags shortfall > 10%'
+          : action.startsWith('BOLI_')
+            ? 'Boli Record — Admin Alert'
+            : 'Procurement — Admin Alert';
     for (const role of ['SUPER_ADMIN', 'PLANT_MANAGER']) {
       try {
         await db.notification.create({

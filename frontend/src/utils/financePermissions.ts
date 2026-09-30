@@ -20,6 +20,11 @@ export function hasFinancePermission(
   if (!user) return false;
   if (user.role === 'SUPER_ADMIN') return true;
 
+  // Master Module: Admin-only by role (Create / Edit / View)
+  if (subModuleLabel === 'Master') {
+    return user.role === 'ADMIN';
+  }
+
   const perms = user.permissions;
   if (!perms || !Array.isArray(perms) || perms.length === 0) {
     // Role fallback used by nav for ACCOUNTANT etc.
@@ -48,6 +53,7 @@ export function hasFinancePermission(
 }
 
 export const FINANCE_TAB_SUBMODULE: Record<string, string> = {
+  master: 'Master',
   soda: 'Deals / Soda Record',
   sale: 'Sale',
   purchase: 'Purchase',

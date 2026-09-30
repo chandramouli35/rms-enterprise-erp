@@ -245,6 +245,7 @@ export const DashboardShell: React.FC = () => {
       icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
       roles: ["SUPER_ADMIN", "ADMIN", "PLANT_MANAGER", "ACCOUNTANT"],
       subItems: [
+        { label: "Master", tab: "master", roles: ["SUPER_ADMIN", "ADMIN"] },
         { label: "Deals / Soda Record", tab: "soda" },
         { label: "Sale", tab: "sale" },
         { label: "Purchase", tab: "purchase" },
@@ -253,6 +254,29 @@ export const DashboardShell: React.FC = () => {
         { label: "Payables", tab: "payables" },
         { label: "Payment Received", tab: "payment_received" },
         { label: "Payment Paid", tab: "payment_paid" },
+      ],
+    },
+    {
+      label: "Expenses",
+      href: "/expenses",
+      icon: "M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z",
+      roles: ["SUPER_ADMIN", "ADMIN", "PLANT_MANAGER", "SUPERVISOR", "ACCOUNTANT"],
+      subItems: [
+        { label: "Add Funds", tab: "add_funds", roles: ["SUPER_ADMIN", "ADMIN"] },
+        { label: "Expenses", tab: "expenses" },
+        { label: "Petty Cashbook", tab: "petty_cashbook" },
+        { label: "COGS", tab: "cogs" },
+      ],
+    },
+    {
+      label: "Trucks & Diesel",
+      href: "/diesel",
+      icon: "M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4",
+      roles: ["SUPER_ADMIN", "ADMIN", "PLANT_MANAGER", "SUPERVISOR"],
+      subItems: [
+        { label: "Add Fuel", tab: "add_fuel" },
+        { label: "Truck Average", tab: "truck_average" },
+        { label: "Pump wise details", tab: "pump_wise" },
       ],
     },
     {
@@ -566,6 +590,10 @@ export const DashboardShell: React.FC = () => {
   const isSubItemAllowed = (parentLabel: string, sub: { label: string; roles?: string[] }) => {
     if (sub.roles?.length && user?.role && !sub.roles.includes(user.role)) {
       return false;
+    }
+    // Master Module: Admin view only (role gate is authoritative)
+    if (parentLabel === "Finance" && sub.label === "Master") {
+      return user?.role === "SUPER_ADMIN" || user?.role === "ADMIN";
     }
     if (
       user?.role === "SUPERVISOR" &&

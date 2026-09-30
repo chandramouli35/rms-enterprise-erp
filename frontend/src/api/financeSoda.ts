@@ -10,12 +10,22 @@ export const financeSodaApi = {
     api.patch(`/finance/sodas/${id}`, data),
   paymentStatus: (id: string, paymentStatus: string) =>
     api.patch(`/finance/sodas/${id}/payment-status`, { paymentStatus }),
-  partyOptions: (excludePlantIds?: string[]) =>
+  partyOptions: (excludePlantIds?: string[], sodaType?: 'SALE' | 'PURCHASE') =>
     api.get('/finance/party-options', {
-      params: excludePlantIds?.length ? { excludePlantIds: excludePlantIds.join(',') } : {},
+      params: {
+        ...(excludePlantIds?.length
+          ? { excludePlantIds: excludePlantIds.join(',') }
+          : {}),
+        ...(sodaType ? { sodaType } : {}),
+      },
     }),
-  createParty: (data: { name: string; contact?: string; firmName?: string }) =>
-    api.post('/finance/parties', data),
+  createParty: (data: {
+    name: string;
+    isCustomer?: boolean;
+    isSupplier?: boolean;
+    contact?: string;
+    firmName?: string;
+  }) => api.post('/finance/parties', data),
   availableForGp: (plantId: string, passType: string) =>
     api.get('/finance/sodas/available-for-gp', { params: { plantId, passType } }),
 };

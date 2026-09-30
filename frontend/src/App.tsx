@@ -17,6 +17,8 @@ import { InventoryManagement } from './pages/InventoryManagement';
 import { InterPlantTransfer } from './pages/InterPlantTransfer';
 import { ProductManagement } from './pages/ProductManagement';
 import { FinanceManagement } from './pages/FinanceManagement';
+import { ExpensesManagement } from './pages/ExpensesManagement';
+import { TrucksDieselManagement } from './pages/TrucksDieselManagement';
 import { StaffManagement } from './pages/StaffManagement';
 import DryerWork from './pages/DryerWork';
 import { CmsMonitoring } from './pages/CmsMonitoring';
@@ -44,6 +46,8 @@ function App() {
             <Route path="gate-pass" element={<GatePassManagement />} />
             <Route path="products" element={<ProductManagement />} />
             <Route path="finance" element={<FinanceManagement />} />
+            <Route path="expenses" element={<ExpensesManagement />} />
+            <Route path="diesel" element={<TrucksDieselManagement />} />
             <Route path="cms" element={<CmsMonitoring />} />
             {/* Milestone 4 remainder — redirect until enabled */}
             <Route path="dispatch" element={<Navigate to="/dashboard" replace />} />

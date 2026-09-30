@@ -56,6 +56,8 @@ export class MasterDataController {
       isApproved?: boolean;
       transportCategory?: string;
       biometricData?: string;
+      vehicleType?: string;
+      readingUnit?: string;
     },
     @Req() req,
     @UploadedFile() file?: Express.Multer.File

@@ -37,7 +37,7 @@ export const PaymentEntry: React.FC<{ entryType: EntryType }> = ({ entryType }) 
 
   const loadParties = useCallback(async () => {
     try {
-      const res = await financeLedgerApi.partyOptions();
+      const res = await financeLedgerApi.partyOptions(entryType);
       setParties(Array.isArray(res.data) ? res.data : []);
     } catch (e: any) {
       addToast(e?.response?.data?.message || 'Failed to load parties', 'error');
@@ -240,7 +240,23 @@ export const PaymentEntry: React.FC<{ entryType: EntryType }> = ({ entryType }) 
           Soda / Deal (optional)
           <select
             value={financeSodaId}
-            onChange={(e) => setFinanceSodaId(e.target.value)}
+            onChange={(e) => {
+              const id = e.target.value;
+              setFinanceSodaId(id);
+              const s = sodas.find((x) => x.id === id);
+              if (s) {
+                const sodaTag = `Soda No. ${s.sodaType === 'SALE' ? 'SO' : 'PO'}-${String(s.sodaNumber).padStart(2, '0')}`;
+                const base = isReceipt ? 'Payment Received' : 'Payment Paid';
+                // Autofill narration with soda no. when empty or still default
+                setNarration((prev) => {
+                  const p = prev.trim();
+                  if (!p || p === base || p.startsWith(`${base} · Soda No.`)) {
+                    return `${base} · ${sodaTag}`;
+                  }
+                  return prev;
+                });
+              }
+            }}
             disabled={!partyKey}
             className="mt-1 w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-sm text-[var(--text-main)]"
           >

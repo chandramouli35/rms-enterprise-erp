@@ -748,6 +748,7 @@ export class UsersRolesService {
     {
       name: 'Finance',
       subModules: [
+        'Master',
         'Deals / Soda Record',
         'Sale',
         'Purchase',
@@ -757,6 +758,14 @@ export class UsersRolesService {
         'Payment Received',
         'Payment Paid',
       ],
+    },
+    {
+      name: 'Expenses',
+      subModules: ['Add Funds', 'Expenses', 'Petty Cashbook', 'COGS'],
+    },
+    {
+      name: 'Trucks & Diesel',
+      subModules: ['Add Fuel', 'Truck Average', 'Pump wise details'],
     },
     {
       name: 'CMS',

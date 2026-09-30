@@ -104,12 +104,13 @@ export const ReceivablesPayables: React.FC<{ kind: Kind }> = ({ kind }) => {
     }
     exportToPDF(
       `Party Ledger — ${statement.partyName}`,
-      ['Date', 'Soda/Deal', 'Mill', 'Type', 'Debit', 'Credit', 'Balance'],
+      ['Date', 'Soda/Deal', 'Mill', 'Type', 'Narration', 'Debit', 'Credit', 'Balance'],
       statement.lines.map((r: any) => [
         r.date ? new Date(r.date).toLocaleDateString() : '',
         r.sodaDealNo,
         r.millName,
         r.transactionType,
+        r.narration || '',
         fmtMoney(r.debit),
         fmtMoney(r.credit),
         fmtMoney(r.runningBalance),
@@ -359,23 +360,52 @@ export const ReceivablesPayables: React.FC<{ kind: Kind }> = ({ kind }) => {
                 </tr>
               </thead>
               <tbody>
-                {stmtLines.map((r: any) => (
-                  <tr key={r.id} className="border-b border-[var(--border-subtle-alt)] text-[var(--text-main)]">
-                    <td className="px-3 py-1.5 whitespace-nowrap">
-                      {r.date ? new Date(r.date).toLocaleDateString() : '—'}
-                    </td>
-                    <td className="px-3 py-1.5 font-medium">{r.sodaDealNo || '—'}</td>
-                    <td className="px-3 py-1.5">{r.millName}</td>
-                    <td className="px-3 py-1.5">{r.transactionType}</td>
-                    <td className="px-3 py-1.5 text-[var(--text-muted)] max-w-[220px] truncate">
-                      {r.narration || '—'}
-                    </td>
-                    <td className="px-3 py-1.5 text-right">{r.debit ? fmtMoney(r.debit) : '—'}</td>
-                    <td className="px-3 py-1.5 text-right">{r.credit ? fmtMoney(r.credit) : '—'}</td>
-                    <td className="px-3 py-1.5 text-right font-semibold text-amber-400">
-                      {fmtMoney(r.runningBalance)}
-                    </td>
-                  </tr>
+                {(statement.sodaGroups?.length
+                  ? statement.sodaGroups
+                  : [{ label: null, lines: stmtLines }]
+                ).map((g: any, gi: number) => (
+                  <React.Fragment key={g.sodaDealNo || g.label || gi}>
+                    {g.label && (
+                      <tr className="bg-[var(--bg-base)] border-b border-[var(--border-subtle)]">
+                        <td
+                          colSpan={8}
+                          className="px-3 py-1.5 text-[11px] font-semibold text-amber-400"
+                        >
+                          {g.label}
+                          {g.totalDebit != null && (
+                            <span className="ml-2 font-normal text-[var(--text-muted)]">
+                              Dr {fmtMoney(g.totalDebit)} · Cr {fmtMoney(g.totalCredit)}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    {(g.lines || []).map((r: any) => (
+                      <tr
+                        key={r.id}
+                        className="border-b border-[var(--border-subtle-alt)] text-[var(--text-main)]"
+                      >
+                        <td className="px-3 py-1.5 whitespace-nowrap">
+                          {r.date ? new Date(r.date).toLocaleDateString() : '—'}
+                        </td>
+                        <td className="px-3 py-1.5 font-medium">{r.sodaDealNo || '—'}</td>
+                        <td className="px-3 py-1.5">{r.millName}</td>
+                        <td className="px-3 py-1.5">{r.transactionType}</td>
+                        <td className="px-3 py-1.5 text-[var(--text-muted)] max-w-[220px] truncate">
+                          {r.narration || '—'}
+                        </td>
+                        <td className="px-3 py-1.5 text-right">
+                          {r.debit ? fmtMoney(r.debit) : '—'}
+                        </td>
+                        <td className="px-3 py-1.5 text-right">
+                          {r.credit ? fmtMoney(r.credit) : '—'}
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-semibold text-amber-400">
+                          {fmtMoney(r.runningBalance)}
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>

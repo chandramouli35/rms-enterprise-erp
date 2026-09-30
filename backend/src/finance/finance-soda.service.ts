@@ -10,43 +10,155 @@ import { PrismaService } from '../prisma/prisma.service';
 export class FinanceSodaService {
   constructor(private prisma: PrismaService) {}
 
-  // ─── Parties ─────────────────────────────────────────────────────────────
-  async listParties() {
+  // ─── Master / Parties ────────────────────────────────────────────────────
+  private partyTypeLabel(p: { isCustomer: boolean; isSupplier: boolean }) {
+    if (p.isCustomer && p.isSupplier) return 'Both';
+    if (p.isCustomer) return 'Customer';
+    if (p.isSupplier) return 'Supplier';
+    return '—';
+  }
+
+  private shapeMaster(p: any) {
+    return {
+      id: p.id,
+      name: p.name,
+      contact: p.contact,
+      firmName: p.firmName,
+      notes: p.notes,
+      isCustomer: !!p.isCustomer,
+      isSupplier: !!p.isSupplier,
+      isActive: !!p.isActive,
+      type: this.partyTypeLabel(p),
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+    };
+  }
+
+  private assertPartyType(isCustomer: boolean, isSupplier: boolean) {
+    if (!isCustomer && !isSupplier) {
+      throw new BadRequestException(
+        'A party must be marked as at least a Customer, a Supplier, or Both',
+      );
+    }
+  }
+
+  private async assertUniquePartyName(name: string, excludeId?: string) {
+    const existing = await this.prisma.financeParty.findMany({
+      where: excludeId ? { id: { not: excludeId } } : undefined,
+      select: { id: true, name: true },
+    });
+    const hit = existing.find((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
+    if (hit) {
+      throw new BadRequestException(`Duplicate master: "${hit.name}" already exists`);
+    }
+  }
+
+  /** Admin Master list — includes inactive; optional type + name filters. */
+  async listMasters(opts?: { type?: string; q?: string; activeOnly?: boolean }) {
+    const where: any = {};
+    if (opts?.activeOnly) where.isActive = true;
+    const type = (opts?.type || 'ALL').toUpperCase();
+    if (type === 'CUSTOMER') where.isCustomer = true;
+    else if (type === 'SUPPLIER') where.isSupplier = true;
+    const q = (opts?.q || '').trim();
+    if (q) where.name = { contains: q, mode: 'insensitive' };
+
+    const rows = await this.prisma.financeParty.findMany({
+      where,
+      orderBy: { name: 'asc' },
+    });
+    return rows.map((p) => this.shapeMaster(p));
+  }
+
+  /** Active parties only (transaction dropdowns). */
+  async listParties(role?: 'CUSTOMER' | 'SUPPLIER' | 'ALL') {
+    const where: any = { isActive: true };
+    if (role === 'CUSTOMER') where.isCustomer = true;
+    if (role === 'SUPPLIER') where.isSupplier = true;
     return this.prisma.financeParty.findMany({
-      where: { isActive: true },
+      where,
       orderBy: { name: 'asc' },
     });
   }
 
-  async createParty(data: { name: string; contact?: string; firmName?: string; notes?: string }) {
-    if (!data.name?.trim()) throw new BadRequestException('Party name is required');
-    return this.prisma.financeParty.create({
+  async createParty(data: {
+    name: string;
+    contact?: string;
+    firmName?: string;
+    notes?: string;
+    isCustomer?: boolean;
+    isSupplier?: boolean;
+  }) {
+    const name = data.name?.trim();
+    if (!name) throw new BadRequestException('Party name is required');
+
+    // Master form always sends flags; legacy quick-add (no flags) defaults to Both
+    const hasFlags = data.isCustomer !== undefined || data.isSupplier !== undefined;
+    const isCustomer = hasFlags ? data.isCustomer === true : true;
+    const isSupplier = hasFlags ? data.isSupplier === true : true;
+    this.assertPartyType(isCustomer, isSupplier);
+    await this.assertUniquePartyName(name);
+
+    const row = await this.prisma.financeParty.create({
       data: {
-        name: data.name.trim(),
-        contact: data.contact,
-        firmName: data.firmName,
-        notes: data.notes,
+        name,
+        contact: data.contact?.trim() || null,
+        firmName: data.firmName?.trim() || null,
+        notes: data.notes?.trim() || null,
+        isCustomer,
+        isSupplier,
+        isActive: true,
       },
     });
+    return this.shapeMaster(row);
   }
 
   async updateParty(id: string, data: any) {
-    return this.prisma.financeParty.update({
+    const existing = await this.prisma.financeParty.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Master party not found');
+
+    const name =
+      data.name !== undefined ? String(data.name).trim() : existing.name;
+    if (!name) throw new BadRequestException('Party name is required');
+    if (name.toLowerCase() !== existing.name.toLowerCase()) {
+      await this.assertUniquePartyName(name, id);
+    }
+
+    const isCustomer =
+      data.isCustomer !== undefined ? !!data.isCustomer : existing.isCustomer;
+    const isSupplier =
+      data.isSupplier !== undefined ? !!data.isSupplier : existing.isSupplier;
+    if (data.isCustomer !== undefined || data.isSupplier !== undefined) {
+      this.assertPartyType(isCustomer, isSupplier);
+    }
+
+    const row = await this.prisma.financeParty.update({
       where: { id },
       data: {
-        name: data.name,
-        contact: data.contact,
-        firmName: data.firmName,
-        notes: data.notes,
-        isActive: data.isActive,
+        name,
+        ...(data.contact !== undefined ? { contact: data.contact?.trim() || null } : {}),
+        ...(data.firmName !== undefined ? { firmName: data.firmName?.trim() || null } : {}),
+        ...(data.notes !== undefined ? { notes: data.notes?.trim() || null } : {}),
+        ...(data.isCustomer !== undefined || data.isSupplier !== undefined
+          ? { isCustomer, isSupplier }
+          : {}),
+        ...(data.isActive !== undefined ? { isActive: !!data.isActive } : {}),
       },
     });
+    return this.shapeMaster(row);
   }
 
-  /** Parties + plants (for inter-mill party pick). */
-  async partyOptions(excludePlantIds: string[] = []) {
+  /**
+   * Parties + plants for inter-mill party pick.
+   * role: CUSTOMER (Sales) | SUPPLIER (Purchase) | ALL
+   * Inactive masters are excluded from transaction dropdowns.
+   */
+  async partyOptions(
+    excludePlantIds: string[] = [],
+    role: 'CUSTOMER' | 'SUPPLIER' | 'ALL' = 'ALL',
+  ) {
     const [parties, plants] = await Promise.all([
-      this.listParties(),
+      this.listParties(role),
       this.prisma.plant.findMany({
         where: { deletedAt: null, id: { notIn: excludePlantIds } },
         select: { id: true, name: true, code: true },
@@ -54,7 +166,14 @@ export class FinanceSodaService {
       }),
     ]);
     return {
-      parties: parties.map((p) => ({ id: p.id, name: p.name, kind: 'PARTY' as const })),
+      parties: parties.map((p) => ({
+        id: p.id,
+        name: p.name,
+        kind: 'PARTY' as const,
+        isCustomer: p.isCustomer,
+        isSupplier: p.isSupplier,
+        type: this.partyTypeLabel(p),
+      })),
       plants: plants.map((p) => ({ id: p.id, name: p.name, kind: 'PLANT' as const, code: p.code })),
     };
   }

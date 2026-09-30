@@ -24,11 +24,13 @@ import { MandisModule } from './mandis/mandis.module';
 import { IntermillModule } from './intermill/intermill.module';
 import { DryerWorkModule } from './dryer-work/dryer-work.module';
 import { CmsModule } from './cms/cms.module';
+import { ExpensesModule } from './expenses/expenses.module';
+import { DieselModule } from './diesel/diesel.module';
 
 import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
-  imports: [PrismaModule, AuthModule, PlantsModule, DashboardModule, UsersModule, UsersRolesModule, ProcurementModule, WeighbridgeModule, GatePassModule, ProductionModule, YieldModule, InventoryModule, TransferModule, ProductsModule, DispatchFinanceModule, FinanceModule, PowerManagementModule, MasterDataModule, SettingsModule, MandisModule, IntermillModule, DryerWorkModule, CmsModule, ScheduleModule.forRoot()],
+  imports: [PrismaModule, AuthModule, PlantsModule, DashboardModule, UsersModule, UsersRolesModule, ProcurementModule, WeighbridgeModule, GatePassModule, ProductionModule, YieldModule, InventoryModule, TransferModule, ProductsModule, DispatchFinanceModule, FinanceModule, PowerManagementModule, MasterDataModule, SettingsModule, MandisModule, IntermillModule, DryerWorkModule, CmsModule, ExpensesModule, DieselModule, ScheduleModule.forRoot()],
   controllers: [AppController],
   providers: [AppService],
 })

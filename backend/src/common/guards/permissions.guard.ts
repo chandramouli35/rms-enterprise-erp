@@ -63,6 +63,15 @@ export class PermissionsGuard implements CanActivate {
             accepted.includes(p.moduleName) && (!p.subModuleName || p.subModuleName === ''),
         );
         if (parent && parent[action] === true) return true;
+      } else {
+        // Parent-level check: any submodule grant also unlocks shared module endpoints
+        const anySub = permissions.some(
+          (p: any) =>
+            accepted.includes(p.moduleName) &&
+            !!p.subModuleName &&
+            p[action] === true,
+        );
+        if (anySub) return true;
       }
       return false;
     };
