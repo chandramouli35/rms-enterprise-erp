@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Query, UseGuards, Param, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Query, UseGuards, Param, Req, ForbiddenException } from '@nestjs/common';
 import { ProductionService } from './production.service';
 import { CreateBatchDto } from './dto/create-batch.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -10,6 +10,14 @@ import { RequirePermission, RequireAnyPermission } from '../common/decorators/re
 @Controller('production')
 export class ProductionController {
   constructor(private readonly productionService: ProductionService) {}
+
+  /** Mill Yield Benchmarks — Admin / Super Admin only */
+  private assertAdmin(user: any) {
+    if (!user) throw new ForbiddenException('Unauthorized');
+    const role = user.role?.name || user.role;
+    if (role === 'SUPER_ADMIN' || role === 'ADMIN') return;
+    throw new ForbiddenException('Only Admin can access Mill Yield Benchmarks');
+  }
 
   @Get('metrics')
   @RequirePermission('Production', 'canView')
@@ -83,26 +91,30 @@ export class ProductionController {
   }
 
   @Get('mill-yield-benchmarks')
-  @RequirePermission('Yield Mgmt', 'canView')
-  listMillYieldBenchmarks() {
-    return this.productionService.listMillYieldBenchmarks();
+  @RequirePermission('Yield Mgmt', 'canView', 'Mill Yield Benchmarks')
+  listMillYieldBenchmarks(@Req() req: any, @Query('plantId') plantId: string) {
+    this.assertAdmin(req.user);
+    return this.productionService.listMillYieldBenchmarks(plantId);
   }
 
   @Post('mill-yield-benchmarks')
-  @RequirePermission('Yield Mgmt', 'canEdit')
-  createMillYieldBenchmark(@Body() body: any) {
+  @RequirePermission('Yield Mgmt', 'canEdit', 'Mill Yield Benchmarks')
+  createMillYieldBenchmark(@Req() req: any, @Body() body: any) {
+    this.assertAdmin(req.user);
     return this.productionService.createMillYieldBenchmark(body);
   }
 
   @Put('mill-yield-benchmarks/:id')
-  @RequirePermission('Yield Mgmt', 'canEdit')
-  updateMillYieldBenchmark(@Param('id') id: string, @Body() body: any) {
+  @RequirePermission('Yield Mgmt', 'canEdit', 'Mill Yield Benchmarks')
+  updateMillYieldBenchmark(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    this.assertAdmin(req.user);
     return this.productionService.updateMillYieldBenchmark(id, body);
   }
 
   @Delete('mill-yield-benchmarks/:id')
-  @RequirePermission('Yield Mgmt', 'canEdit')
-  softDeleteMillYieldBenchmark(@Param('id') id: string) {
+  @RequirePermission('Yield Mgmt', 'canEdit', 'Mill Yield Benchmarks')
+  softDeleteMillYieldBenchmark(@Req() req: any, @Param('id') id: string) {
+    this.assertAdmin(req.user);
     return this.productionService.softDeleteMillYieldBenchmark(id);
   }
 

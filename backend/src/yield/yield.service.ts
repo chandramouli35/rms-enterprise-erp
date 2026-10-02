@@ -984,10 +984,12 @@ export class YieldService {
     }
   }
 
-  /** Feedback 03 editable targets (TARGETS row) — used by mill-compare payloads */
-  private async loadYieldTargets(): Promise<{ paddy: number; rice: number }> {
+  /** Feedback 03 editable targets (TARGETS row) — mill-wise */
+  private async loadYieldTargets(plantId: string): Promise<{ paddy: number; rice: number }> {
     try {
-      const row = await this.prisma.millYieldBenchmark.findUnique({ where: { itemKey: 'TARGETS' } });
+      const row = await this.prisma.millYieldBenchmark.findUnique({
+        where: { plantId_itemKey: { plantId, itemKey: 'TARGETS' } },
+      });
       if (row) {
         return {
           paddy: Number(row.yieldPctPaddy) || 71,
@@ -1000,11 +1002,11 @@ export class YieldService {
     return { paddy: 71, rice: 66.2 };
   }
 
-  private async loadYieldBenchmarks(basis: 'rice' | 'paddy') {
+  private async loadYieldBenchmarks(basis: 'rice' | 'paddy', plantId: string) {
     let benchmarks: any[] = [];
     try {
       benchmarks = await this.prisma.millYieldBenchmark.findMany({
-        where: { isActive: true },
+        where: { plantId, isActive: true },
         orderBy: { sortOrder: 'asc' },
       });
     } catch {
@@ -1545,8 +1547,6 @@ export class YieldService {
     const unit = params.unit || 'bags';
     const basis = params.basis || 'rice';
 
-    const benchMap = await this.loadYieldBenchmarks(basis);
-    const targets = await this.loadYieldTargets();
     const mills = await this.resolveMillPlants('all');
 
     const itemKeys =
@@ -1582,10 +1582,18 @@ export class YieldService {
           ];
 
     const columns: any[] = [];
+    let firstBenchMap: Record<string, number> = {};
+    let firstTargets = { paddy: 71, rice: 66.2 };
     for (const mill of mills) {
       if (!mill.plant) {
         columns.push({ millKey: mill.key, firm: mill.label, plantId: null, items: {} });
         continue;
+      }
+      const benchMap = await this.loadYieldBenchmarks(basis, mill.plant.id);
+      const targets = await this.loadYieldTargets(mill.plant.id);
+      if (!Object.keys(firstBenchMap).length) {
+        firstBenchMap = benchMap;
+        firstTargets = targets;
       }
       const built = await this.buildMillYieldItems({
         plantId: mill.plant.id,
@@ -1604,6 +1612,8 @@ export class YieldService {
         netRiceProduced: built.netRice,
         purchasedRiceUsed: built.purchasedUsed,
         paddyUsed: built.paddyUsed,
+        benchmarks: benchMap,
+        targets,
       });
     }
 
@@ -1615,9 +1625,9 @@ export class YieldService {
       dateFrom: from.toISOString().slice(0, 10),
       dateTo: until.toISOString().slice(0, 10),
       itemKeys,
-      benchmarks: benchMap,
+      benchmarks: firstBenchMap,
       mills: columns,
-      targets,
+      targets: firstTargets,
     };
   }
 
@@ -1737,8 +1747,8 @@ export class YieldService {
       throw new BadRequestException('Mill / plant not found for Format 2');
     }
 
-    const benchMap = await this.loadYieldBenchmarks(basis);
-    const targets = await this.loadYieldTargets();
+    const benchMap = await this.loadYieldBenchmarks(basis, mill.plant.id);
+    const targets = await this.loadYieldTargets(mill.plant.id);
 
     // Table 03/04 columns
     const itemKeys =

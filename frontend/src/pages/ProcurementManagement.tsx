@@ -149,7 +149,9 @@ export const ProcurementManagement = () => {
               !!fresh.allowManualDateTimeGateIn !==
                 !!activePlant.allowManualDateTimeGateIn ||
               !!fresh.allowManualDateTimeGateOut !==
-                !!activePlant.allowManualDateTimeGateOut)
+                !!activePlant.allowManualDateTimeGateOut ||
+              !!fresh.allowManualDateTimeStackTransfer !==
+                !!activePlant.allowManualDateTimeStackTransfer)
           ) {
             setActivePlant(fresh);
           }
@@ -448,6 +450,7 @@ export const ProcurementManagement = () => {
     allowManualDateTimePaddyInward: false,
     allowManualDateTimeGateIn: false,
     allowManualDateTimeGateOut: false,
+    allowManualDateTimeStackTransfer: false,
   });
   const [isEditingSettings, setIsEditingSettings] = useState<boolean>(false);
 
@@ -478,6 +481,8 @@ export const ProcurementManagement = () => {
           activePlant.allowManualDateTimeGateOut ??
           activePlant.allowManualDateTime
         ),
+        allowManualDateTimeStackTransfer:
+          !!activePlant.allowManualDateTimeStackTransfer,
       });
     }
   }, [activePlant]);
@@ -503,6 +508,8 @@ export const ProcurementManagement = () => {
           !!plantSettings.allowManualDateTimePaddyInward,
         allowManualDateTimeGateIn: !!plantSettings.allowManualDateTimeGateIn,
         allowManualDateTimeGateOut: !!plantSettings.allowManualDateTimeGateOut,
+        allowManualDateTimeStackTransfer:
+          !!plantSettings.allowManualDateTimeStackTransfer,
       };
       await api.put(`/plants/${activePlant.id}`, payload);
       setIsEditingSettings(false);
@@ -516,6 +523,8 @@ export const ProcurementManagement = () => {
         allowManualDateTimePaddyInward: payload.allowManualDateTimePaddyInward,
         allowManualDateTimeGateIn: payload.allowManualDateTimeGateIn,
         allowManualDateTimeGateOut: payload.allowManualDateTimeGateOut,
+        allowManualDateTimeStackTransfer:
+          payload.allowManualDateTimeStackTransfer,
       });
       useUiStore
         .getState()
@@ -4120,6 +4129,46 @@ export const ProcurementManagement = () => {
                             </span>
                           )}
                         </div>
+                        <div>
+                          <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                            Net weight of Part Stack
+                          </label>
+                          <input
+                            type="text"
+                            readOnly
+                            value={(() => {
+                              const totalBags =
+                                parseFloat(
+                                  String(
+                                    inwardFormData.totalBagsReceived ||
+                                      inwardFormData.bags ||
+                                      "",
+                                  ),
+                                ) || 0;
+                              const partBags =
+                                parseFloat(
+                                  String(inwardFormData.bagsInSecondPartStack || ""),
+                                ) || 0;
+                              const net =
+                                parseFloat(
+                                  String(
+                                    inwardFormData.netWtMill ||
+                                      inwardFormData.netWeightWb ||
+                                      "",
+                                  ),
+                                ) || 0;
+                              if (!(totalBags > 0) || !(partBags > 0) || !(net > 0))
+                                return "";
+                              return ((net / totalBags) * partBags).toFixed(3);
+                            })()}
+                            className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-amber-400 font-mono outline-none opacity-90"
+                            placeholder="Auto (bags × avg wt)"
+                            title="Feedback 47: part bags × (Total Net / Total Bags)"
+                          />
+                          <p className="text-[10px] text-[var(--text-muted-alt)] mt-0.5">
+                            Auto: Part Bags × (Net Weight ÷ Total Bags)
+                          </p>
+                        </div>
                       </div>
                     )}
 
@@ -6520,6 +6569,22 @@ export const ProcurementManagement = () => {
                                 : "OFF"}
                             </p>
                           </div>
+                          <div>
+                            <p className="text-xs text-[var(--text-muted-alt)] mb-1">
+                              Stack / Hoodi Transfer — Auto Update
+                            </p>
+                            <p
+                              className={`text-xl font-bold ${
+                                !plantSettings.allowManualDateTimeStackTransfer
+                                  ? "text-emerald-400"
+                                  : "text-amber-400"
+                              }`}
+                            >
+                              {!plantSettings.allowManualDateTimeStackTransfer
+                                ? "ON"
+                                : "OFF"}
+                            </p>
+                          </div>
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -6643,9 +6708,11 @@ export const ProcurementManagement = () => {
                                 When Auto Update is <b>ON</b>, Date/Time fields
                                 are locked and stamp on fingerprint. When{" "}
                                 <b>OFF</b>, supervisors may enter Date/Time
-                                manually for that form. Weighbridge Gross/Tare
-                                can always be punched manually (or fetched), even
-                                when Auto Update Date &amp; Time is ON.
+                                manually for that form. For Stack ↔ Hoodi /
+                                Dryer Bharai, OFF also allows punching Gross/Tare
+                                manually; ON requires Fetch WB or a pending truck.
+                                Paddy Inward Gross/Tare can always be punched or
+                                fetched.
                               </p>
                             </div>
 
@@ -6662,6 +6729,10 @@ export const ProcurementManagement = () => {
                                 {
                                   key: "allowManualDateTimeGateOut",
                                   label: "Gate Out",
+                                },
+                                {
+                                  key: "allowManualDateTimeStackTransfer",
+                                  label: "Stack ↔ Hoodi / Dryer Bharai Transfer",
                                 },
                               ] as const
                             ).map((row) => {

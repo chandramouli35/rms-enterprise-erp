@@ -3287,7 +3287,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
      onChange={(e) => setFormData((prev) => ({ ...prev, financeSodaNA: e.target.checked, financeSodaId: '' }))}
      className="accent-yellow-500"
    />
-   Not Applicable (notifies Admin if items present)
+   Not Applicable (notifies Admin on real cut if operational)
  </label>
  </div>
  </div>

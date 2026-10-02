@@ -113,23 +113,40 @@ async function main() {
     });
   }
 
-  console.log('Seeding Mill Yield Benchmarks (Feedback 03)...');
+  console.log('Seeding Mill Yield Benchmarks (Feedback 03) — mill-wise...');
   const benchmarks = [
-    { itemKey: 'PADDY', itemLabel: 'Paddy', requiredQty: 95817, yieldPctPaddy: 100, yieldPctRice: 0, roundFigRicePct: 0, sortOrder: 1 },
+    { itemKey: 'PADDY', itemLabel: 'Paddy', requiredQty: 95817, yieldPctPaddy: 0, yieldPctRice: 0, roundFigRicePct: 0, sortOrder: 1 },
     { itemKey: 'NET_RICE', itemLabel: 'Net rice', requiredQty: 63430.854, yieldPctPaddy: 66.2, yieldPctRice: 100, roundFigRicePct: 100, sortOrder: 2 },
-    { itemKey: 'KANI', itemLabel: 'kani / Broken Rice', requiredQty: 2874.51, yieldPctPaddy: 3, yieldPctRice: 4.531722054, roundFigRicePct: 4.53, sortOrder: 3 },
+    { itemKey: 'KANI', itemLabel: 'kani', requiredQty: 2874.51, yieldPctPaddy: 3, yieldPctRice: 4.531722054, roundFigRicePct: 4.53, sortOrder: 3 },
     { itemKey: 'NAKKU', itemLabel: 'nakku', requiredQty: 766.536, yieldPctPaddy: 0.8, yieldPctRice: 1.208459215, roundFigRicePct: 1.2, sortOrder: 4 },
     { itemKey: 'REJECTION', itemLabel: 'Rejection', requiredQty: 958.17, yieldPctPaddy: 1, yieldPctRice: 1.510574018, roundFigRicePct: 1.5, sortOrder: 5 },
-    { itemKey: 'BRAN', itemLabel: 'Bran / R. Bran', requiredQty: 8144.445, yieldPctPaddy: 8.5, yieldPctRice: 12.83987915, roundFigRicePct: 12.8, sortOrder: 6 },
+    { itemKey: 'BRAN', itemLabel: 'Bran', requiredQty: 8144.445, yieldPctPaddy: 8.5, yieldPctRice: 12.83987915, roundFigRicePct: 12.8, sortOrder: 6 },
     { itemKey: 'K_PHUCK', itemLabel: 'K.Phuck', requiredQty: 2395.425, yieldPctPaddy: 2.5, yieldPctRice: 3.776435045, roundFigRicePct: 3.7, sortOrder: 7 },
     { itemKey: 'HUSK', itemLabel: 'Husk', requiredQty: 15809.805, yieldPctPaddy: 16.5, yieldPctRice: 24.9244713, roundFigRicePct: 24.92, sortOrder: 8 },
     { itemKey: 'PURCHASED_RICE', itemLabel: 'Purchased Rice', requiredQty: 3832.68, yieldPctPaddy: 4, yieldPctRice: 6.042296073, roundFigRicePct: 6, sortOrder: 9 },
   ];
-  for (const b of benchmarks) {
+  for (const plant of [plantHQ, plantNorth]) {
+    for (const b of benchmarks) {
+      await prisma.millYieldBenchmark.upsert({
+        where: { plantId_itemKey: { plantId: plant.id, itemKey: b.itemKey } },
+        update: {},
+        create: { ...b, plantId: plant.id },
+      });
+    }
     await prisma.millYieldBenchmark.upsert({
-      where: { itemKey: b.itemKey },
+      where: { plantId_itemKey: { plantId: plant.id, itemKey: 'TARGETS' } },
       update: {},
-      create: b,
+      create: {
+        plantId: plant.id,
+        itemKey: 'TARGETS',
+        itemLabel: 'Yield Targets',
+        requiredQty: 0,
+        yieldPctPaddy: 71,
+        yieldPctRice: 66.2,
+        roundFigRicePct: 0,
+        sortOrder: 99,
+        isActive: false,
+      },
     });
   }
 

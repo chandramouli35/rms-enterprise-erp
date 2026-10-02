@@ -76,11 +76,8 @@ export class FinanceSalePurchaseService {
     const reportType = soda.sodaType; // SALE | PURCHASE
 
     const line = await this.prisma.$transaction(async (tx) => {
-      // Lock soda row for serial assignment
-      await tx.financeSoda.update({
-        where: { id: soda.id },
-        data: { updatedAt: new Date() },
-      });
+      // Explicit row lock for Section H serial (cross-mill race safeguard)
+      await tx.$executeRaw`SELECT id FROM "FinanceSoda" WHERE id = ${soda.id} FOR UPDATE`;
 
       const existing = await tx.financeSalePurchaseLine.findUnique({
         where: { gatePassId },
@@ -203,6 +200,10 @@ export class FinanceSalePurchaseService {
     const bagType = gp?.bagTypeGp || null;
     const millRaw = gp?.netWeight != null ? Number(gp.netWeight) : 0;
     const partyRaw = gp?.ntWtParty != null ? Number(gp.ntWtParty) : 0;
+    const weighbridgeActive = !!gp?.weighbridgeActive;
+    // F29: when weighbridge off / both weights missing — flag for UI (do not invent weights)
+    const weightsMissing =
+      !weighbridgeActive || (millRaw <= 0 && partyRaw <= 0);
 
     const consider = !!line.bagWeightConsideration;
     const bagConst = FinanceSalePurchaseService.bagConstant(bagType);
@@ -298,14 +299,16 @@ export class FinanceSalePurchaseService {
       netWeightParty: partyNet,
       netWeightMillRaw: millRaw,
       netWeightPartyRaw: partyRaw,
+      weighbridgeActive,
+      weightsMissing,
       lowerWeight,
       weightDifference: weightDiff,
       weightDiscrepancy: Math.abs(weightDiff) > 0.001,
       weightPerBag,
       rateV,
-      billAmount,
+      billAmount: weightsMissing ? 0 : billAmount,
       cdPercent,
-      netPayment,
+      netPayment: weightsMissing ? 0 : netPayment,
       paymentStatus: soda?.paymentStatus || 'NOT_CLEAR',
       note: line.note || '',
       createdAt: line.createdAt,
@@ -442,7 +445,7 @@ export class FinanceSalePurchaseService {
 
     const allowed = ['CLEAR', 'UNDERWAY', 'NOT_CLEAR'];
     if (!allowed.includes(paymentStatus)) {
-      throw new BadRequestException('Payment Status must be Clear, Underway, or Not Clear');
+      throw new BadRequestException('Payment Status must be Clear, Underway, or Unclear');
     }
     const roleName = user?.role?.name || user?.role;
     if (roleName !== 'SUPER_ADMIN' && roleName !== 'ADMIN') {

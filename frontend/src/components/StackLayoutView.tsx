@@ -54,13 +54,12 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
 
   const getMoistureColor = (moisture: number, status: string, bags: number) => {
     if (status === 'COMPLETED' || status === 'EMPTY' || bags <= 0) return 'bg-gray-800 border-gray-600 text-gray-500 opacity-60';
-    
-    if (moisture >= 20.1) return 'bg-red-500/20 border-red-500 text-red-100'; // Red
-    if (moisture >= 18.1 && moisture <= 20) return 'bg-yellow-500/20 border-yellow-500 text-yellow-100'; // Yellow
-    if (moisture >= 17 && moisture <= 18) return 'bg-green-500/20 border-green-500 text-green-100'; // Green
-    if (moisture >= 14 && moisture <= 16) return 'bg-blue-500/20 border-blue-500 text-blue-100'; // Blue
-    
-    return 'bg-[var(--bg-panel-hover)] border-[var(--border-subtle)] text-[var(--text-main)]'; // Default
+    // Continuous bands (Feedback 47) — no gap between 16–17
+    if (moisture >= 20.1) return 'bg-red-500/20 border-red-500 text-red-100';
+    if (moisture >= 18.1) return 'bg-yellow-500/20 border-yellow-500 text-yellow-100';
+    if (moisture >= 16.1) return 'bg-green-500/20 border-green-500 text-green-100';
+    if (moisture >= 14) return 'bg-blue-500/20 border-blue-500 text-blue-100';
+    return 'bg-[var(--bg-panel-hover)] border-[var(--border-subtle)] text-[var(--text-main)]';
   };
 
   const renderBeasStack = (stackNo: string) => {
@@ -84,7 +83,7 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
           {data?.isNewAClass && isOccupied && (
             <div className="absolute top-0 left-0 text-[8px] font-bold text-[#e67e00]">N*</div>
           )}
-          <span>{data ? data.totalBags : 2467}</span>
+          <span>{data ? data.totalBags : '—'}</span>
         </div>
       </div>
     );
@@ -99,9 +98,9 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
         </div>
         
         <div className="flex items-center gap-4 text-xs font-medium bg-[var(--bg-app)] p-2 rounded-lg border border-[var(--border-subtle)]">
-          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500/50 border border-blue-500"></div> 14-16%</div>
-          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-green-500/50 border border-green-500"></div> 17-18%</div>
-          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-yellow-500/50 border border-yellow-500"></div> 18.1-20%</div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500/50 border border-blue-500"></div> 14–16%</div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-green-500/50 border border-green-500"></div> 16.1–18%</div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-yellow-500/50 border border-yellow-500"></div> 18.1–20%</div>
           <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-500/50 border border-red-500"></div> 20.1%+</div>
         </div>
       </div>

@@ -83,6 +83,11 @@ export class PlantsService {
           allowManualDateTimeGateOut:
             data.allowManualDateTimeGateOut === true || data.allowManualDateTimeGateOut === 'true',
         }),
+        ...(data.allowManualDateTimeStackTransfer !== undefined && {
+          allowManualDateTimeStackTransfer:
+            data.allowManualDateTimeStackTransfer === true ||
+            data.allowManualDateTimeStackTransfer === 'true',
+        }),
       },
     });
   }

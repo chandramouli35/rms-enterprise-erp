@@ -47,17 +47,29 @@ export const PaddyStackMap: React.FC<PaddyStackMapProps> = ({ onSelectStack, sel
     return stacks;
   };
 
-  const getStackStatus = (stackNum: string) => {
-    const stack = occupiedStacks.find(
+  const getStackData = (stackNum: string) => {
+    return occupiedStacks.find(
       (s) => s.stackNo === stackNum || s.inwardDetails?.stackNo === stackNum,
     );
-    return stack ? 'occupied' : 'empty';
+  };
+
+  const getStackStatus = (stackNum: string) => {
+    return getStackData(stackNum) ? 'occupied' : 'empty';
   };
 
   const renderStack = (stackNum: number) => {
     const status = getStackStatus(stackNum.toString());
     const isSelected = selectedStack === stackNum.toString();
-    const capacity = 2467;
+    const data = getStackData(stackNum.toString());
+    // Feedback 47: no fixed bag capacity — show live bags or empty dash
+    const bagsLabel =
+      data?.totalBags != null
+        ? Number(data.totalBags)
+        : data?.bags != null
+          ? Number(data.bags)
+          : status === 'occupied'
+            ? '●'
+            : '—';
 
     let bgColor = 'bg-[var(--bg-base)] hover:bg-[var(--bg-panel-alt)]';
     let borderColor = 'border-[var(--border-subtle)]';
@@ -83,7 +95,7 @@ export const PaddyStackMap: React.FC<PaddyStackMapProps> = ({ onSelectStack, sel
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] font-bold text-[var(--text-muted-alt)] bg-[var(--bg-panel)] px-1 rounded-sm shadow-sm border border-[var(--border-subtle)]">
           {stackNum}
         </span>
-        <span className={`text-[10px] font-bold ${textColor}`}>{capacity}</span>
+        <span className={`text-[10px] font-bold ${textColor}`}>{bagsLabel}</span>
       </button>
     );
   };
@@ -138,23 +150,28 @@ export const PaddyStackMap: React.FC<PaddyStackMapProps> = ({ onSelectStack, sel
           <div className="w-[160px] h-[60px] flex items-center justify-center text-[10px] font-bold text-[var(--text-muted)] uppercase">Rice Room</div>
         </div>
 
-        {/* Top Left Stacks (extra) */}
+        {/* Top Left Stacks (extra) — live from inventory if present */}
         <div className="absolute left-[280px] top-12">
           <div className="flex flex-col items-center">
             <span className="text-[10px] font-bold text-[var(--text-muted-alt)] mb-1">10</span>
-            <div className="border-2 border-[var(--border-subtle)] p-2 rounded text-[10px] font-bold bg-[var(--bg-panel-alt)] w-12 text-center h-10 flex items-center justify-center">2198</div>
+            <div className="border-2 border-[var(--border-subtle)] p-2 rounded text-[10px] font-bold bg-[var(--bg-panel-alt)] w-12 text-center h-10 flex items-center justify-center">
+              {getStackData('10')?.totalBags != null
+                ? Number(getStackData('10').totalBags)
+                : '—'}
+            </div>
           </div>
         </div>
         
-        {/* Top far left Stacks */}
+        {/* Top far left decorative slots — no fixed bag capacity (Feedback 47) */}
         <div className="absolute left-10 top-12 grid grid-cols-4 gap-4">
-            <div className="border-2 border-[var(--border-subtle)] rounded text-[9px] font-bold text-center w-12 h-10 flex items-center justify-center bg-[var(--bg-panel-alt)]">2467</div>
-            <div className="border-2 border-[var(--border-subtle)] rounded text-[9px] font-bold text-center w-12 h-10 flex items-center justify-center bg-[var(--bg-panel-alt)]">2467</div>
-            <div className="border-2 border-[var(--border-subtle)] rounded text-[9px] font-bold text-center w-12 h-10 flex items-center justify-center bg-[var(--bg-panel-alt)]">2467</div>
-            <div className="border-2 border-[var(--border-subtle)] rounded text-[9px] font-bold text-center w-12 h-10 flex items-center justify-center bg-[var(--bg-panel-alt)]">2467</div>
-            <div className="border-2 border-[var(--border-subtle)] rounded text-[9px] font-bold text-center w-12 h-10 flex items-center justify-center bg-[var(--bg-panel-alt)]">2467</div>
-            <div className="border-2 border-[var(--border-subtle)] rounded text-[9px] font-bold text-center w-12 h-10 flex items-center justify-center bg-[var(--bg-panel-alt)]">2467</div>
-            <div className="border-2 border-[var(--border-subtle)] rounded text-[9px] font-bold text-center w-12 h-10 flex items-center justify-center bg-[var(--bg-panel-alt)]">1280</div>
+            {['A1','A2','A3','A4','A5','A6','A7'].map((label) => (
+              <div
+                key={label}
+                className="border-2 border-[var(--border-subtle)] rounded text-[9px] font-bold text-center w-12 h-10 flex items-center justify-center bg-[var(--bg-panel-alt)] text-[var(--text-muted-alt)]"
+              >
+                —
+              </div>
+            ))}
         </div>
       </div>
     </div>

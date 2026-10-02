@@ -278,9 +278,11 @@ export class FinanceSodaService {
     if (date > today) throw new BadRequestException('Future dates are not allowed');
 
     if (!data.itemId) throw new BadRequestException('Item is required');
-    const quantity = parseInt(data.quantity, 10);
-    if (!quantity || quantity < 1) throw new BadRequestException('Count must be an integer greater than 0');
-
+    const quantityRaw = String(data.quantity ?? '').trim();
+    const quantity = Number(quantityRaw);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw new BadRequestException('Count must be an integer greater than 0');
+    }
     const isShift = !!data.isShift;
     const rate = isShift ? null : parseFloat(data.rate);
     if (!isShift && (rate == null || !(rate > 0) || Number.isNaN(rate))) {
@@ -311,11 +313,50 @@ export class FinanceSodaService {
     }
 
     const primary = await this.prisma.$transaction(async (tx) => {
-      const sodaNumber = await this.nextNumberInTx(tx, sodaType);
-      const created = await tx.financeSoda.create({
-        data: {
-          sodaType,
-          sodaNumber,
+      const createOnce = async (
+        type: 'SALE' | 'PURCHASE',
+        payload: any,
+        plantIdsForMills: string[],
+        attempts = 5,
+      ): Promise<any> => {
+        if (!plantIdsForMills.length) {
+          throw new BadRequestException('Select at least one mill');
+        }
+        for (let i = 0; i < attempts; i++) {
+          const sodaNumber = await this.nextNumberInTx(tx, type);
+          try {
+            // Create soda first, then mills explicitly (avoids nested-create orphans)
+            const { mills: _ignored, ...sodaData } = payload;
+            const created = await tx.financeSoda.create({
+              data: { ...sodaData, sodaType: type, sodaNumber },
+            });
+            await tx.financeSodaMill.createMany({
+              data: plantIdsForMills.map((plantId) => ({
+                sodaId: created.id,
+                plantId,
+              })),
+              skipDuplicates: true,
+            });
+            return tx.financeSoda.findUnique({
+              where: { id: created.id },
+              include: {
+                item: true,
+                party: true,
+                partyPlant: true,
+                mills: true,
+              },
+            });
+          } catch (e: any) {
+            if (e?.code === 'P2002' && i < attempts - 1) continue;
+            throw e;
+          }
+        }
+        throw new BadRequestException('Could not allocate soda number');
+      };
+
+      const created = await createOnce(
+        sodaType,
+        {
           date,
           itemId: data.itemId,
           partyId,
@@ -326,25 +367,15 @@ export class FinanceSodaService {
           note: data.note || null,
           paymentStatus: 'NOT_CLEAR',
           createdById: user?.id || null,
-          mills: {
-            create: millIds.map((plantId) => ({ plantId })),
-          },
         },
-        include: {
-          item: true,
-          party: true,
-          partyPlant: true,
-          mills: true,
-        },
-      });
+        millIds,
+      );
 
       if (isShift && partyPlantId) {
-        const reverseType = sodaType === 'SALE' ? 'PURCHASE' : 'SALE';
-        const reverseNumber = await this.nextNumberInTx(tx, reverseType);
-        const reverse = await tx.financeSoda.create({
-          data: {
-            sodaType: reverseType,
-            sodaNumber: reverseNumber,
+        const reverseType = (sodaType === 'SALE' ? 'PURCHASE' : 'SALE') as 'SALE' | 'PURCHASE';
+        const reverse = await createOnce(
+          reverseType,
+          {
             date,
             itemId: data.itemId,
             partyPlantId: millIds[0],
@@ -355,9 +386,9 @@ export class FinanceSodaService {
             paymentStatus: 'NOT_CLEAR',
             mirrorSodaId: created.id,
             createdById: user?.id || null,
-            mills: { create: [{ plantId: partyPlantId }] },
           },
-        });
+          [partyPlantId],
+        );
         await tx.financeSoda.update({
           where: { id: created.id },
           data: { mirrorSodaId: reverse.id },
@@ -395,8 +426,8 @@ export class FinanceSodaService {
       throw new BadRequestException('Completed sodas cannot be edited (count / note). Cancel a GP first if rollback is needed.');
     }
     if (data.quantity !== undefined) {
-      const q = parseInt(String(data.quantity), 10);
-      if (!q || q < 1) throw new BadRequestException('Count must be > 0');
+      const q = Number(String(data.quantity).trim());
+      if (!Number.isInteger(q) || q < 1) throw new BadRequestException('Count must be an integer greater than 0');
       if (q < delivered) {
         throw new BadRequestException(`Count cannot be less than delivered gate passes (${delivered})`);
       }
@@ -411,7 +442,7 @@ export class FinanceSodaService {
     await this.prisma.financeSoda.update({
       where: { id },
       data: {
-        ...(data.quantity !== undefined ? { quantity: parseInt(String(data.quantity), 10) } : {}),
+        ...(data.quantity !== undefined ? { quantity: Number(String(data.quantity).trim()) } : {}),
         ...(data.note !== undefined ? { note: data.note } : {}),
       },
     });
@@ -421,7 +452,7 @@ export class FinanceSodaService {
       await this.prisma.financeSoda.update({
         where: { id: soda.mirrorSodaId },
         data: {
-          ...(data.quantity !== undefined ? { quantity: parseInt(String(data.quantity), 10) } : {}),
+          ...(data.quantity !== undefined ? { quantity: Number(String(data.quantity).trim()) } : {}),
           ...(data.note !== undefined ? { note: data.note } : {}),
         },
       });
@@ -433,7 +464,7 @@ export class FinanceSodaService {
   async updatePaymentStatus(id: string, paymentStatus: string, user?: any) {
     const allowed = ['CLEAR', 'UNDERWAY', 'NOT_CLEAR'];
     if (!allowed.includes(paymentStatus)) {
-      throw new BadRequestException('Payment Status must be Clear, Underway, or Not Clear');
+      throw new BadRequestException('Payment Status must be Clear, Underway, or Unclear');
     }
     const roleName = user?.role?.name || user?.role;
     if (roleName !== 'SUPER_ADMIN' && roleName !== 'ADMIN') {
@@ -463,17 +494,14 @@ export class FinanceSodaService {
     return this.listSodas(soda.sodaType);
   }
 
-  /** F29 will push real bill amounts; until then allow explicit set / keep 0 (never null). */
-  async setPaymentAmount(id: string, paymentAmount: number) {
-    const amt = Number(paymentAmount);
-    if (Number.isNaN(amt) || amt < 0) throw new BadRequestException('Invalid payment amount');
-    const soda = await this.prisma.financeSoda.findUnique({ where: { id } });
-    if (!soda) throw new NotFoundException('Soda not found');
-    await this.prisma.financeSoda.update({
-      where: { id },
-      data: { paymentAmount: amt },
-    });
-    return this.listSodas(soda.sodaType);
+  /**
+   * Section K is computed from Sale/Purchase Section Y totals.
+   * Manual override is blocked — use report line edits / GP sync.
+   */
+  async setPaymentAmount(_id: string, _paymentAmount: number) {
+    throw new BadRequestException(
+      'Payment amount (Section K) is auto-calculated from Sale/Purchase Net Payment (Section Y). Edit CD%, oil, or bag weight on the report instead.',
+    );
   }
 
   // ─── Available for Gate Pass ─────────────────────────────────────────────
@@ -571,22 +599,25 @@ export class FinanceSodaService {
     const plant = await this.prisma.plant.findUnique({ where: { id: plantId } });
     const msg = `Gate Pass ${gatePassLabel} at ${plant?.name || plantId} was cut for an operational item without selecting a Finance Soda No.`;
 
-    // Role-broadcast (admin)
+    // Role-broadcast: Admin / Super Admin only (not all Plant Managers globally)
     await this.prisma.notification.createMany({
       data: [
         { title: 'Finance Soda missing on GP', message: msg, type: 'WARNING', role: 'SUPER_ADMIN' },
-        { title: 'Finance Soda missing on GP', message: msg, type: 'WARNING', role: 'PLANT_MANAGER' },
+        { title: 'Finance Soda missing on GP', message: msg, type: 'WARNING', role: 'ADMIN' },
       ],
     });
 
-    // Respective supervisors / managers of THAT mill
+    // That mill only: supervisors + plant managers (and any admin users assigned to the mill)
     const access = await this.prisma.userPlantAccess.findMany({
       where: { plantId },
       include: { user: { include: { role: true } } },
     });
+    const seen = new Set<string>();
     for (const a of access) {
       const roleName = (a.user as any)?.role?.name || '';
       if (!/SUPERVISOR|PLANT_MANAGER|SUPER_ADMIN|ADMIN/i.test(roleName)) continue;
+      if (seen.has(a.userId)) continue;
+      seen.add(a.userId);
       await this.prisma.notification.create({
         data: {
           title: 'Finance Soda missing on GP',

@@ -30,6 +30,8 @@ model Plant {
   allowManualDateTimeGateIn      Boolean @default(false)
   /// Admin ON: supervisors may edit date/time manually on Gate Out
   allowManualDateTimeGateOut     Boolean @default(false)
+  /// Admin ON: supervisors may edit date/time + punch Gross/Tare manually on Stack↔Hoodi / Dryer Bharai transfers (Feedback 47)
+  allowManualDateTimeStackTransfer Boolean @default(false)
 
   // Relations
   users                   UserPlantAccess[]
@@ -81,6 +83,7 @@ model Plant {
   consignmentDispatches ConsignmentDispatch[]
   paddyUsageRecords     PaddyUsageRecord[]
   dieselFuelEntries     DieselFuelEntry[]
+  millYieldBenchmarks   MillYieldBenchmark[]
 
   // Tracking
   createdAt DateTime  @default(now())
@@ -600,6 +603,7 @@ model GatePass {
   // Feedback 28 — Finance Soda / Bill / Bag Type on Gate Pass
   financeSodaId   String?
   financeSoda     FinanceSoda? @relation("FinanceSodaGatePasses", fields: [financeSodaId], references: [id])
+  financeSodaNA   Boolean      @default(false) // explicit Not Applicable
   billNo          String?
   billNoNA        Boolean      @default(false)
   bagTypeGp       String? // PLASTIC | JUTE | NOT_APPLICABLE
@@ -1755,7 +1759,9 @@ model HoodiRecord {
   moisture     Float?
   bags         Float?
   unloadedBy   String?
-  /** Stack↔Paddy integration — weighbridge net weight (quintals) + RST + fingerprint */
+  /** Stack↔Paddy integration — weighbridge weights + RST + fingerprint (Feedback 47) */
+  grossWeight  Float?
+  tareWeight   Float?
   netWeight    Float?
   rstNo        String?
   biometricData String?
@@ -1781,7 +1787,10 @@ model DryerBharaiToStack {
   stackNo       String
   bags          Float
   moisture      Float?
-  netWeight     Float? // MT — weighbridge Weight Segment
+  truckNo       String?
+  grossWeight   Float?
+  tareWeight    Float?
+  netWeight     Float? // weighbridge Weight Segment (same unit as stack inventory)
   rstNo         String?
   biometricData String?
   verifiedById  String?
@@ -1945,11 +1954,13 @@ model TransferTicket {
 }
 
 // -----------------------------------------------------------------------------
-// Mill Yield Benchmarks (Feedback 03) — stored in DB + listable/editable
+// Mill Yield Benchmarks (Feedback 03) — mill-wise (per plant)
 // -----------------------------------------------------------------------------
 model MillYieldBenchmark {
   id              String   @id @default(uuid())
-  itemKey         String   @unique // e.g. NET_RICE, KANI, NAKKU
+  plantId         String
+  plant           Plant    @relation(fields: [plantId], references: [id])
+  itemKey         String // e.g. NET_RICE, KANI, NAKKU, TARGETS
   itemLabel       String
   requiredQty     Float?
   yieldPctPaddy   Float    // Yield % as per paddy
@@ -1959,6 +1970,9 @@ model MillYieldBenchmark {
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@unique([plantId, itemKey])
+  @@index([plantId])
 }
 
 // -----------------------------------------------------------------------------

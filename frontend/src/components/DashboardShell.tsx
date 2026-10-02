@@ -173,16 +173,48 @@ export const DashboardShell: React.FC = () => {
       label: "Yield Mgmt",
       href: "/yield",
       icon: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6",
-      roles: ["SUPER_ADMIN", "PLANT_MANAGER", "SUPERVISOR"],
+      roles: ["SUPER_ADMIN", "ADMIN", "PLANT_MANAGER", "SUPERVISOR"],
       subItems: [
-        { label: "Mill Yield Benchmarks", tab: "mill_yield_benchmarks" },
-        { label: "Yield from Rice", tab: "yield_from_rice" },
-        { label: "Yield from Paddy", tab: "yield_from_paddy" },
-        { label: "Stock Health Report", tab: "stock_health" },
-        { label: "Consignment Dispatch", tab: "consignment_dispatch" },
-        { label: "Yield Calculator", tab: "yield_calculator" },
-        { label: "Yield Analytics", tab: "yield_analytics" },
-        { label: "Historical Reports", tab: "historical_reports" },
+        {
+          label: "Mill Yield Benchmarks",
+          tab: "mill_yield_benchmarks",
+          roles: ["SUPER_ADMIN", "ADMIN"],
+        },
+        {
+          label: "Yield from Rice",
+          tab: "yield_from_rice",
+          roles: ["SUPER_ADMIN", "PLANT_MANAGER", "SUPERVISOR"],
+        },
+        {
+          label: "Yield from Paddy",
+          tab: "yield_from_paddy",
+          roles: ["SUPER_ADMIN", "PLANT_MANAGER", "SUPERVISOR"],
+        },
+        {
+          label: "Stock Health Report",
+          tab: "stock_health",
+          roles: ["SUPER_ADMIN", "PLANT_MANAGER", "SUPERVISOR"],
+        },
+        {
+          label: "Consignment Dispatch",
+          tab: "consignment_dispatch",
+          roles: ["SUPER_ADMIN", "PLANT_MANAGER", "SUPERVISOR"],
+        },
+        {
+          label: "Yield Calculator",
+          tab: "yield_calculator",
+          roles: ["SUPER_ADMIN", "PLANT_MANAGER", "SUPERVISOR"],
+        },
+        {
+          label: "Yield Analytics",
+          tab: "yield_analytics",
+          roles: ["SUPER_ADMIN", "PLANT_MANAGER", "SUPERVISOR"],
+        },
+        {
+          label: "Historical Reports",
+          tab: "historical_reports",
+          roles: ["SUPER_ADMIN", "PLANT_MANAGER", "SUPERVISOR"],
+        },
       ],
     },
     {
@@ -593,6 +625,10 @@ export const DashboardShell: React.FC = () => {
     }
     // Master Module: Admin view only (role gate is authoritative)
     if (parentLabel === "Finance" && sub.label === "Master") {
+      return user?.role === "SUPER_ADMIN" || user?.role === "ADMIN";
+    }
+    // Mill Yield Benchmarks: Admin view only
+    if (parentLabel === "Yield Mgmt" && sub.label === "Mill Yield Benchmarks") {
       return user?.role === "SUPER_ADMIN" || user?.role === "ADMIN";
     }
     if (

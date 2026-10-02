@@ -35,6 +35,54 @@ export class GatePassService {
     }
   }
 
+  /**
+   * Feedback 28: notify only when GP has Operational inventory/product items
+   * (Non-Operational alone must not trigger missing-soda notify).
+   */
+  private async hasOperationalGatePassItems(items: any[] | undefined, material?: string) {
+    const names = new Set<string>();
+    for (const it of items || []) {
+      const n = String(it?.itemName || '').trim();
+      if (n) names.add(n);
+    }
+    const mat = String(material || '').trim();
+    if (mat) names.add(mat);
+    if (!names.size) return false;
+
+    const nameList = [...names];
+    const products = await this.prisma.product.findMany({
+      where: {
+        OR: nameList.map((n) => ({ name: { equals: n, mode: 'insensitive' as const } })),
+      },
+      select: { name: true, category: true },
+    });
+
+    const matched = new Set(products.map((p) => p.name.toLowerCase()));
+    const isOp = (cat?: string | null) => {
+      const c = String(cat || 'OPERATIONAL').trim().toUpperCase().replace(/[-\s]/g, '_');
+      return c === 'OPERATIONAL' || c === '';
+    };
+
+    if (products.some((p) => isOp(p.category))) return true;
+
+    // Inventory variety / itemType fallback
+    const inventories = await this.prisma.inventory.findMany({
+      where: {
+        OR: [
+          ...nameList.map((n) => ({ variety: { equals: n, mode: 'insensitive' as const } })),
+          ...nameList.map((n) => ({ itemType: { equals: n, mode: 'insensitive' as const } })),
+        ],
+      },
+      select: { category: true, variety: true, itemType: true },
+      take: 50,
+    });
+    if (inventories.some((inv) => isOp(inv.category))) return true;
+
+    // Unmatched free-text items: treat as operational (finance core — don't miss notify)
+    const anyUnmatched = nameList.some((n) => !matched.has(n.toLowerCase()));
+    return anyUnmatched;
+  }
+
   async generateGatePass(data: any) {
     const { 
       plantId, passType, vehicleNo, vehicleType, purpose, 
@@ -301,6 +349,7 @@ export class GatePassService {
         gpSuffix: gpSuffix,
         actualDispatchPlantId: isTransfer ? plantId : null,
         financeSodaId: resolvedFinanceSodaId,
+        financeSodaNA: sodaNA,
         billNo: billNA ? null : String(billNo).trim(),
         billNoNA: billNA,
         bagTypeGp: bag,
@@ -372,12 +421,14 @@ export class GatePassService {
       });
     }
 
-    // Feedback 28: operational GP without finance soda (N/A) → notify admin + that mill's supervisors
-    const hasOperationalItems =
-      (items && items.length > 0 && items.some((it: any) => String(it.itemName || '').trim())) ||
-      !!String(material || '').trim();
-    if (!isTransfer && sodaNA && hasOperationalItems) {
-      await this.financeSodaService.notifyMissingSoda(plantId, qrCode);
+    // Feedback 28: operational GP cut without finance soda → notify Admin + that mill's supervisors
+    // Skip drafts — notify only on real cut (non-draft create) or when draft is later completed
+    const draftFlag = isDraft === true || isDraft === 'true';
+    if (!isTransfer && sodaNA && !draftFlag) {
+      const operational = await this.hasOperationalGatePassItems(items, material);
+      if (operational) {
+        await this.financeSodaService.notifyMissingSoda(plantId, qrCode);
+      }
     }
 
     // Feedback 29: non-draft GP with soda → Sale/Purchase report line + Section H
@@ -793,6 +844,26 @@ export class GatePassService {
       await this.applyGatePassInventory(pass, tx);
       return gpass;
     });
+
+    // F28: draft → real cut with soda N/A + operational items → notify now (skipped on draft save)
+    if (pass.isDraft && !pass.isTransfer) {
+      const sodaNA =
+        pass.financeSodaNA === true ||
+        !pass.financeSodaId ||
+        pass.financeSodaId === 'NOT_APPLICABLE';
+      if (sodaNA) {
+        const operational = await this.hasOperationalGatePassItems(
+          pass.items || [],
+          pass.material || undefined,
+        );
+        if (operational) {
+          await this.financeSodaService.notifyMissingSoda(
+            pass.plantId,
+            pass.qrCode || id,
+          );
+        }
+      }
+    }
 
     // F29: draft → submitted on complete → push report line if linked soda
     if (pass.financeSodaId) {

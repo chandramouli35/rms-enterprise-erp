@@ -54,8 +54,8 @@ export const SodaDeals: React.FC = () => {
   const submitLock = useSubmitLock();
   const editLock = useSubmitLock();
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
       const [sodaRes, prodRes] = await Promise.all([
         financeSodaApi.list(), // all types — historical default
@@ -66,14 +66,22 @@ export const SodaDeals: React.FC = () => {
       const plist = Array.isArray(prodRes.data) ? prodRes.data : prodRes.data?.data || [];
       setProducts(plist);
     } catch (e: any) {
-      addToast(e?.response?.data?.message || 'Failed to load sodas', 'error');
+      if (!opts?.silent) addToast(e?.response?.data?.message || 'Failed to load sodas', 'error');
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     load();
+  }, []);
+
+  // F29: keep Section K / Payment Status in sync with Sale-Purchase report without full refresh
+  useEffect(() => {
+    const t = setInterval(() => {
+      load({ silent: true });
+    }, 4000);
+    return () => clearInterval(t);
   }, []);
 
   useEffect(() => {
@@ -122,10 +130,8 @@ export const SodaDeals: React.FC = () => {
   };
 
   const refreshPartyOpts = async (millIds: string[], sodaType?: 'SALE' | 'PURCHASE') => {
-    const opts = await financeSodaApi.partyOptions(
-      millIds.length > 1 ? millIds : [],
-      sodaType || form.sodaType,
-    );
+    // Always exclude selected mill(s) from plant-party list (Shift + single/multi mill)
+    const opts = await financeSodaApi.partyOptions(millIds, sodaType || form.sodaType);
     setPartyOpts(opts.data);
   };
 
@@ -155,7 +161,9 @@ export const SodaDeals: React.FC = () => {
       if (form.millIds.length !== 1) return 'Shift requires exactly one mill';
       if (form.partyKind !== 'PLANT' || !form.partyPlantId) return 'Shift requires another mill as Party';
     } else if (!(parseFloat(form.rate) > 0)) return 'Rate must be > 0';
-    if (!(parseInt(form.quantity, 10) > 0)) return 'Count must be an integer > 0';
+    if (!/^\d+$/.test(String(form.quantity).trim()) || Number(form.quantity) < 1) {
+      return 'Count must be an integer > 0';
+    }
     return null;
   };
 
@@ -193,6 +201,10 @@ export const SodaDeals: React.FC = () => {
 
   const saveEdit = async () => {
     if (!editRow) return;
+    if (!/^\d+$/.test(String(editRow.quantity).trim()) || Number(editRow.quantity) < 1) {
+      addToast('Count must be an integer > 0', 'error');
+      return;
+    }
     await editLock.wrapSubmit(async () => {
       try {
         await financeSodaApi.update(editRow.id, { quantity: editRow.quantity, note: editRow.note });
@@ -285,7 +297,9 @@ export const SodaDeals: React.FC = () => {
                 <th key={p.id} className="px-2 py-2 whitespace-nowrap">{p.name}</th>
               ))}
               <th className="px-2 py-2">Soda Status</th>
-              <th className="px-2 py-2">Payment</th>
+              <th className="px-2 py-2" title="Auto from Sale/Purchase Net Payment (Section Y)">
+                Payment (K)
+              </th>
               <th className="px-2 py-2">Payment Status</th>
               <th className="px-2 py-2">Note</th>
               <th className="px-2 py-2">Actions</th>
@@ -337,10 +351,10 @@ export const SodaDeals: React.FC = () => {
                     >
                       <option value="CLEAR">Clear</option>
                       <option value="UNDERWAY">Underway</option>
-                      <option value="NOT_CLEAR">Not Clear</option>
+                      <option value="NOT_CLEAR">Unclear</option>
                     </select>
                   ) : (
-                    ({ CLEAR: 'Clear', UNDERWAY: 'Underway', NOT_CLEAR: 'Not Clear' } as any)[s.paymentStatus] ||
+                    ({ CLEAR: 'Clear', UNDERWAY: 'Underway', NOT_CLEAR: 'Unclear' } as any)[s.paymentStatus] ||
                     s.paymentStatus
                   )}
                 </td>
@@ -694,7 +708,17 @@ export const SodaDeals: React.FC = () => {
                   <input
                     type="radio"
                     checked={form.isShift}
-                    onChange={() => setForm({ ...form, isShift: true, rate: '' })}
+                    onChange={() => {
+                      setForm({
+                        ...form,
+                        isShift: true,
+                        rate: '',
+                        partyKind: 'PLANT',
+                        partyId: '',
+                        partyPlantId: form.millIds.includes(form.partyPlantId) ? '' : form.partyPlantId,
+                      });
+                      refreshPartyOpts(form.millIds);
+                    }}
                   />
                   Shift (inter-mill mirror)
                 </label>

@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { exportToPDF, exportToExcel } from '../utils/exportUtils';
 import { usePlantStore } from '../store/plantStore';
+import { useAuthStore } from '../store/authStore';
 import { StockHealthReport } from '../components/Yield/StockHealthReport';
 import { ConsignmentDispatchReport } from '../components/Yield/ConsignmentDispatchReport';
 import { YieldMillCompare } from '../components/Yield/YieldMillCompare';
@@ -18,8 +19,25 @@ import { MillYieldBenchmarks } from '../components/Production/MillYieldBenchmark
 
 export const YieldManagement = () => {
  const activePlant = usePlantStore(state => state.activePlant);
+ const { user } = useAuthStore();
+ const role = user?.role || '';
+ const isAdminRole = role === 'ADMIN';
+ const isSuperAdmin = role === 'SUPER_ADMIN';
+ const canSeeBenchmarks = isSuperAdmin || isAdminRole;
  const [searchParams, setSearchParams] = useSearchParams();
- const activeTab = searchParams.get('tab') || 'yield_from_rice';
+ const activeTab = searchParams.get('tab') || (isAdminRole ? 'mill_yield_benchmarks' : 'yield_from_rice');
+
+ useEffect(() => {
+   // ADMIN: only Mill Yield Benchmarks — lock to that tab
+   if (isAdminRole && activeTab !== 'mill_yield_benchmarks') {
+     setSearchParams({ tab: 'mill_yield_benchmarks' }, { replace: true });
+     return;
+   }
+   // Non-admin cannot open benchmarks
+   if (activeTab === 'mill_yield_benchmarks' && !canSeeBenchmarks) {
+     setSearchParams({ tab: 'yield_from_rice' }, { replace: true });
+   }
+ }, [activeTab, isAdminRole, canSeeBenchmarks, setSearchParams]);
  
  const [metricsData, setMetricsData] = useState<any>({});
  const [yieldTrendData, setYieldTrendData] = useState<any[]>([]);
@@ -156,16 +174,18 @@ export const YieldManagement = () => {
  { title: 'Yield Target Achievement', value: metricsData.targetAchievement || '0.00%', unit: '', trend: metricsData.targetTrend || '0.00%', isUp: true, icon: Target, color: 'text-orange-500' },
  ];
 
- const tabs = [
-  { id: 'mill_yield_benchmarks', label: 'Mill Yield Benchmarks', icon: Percent },
-  { id: 'yield_from_rice', label: 'Yield from Rice', icon: Package },
-  { id: 'yield_from_paddy', label: 'Yield from Paddy', icon: Wheat },
-  { id: 'stock_health', label: 'Stock Health Report', icon: Activity },
-  { id: 'consignment_dispatch', label: 'Consignment Dispatch', icon: Truck },
-  { id: 'yield_calculator', label: 'Yield Calculator', icon: Calculator },
-  { id: 'yield_analytics', label: 'Yield Analytics', icon: LineChart },
-  { id: 'historical_reports', label: 'Historical Yield Reports', icon: FileText },
- ];
+ const tabs = isAdminRole
+  ? [{ id: 'mill_yield_benchmarks', label: 'Mill Yield Benchmarks', icon: Percent }]
+  : [
+      ...(canSeeBenchmarks ? [{ id: 'mill_yield_benchmarks', label: 'Mill Yield Benchmarks', icon: Percent }] : []),
+      { id: 'yield_from_rice', label: 'Yield from Rice', icon: Package },
+      { id: 'yield_from_paddy', label: 'Yield from Paddy', icon: Wheat },
+      { id: 'stock_health', label: 'Stock Health Report', icon: Activity },
+      { id: 'consignment_dispatch', label: 'Consignment Dispatch', icon: Truck },
+      { id: 'yield_calculator', label: 'Yield Calculator', icon: Calculator },
+      { id: 'yield_analytics', label: 'Yield Analytics', icon: LineChart },
+      { id: 'historical_reports', label: 'Historical Yield Reports', icon: FileText },
+    ];
 
  return (
  <div className="flex flex-col h-full bg-[var(--bg-base)] text-[var(--text-muted)]">

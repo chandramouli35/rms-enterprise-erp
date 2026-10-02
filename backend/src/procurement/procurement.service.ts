@@ -4840,19 +4840,38 @@ export class ProcurementService {
     });
   }
   async transferStackToHoodi(plantId: string, data: any, user?: any) {
-        const transferBags = parseFloat(data.bags) || 0;
+    const transferBags = parseFloat(data.bags) || 0;
     if (!data.stackNo) throw new BadRequestException('Stack No. is required');
     if (transferBags <= 0) throw new BadRequestException('Bags must be greater than 0');
     if (!data.rstNo || !String(data.rstNo).trim()) {
       throw new BadRequestException('RST No. is required');
     }
-    const netWeight = parseFloat(data.netWeight);
+
+    const gross =
+      data.grossWeight != null && data.grossWeight !== ''
+        ? parseFloat(data.grossWeight)
+        : null;
+    const tare =
+      data.tareWeight != null && data.tareWeight !== ''
+        ? parseFloat(data.tareWeight)
+        : null;
+    let netWeight = parseFloat(data.netWeight);
+    // Feedback 47: prefer Gross − Tare over client-only net
+    if (
+      Number.isFinite(gross as number) &&
+      Number.isFinite(tare as number) &&
+      (gross as number) >= 0 &&
+      (tare as number) >= 0
+    ) {
+      netWeight = Math.round(((gross as number) - (tare as number)) * 1000) / 1000;
+    }
     if (!Number.isFinite(netWeight) || netWeight <= 0) {
-      throw new BadRequestException('Net Weight (Weight Segment) is required from weighbridge');
+      throw new BadRequestException(
+        'Net Weight is required (Gross − Tare from weighbridge / pending entry)',
+      );
     }
 
     const isAdmin = this.isAdminRole(user);
-    // Fingerprint required for supervisors only — Super Admin / Plant Manager skip
     if (this.isSupervisorRole(user) && !isAdmin) {
       if (!user?.id) throw new BadRequestException('Login required for Stack to Hoodi transfer');
       if (!data.biometricData) {
@@ -4863,7 +4882,9 @@ export class ProcurementService {
         isoTemplate: data.isoTemplate,
       });
     }
-    
+
+    const entryAt = this.parseTransferDateTime(data.entryDate, data.entryTime);
+
     await this.prisma.$transaction(async (tx) => {
       const stack = await tx.paddyStack.findUnique({
         where: { plantId_stackNo: { plantId, stackNo: data.stackNo } },
@@ -4885,11 +4906,14 @@ export class ProcurementService {
         data: {
           plantId,
           sourceType: 'STACK_TRANSFER',
-          date: new Date(),
+          date: entryAt,
           stackNo: data.stackNo,
           bags: transferBags,
           moisture: parseFloat(data.moisture) || null,
           unloadedBy: data.unloadedBy || user?.name || 'System',
+          truckNo: data.truckNo ? String(data.truckNo).trim() : null,
+          grossWeight: Number.isFinite(gross as number) ? (gross as number) : null,
+          tareWeight: Number.isFinite(tare as number) ? (tare as number) : null,
           netWeight,
           rstNo: String(data.rstNo).trim(),
           biometricData: data.biometricData || null,
@@ -4899,7 +4923,7 @@ export class ProcurementService {
     return { success: true };
   }
 
-  /** Dryer Bharai → Stack (dried paddy returned to paddy stack) */
+  /** Dryer Bharai → Stack (dried paddy returned to paddy stack) — destination stack only */
   async transferDryerBharaiToStack(plantId: string, data: any, user?: any) {
     const bags = parseFloat(data.bags) || 0;
     if (!data.stackNo) throw new BadRequestException('Stack No. is required');
@@ -4907,13 +4931,31 @@ export class ProcurementService {
     if (!data.rstNo || !String(data.rstNo).trim()) {
       throw new BadRequestException('RST No. is required');
     }
-    const netWeight = parseFloat(data.netWeight);
+
+    const gross =
+      data.grossWeight != null && data.grossWeight !== ''
+        ? parseFloat(data.grossWeight)
+        : null;
+    const tare =
+      data.tareWeight != null && data.tareWeight !== ''
+        ? parseFloat(data.tareWeight)
+        : null;
+    let netWeight = parseFloat(data.netWeight);
+    if (
+      Number.isFinite(gross as number) &&
+      Number.isFinite(tare as number) &&
+      (gross as number) >= 0 &&
+      (tare as number) >= 0
+    ) {
+      netWeight = Math.round(((gross as number) - (tare as number)) * 1000) / 1000;
+    }
     if (!Number.isFinite(netWeight) || netWeight <= 0) {
-      throw new BadRequestException('Net Weight (Weight Segment) is required from weighbridge');
+      throw new BadRequestException(
+        'Net Weight is required (Gross − Tare from weighbridge / pending entry)',
+      );
     }
 
     const isAdmin = this.isAdminRole(user);
-    // Fingerprint required for supervisors only — Super Admin / Plant Manager skip
     if (this.isSupervisorRole(user) && !isAdmin) {
       if (!user?.id) throw new BadRequestException('Login required for Dryer Bharai to Stack');
       if (!data.biometricData) {
@@ -4926,15 +4968,19 @@ export class ProcurementService {
     }
 
     const moistureVal = parseFloat(data.moisture) || 0;
+    const entryAt = this.parseTransferDateTime(data.entryDate, data.entryTime);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.dryerBharaiToStack.create({
         data: {
           plantId,
-          date: new Date(),
+          date: entryAt,
           stackNo: String(data.stackNo).trim(),
           bags,
           moisture: Number.isFinite(moistureVal) ? moistureVal : null,
+          truckNo: data.truckNo ? String(data.truckNo).trim() : null,
+          grossWeight: Number.isFinite(gross as number) ? (gross as number) : null,
+          tareWeight: Number.isFinite(tare as number) ? (tare as number) : null,
           netWeight,
           rstNo: String(data.rstNo).trim(),
           biometricData: data.biometricData || null,
@@ -4979,6 +5025,18 @@ export class ProcurementService {
       }
     });
     return { success: true };
+  }
+
+  /** Feedback 47 — combine entryDate + entryTime into Date (fallback now) */
+  private parseTransferDateTime(entryDate?: string, entryTime?: string): Date {
+    const d = String(entryDate || '').trim();
+    const t = String(entryTime || '').trim() || '00:00';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      const iso = `${d}T${t.length === 5 ? t : t.slice(0, 5)}:00`;
+      const parsed = new Date(iso);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+    return new Date();
   }
 
   async getHoodiReport(plantId: string, dateFrom?: string, dateTo?: string) {
@@ -6254,6 +6312,109 @@ export class ProcurementService {
           bClass: null,
         });
       }
+    }
+
+    // Feedback 47 — Stack → Hoodi and Dryer Bharai → Stack in Unloader Record
+    const transferWhere: any = {};
+    if (plantId && plantId !== 'global') transferWhere.plantId = plantId;
+    transferWhere.date = {
+      gte: new Date(`${from}T00:00:00`),
+      lte: new Date(`${to}T23:59:59.999`),
+    };
+
+    const [hoodiTransfers, dryerTransfers, plantsMap] = await Promise.all([
+      this.prisma.hoodiRecord.findMany({
+        where: { ...transferWhere, sourceType: 'STACK_TRANSFER' },
+        orderBy: { date: 'asc' },
+      }),
+      this.prisma.dryerBharaiToStack.findMany({
+        where: transferWhere,
+        orderBy: { date: 'asc' },
+      }),
+      this.prisma.plant.findMany({
+        where: plantId && plantId !== 'global' ? { id: plantId } : { deletedAt: null },
+        select: { id: true, name: true },
+      }),
+    ]);
+    const plantNameById = Object.fromEntries(plantsMap.map((p) => [p.id, p.name]));
+
+    const pushTransfer = (opts: {
+      plantId: string;
+      unloader: string;
+      date: Date;
+      stackNo: string | null;
+      bags: number | null;
+      moisture: number | null;
+      truckNo: string | null;
+      rstNo: string | null;
+      hoodi: boolean;
+      sortKey: string;
+    }) => {
+      const name = String(opts.unloader || '').trim() || 'System';
+      if (
+        unloaderName &&
+        unloaderName.trim() &&
+        name.toLowerCase() !== unloaderName.trim().toLowerCase()
+      ) {
+        return;
+      }
+      const day = opts.date.toISOString().slice(0, 10);
+      rows.push({
+        millName: plantNameById[opts.plantId] || '-',
+        unloaderName: name,
+        date: day,
+        unloaderTruckCount: '-',
+        rstNo: dash(opts.rstNo),
+        millGp: '-',
+        timeIn: fmtTime(opts.date),
+        timeOut: '-',
+        stackMain: opts.hoodi ? '-' : '✓',
+        stackPart: '-',
+        stackNo: opts.hoodi ? '-' : dash(opts.stackNo),
+        hoodi: opts.hoodi ? '✓' : '-',
+        truckNo: dash(opts.truckNo),
+        partyName: '-',
+        mandi: '-',
+        moisture: dash(opts.moisture),
+        aClass: '-',
+        bClass: '-',
+        totalBags:
+          opts.bags != null && !Number.isNaN(Number(opts.bags))
+            ? Number(opts.bags)
+            : '-',
+        labourParty: '-',
+        batchId: opts.sortKey,
+        sortKey: opts.sortKey,
+      });
+    };
+
+    for (const h of hoodiTransfers) {
+      pushTransfer({
+        plantId: h.plantId,
+        unloader: h.unloadedBy || 'System',
+        date: h.date,
+        stackNo: h.stackNo,
+        bags: h.bags != null ? Number(h.bags) : null,
+        moisture: h.moisture != null ? Number(h.moisture) : null,
+        truckNo: h.truckNo,
+        rstNo: h.rstNo,
+        hoodi: true,
+        sortKey: h.date.toISOString() + ':hoodi:' + h.id,
+      });
+    }
+    for (const d of dryerTransfers) {
+      pushTransfer({
+        plantId: d.plantId,
+        unloader: d.unloadedBy || 'System',
+        date: d.date,
+        stackNo: d.stackNo,
+        bags: Number(d.bags),
+        moisture: d.moisture != null ? Number(d.moisture) : null,
+        truckNo: d.truckNo,
+        rstNo: d.rstNo,
+        hoodi: false,
+        sortKey: d.date.toISOString() + ':dryer:' + d.id,
+      });
     }
 
     rows.sort((a, b) => {

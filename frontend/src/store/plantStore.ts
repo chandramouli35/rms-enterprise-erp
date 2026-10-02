@@ -13,6 +13,7 @@ interface Plant {
   allowManualDateTimePaddyInward?: boolean;
   allowManualDateTimeGateIn?: boolean;
   allowManualDateTimeGateOut?: boolean;
+  allowManualDateTimeStackTransfer?: boolean;
   /** @deprecated use form-specific flags */
   allowManualDateTime?: boolean;
 }

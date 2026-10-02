@@ -165,6 +165,13 @@ const DEFAULT_GRANTS = [
     roleNames: ['PLANT_MANAGER', 'SUPERVISOR', 'ACCOUNTANT'],
     flags: { canView: true, canAdd: true, canEdit: true, canDelete: false, canApprove: false },
   },
+  // ADMIN: only Mill Yield Benchmarks tab — not full Yield Mgmt
+  {
+    moduleName: 'Yield Mgmt',
+    subModuleName: 'Mill Yield Benchmarks',
+    roleNames: ['ADMIN'],
+    flags: { canView: true, canAdd: true, canEdit: true, canDelete: false, canApprove: false },
+  },
 ];
 
 async function applyDefaultGrants() {
@@ -175,26 +182,59 @@ async function applyDefaultGrants() {
       [g.roleNames],
     );
     for (const role of roles.rows) {
-      const u = await client.query(
-        `UPDATE "ModulePermission"
-         SET "canView" = $2,
-             "canAdd" = $3,
-             "canEdit" = $4,
-             "canDelete" = $5,
-             "canApprove" = $6,
-             "updatedAt" = NOW()
-         WHERE "roleId" = $1 AND "moduleName" = $7`,
-        [
-          role.id,
-          g.flags.canView,
-          g.flags.canAdd,
-          g.flags.canEdit,
-          g.flags.canDelete,
-          g.flags.canApprove,
-          g.moduleName,
-        ],
+      // ADMIN Yield Mgmt: revoke parent + other subs first, then grant only Mill Yield Benchmarks
+      if (g.moduleName === 'Yield Mgmt' && g.subModuleName === 'Mill Yield Benchmarks' && role.name === 'ADMIN') {
+        await client.query(
+          `UPDATE "ModulePermission"
+           SET "canView" = false, "canAdd" = false, "canEdit" = false, "canDelete" = false, "canApprove" = false, "updatedAt" = NOW()
+           WHERE "roleId" = $1 AND "moduleName" = 'Yield Mgmt'`,
+          [role.id],
+        );
+      }
+
+      const u = g.subModuleName
+        ? await client.query(
+            `UPDATE "ModulePermission"
+             SET "canView" = $2,
+                 "canAdd" = $3,
+                 "canEdit" = $4,
+                 "canDelete" = $5,
+                 "canApprove" = $6,
+                 "updatedAt" = NOW()
+             WHERE "roleId" = $1 AND "moduleName" = $7 AND "subModuleName" = $8`,
+            [
+              role.id,
+              g.flags.canView,
+              g.flags.canAdd,
+              g.flags.canEdit,
+              g.flags.canDelete,
+              g.flags.canApprove,
+              g.moduleName,
+              g.subModuleName,
+            ],
+          )
+        : await client.query(
+            `UPDATE "ModulePermission"
+             SET "canView" = $2,
+                 "canAdd" = $3,
+                 "canEdit" = $4,
+                 "canDelete" = $5,
+                 "canApprove" = $6,
+                 "updatedAt" = NOW()
+             WHERE "roleId" = $1 AND "moduleName" = $7`,
+            [
+              role.id,
+              g.flags.canView,
+              g.flags.canAdd,
+              g.flags.canEdit,
+              g.flags.canDelete,
+              g.flags.canApprove,
+              g.moduleName,
+            ],
+          );
+      console.log(
+        `  ${role.name} → ${g.moduleName}${g.subModuleName ? ' / ' + g.subModuleName : ''}: ${u.rowCount} rows`,
       );
-      console.log(`  ${role.name} → ${g.moduleName}: ${u.rowCount} rows`);
     }
     if (roles.rows.length === 0) {
       console.log(`  (no roles matched ${g.roleNames.join(', ')}) for ${g.moduleName}`);
