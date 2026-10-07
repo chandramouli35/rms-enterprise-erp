@@ -84,8 +84,11 @@ const DEFAULTS = [
     console.log(`  seeded ${plant.name}`);
   }
 
-  // 5) Constraints
-  await client.query(`ALTER TABLE "MillYieldBenchmark" ALTER COLUMN "plantId" SET NOT NULL`);
+  // 5) Constraints — keep plantId NULLABLE in DB (schema optional) so prisma db push
+  //    never asks to reset data. App layer still requires plantId on create/list.
+  await client.query(
+    `ALTER TABLE "MillYieldBenchmark" ALTER COLUMN "plantId" DROP NOT NULL`,
+  );
   await client.query(
     `CREATE UNIQUE INDEX IF NOT EXISTS "MillYieldBenchmark_plantId_itemKey_key" ON "MillYieldBenchmark"("plantId","itemKey")`,
   );
@@ -93,7 +96,7 @@ const DEFAULTS = [
     `CREATE INDEX IF NOT EXISTS "MillYieldBenchmark_plantId_idx" ON "MillYieldBenchmark"("plantId")`,
   );
 
-  // Drop old FK if any, then add
+  // Drop old FK if any, then add (nullable FK is fine)
   await client.query(`
     DO $$ BEGIN
       ALTER TABLE "MillYieldBenchmark"

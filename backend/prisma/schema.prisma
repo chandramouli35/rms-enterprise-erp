@@ -1958,8 +1958,9 @@ model TransferTicket {
 // -----------------------------------------------------------------------------
 model MillYieldBenchmark {
   id              String   @id @default(uuid())
-  plantId         String
-  plant           Plant    @relation(fields: [plantId], references: [id])
+  /// Mill-wise benchmarks — required in app (API), nullable in DB so prisma push / legacy rows don't force data reset
+  plantId         String?
+  plant           Plant?   @relation(fields: [plantId], references: [id])
   itemKey         String // e.g. NET_RICE, KANI, NAKKU, TARGETS
   itemLabel       String
   requiredQty     Float?
