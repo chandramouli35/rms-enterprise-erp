@@ -4,6 +4,7 @@ import { Login } from './pages/Login';
 import { DashboardShell } from './components/DashboardShell';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ToastContainer } from './components/ToastContainer';
+import { Landing } from './pages/Landing';
 
 import { Dashboard } from './pages/Dashboard';
 import { UsersAndRoles } from './pages/UsersAndRoles';
@@ -28,13 +29,13 @@ function App() {
     <BrowserRouter>
       <ToastContainer />
       <Routes>
+        <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         
         {/* Protected Routes */}
         <Route element={<ProtectedRoute />}>
-          <Route path="/" element={<DashboardShell />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
+          <Route element={<DashboardShell />}>
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="users" element={<UsersAndRoles />} />
             <Route path="plants" element={<PlantsList />} />
             <Route path="procurement" element={<ProcurementManagement />} />
