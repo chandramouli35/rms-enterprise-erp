@@ -119,8 +119,8 @@ export const DashboardShell: React.FC = () => {
   }, [user?.role, activePlant]);
 
   const handleLogout = () => {
+    navigate("/", { replace: true });
     logout();
-    navigate("/");
   };
 
   const navItems: any[] = [
