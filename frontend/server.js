@@ -30,6 +30,38 @@ const mimeTypes = {
   '.ttf': 'font/ttf'
 };
 
+// Reverse proxy requests to backend (NestJS on localhost:3000)
+function proxyToBackend(req, res) {
+  // Strip leading /api prefix if backend doesn't expect it:
+  // e.g. /api/auth/login -> /auth/login
+  const backendPath = req.url.replace(/^\/api/, '') || '/';
+
+  const options = {
+    hostname: '127.0.0.1',
+    port: 3000,
+    path: backendPath,
+    method: req.method,
+    headers: {
+      ...req.headers,
+      host: '127.0.0.1:3000',
+      'x-forwarded-proto': 'https'
+    }
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res, { end: true });
+  });
+
+  proxyReq.on('error', (err) => {
+    console.error('Backend proxy error:', err.message);
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ message: 'Backend service unavailable', error: err.message }));
+  });
+
+  req.pipe(proxyReq, { end: true });
+}
+
 function serveFile(req, res) {
   let reqUrl = req.url.split('?')[0];
   let filePath = path.join(distPath, reqUrl);
@@ -69,6 +101,17 @@ function serveFile(req, res) {
   });
 }
 
+function handleRequest(req, res) {
+  // If request begins with /api/, proxy to backend NestJS
+  if (req.url.startsWith('/api/') || req.url === '/api') {
+    proxyToBackend(req, res);
+    return;
+  }
+
+  // Otherwise serve frontend files
+  serveFile(req, res);
+}
+
 // 1. Start HTTPS server on Port 443
 try {
   const sslOptions = {
@@ -78,7 +121,7 @@ try {
   };
 
   https.createServer(sslOptions, (req, res) => {
-    serveFile(req, res);
+    handleRequest(req, res);
   }).listen(443, '0.0.0.0', () => {
     console.log('🔒 HTTPS Server running securely on https://103.194.9.207:443');
   });
