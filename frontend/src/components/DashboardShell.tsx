@@ -120,7 +120,7 @@ export const DashboardShell: React.FC = () => {
 
   const handleLogout = () => {
     logout();
-    navigate("/login");
+    navigate("/");
   };
 
   const navItems: any[] = [
