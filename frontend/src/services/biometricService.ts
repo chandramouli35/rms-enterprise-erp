@@ -1,5 +1,6 @@
 /**
- * Mantra MFS110 L1 — RD Service fingerprint capture + verify for RMS.
+ * Mantra MFS500 / MFS110 RD Service fingerprint capture + verify for RMS.
+ * Supports both standard FMR (MFS500 / L0) and L1 (MFS110) formats.
  *
  * One Scan click = one finger press on the device (never auto-retry CAPTURE).
  */
@@ -108,8 +109,8 @@ function readPidKind(): PidKind {
   } catch {
     /* ignore */
   }
-  // Mantra MFS110 L1 default
-  return 'L1';
+  // Default to FMR for Mantra MFS500 (will auto-fallback to L1 if MFS110 is detected)
+  return 'FMR';
 }
 
 function writePidKind(kind: PidKind) {
@@ -247,7 +248,7 @@ async function findReadyRdService(): Promise<RdService> {
   const notReadyStatus = preferred.notReadyStatus || rest.notReadyStatus;
   if (notReadyStatus) {
     throw new Error(
-      `Fingerprint scanner found but status is ${notReadyStatus}. Plug in Mantra MFS110 and wait until RD Service shows READY, then Scan.`,
+      `Fingerprint scanner found but status is ${notReadyStatus}. Plug in Mantra MFS500 and wait until RD Service shows READY, then Scan.`,
     );
   }
 
@@ -258,7 +259,7 @@ async function findReadyRdService(): Promise<RdService> {
     : '';
 
   throw new Error(
-    'Mantra RD Service not found on this PC (ports 11100–11120). Install MFS110 L1 RD Service, confirm the tray icon shows running/READY, use Chrome/Edge on the same PC as the scanner. Test: https://rdtest.aadhaardevice.com/.' +
+    'Mantra RD Service not found on this PC (ports 11100–11120). Install Mantra MFS500 RD Service, confirm the tray icon shows running/READY, use Chrome/Edge on the same PC as the scanner. Test: https://rdtest.aadhaardevice.com/.' +
       httpsTip,
   );
 }
@@ -302,23 +303,23 @@ function errorFromPidXml(xml: string): Error {
     /not ready|not connected/i.test(info)
   ) {
     return new Error(
-      `Device not ready${code ? ` (errCode ${code})` : ''}. Unplug/replug Mantra MFS110, wait for READY, place finger, then Scan.`,
+      `Device not ready${code ? ` (errCode ${code})` : ''}. Unplug/replug Mantra MFS500, wait for READY, place finger, then Scan.`,
     );
   }
   if (code === '700' || /timeout/i.test(info)) {
     return new Error(
-      'Capture timed out. Keep finger on the MFS110 sensor and Scan again.',
+      'Capture timed out. Keep finger on the MFS500 sensor and Scan again.',
     );
   }
   if (/pidoptions|strictly adhere/i.test(info)) {
     return new Error(
-      `RD rejected PidOptions (${info || 'invalid'}). Update Mantra MFS110 L1 RD Service and retry.`,
+      `RD rejected PidOptions (${info || 'invalid'}). Update Mantra MFS500 RD Service and retry.`,
     );
   }
   return new Error(
     info
-      ? `${info}. Place finger firmly on Mantra MFS110 and Scan again.`
-      : 'Fingerprint capture failed. Place finger firmly on Mantra MFS110 and Scan again.',
+      ? `${info}. Place finger firmly on Mantra MFS500 and Scan again.`
+      : 'Fingerprint capture failed. Place finger firmly on Mantra MFS500 and Scan again.',
   );
 }
 

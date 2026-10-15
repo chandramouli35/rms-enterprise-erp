@@ -35,7 +35,7 @@ export class FingerprintVerifyService {
 
     if (!live && !liveIsoRaw) {
       throw new BadRequestException(
-        'Fingerprint scan required. Place finger on Mantra MFS110 and Scan.',
+        'Fingerprint scan required. Place finger on Mantra MFS500 and Scan.',
       );
     }
 
@@ -116,7 +116,7 @@ export class FingerprintVerifyService {
     }
 
     throw new BadRequestException(
-      'This fingerprint does not exist. Place finger firmly on Mantra MFS110 and Scan again.',
+      'This fingerprint does not exist. Place finger firmly on Mantra MFS500 and Scan again.',
     );
   }
 
