@@ -887,7 +887,7 @@ export const ProductionManagement = () => {
             <span title="Available in Warehouse">{currentStock['Safai Dust'] || 0}</span>
           </td>
           <td className="px-4 py-2 text-[10px] text-[var(--text-muted-alt)]">
-            {((Number(formData.additionalOutputs['Safai Dust']?.produced) || 0) * (Number(activePlant?.wastageBagWeight) > 0 ? Number(activePlant.wastageBagWeight) : Number(activePlant?.standardBagWeight) || 0.382)).toFixed(3)} qtl
+            {((Number(formData.additionalOutputs['Safai Dust']?.produced) || 0) * (Number(activePlant?.wastageBagWeight) > 0 ? Number(activePlant?.wastageBagWeight) : Number(activePlant?.standardBagWeight) || 0.382)).toFixed(3)} qtl
           </td>
           <td className="px-4 py-2">
             <input type="number" min="0" step="1" value={formData.additionalOutputs['Safai Dust'].produced} onChange={(e) => handleAdditionalOutputChange('Safai Dust', 'produced', e.target.value.replace(/\D/g, ''))} placeholder="Bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
@@ -900,7 +900,7 @@ export const ProductionManagement = () => {
             <span title="Available in Warehouse">{currentStock['Patal'] || 0}</span>
           </td>
           <td className="px-4 py-2 text-[10px] text-[var(--text-muted-alt)]">
-            {((Number(formData.additionalOutputs['Patal']?.produced) || 0) * (Number(activePlant?.wastageBagWeight) > 0 ? Number(activePlant.wastageBagWeight) : Number(activePlant?.standardBagWeight) || 0.382)).toFixed(3)} qtl
+            {((Number(formData.additionalOutputs['Patal']?.produced) || 0) * (Number(activePlant?.wastageBagWeight) > 0 ? Number(activePlant?.wastageBagWeight) : Number(activePlant?.standardBagWeight) || 0.382)).toFixed(3)} qtl
           </td>
           <td className="px-4 py-2">
             <input type="number" min="0" step="1" value={formData.additionalOutputs['Patal'].produced} onChange={(e) => handleAdditionalOutputChange('Patal', 'produced', e.target.value.replace(/\D/g, ''))} placeholder="Bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
@@ -998,7 +998,7 @@ export const ProductionManagement = () => {
     <div className="bg-amber-500/10 p-4 rounded-lg border border-amber-500/30 mb-6">
       <h4 className="font-bold text-[var(--text-main)] mb-1">Safai Dust and Patal</h4>
       <p className="text-[11px] text-[var(--text-muted-alt)] mb-3">
-        Counted in stock and in the loss calculator. Not a yield item. Weight uses this mill&apos;s average bag weight ({Number(activePlant?.wastageBagWeight) > 0 ? Number(activePlant.wastageBagWeight) : Number(activePlant?.standardBagWeight) || 0.382} qtl). Admin is notified when the shift total is more than 10 bags.
+        Counted in stock and in the loss calculator. Not a yield item. Weight uses this mill&apos;s average bag weight ({Number(activePlant?.wastageBagWeight) > 0 ? Number(activePlant?.wastageBagWeight) : Number(activePlant?.standardBagWeight) || 0.382} qtl). Admin is notified when the shift total is more than 10 bags.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <label className="text-xs text-[var(--text-muted-alt)]">
@@ -1115,7 +1115,7 @@ export const ProductionManagement = () => {
               <div className="flex justify-between">
                 <span className="text-[var(--text-muted-alt)]">Safai Dust + Patal</span>
                 <span className="font-bold text-amber-400">
-                  {((Number(intermillData.safaiDustBags) || 0) + (Number(intermillData.patalBags) || 0))} bags / {(((Number(intermillData.safaiDustBags) || 0) + (Number(intermillData.patalBags) || 0)) * (Number(activePlant?.wastageBagWeight) > 0 ? Number(activePlant.wastageBagWeight) : Number(activePlant?.standardBagWeight) || 0.382)).toFixed(3)} qtl
+                  {((Number(intermillData.safaiDustBags) || 0) + (Number(intermillData.patalBags) || 0))} bags / {(((Number(intermillData.safaiDustBags) || 0) + (Number(intermillData.patalBags) || 0)) * (Number(activePlant?.wastageBagWeight) > 0 ? Number(activePlant?.wastageBagWeight) : Number(activePlant?.standardBagWeight) || 0.382)).toFixed(3)} qtl
                 </span>
               </div>
             </div>

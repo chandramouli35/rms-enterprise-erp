@@ -10,6 +10,7 @@ interface Plant {
   safaiCut?: number;
   processingCut?: number;
   standardBagWeight?: number;
+  wastageBagWeight?: number | null;
   allowManualDateTimePaddyInward?: boolean;
   allowManualDateTimeGateIn?: boolean;
   allowManualDateTimeGateOut?: boolean;

@@ -46,7 +46,7 @@ export const IntermillProcessing = () => {
   };
 
   const bagWt = Number(activePlant?.wastageBagWeight) > 0
-    ? Number(activePlant.wastageBagWeight)
+    ? Number(activePlant?.wastageBagWeight)
     : Number(activePlant?.standardBagWeight) || 0.382;
 
   const calculateWastage = () => {
