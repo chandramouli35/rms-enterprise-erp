@@ -102,11 +102,6 @@ export default function BoliCompletionTable({
       }
       setShowCompletionPopup(false);
       setCompletionData(null);
-      setBoliInputs((prev) => {
-        const next = { ...prev };
-        delete next[item.id];
-        return next;
-      });
       if (onSodaComplete) onSodaComplete();
     } catch (err: any) {
       console.error(err);

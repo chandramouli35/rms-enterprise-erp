@@ -21,7 +21,9 @@ export const IntermillProcessing = () => {
     startTime: '',
     endTime: '',
     rawMaterialId: '',
-    inputBags: ''
+    inputBags: '',
+    safaiDustBags: '',
+    patalBags: ''
   });
   
   // Output State
@@ -43,9 +45,15 @@ export const IntermillProcessing = () => {
     }
   };
 
+  const bagWt = Number(activePlant?.wastageBagWeight) > 0
+    ? Number(activePlant.wastageBagWeight)
+    : Number(activePlant?.standardBagWeight) || 0.382;
+
   const calculateWastage = () => {
     const input = Number(formData.inputBags) || 0;
-    const output = Object.values(outputQuantities).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
+    const output = Object.values(outputQuantities).reduce((sum, qty) => sum + (Number(qty) || 0), 0)
+      + (Number(formData.safaiDustBags) || 0)
+      + (Number(formData.patalBags) || 0);
     return input - output;
   };
 
@@ -59,7 +67,9 @@ export const IntermillProcessing = () => {
         outputBags: outputQuantities[id] || '0'
       }));
       
-    if (outputs.length === 0) return alert('Please select at least one output');
+    if (outputs.length === 0 && !(Number(formData.safaiDustBags) > 0) && !(Number(formData.patalBags) > 0)) {
+      return alert('Select an output, or enter Safai Dust / Patal bags');
+    }
 
     await submitLock.wrapSubmit(async () => {
     try {
@@ -67,6 +77,8 @@ export const IntermillProcessing = () => {
         batchNo: `IB-${Date.now()}`,
         ...formData,
         outputs,
+        safaiDustBags: Number(formData.safaiDustBags) || 0,
+        patalBags: Number(formData.patalBags) || 0,
         plantId: activePlant?.id
       });
       setIsModalOpen(false);
@@ -78,7 +90,9 @@ export const IntermillProcessing = () => {
         startTime: '',
         endTime: '',
         rawMaterialId: '',
-        inputBags: ''
+        inputBags: '',
+        safaiDustBags: '',
+        patalBags: ''
       });
       setSelectedOutputs({});
       setOutputQuantities({});
@@ -187,10 +201,30 @@ export const IntermillProcessing = () => {
               </div>
             </div>
 
+            <div className="bg-amber-500/10 p-4 rounded-lg border border-amber-500/30 mb-6">
+              <h4 className="font-bold text-[var(--text-main)] mb-1">Safai Dust and Patal</h4>
+              <p className="text-[11px] text-[var(--text-muted-alt)] mb-3">
+                Stock only, not a yield product. Weight uses this mill average bag weight ({bagWt} qtl). More than 10 bags of both in one shift notifies admin.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="text-xs text-[var(--text-muted-alt)]">
+                  Safai Dust (bags)
+                  <input type="number" min="0" step="1" value={formData.safaiDustBags} onChange={e => setFormData({...formData, safaiDustBags: e.target.value.replace(/\D/g, '')})} className="mt-1 w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+                </label>
+                <label className="text-xs text-[var(--text-muted-alt)]">
+                  Patal (bags)
+                  <input type="number" min="0" step="1" value={formData.patalBags} onChange={e => setFormData({...formData, patalBags: e.target.value.replace(/\D/g, '')})} className="mt-1 w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+                </label>
+              </div>
+              <p className="text-xs text-amber-300 mt-3">
+                Weight {( ((Number(formData.safaiDustBags) || 0) + (Number(formData.patalBags) || 0)) * bagWt ).toFixed(3)} qtl. Unexplained bag difference: {calculateWastage()}.
+              </p>
+            </div>
+
             <div className="bg-[var(--bg-base)] p-4 rounded-lg border border-[var(--border-subtle)] mb-6">
               <h4 className="font-bold text-[var(--text-main)] mb-4">Select Output Products</h4>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {products.map(p => (
+                {products.filter(p => !/safai|patal/i.test(p.name || '')).map(p => (
                   <label key={p.id} className="flex items-center gap-2 text-sm text-[var(--text-main)]">
                     <input type="checkbox" checked={!!selectedOutputs[p.id]} onChange={e => setSelectedOutputs({...selectedOutputs, [p.id]: e.target.checked})} className="accent-blue-500 w-4 h-4" />
                     {p.name} <span className="text-[var(--text-muted-alt)]">({getUnitLabel(p.quantityFormat)})</span>

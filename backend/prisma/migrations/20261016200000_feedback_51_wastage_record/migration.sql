@@ -1,0 +1,6 @@
+-- Feedback 51: Safai Dust and Patal wastage (stock + mill bag weight, not yield items)
+ALTER TABLE "Plant" ADD COLUMN IF NOT EXISTS "wastageBagWeight" DOUBLE PRECISION NOT NULL DEFAULT 0.382;
+ALTER TABLE "ProductionBatch" ADD COLUMN IF NOT EXISTS "safaiDustBags" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "ProductionBatch" ADD COLUMN IF NOT EXISTS "patalBags" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "IntermillBatch" ADD COLUMN IF NOT EXISTS "safaiDustBags" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "IntermillBatch" ADD COLUMN IF NOT EXISTS "patalBags" INTEGER NOT NULL DEFAULT 0;

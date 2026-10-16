@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { FingerprintVerifyService } from '../auth/fingerprint-verify.service';
+import { LabourWorkService } from '../labour-work/labour-work.service';
 
 @Injectable()
 export class ProcurementService {
@@ -9,6 +10,7 @@ export class ProcurementService {
     private prisma: PrismaService,
     private inventoryService: InventoryService,
     private fingerprintVerify: FingerprintVerifyService,
+    private labourWork: LabourWorkService,
   ) {}
 
   private roleName(user: any): string {
@@ -23,14 +25,84 @@ export class ProcurementService {
     return /SUPERVISOR/i.test(this.roleName(user));
   }
 
-  /** Unitary bag weight: totalWt / totalBags * portionBags (quintals). */
+  /** Feedback 52 — truck average bag weight, kept to 4 decimal places. */
+  private avgBagWeight4(totalWt: number, totalBags: number): number {
+    if (!totalBags || totalBags <= 0 || !Number.isFinite(totalWt)) return 0;
+    return Number((totalWt / totalBags).toFixed(4));
+  }
+
+  /** Point net weight = bags × 4-decimal average, stored to 2 decimals. */
   private unitaryWeight(
     totalWt: number,
     totalBags: number,
     portionBags: number,
   ): number {
     if (!totalBags || totalBags <= 0 || !portionBags) return 0;
-    return Number(((totalWt / totalBags) * portionBags).toFixed(2));
+    const avg = this.avgBagWeight4(totalWt, totalBags);
+    return Number((avg * portionBags).toFixed(2));
+  }
+
+  /** Main, part, and 3rd unload points from one Paddy Inward. */
+  private listUnloadPoints(d: any) {
+    const mainBags = Number(d?.bagsInMainStack || 0);
+    const partBags = Number(d?.bagsInSecondPartStack || 0);
+    const thirdBags = Number(d?.bagsInThirdPartStack || 0);
+    const totalBags =
+      Number(d?.bagsRecAtMill || 0) || mainBags + partBags + thirdBags;
+    const totalWt = Number(d?.netWtAtMill || 0);
+    const avg = this.avgBagWeight4(totalWt, totalBags);
+    const weightOf = (bags: number) => Number((avg * bags).toFixed(2));
+    const points: Array<{
+      key: string;
+      stackNo: string;
+      isHoodi: boolean;
+      label: string;
+      bags: number;
+      weight: number;
+      unloader: string | null;
+    }> = [];
+    if (String(d?.stackNo || '').trim() && mainBags > 0) {
+      const stackNo = String(d.stackNo).trim();
+      points.push({
+        key: 'main',
+        stackNo,
+        isHoodi: false,
+        label: stackNo,
+        bags: mainBags,
+        weight: weightOf(mainBags),
+        unloader: d.allocateUnloader || d.unloaderName || null,
+      });
+    }
+    if (partBags > 0 && (d?.partIsHoodi || String(d?.secondPartStackNo || '').trim())) {
+      const isHoodi = !!d.partIsHoodi;
+      const stackNo = isHoodi ? 'Hoodi' : String(d.secondPartStackNo).trim();
+      points.push({
+        key: 'part',
+        stackNo,
+        isHoodi,
+        label: isHoodi ? 'Hoodi' : stackNo,
+        bags: partBags,
+        weight: weightOf(partBags),
+        unloader: d.partUnloaderName || null,
+      });
+    }
+    if (
+      thirdBags > 0 &&
+      (d?.thirdPartIsHoodi || String(d?.thirdPartStackNo || '').trim())
+    ) {
+      const isHoodi = !!d.thirdPartIsHoodi;
+      const stackNo = isHoodi ? 'Hoodi' : String(d.thirdPartStackNo).trim();
+      points.push({
+        key: 'third',
+        stackNo,
+        isHoodi,
+        label: isHoodi ? 'Hoodi' : stackNo,
+        bags: thirdBags,
+        weight: weightOf(thirdBags),
+        unloader: d.thirdPartUnloaderName || null,
+      });
+    }
+    return { points, avg, totalBags, totalWt };
   }
 
   /** Add bags/weight into a paddy stack (create if missing). */
@@ -42,8 +114,32 @@ export class ProcurementService {
     weightQtl: number,
     moistureVal: number,
     isAClass: boolean,
+    markNewA = true,
   ) {
-    if (!stackNo || bags <= 0) return;
+    if (!stackNo || !Number.isFinite(bags) || bags === 0) return;
+    if (bags < 0) {
+      const existingNeg = await tx.paddyStack.findUnique({
+        where: { plantId_stackNo: { plantId, stackNo } },
+      });
+      if (!existingNeg) return;
+      const newTotalBags = Math.max(0, Number(existingNeg.totalBags || 0) + bags);
+      const newTotalWt = Math.max(0, Number(existingNeg.totalWeight || 0) + weightQtl);
+      await tx.paddyStack.update({
+        where: { id: existingNeg.id },
+        data: {
+          totalBags: newTotalBags,
+          totalWeight: newTotalWt,
+          bagsAClass: isAClass
+            ? Math.max(0, Number(existingNeg.bagsAClass || 0) + bags)
+            : existingNeg.bagsAClass,
+          bagsBClass: !isAClass
+            ? Math.max(0, Number(existingNeg.bagsBClass || 0) + bags)
+            : existingNeg.bagsBClass,
+          status: newTotalBags > 0 ? 'ACTIVE' : 'EMPTY',
+        },
+      });
+      return;
+    }
     const existing = await tx.paddyStack.findUnique({
       where: { plantId_stackNo: { plantId, stackNo } },
     });
@@ -82,7 +178,7 @@ export class ProcurementService {
           averageMoisture: moistureVal,
           bagsAClass: isAClass ? bags : 0,
           bagsBClass: !isAClass ? bags : 0,
-          isNewAClass: isAClass,
+          isNewAClass: markNewA && isAClass,
           status: 'ACTIVE',
         },
       });
@@ -122,10 +218,12 @@ export class ProcurementService {
         .replace(/[^a-z0-9]/g, '');
 
     const mandiGpKey = normalizeGpKey(data.mandiEgpNo || data.mandiEgNo);
+    const egpLate = data.egpLate === true || data.egpLate === 'true';
     if (mandiGpKey) {
       const recent = await this.prisma.paddyInwardDetails.findMany({
         where: {
           mandiEgNo: { not: null },
+          procurementBatch: { status: { not: 'CANCELLED' } },
           ...(data.id ? { procurementBatchId: { not: data.id } } : {}),
         },
         select: { mandiEgNo: true, id: true },
@@ -135,6 +233,15 @@ export class ProcurementService {
       if (dup) {
         throw new BadRequestException(
           `Duplicate Mandi Gate Pass blocked (normalized match). Value: ${data.mandiEgpNo || data.mandiEgNo}`,
+        );
+      }
+      const manuals = await this.prisma.manualAgencyGp.findMany({
+        select: { agencyGp: true },
+      });
+      const dupManual = manuals.find((m) => normalizeGpKey(m.agencyGp) === mandiGpKey);
+      if (dupManual) {
+        throw new BadRequestException(
+          `Agency GP ${data.mandiEgpNo || data.mandiEgNo} is already used on a Direct Agency GP entry`,
         );
       }
     }
@@ -305,6 +412,27 @@ export class ProcurementService {
       if (thisStarting || data.status === 'CONFIRMED') {
         await checkBusy(mainName, 'main');
         await checkBusy(partName, 'part');
+        const thirdName = String(data.thirdPartUnloaderName || '').trim();
+        if (thirdName) {
+          const busyThird = await this.prisma.paddyInwardDetails.findFirst({
+            where: {
+              isHold: false,
+              unloadingStartTime: { not: null },
+              unloadingEndTime: null,
+              ...(data.id ? { procurementBatchId: { not: data.id } } : {}),
+              thirdPartUnloaderName: { equals: thirdName, mode: 'insensitive' },
+              procurementBatch: {
+                status: { in: ['DRAFT', 'PENDING', 'ACTIVE', 'UNLOADING'] },
+                ...(plantId && plantId !== 'global' ? { plantId } : {}),
+              },
+            },
+          });
+          if (busyThird) {
+            throw new BadRequestException(
+              `Part Unloader "${thirdName}" is already unloading truck ${busyThird.truckNo || '-'}. Put that truck on Hold or finish unload before starting another.`,
+            );
+          }
+        }
       }
     }
 
@@ -393,8 +521,9 @@ export class ProcurementService {
       const latestInward = await this.prisma.paddyInwardDetails.findFirst({
         where: {
           procurementBatch: {
-            plantId: plantId
-          }
+            plantId: plantId,
+            status: { not: 'CANCELLED' },
+          },
         },
         orderBy: {
           createdAt: 'desc'
@@ -411,11 +540,35 @@ export class ProcurementService {
           }
         }
         
-        if (incomingMandiNum && latestInward.mandiEgNo) {
-          const latestMandiNum = parseInt(latestInward.mandiEgNo.replace(/\D/g, ''), 10);
-          if (!isNaN(latestMandiNum) && !isNaN(incomingMandiNum)) {
-            if (incomingMandiNum <= latestMandiNum) {
-              throw new BadRequestException(`Mandi e-GP Number must be in chronological sequence. Incoming: ${data.mandiEgpNo || data.mandiEgNo}, Last Saved: ${latestInward.mandiEgNo}`);
+        if (!egpLate && incomingMandiNum) {
+          // Last real Agency GP — skip e-GP Late rows so a blank late entry
+          // does not drop the sequence for the next normal inward.
+          const priorGps = await this.prisma.paddyInwardDetails.findMany({
+            where: {
+              egpLate: false,
+              mandiEgNo: { not: null },
+              procurementBatch: {
+                plantId,
+                status: { not: 'CANCELLED' },
+              },
+              ...(data.id ? { procurementBatchId: { not: data.id } } : {}),
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 40,
+            select: { mandiEgNo: true },
+          });
+          const lastGp = priorGps.find((r) =>
+            /\d/.test(String(r.mandiEgNo || '')),
+          );
+          if (lastGp?.mandiEgNo) {
+            const latestMandiNum = parseInt(
+              String(lastGp.mandiEgNo).replace(/\D/g, ''),
+              10,
+            );
+            if (!isNaN(latestMandiNum) && incomingMandiNum <= latestMandiNum) {
+              throw new BadRequestException(
+                `Mandi e-GP Number must be in chronological sequence. Incoming: ${data.mandiEgpNo || data.mandiEgNo}, Last Saved: ${lastGp.mandiEgNo}`,
+              );
             }
           }
         }
@@ -478,16 +631,63 @@ export class ProcurementService {
         );
         data.partUnloaderTruckCount = part.nextCount;
       }
+      const thirdName = String(data.thirdPartUnloaderName || '').trim();
+      const thirdBagsRaw = data.bagsInThirdPartStack;
+      const hasThird =
+        !!data.showThirdPartStack ||
+        !!data.thirdPartIsHoodi ||
+        !!String(data.thirdPartStackNo || '').trim() ||
+        (thirdBagsRaw != null && thirdBagsRaw !== '' && Number(thirdBagsRaw) > 0);
+      if (hasThird && !thirdName) {
+        throw new BadRequestException(
+          'Unloader 3 is required when a 3rd part stack is recorded',
+        );
+      }
+      const millBagTotal =
+        parseFloat(data.bagsRecAtMill) ||
+        (parseFloat(data.origAClass) || 0) + (parseFloat(data.origBClass) || 0);
+      const mainBagTotal = parseFloat(data.bagsInMainStack) || 0;
+      const partBagTotal = data.noPartStack
+        ? 0
+        : parseFloat(data.bagsInSecondPartStack ?? data.bagsInPartStack) || 0;
+      const thirdBagTotal = hasThird ? parseFloat(data.bagsInThirdPartStack) || 0 : 0;
+      const splitBagTotal = mainBagTotal + partBagTotal + thirdBagTotal;
+      if (millBagTotal > 0 && splitBagTotal > 0 && Math.abs(splitBagTotal - millBagTotal) > 0.01) {
+        throw new BadRequestException(
+          `Unloader bags (Main ${mainBagTotal} + Part ${partBagTotal} + 3rd ${thirdBagTotal} = ${splitBagTotal}) must match Bags Rec. @ Mill (${millBagTotal})`,
+        );
+      }
+      if (thirdName) {
+        const third = await this.getNextUnloaderTruckCount(
+          plantId,
+          thirdName,
+          'third',
+          seriesDay,
+          data.id,
+        );
+        data.thirdPartUnloaderTruckCount = third.nextCount;
+      }
     } else {
       // Strip any client preview serials while unloading / draft / Hold
       data.mainUnloaderTruckCount = null;
       data.partUnloaderTruckCount = null;
+      data.thirdPartUnloaderTruckCount = null;
       data.unloaderTruckCount = null;
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const saved = await this.prisma.$transaction(async (tx) => {
       let batch: any;
       let wasDraft = false;
+
+      if (mandiGpKey) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`agency-gp:${mandiGpKey}`})::bigint)`;
+        const manuals = await tx.manualAgencyGp.findMany({ select: { agencyGp: true } });
+        if (manuals.some((m) => normalizeGpKey(m.agencyGp) === mandiGpKey)) {
+          throw new BadRequestException(
+            `Agency GP ${data.mandiEgpNo || data.mandiEgNo} is already used on a Direct Agency GP entry`,
+          );
+        }
+      }
 
       if (data.id) {
         const existing = await tx.procurementBatch.findUnique({
@@ -582,10 +782,12 @@ export class ProcurementService {
         (!data.id || wasDraft) &&
         (data.allocationType === 'Stacking' || data.allocationType === 'Hoodi')
       ) {
+        const thirdBagsEarly = parseFloat(data.bagsInThirdPartStack) || 0;
         const totalBags =
           parseFloat(data.bagsRecAtMill) ||
           (parseFloat(data.bagsInMainStack) || 0) +
-            (parseFloat(data.bagsInSecondPartStack) || 0) ||
+            (parseFloat(data.bagsInSecondPartStack) || 0) +
+            thirdBagsEarly ||
           0;
         const totalWt =
           parseFloat(data.netWtAtMill) ||
@@ -594,20 +796,30 @@ export class ProcurementService {
           0;
         const noPart = !!(data.noPartStack);
         const partIsHoodi = !!(data.partIsHoodi || data.partDestination === 'HOODI');
+        const thirdIsHoodi = !!(data.thirdPartIsHoodi);
+        const showThird =
+          !!data.showThirdPartStack ||
+          thirdBagsEarly > 0 ||
+          !!String(data.thirdPartUnloaderName || '').trim();
         let mainBags = parseFloat(data.bagsInMainStack);
         let partBags = noPart
           ? 0
           : parseFloat(data.bagsInSecondPartStack) || 0;
+        let thirdBags = showThird ? thirdBagsEarly : 0;
         if (!Number.isFinite(mainBags) || mainBags < 0) {
-          mainBags = noPart ? totalBags : Math.max(0, totalBags - partBags);
+          mainBags = Math.max(0, totalBags - partBags - thirdBags);
         }
         if (noPart) partBags = 0;
+        if (!showThird) thirdBags = 0;
         const mainWt = this.unitaryWeight(totalWt, totalBags, mainBags);
         const partWt = this.unitaryWeight(totalWt, totalBags, partBags);
+        const thirdWt = this.unitaryWeight(totalWt, totalBags, thirdBags);
         // Persist split weights onto details payload for upsert below
         data.mainUnloadWeight = mainWt;
         data.partUnloadWeight = partWt;
+        data.thirdPartUnloadWeight = thirdWt;
         data.partIsHoodi = partIsHoodi;
+        data.thirdPartIsHoodi = thirdIsHoodi;
 
         const moistureVal = parseFloat(moisture) || 0;
         const isAClass =
@@ -638,6 +850,23 @@ export class ProcurementService {
             String(data.secondPartStackNo).trim(),
             partBags,
             partWt,
+            moistureVal,
+            isAClass,
+          );
+        }
+        if (
+          data.allocationType === 'Stacking' &&
+          showThird &&
+          !thirdIsHoodi &&
+          data.thirdPartStackNo &&
+          thirdBags > 0
+        ) {
+          await this.applyStackReceipt(
+            tx,
+            plantId,
+            String(data.thirdPartStackNo).trim(),
+            thirdBags,
+            thirdWt,
             moistureVal,
             isAClass,
           );
@@ -856,7 +1085,11 @@ export class ProcurementService {
           originalBardanaClass: data.originalBardanaClass,
           agencyGpBardanaClass: data.agencyGpBardanaClass,
           bagsRecAtMill: parseFloat(data.bagsRecAtMill) || 0,
-          bagsAtAgencyGp: parseFloat(data.bagsAtAgencyGp) || 0,
+          bagsAtAgencyGp:
+            data.egpLate === true || data.egpLate === 'true'
+              ? 0
+              : parseFloat(data.bagsAtAgencyGp) || 0,
+          egpLate: data.egpLate === true || data.egpLate === 'true',
           netWtAtMill: parseFloat(data.netWtMill) || parseFloat(data.netWtAtMill) || 0,
           requiredNetWt: parseFloat(data.reqNetWt) || parseFloat(data.requiredNetWt) || 0,
           netWtDifference: parseFloat(data.netWtDiff) || parseFloat(data.netWtDifference) || 0,
@@ -959,6 +1192,25 @@ export class ProcurementService {
                 ? parseFloat(data.partUnloaderTruckCount)
                 : null
               : null, // F39 — credit only after Net Weight / Confirm
+          thirdPartStackNo: data.thirdPartIsHoodi
+            ? null
+            : data.thirdPartStackNo || null,
+          bagsInThirdPartStack:
+            data.bagsInThirdPartStack != null && data.bagsInThirdPartStack !== ''
+              ? parseFloat(data.bagsInThirdPartStack)
+              : null,
+          thirdPartIsHoodi: !!data.thirdPartIsHoodi,
+          thirdPartUnloadWeight:
+            data.thirdPartUnloadWeight != null && data.thirdPartUnloadWeight !== ''
+              ? parseFloat(data.thirdPartUnloadWeight)
+              : null,
+          thirdPartUnloaderName: data.thirdPartUnloaderName || null,
+          thirdPartUnloaderTruckCount:
+            data.status === 'CONFIRMED' &&
+            data.thirdPartUnloaderTruckCount != null &&
+            data.thirdPartUnloaderTruckCount !== ''
+              ? parseFloat(data.thirdPartUnloaderTruckCount)
+              : null,
           meterNotWorking: !!data.meterNotWorking,
           newTruckReading: data.newTruckReading != null ? parseFloat(data.newTruckReading) : null,
           moisture: parsedMoisture,
@@ -1074,26 +1326,36 @@ export class ProcurementService {
         );
       }
 
-      // 5. Apply boli receive bags ONLY on confirm (not draft) — prevents double-count
+      // 5. Apply boli receive bags ONLY on first confirm — stored so delete can restore them
       const isBoliMandi = String(mandiType || data.mandiType || '').toLowerCase() === 'boli';
-      if (
+      const applyBoli =
         data.status !== 'DRAFT' &&
+        (!data.id || wasDraft) &&
         isBoliMandi &&
         data.boliInputs &&
-        Object.keys(data.boliInputs).length > 0
-      ) {
+        Object.keys(data.boliInputs).length > 0;
+      if (applyBoli) {
+        const boliApplied: Record<string, number> = {};
         for (const [boliId, bagsRec] of Object.entries(data.boliInputs)) {
           const received = parseFloat(bagsRec as string);
           if (received > 0) {
             const boli = await tx.paddyBoli.findUnique({ where: { id: boliId } });
-            if (boli && !boli.isCancelled && !boli.isCompleted) {
+            if (!boli || boli.isCancelled) continue;
+            // Already completed from this form: bags were added there. Still record
+            // them so deleting this inward puts the same bags back.
+            if (!boli.isCompleted) {
               await tx.paddyBoli.update({
                 where: { id: boliId },
                 data: { bagsReceived: boli.bagsReceived + received },
               });
             }
+            boliApplied[boliId] = received;
           }
         }
+        await tx.paddyInwardDetails.update({
+          where: { procurementBatchId: batch.id },
+          data: { boliBagsApplied: boliApplied },
+        });
       }
 
       // 7. Notification for Quality Cut > 1% (skip on draft; never use fake SYSTEM userId — FK)
@@ -1132,7 +1394,8 @@ export class ProcurementService {
         const totalBags =
           parseFloat(data.bagsRecAtMill) ||
           (parseFloat(data.bagsInMainStack) || 0) +
-            (parseFloat(data.bagsInSecondPartStack) || 0) ||
+            (parseFloat(data.bagsInSecondPartStack) || 0) +
+            (parseFloat(data.bagsInThirdPartStack) || 0) ||
           0;
         const totalWt =
           parseFloat(data.netWtAtMill) ||
@@ -1145,8 +1408,11 @@ export class ProcurementService {
         let partBags = noPart
           ? 0
           : parseFloat(data.bagsInSecondPartStack) || 0;
+        const thirdBagsForSplit = parseFloat(data.bagsInThirdPartStack) || 0;
         if (!Number.isFinite(mainBags) || mainBags < 0) {
-          mainBags = noPart ? totalBags : Math.max(0, totalBags - partBags);
+          mainBags = noPart
+            ? totalBags
+            : Math.max(0, totalBags - partBags - thirdBagsForSplit);
         }
         if (noPart) partBags = 0;
         const mainWt =
@@ -1224,6 +1490,42 @@ export class ProcurementService {
               inwardId: batch.id,
             },
           });
+        }
+        const thirdBagsHoodi = parseFloat(data.bagsInThirdPartStack) || 0;
+        const thirdIsHoodi = !!data.thirdPartIsHoodi;
+        const thirdWtHoodi =
+          data.thirdPartUnloadWeight != null && data.thirdPartUnloadWeight !== ''
+            ? parseFloat(data.thirdPartUnloadWeight)
+            : this.unitaryWeight(totalWt, totalBags, thirdBagsHoodi);
+        if (
+          data.allocationType === 'Stacking' &&
+          thirdIsHoodi &&
+          thirdBagsHoodi > 0
+        ) {
+          await tx.hoodiRecord.create({
+            data: {
+              plantId,
+              sourceType: 'PART_INWARD',
+              date: new Date(),
+              gpNo: data.gpNo,
+              mandiGpNo: data.egpLate ? null : data.mandiEgpNo || data.mandiEgNo,
+              truckNo: data.truckNo,
+              supplierName: supplier?.name || null,
+              mandiName: data.mandi,
+              stackNo: data.stackNo || null,
+              bags: thirdBagsHoodi,
+              netWeight: thirdWtHoodi,
+              rstNo: data.rstNo || null,
+              moisture: parsedMoisture,
+              unloadedBy: data.thirdPartUnloaderName || 'System',
+              partStackNo: data.stackNo || null,
+              partIsHoodi: false,
+              partBags: mainBags,
+              partUnloader: data.allocateUnloader || data.unloaderName || null,
+              partWeight: mainWt,
+              inwardId: batch.id,
+            },
+          });
         } else if (
           data.allocationType === 'Stacking' &&
           data.hoodiUpload === 'Yes' &&
@@ -1260,6 +1562,14 @@ export class ProcurementService {
 
       return batch;
     });
+    if (String(data.status || '').toUpperCase() !== 'DRAFT' && saved?.id) {
+      try {
+        await this.labourWork.syncFromInward(saved.id);
+      } catch (err) {
+        console.error('Labour work order from inward failed', err);
+      }
+    }
+    return saved;
   }
 
 
@@ -1312,7 +1622,8 @@ export class ProcurementService {
         moisture: d.moisture ?? b.quality?.moisture ?? null,
         grossWeight: d.grossWeight ?? null,
         millBags: aRec + bRec,
-        agencyBags: aGiven + bGiven || Number(d.bagsAtAgencyGp || 0),
+        agencyBags: d.egpLate ? 0 : aGiven + bGiven || Number(d.bagsAtAgencyGp || 0),
+        egpLate: !!d.egpLate,
         isHold: !!d.isHold,
         holdReason: d.holdReason || null,
         heldAt: d.heldAt || null,
@@ -1322,8 +1633,159 @@ export class ProcurementService {
     });
   }
 
+  /** Feedback 49 — delete a Paddy Inward and put Boli bags received back. */
+  async deletePaddyInward(id: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const batch = await tx.procurementBatch.findUnique({
+        where: { id },
+        include: { paddyInwardDetails: true },
+      });
+      if (!batch?.paddyInwardDetails) {
+        throw new BadRequestException('Paddy Inward not found');
+      }
+      if (batch.status === 'CANCELLED') {
+        throw new BadRequestException('This Paddy Inward is already deleted');
+      }
+      const d = batch.paddyInwardDetails;
+      const stored =
+        d.boliBagsApplied && typeof d.boliBagsApplied === 'object'
+          ? (d.boliBagsApplied as Record<string, number>)
+          : null;
+      const reopenSoda = new Set<string>();
+      const giveBack = async (boliId: string, bags: number) => {
+        const received = Number(bags) || 0;
+        if (received <= 0) return;
+        const boli = await tx.paddyBoli.findUnique({ where: { id: boliId } });
+        if (!boli) return;
+        const next = Math.max(0, Number(boli.bagsReceived || 0) - received);
+        await tx.paddyBoli.update({
+          where: { id: boliId },
+          data: { bagsReceived: next, isCompleted: false },
+        });
+        if (boli.sodaPendingId) reopenSoda.add(boli.sodaPendingId);
+      };
+      if (stored) {
+        for (const [boliId, bags] of Object.entries(stored)) {
+          await giveBack(boliId, Number(bags));
+        }
+      } else if (
+        String(d.mandiType || '').toLowerCase() === 'boli' &&
+        (batch.status === 'CONFIRMED' || batch.status === 'COMPLETED') &&
+        batch.supplierId
+      ) {
+        // Older confirms predate the stored split. Put this truck's bags back
+        // onto that Arthia's Boli lines, most recently updated first.
+        let left =
+          Number(d.bagsRecAtMill || 0) ||
+          Number(d.aClassReceived || 0) +
+            Number(d.bClassReceived || 0) +
+            Number(d.shortageAClass || 0) +
+            Number(d.shortageBClass || 0);
+        if (left > 0) {
+          const bolis = await tx.paddyBoli.findMany({
+            where: {
+              bagsReceived: { gt: 0 },
+              isCancelled: false,
+              sodaPending: {
+                supplierId: batch.supplierId,
+                plantId: batch.plantId,
+              },
+            },
+            orderBy: { updatedAt: 'desc' },
+          });
+          for (const boli of bolis) {
+            if (left <= 0) break;
+            const take = Math.min(left, Number(boli.bagsReceived || 0));
+            await giveBack(boli.id, take);
+            left -= take;
+          }
+        }
+      }
+      for (const sodaId of reopenSoda) {
+        await tx.paddySodaPending.update({
+          where: { id: sodaId },
+          data: { sodaCompleted: false },
+        });
+      }
+      const confirmed = batch.status === 'CONFIRMED' || batch.status === 'COMPLETED';
+      if (confirmed) {
+        const moisture = Number(d.moisture || 0);
+        const isAClass = d.bagType === 'NEW' && d.originalBardanaClass === 'A_Class';
+        const reverse = async (
+          stackNo: string | null | undefined,
+          bags: number,
+          wt: number,
+        ) => {
+          if (!stackNo || !(bags > 0)) return;
+          await this.applyStackReceipt(
+            tx,
+            batch.plantId,
+            String(stackNo).trim(),
+            -bags,
+            -Math.abs(wt || 0),
+            moisture,
+            isAClass,
+          );
+        };
+        await reverse(d.stackNo, Number(d.bagsInMainStack || 0), Number(d.mainUnloadWeight || 0));
+        if (!d.partIsHoodi) {
+          await reverse(
+            d.secondPartStackNo,
+            Number(d.bagsInSecondPartStack || 0),
+            Number(d.partUnloadWeight || 0),
+          );
+        }
+        if (!d.thirdPartIsHoodi) {
+          await reverse(
+            d.thirdPartStackNo,
+            Number(d.bagsInThirdPartStack || 0),
+            Number(d.thirdPartUnloadWeight || 0),
+          );
+        }
+        await tx.hoodiRecord.deleteMany({ where: { inwardId: batch.id } });
+        const net = Number(d.netWtAtMill || 0);
+        if (net) {
+          const godown = d.stackNo || 'Main Yard';
+          const inv = await tx.inventory.findFirst({
+            where: {
+              plantId: batch.plantId,
+              itemType: 'PADDY',
+              variety: 'Standard',
+              godown,
+            },
+          });
+          // Do not abort the delete — Boli restore must still commit
+          if (inv && Number(inv.quantity || 0) >= net) {
+            await this.inventoryService.adjustStock({
+              plantId: batch.plantId,
+              itemType: 'PADDY',
+              quantityChange: -net,
+              transactionType: 'OUT',
+              referenceId: batch.id,
+              remarks: `Paddy Inward deleted ${batch.id.substring(0, 8)}`,
+              godown,
+              category: 'OPERATIONAL',
+              stockValueChange: 0,
+              tx,
+            });
+          }
+        }
+      }
+      await tx.paddyInwardDetails.update({
+        where: { procurementBatchId: batch.id },
+        data: { boliBagsApplied: {} },
+      });
+      await tx.procurementBatch.update({
+        where: { id: batch.id },
+        data: { status: 'CANCELLED' },
+      });
+      return { id: batch.id, status: 'CANCELLED' };
+    });
+  }
+
   async getInwards(plantId: string, dateFrom?: string, dateTo?: string, mandi?: string, supplierId?: string, page?: string, limit?: string) {
     const whereClause: any = plantId === 'global' ? {} : { plantId };
+    whereClause.status = { not: 'CANCELLED' };
     
     if (dateFrom || dateTo) {
       whereClause.createdAt = {};
@@ -5054,10 +5516,73 @@ export class ProcurementService {
 
     const records = await this.prisma.hoodiRecord.findMany({
       where: whereClause,
-      orderBy: { date: 'desc' }
+      orderBy: { date: 'asc' },
     });
-    
-    return records;
+
+    const inwardIds = [
+      ...new Set(records.map((r) => r.inwardId).filter((id): id is string => !!id)),
+    ];
+    const batches = inwardIds.length
+      ? await this.prisma.procurementBatch.findMany({
+          where: { id: { in: inwardIds } },
+          include: { paddyInwardDetails: true },
+        })
+      : [];
+    const byInward = new Map(batches.map((b) => [b.id, b.paddyInwardDetails]));
+    const claimedHoodi = new Map<string, Set<string>>();
+
+    const enriched = records.map((row) => {
+      const d = row.inwardId ? byInward.get(row.inwardId) : null;
+      const points = d ? this.listUnloadPoints(d).points : [];
+      const taken = claimedHoodi.get(row.inwardId || '') ?? new Set<string>();
+      const hoodiPoints = points.filter((p) => p.isHoodi && !taken.has(p.key));
+      const current =
+        hoodiPoints.find(
+          (p) =>
+            Number(p.bags) === Number(row.bags || 0) &&
+            (!row.unloadedBy || !p.unloader || p.unloader === row.unloadedBy),
+        ) || hoodiPoints.find((p) => Number(p.bags) === Number(row.bags || 0));
+      if (current && row.inwardId) {
+        taken.add(current.key);
+        claimedHoodi.set(row.inwardId, taken);
+      }
+      const partPoints = (
+        current ? points.filter((p) => p !== current) : points.filter((p) => !p.isHoodi)
+      ).map((p) => ({
+        label: p.label,
+        isHoodi: p.isHoodi,
+        stackNo: p.stackNo,
+        bags: p.bags,
+        weight: p.weight,
+        unloader: p.unloader,
+      }));
+      if (!partPoints.length && (row.partStackNo || row.partBags)) {
+        partPoints.push({
+          label: row.partIsHoodi ? 'Hoodi' : row.partStackNo || '-',
+          isHoodi: !!row.partIsHoodi,
+          stackNo: row.partStackNo || 'Hoodi',
+          bags: Number(row.partBags || 0),
+          weight: Number(row.partWeight || 0),
+          unloader: row.partUnloader,
+        });
+      }
+      const first = partPoints[0];
+      return {
+        ...row,
+        netWeight:
+          current && Number(current.weight) > 0 ? current.weight : row.netWeight,
+        rstNo: row.rstNo || (d as any)?.rstNo || null,
+        partPoints,
+        partStackNo: first?.stackNo ?? row.partStackNo,
+        partIsHoodi: first ? first.isHoodi : row.partIsHoodi,
+        partBags: first?.bags ?? row.partBags,
+        partUnloader: first?.unloader ?? row.partUnloader,
+        partWeight: first?.weight ?? row.partWeight,
+      };
+    });
+    return enriched.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
   }
 
   async getStackLayout(plantId: string) {
@@ -5103,9 +5628,11 @@ export class ProcurementService {
     const inwardsRaw = await this.prisma.procurementBatch.findMany({
       where: {
         plantId,
+        status: { not: 'CANCELLED' },
         OR: [
           { paddyInwardDetails: { stackNo } },
           { paddyInwardDetails: { secondPartStackNo: stackNo } },
+          { paddyInwardDetails: { thirdPartStackNo: stackNo } },
         ],
       },
       include: {
@@ -5116,52 +5643,29 @@ export class ProcurementService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Attribute bags/weight for THIS stack view + part cross-ref columns
+    // This stack's bags/weight, plus every other unload point of the same truck as its own part line
     const inwards = inwardsRaw.map((batch) => {
       const d = batch.paddyInwardDetails || ({} as any);
-      const isPartView =
-        String(d.secondPartStackNo || '').trim() === String(stackNo).trim() &&
-        String(d.stackNo || '').trim() !== String(stackNo).trim();
-      const totalBags = Number(d.bagsRecAtMill || 0);
-      const totalWt = Number(d.netWtAtMill || 0);
-      const mainBags = Number(d.bagsInMainStack ?? (isPartView ? 0 : totalBags));
-      const partBags = Number(d.bagsInSecondPartStack || 0);
-      const mainWt =
-        d.mainUnloadWeight != null
-          ? Number(d.mainUnloadWeight)
-          : this.unitaryWeight(totalWt, totalBags, mainBags);
-      const partWt =
-        d.partUnloadWeight != null
-          ? Number(d.partUnloadWeight)
-          : this.unitaryWeight(totalWt, totalBags, partBags);
-
-      const viewBags = isPartView ? partBags || totalBags : mainBags || totalBags;
-      const viewWeight = isPartView ? partWt || totalWt : mainWt || totalWt;
-
-      // Part columns = the OTHER unload point
-      const partDestIsHoodi = !!d.partIsHoodi;
-      const partColStackNo = isPartView
-        ? d.stackNo || null
-        : partDestIsHoodi
-          ? 'HOODI'
-          : d.secondPartStackNo || null;
-      const partColBags = isPartView ? mainBags : partBags;
-      const partColWeight = isPartView ? mainWt : partWt;
-      const partColUnloader = isPartView
-        ? d.allocateUnloader || d.unloaderName || null
-        : d.partUnloaderName || null;
-
+      const { points, avg } = this.listUnloadPoints(d);
+      const here = String(stackNo).trim();
+      const current =
+        points.find((p) => !p.isHoodi && p.stackNo === here) || points[0];
+      const partPoints = points.filter((p) => p !== current);
+      const first = partPoints[0];
       return {
         ...batch,
         stackView: {
-          bags: viewBags,
-          weight: viewWeight,
-          role: isPartView ? 'PART' : 'MAIN',
-          partStackNo: partColStackNo,
-          partIsHoodi: isPartView ? false : partDestIsHoodi,
-          partBags: partColBags,
-          partUnloader: partColUnloader,
-          partWeight: partColWeight,
+          bags: current?.bags || 0,
+          weight: current?.weight || 0,
+          role: current?.key === 'main' ? 'MAIN' : 'PART',
+          unloader: current?.unloader || null,
+          avgBagWeight: avg,
+          partStackNo: first?.label || null,
+          partIsHoodi: !!first?.isHoodi,
+          partBags: first?.bags ?? null,
+          partUnloader: first?.unloader || null,
+          partWeight: first?.weight ?? null,
+          partPoints,
         },
       };
     });
@@ -5176,7 +5680,73 @@ export class ProcurementService {
       orderBy: { date: 'desc' },
     });
 
-    return { inwards, transfers, dryerBharai };
+    const loosePaddy = await this.prisma.loosePaddyBag.findMany({
+      where: { plantId, stackNo },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return { inwards, transfers, dryerBharai, loosePaddy };
+  }
+
+  /** Feedback 50 — bags already posted as loose paddy today for this mill. */
+  async loosePaddyToday(plantId: string) {
+    const entryDate = this.plantDayKey();
+    const agg = await this.prisma.loosePaddyBag.aggregate({
+      where: { plantId, entryDate },
+      _sum: { bags: true },
+    });
+    const used = Number(agg._sum.bags || 0);
+    return { entryDate, used, limit: 15, remaining: Math.max(0, 15 - used) };
+  }
+
+  /** Feedback 50 — add loose bags to stack count only. Weight stays from inward unload. */
+  async addLoosePaddyBags(data: any, user?: any) {
+    const plantId = String(data.plantId || '').trim();
+    const stackNo = String(data.stackNo || '').trim();
+    const unloaderName = String(data.unloaderName || '').trim();
+    const bagClass = String(data.bagClass || '').toUpperCase();
+    const bags = Number(data.bags);
+    if (!plantId || plantId === 'global') {
+      throw new BadRequestException('Select a mill first');
+    }
+    if (!stackNo) throw new BadRequestException('Stack No. is required');
+    if (!unloaderName) throw new BadRequestException('Unloader Name is required');
+    if (!['A_CLASS', 'B_CLASS'].includes(bagClass)) {
+      throw new BadRequestException('Bag Class must be A Class or B Class');
+    }
+    if (!Number.isInteger(bags) || bags <= 0) {
+      throw new BadRequestException('Bags must be a whole number greater than 0');
+    }
+    const entryDate = this.plantDayKey();
+    const isAClass = bagClass === 'A_CLASS';
+    const lockKey = `loose-paddy:${plantId}:${entryDate}`;
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey})::bigint)`;
+      const agg = await tx.loosePaddyBag.aggregate({
+        where: { plantId, entryDate },
+        _sum: { bags: true },
+      });
+      const used = Number(agg._sum.bags || 0);
+      if (used + bags > 15) {
+        throw new BadRequestException(
+          `Loose paddy bags cannot exceed 15 in one day. Already added ${used}, remaining ${Math.max(0, 15 - used)}.`,
+        );
+      }
+      const row = await tx.loosePaddyBag.create({
+        data: {
+          plantId,
+          entryDate,
+          bags,
+          bagClass,
+          stackNo,
+          unloaderName,
+          submittedById: user?.id || null,
+          submittedByName: user?.name || user?.username || user?.email || null,
+        },
+      });
+      await this.applyStackReceipt(tx, plantId, stackNo, bags, 0, 0, isAClass, false);
+      return row;
+    });
   }
 
   async markStackComplete(plantId: string, stackNo: string) {
@@ -5211,6 +5781,14 @@ export class ProcurementService {
     dryerBharai.forEach((record) => {
       totalBags += Number(record.bags || 0);
       totalWt += Number(record.netWeight || 0);
+    });
+
+    const loosePaddy = await this.prisma.loosePaddyBag.findMany({
+      where: { plantId, stackNo },
+      select: { bags: true },
+    });
+    loosePaddy.forEach((row) => {
+      totalBags += Number(row.bags || 0);
     });
 
     transfers.forEach((record) => {
@@ -5262,7 +5840,8 @@ export class ProcurementService {
     const millBags = aRec + bRec; // excluding shortage
     const shortageBags = shortA + shortB;
     const totalMillBags = millBags + shortageBags || Number(d.bagsRecAtMill || 0);
-    const agencyBags = aGiven + bGiven || Number(d.bagsAtAgencyGp || 0);
+    const egpLate = !!d.egpLate;
+    const agencyBags = egpLate ? 0 : aGiven + bGiven || Number(d.bagsAtAgencyGp || 0);
     const millNetActual = Number(d.netWtAtMill || b.netWeight || d.netWeightWb || 0);
     const requiredNet = Number(d.requiredNetWt || 0);
     const unloadAt =
@@ -5280,6 +5859,7 @@ export class ProcurementService {
     return {
       id: b.id,
       status: b.status,
+      isManualDirect: false,
       date: (d.entryDate || b.createdAt?.toISOString?.()?.slice(0, 10) || '').toString().slice(0, 10),
       rstNo: d.rstNo || '-',
       timeIn: d.timeIn || null,
@@ -5293,7 +5873,8 @@ export class ProcurementService {
         d.informBaujiExcessWeight || d.plusWtConsiderInShortageRecovery
       ),
       millGp: d.gpNo || '-',
-      agencyGp: d.mandiEgNo || d.mandiParchiNo || '-',
+      egpLate,
+      agencyGp: egpLate ? 'e-GP Late' : d.mandiEgNo || d.mandiParchiNo || '-',
       truckNo: d.truckNo || b.weighbridge?.vehicleNo || '-',
       grossWeight: d.grossWeight ?? null,
       mandi: d.mandi || '-',
@@ -5301,8 +5882,8 @@ export class ProcurementService {
       artiaId: b.supplierId || null,
       artiaName: b.supplier?.name || 'Walk-in',
       moisture: d.moisture ?? b.quality?.moisture ?? null,
-      aClassAgency: aGiven,
-      bClassAgency: bGiven,
+      aClassAgency: egpLate ? 0 : aGiven,
+      bClassAgency: egpLate ? 0 : bGiven,
       aClassMill: aRec,
       bClassMill: bRec,
       aClassShortage: shortA,
@@ -5328,6 +5909,190 @@ export class ProcurementService {
     };
   }
 
+  /** Feedback 48 — Direct Agency GP rows shaped like inward-list govt rows */
+  private async listManualAgencyGpRows(opts: {
+    plantId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    mandi?: string;
+    supplierId?: string;
+    bagWt: number;
+  }) {
+    const where: any = {};
+    if (opts.plantId && opts.plantId !== 'global') where.plantId = opts.plantId;
+    if (opts.supplierId) where.arthiaId = opts.supplierId;
+    if (opts.mandi) where.mandi = { contains: opts.mandi, mode: 'insensitive' };
+    if (opts.dateFrom || opts.dateTo) {
+      where.date = {
+        ...(opts.dateFrom ? { gte: new Date(`${opts.dateFrom}T00:00:00`) } : {}),
+        ...(opts.dateTo ? { lte: new Date(`${opts.dateTo}T23:59:59.999`) } : {}),
+      };
+    }
+    const rows = await this.prisma.manualAgencyGp.findMany({
+      where,
+      orderBy: { date: 'asc' },
+    });
+    return rows.map((m) => {
+      const bags = Number(m.bags) || 0;
+      const a = m.bagsClass === 'A_CLASS' ? bags : 0;
+      const b = m.bagsClass === 'B_CLASS' ? bags : 0;
+      const day = m.date.toISOString().slice(0, 10);
+      return {
+        id: m.id,
+        status: 'CONFIRMED',
+        date: day,
+        isManualDirect: true,
+        rstNo: '-',
+        timeIn: null,
+        timeOut: null,
+        entryMadeByName: m.submittedByName,
+        entryCompletionAt: m.createdAt,
+        isBackdated: false,
+        informBaujiBagsLess: false,
+        informBaujiExcessWeight: false,
+        millGp: '-',
+        agencyGp: m.agencyGp,
+        truckNo: m.truckNo,
+        mandi: m.mandi,
+        partyName: m.partyName,
+        artiaId: m.arthiaId,
+        artiaName: m.arthiaName,
+        moisture: null,
+        aClassAgency: a,
+        bClassAgency: b,
+        aClassMill: 0,
+        bClassMill: 0,
+        aClassShortage: 0,
+        bClassShortage: 0,
+        aClassTotal: 0,
+        bClassTotal: 0,
+        agencyBags: bags,
+        millBags: 0,
+        shortageBags: 0,
+        totalBags: 0,
+        govtMillNetWt: parseFloat((bags * opts.bagWt).toFixed(3)),
+        millNetWt: 0,
+        surplus: 0,
+        unloadSort: m.date.getTime(),
+        plantId: m.plantId,
+      };
+    });
+  }
+
+  /** Feedback 48 — manual Agency GP with fingerprint + admin notify + unique GP no. */
+  async createManualAgencyGp(data: any, user?: any) {
+    const plantId = String(data.plantId || '').trim();
+    const agencyGp = String(data.agencyGp || '').trim();
+    const truckNo = String(data.truckNo || '').trim();
+    const arthiaName = String(data.arthiaName || '').trim();
+    const partyName = String(data.partyName || '').trim();
+    const mandi = String(data.mandi || '').trim();
+    const bagsClass = String(data.bagsClass || '').toUpperCase();
+    const bags = Number(data.bags);
+    const dateStr = String(data.date || '').slice(0, 10);
+
+    if (!plantId) throw new BadRequestException('Plant is required');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      throw new BadRequestException('Date is required');
+    }
+    if (!agencyGp) throw new BadRequestException('Agency GP is required');
+    if (!truckNo) throw new BadRequestException('Truck No. is required');
+    if (!arthiaName) throw new BadRequestException('Arthia Name is required');
+    if (!partyName) throw new BadRequestException('Party Name is required');
+    if (!mandi) throw new BadRequestException('Mandi is required');
+    if (!['A_CLASS', 'B_CLASS'].includes(bagsClass)) {
+      throw new BadRequestException('Bags Class must be A Class or B Class');
+    }
+    if (!Number.isInteger(bags) || bags <= 0) {
+      throw new BadRequestException('Bags must be a whole number greater than 0');
+    }
+
+    const isAdmin = this.isAdminRole(user);
+    // Same rule as Stack to Hoodi: supervisor scan must match the logged-in user's enrolled fingerprints
+    if (this.isSupervisorRole(user) && !isAdmin) {
+      if (!user?.id) throw new BadRequestException('Login required for Direct Agency GP');
+      if (!data.biometricData || data.biometricData === 'ADMIN_BYPASS') {
+        throw new BadRequestException('Supervisor fingerprint is required');
+      }
+      await this.fingerprintVerify.verifyForUser(user.id, {
+        biometricData: data.biometricData,
+        isoTemplate: data.isoTemplate,
+      });
+    }
+
+    const gpKey = agencyGp.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const lockKey = `agency-gp:${gpKey}`;
+    const created = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey})::bigint)`;
+      const existingManual = await tx.manualAgencyGp.findMany({
+        select: { agencyGp: true },
+      });
+      if (
+        existingManual.some(
+          (m) => m.agencyGp.toLowerCase().replace(/[^a-z0-9]/g, '') === gpKey,
+        )
+      ) {
+        throw new BadRequestException(`Agency GP ${agencyGp} already exists`);
+      }
+      const existingInward = await tx.paddyInwardDetails.findMany({
+        where: { procurementBatch: { status: { not: 'CANCELLED' } } },
+        select: { mandiEgNo: true, mandiParchiNo: true },
+      });
+      const usedOnInward = existingInward.some((row) => {
+        const eg = String(row.mandiEgNo || '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '');
+        const parchi = String(row.mandiParchiNo || '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '');
+        return (eg && eg === gpKey) || (parchi && parchi === gpKey);
+      });
+      if (usedOnInward) {
+        throw new BadRequestException(
+          `Agency GP ${agencyGp} is already used on a Paddy Inward entry`,
+        );
+      }
+      return tx.manualAgencyGp.create({
+        data: {
+          plantId,
+          date: new Date(`${dateStr}T00:00:00`),
+          agencyGp,
+          truckNo,
+          arthiaId: data.arthiaId || null,
+          arthiaName,
+          partyName,
+          mandi,
+          bagsClass,
+          bags,
+          isDirect: true,
+          submittedById: user?.id || null,
+          submittedByName: user?.name || user?.username || 'Supervisor',
+          biometricData: data.biometricData,
+        },
+      });
+    });
+
+    const plant = await this.prisma.plant.findUnique({
+      where: { id: plantId },
+      select: { name: true },
+    });
+    const msg = `Direct Agency GP ${agencyGp} (${bags} bags, ${bagsClass === 'A_CLASS' ? 'A' : 'B'} Class) submitted at ${plant?.name || plantId} by ${created.submittedByName}.`;
+    try {
+      await this.prisma.notification.createMany({
+        data: ['SUPER_ADMIN', 'PLANT_MANAGER', 'ADMIN'].map((role) => ({
+          title: 'Direct Agency GP submitted',
+          message: msg,
+          type: 'INFO',
+          role,
+        })),
+      });
+    } catch {
+      /* notify best-effort */
+    }
+
+    return created;
+  }
+
   async getInwardListReport(opts: {
     plantId?: string;
     dateFrom?: string;
@@ -5347,8 +6112,63 @@ export class ProcurementService {
         where: { reportDate_plantId: { reportDate: asOf, plantId } },
       });
       if (snap?.payload) {
+        const payload = snap.payload as any;
+        const manualRows = await this.listManualAgencyGpRows({
+          plantId,
+          dateFrom: opts.dateFrom || asOf,
+          dateTo: opts.dateTo || asOf,
+          mandi: opts.mandi,
+          supplierId: opts.supplierId,
+          bagWt,
+        });
+        const existingIds = new Set((payload.govt?.rows || []).map((r: any) => r.id));
+        const govtRows = [
+          ...(payload.govt?.rows || []),
+          ...manualRows
+            .filter((r) => !existingIds.has(r.id))
+            .map((r) => ({
+              sno: 0,
+              date: r.date,
+              agencyGp: r.agencyGp,
+              truckNo: r.truckNo,
+              mandi: r.mandi,
+              partyName: r.partyName,
+              moisture: r.moisture,
+              aClass: r.aClassAgency,
+              bClass: r.bClassAgency,
+              millNetWeight: r.govtMillNetWt,
+              agencyBags: r.agencyBags,
+              id: r.id,
+              status: r.status,
+              isManualDirect: true,
+              entryMadeByName: r.entryMadeByName,
+              entryCompletionAt: r.entryCompletionAt,
+              arthiaName: r.artiaName,
+            })),
+        ].map((r: any, i: number) => ({ ...r, sno: i + 1 }));
+        const agencyBags = govtRows.reduce(
+          (s: number, r: any) =>
+            s + Number(r.agencyBags ?? Number(r.aClass || 0) + Number(r.bClass || 0)),
+          0,
+        );
+        const directBags = govtRows
+          .filter((r: any) => r.isManualDirect)
+          .reduce((s: number, r: any) => s + Number(r.agencyBags || 0), 0);
+        const inwardAgencyBags = agencyBags - directBags;
         return {
-          ...(snap.payload as any),
+          ...payload,
+          totals: {
+            ...(payload.totals || {}),
+            agencyBags,
+            directBags,
+            inwardAgencyBags,
+            directCount: govtRows.filter((r: any) => r.isManualDirect).length,
+            inwardCount: govtRows.filter((r: any) => !r.isManualDirect).length,
+            directRatioPct: agencyBags > 0 ? Math.round((directBags / agencyBags) * 1000) / 10 : 0,
+            inwardRatioPct:
+              agencyBags > 0 ? Math.round((inwardAgencyBags / agencyBags) * 1000) / 10 : 0,
+          },
+          govt: { ...(payload.govt || {}), totalBags: agencyBags, rows: govtRows },
           fromSnapshot: true,
           submittedAt: snap.submittedAt,
           submittedBy: snap.submittedBy,
@@ -5405,16 +6225,46 @@ export class ProcurementService {
       });
 
     // Main report rows = confirmed/completed Net Weight entries only (that day via entryDate filter)
-    const rows = rowsAll.filter((r) => r.status === 'CONFIRMED' || r.status === 'COMPLETED');
+    const inwardRows = rowsAll.filter((r) => r.status === 'CONFIRMED' || r.status === 'COMPLETED');
     const drafts = rowsAll.filter((r) => r.status === 'DRAFT' || r.status === 'PENDING');
 
+    // Feedback 48 — merge manual Direct Agency GP into Govt list
+    const manualRows = await this.listManualAgencyGpRows({
+      plantId,
+      dateFrom: opts.dateFrom,
+      dateTo: opts.dateTo,
+      mandi: opts.mandi,
+      supplierId: opts.supplierId,
+      bagWt,
+    });
+    const rows = [...inwardRows, ...manualRows].sort((a, b) => {
+      const ta = a.unloadSort || 0;
+      const tb = b.unloadSort || 0;
+      if (ta !== tb) return ta - tb;
+      return String(a.agencyGp || '').localeCompare(String(b.agencyGp || ''));
+    });
+
     const confirmed = rows;
+    const directBags = confirmed
+      .filter((r) => r.isManualDirect)
+      .reduce((s, r) => s + r.agencyBags, 0);
+    const inwardAgencyBags = confirmed
+      .filter((r) => !r.isManualDirect)
+      .reduce((s, r) => s + r.agencyBags, 0);
+    const agencyTotal = directBags + inwardAgencyBags;
     const totals = {
       agencyBags: confirmed.reduce((s, r) => s + r.agencyBags, 0),
       millBags: confirmed.reduce((s, r) => s + r.millBags, 0),
       shortageBags: confirmed.reduce((s, r) => s + r.shortageBags, 0),
       totalBags: confirmed.reduce((s, r) => s + r.totalBags, 0),
       draftCount: drafts.length,
+      // Feedback 48 — direct manual vs Paddy Inward Agency GP bags
+      directBags,
+      inwardAgencyBags,
+      directCount: confirmed.filter((r) => r.isManualDirect).length,
+      inwardCount: confirmed.filter((r) => !r.isManualDirect).length,
+      directRatioPct: agencyTotal > 0 ? Math.round((directBags / agencyTotal) * 1000) / 10 : 0,
+      inwardRatioPct: agencyTotal > 0 ? Math.round((inwardAgencyBags / agencyTotal) * 1000) / 10 : 0,
     };
 
     // Artia clusters — chronological within each artia; artias by earliest unload first
@@ -5512,6 +6362,8 @@ export class ProcurementService {
           informBaujiExcessWeight: r.informBaujiExcessWeight,
           entryMadeByName: r.entryMadeByName,
           entryCompletionAt: r.entryCompletionAt,
+          isManualDirect: !!r.isManualDirect,
+          arthiaName: r.artiaName,
         })),
       },
       mill: {
@@ -5519,10 +6371,12 @@ export class ProcurementService {
         millBags: totals.millBags,
         shortageBags: totals.shortageBags,
         totalBags: totals.totalBags,
-        rows: rows.map((r, i) => ({
-          sno: i + 1,
-          ...r,
-        })),
+        rows: rows
+          .filter((r) => !r.isManualDirect)
+          .map((r, i) => ({
+            sno: i + 1,
+            ...r,
+          })),
         // Screen-only: drafts for Continue Draft (excluded from totals / evening snapshot)
         draftRows: drafts.map((r, i) => ({
           sno: rows.length + i + 1,
@@ -5924,7 +6778,7 @@ export class ProcurementService {
   async getNextUnloaderTruckCount(
     plantId: string,
     unloaderName: string,
-    kind: 'main' | 'part' = 'main',
+    kind: 'main' | 'part' | 'third' = 'main',
     date?: string,
     excludeBatchId?: string,
   ) {
@@ -5937,12 +6791,14 @@ export class ProcurementService {
     const nameMatch =
       kind === 'part'
         ? { partUnloaderName: { equals: name, mode: 'insensitive' as const } }
-        : {
-            OR: [
-              { allocateUnloader: { equals: name, mode: 'insensitive' as const } },
-              { unloaderName: { equals: name, mode: 'insensitive' as const } },
-            ],
-          };
+        : kind === 'third'
+          ? { thirdPartUnloaderName: { equals: name, mode: 'insensitive' as const } }
+          : {
+              OR: [
+                { allocateUnloader: { equals: name, mode: 'insensitive' as const } },
+                { unloaderName: { equals: name, mode: 'insensitive' as const } },
+              ],
+            };
 
     const rows = await this.prisma.paddyInwardDetails.findMany({
       where: {
@@ -5960,6 +6816,7 @@ export class ProcurementService {
       select: {
         mainUnloaderTruckCount: true,
         partUnloaderTruckCount: true,
+        thirdPartUnloaderTruckCount: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'asc' },
@@ -5969,7 +6826,9 @@ export class ProcurementService {
     const serials = rows.map((r) =>
       kind === 'part'
         ? Number(r.partUnloaderTruckCount) || 0
-        : Number(r.mainUnloaderTruckCount) || 0,
+        : kind === 'third'
+          ? Number(r.thirdPartUnloaderTruckCount) || 0
+          : Number(r.mainUnloaderTruckCount) || 0,
     );
     const maxSerial = serials.length ? Math.max(...serials) : 0;
     // Chronological next = completed count + 1; also respect any higher stored serial
@@ -5988,11 +6847,9 @@ export class ProcurementService {
 
   /** Daily Paddy Stack documentation rows for Reports */
   async getPaddyStackDocumentation(plantId: string, date?: string) {
-    const day =
-      (date && String(date).slice(0, 10)) ||
-      new Date().toISOString().slice(0, 10);
-    const dayStart = new Date(`${day}T00:00:00.000Z`);
-    const dayEnd = new Date(`${day}T23:59:59.999Z`);
+    const day = this.plantDayKey(date);
+    const dayStart = new Date(`${day}T00:00:00.000+05:30`);
+    const dayEnd = new Date(`${day}T23:59:59.999+05:30`);
 
     const stacks = await this.prisma.paddyStack.findMany({
       where: { plantId },
@@ -6017,7 +6874,12 @@ export class ProcurementService {
       Number(b.paddyInwardDetails?.totalBagsReceived || 0) ||
       0;
 
-    const atStack = todayBatches.reduce((s, b) => s + bagOf(b), 0);
+    const looseTodayAgg = await this.prisma.loosePaddyBag.aggregate({
+      where: { plantId, entryDate: day },
+      _sum: { bags: true },
+    });
+    const looseToday = Number(looseTodayAgg._sum.bags || 0);
+    const atStack = todayBatches.reduce((s, b) => s + bagOf(b), 0) + looseToday;
     const active = stacks.filter((s) => !['COMPLETED', 'EMPTY'].includes(s.status));
 
     const [dryerRows, hoodiRows] = await Promise.all([

@@ -549,7 +549,7 @@ export const biometricService = {
         isoTemplate,
       });
     } catch (err: any) {
-      throw new Error(apiErrorMessage(err) || 'This fingerprint does not exist');
+      throw new Error(apiErrorMessage(err) || 'Fingerprint does not match the logged-in user');
     }
 
     return pidData;

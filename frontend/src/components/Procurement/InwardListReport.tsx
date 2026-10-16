@@ -5,6 +5,7 @@ import {
   Fingerprint,
   Eye,
   Edit,
+  Trash2,
   AlertTriangle,
 } from "lucide-react";
 import api from "../../api/axios";
@@ -15,6 +16,7 @@ import { biometricService } from "../../services/biometricService";
 import { CustomModal } from "../CustomModal";
 import Combobox from "../Combobox";
 import { exportToExcel } from "../../utils/exportUtils";
+import ManualAgencyGpModal from "./ManualAgencyGpModal";
 
 type ListMode = "govt" | "mill";
 
@@ -76,6 +78,7 @@ export default function InwardListReport({
   const [activeGpsLive, setActiveGpsLive] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const [supervisorName, setSupervisorName] = useState(user?.username || "");
   const [biometricData, setBiometricData] = useState("");
   const [manualMatchConfirmed, setManualMatchConfirmed] = useState(false);
@@ -423,6 +426,7 @@ export default function InwardListReport({
                   isBackdated: r.isBackdated,
                   entryMadeByName: r.entryMadeByName,
                   entryCompletionAt: r.entryCompletionAt,
+                  isManualDirect: r.isManualDirect,
                 }))}
                 compact
                 onSupervisorClick={(name, at) =>
@@ -508,6 +512,13 @@ export default function InwardListReport({
         </div>
         <div className="flex flex-wrap gap-2">
           <button
+            type="button"
+            onClick={() => setManualOpen(true)}
+            className="bg-yellow-400 hover:bg-yellow-300 text-black px-3 py-1.5 rounded text-sm font-bold"
+          >
+            Add Direct Agency GP
+          </button>
+          <button
             onClick={() => setSubmitOpen(true)}
             className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2"
           >
@@ -579,6 +590,31 @@ export default function InwardListReport({
           </p>
           <p className="text-[10px] text-[var(--text-muted-alt)]">
             Mill + Shortage
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/10 p-3">
+          <p className="text-[10px] uppercase text-yellow-300 font-bold">
+            Direct Agency GP bags
+          </p>
+          <p className="text-xl font-bold text-yellow-300">
+            {totals.directBags ?? 0}
+          </p>
+          <p className="text-[10px] text-[var(--text-muted-alt)]">
+            {totals.directCount ?? 0} manual · {totals.directRatioPct ?? 0}%
+          </p>
+        </div>
+        <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3">
+          <p className="text-[10px] uppercase text-[var(--text-muted-alt)] font-bold">
+            Via Paddy Inward
+          </p>
+          <p className="text-xl font-bold text-[var(--text-main)]">
+            {totals.inwardAgencyBags ?? 0}
+          </p>
+          <p className="text-[10px] text-[var(--text-muted-alt)]">
+            {totals.inwardCount ?? 0} entries · {totals.inwardRatioPct ?? 0}%
           </p>
         </div>
       </div>
@@ -714,6 +750,32 @@ export default function InwardListReport({
             onView={onView}
             onContinueDraft={onContinueDraft}
             onSupervisorClick={(name, at) => setSupervisorDetail({ name, at })}
+            onDelete={
+              isAdmin
+                ? async (r) => {
+                    if (
+                      !window.confirm(
+                        "Delete this Paddy Inward? Boli bags received on this entry will be restored.",
+                      )
+                    )
+                      return;
+                    try {
+                      await api.delete(`/api/procurement/paddy-inward/${r.id}`);
+                      toast(
+                        "Paddy Inward deleted. Boli bags restored.",
+                        "success",
+                      );
+                      fetchReport();
+                    } catch (e: any) {
+                      toast(
+                        e?.response?.data?.message ||
+                          "Failed to delete Paddy Inward",
+                        "error",
+                      );
+                    }
+                  }
+                : undefined
+            }
           />
         )}
 
@@ -767,6 +829,7 @@ export default function InwardListReport({
                   informBaujiExcessWeight: r.informBaujiExcessWeight,
                   entryMadeByName: r.entryMadeByName,
                   entryCompletionAt: r.entryCompletionAt,
+                  isManualDirect: r.isManualDirect,
                 }))}
                 onSupervisorClick={(name, at) =>
                   setSupervisorDetail({ name, at })
@@ -774,7 +837,9 @@ export default function InwardListReport({
               />
             ) : (
               <MillTable
-                rows={g.rows.map((r: any, i: number) => ({ sno: i + 1, ...r }))}
+                rows={g.rows
+                  .filter((r: any) => !r.isManualDirect)
+                  .map((r: any, i: number) => ({ sno: i + 1, ...r }))}
                 onSupervisorClick={(name, at) =>
                   setSupervisorDetail({ name, at })
                 }
@@ -804,6 +869,15 @@ export default function InwardListReport({
         <span>Shortage: {totals.shortageBags}</span>
         <span className="text-[#e67e00]">Total Bags: {totals.totalBags}</span>
       </div>
+
+      <ManualAgencyGpModal
+        open={manualOpen}
+        onClose={() => setManualOpen(false)}
+        plantId={plantId}
+        suppliers={suppliers}
+        mandis={mandis}
+        onSaved={fetchReport}
+      />
 
       <CustomModal
         isOpen={submitOpen}
@@ -1006,7 +1080,15 @@ function GovtTable({
               <td className="p-2">
                 <FlagBadges row={r} />
               </td>
-              <td className="p-2 font-mono text-xs">{r.agencyGp}</td>
+              <td className="p-2 font-mono text-xs">
+                {r.isManualDirect && (
+                  <span
+                    className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-400 mr-1.5 align-middle"
+                    title="Direct Agency GP (manual)"
+                  />
+                )}
+                {r.agencyGp}
+              </td>
               <td className="p-2">{r.truckNo}</td>
               <td className="p-2">{r.mandi}</td>
               <td className="p-2 font-bold text-[var(--text-main)]">
@@ -1045,7 +1127,12 @@ function GovtTable({
 }
 
 function FlagBadges({ row }: { row: any }) {
-  if (!row.informBaujiBagsLess && !row.informBaujiExcessWeight && !row.isBackdated) {
+  if (
+    !row.informBaujiBagsLess &&
+    !row.informBaujiExcessWeight &&
+    !row.isBackdated &&
+    !row.isManualDirect
+  ) {
     return <span className="text-[var(--text-muted-alt)]">—</span>;
   }
   return (
@@ -1065,6 +1152,12 @@ function FlagBadges({ row }: { row: any }) {
           Backdated
         </span>
       )}
+      {row.isManualDirect && (
+        <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-yellow-400 text-black">
+          <span className="w-1.5 h-1.5 rounded-full bg-black/70" />
+          Direct
+        </span>
+      )}
     </div>
   );
 }
@@ -1075,12 +1168,14 @@ function MillTable({
   onView,
   onContinueDraft,
   onSupervisorClick,
+  onDelete,
 }: {
   rows: any[];
   compact?: boolean;
   onView?: (row: any) => void;
   onContinueDraft?: (row: any) => void;
   onSupervisorClick?: (name: string, at: string | null) => void;
+  onDelete?: (row: any) => void;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -1272,6 +1367,15 @@ function MillTable({
                         title="View"
                       >
                         <Eye size={16} />
+                      </button>
+                    )}
+                    {onDelete && !r.isManualDirect && r.id && (
+                      <button
+                        onClick={() => onDelete(r)}
+                        className="text-red-400 p-1"
+                        title="Delete and restore Boli bags"
+                      >
+                        <Trash2 size={16} />
                       </button>
                     )}
                   </div>

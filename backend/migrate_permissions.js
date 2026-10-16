@@ -93,6 +93,7 @@ const MODULE_STRUCTURE = [
       'Duplicate Prevention',
     ],
   },
+  { name: 'Labour Work Order', subModules: [] },
   { name: 'Staff Management', subModules: ['Staff List', 'Add Staff', 'Truck Management'] },
   { name: 'Dryer Work', subModules: ['GOYAL AGRO', 'RAJOA AGRO', 'BEAS AGRO'] },
   { name: 'Users and Roles', subModules: ['Users', 'Roles', 'Permissions', 'Audit Access'] },
@@ -158,6 +159,11 @@ const DEFAULT_GRANTS = [
   {
     moduleName: 'Trucks & Diesel',
     roleNames: ['PLANT_MANAGER', 'SUPERVISOR'],
+    flags: { canView: true, canAdd: true, canEdit: true, canDelete: false, canApprove: false },
+  },
+  {
+    moduleName: 'Labour Work Order',
+    roleNames: ['ADMIN', 'PLANT_MANAGER', 'SUPERVISOR'],
     flags: { canView: true, canAdd: true, canEdit: true, canDelete: false, canApprove: false },
   },
   {

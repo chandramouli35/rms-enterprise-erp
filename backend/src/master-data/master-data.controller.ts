@@ -149,7 +149,7 @@ export class MasterDataController {
 
   // ===================== LABOUR MASTER =====================
   @Get('labour')
-  @RequireAnyPermission(['Procurement', 'Staff Management'], 'canView')
+  @RequireAnyPermission(['Procurement', 'Staff Management', 'Gate Pass'], 'canView')
   async getLabour(@Headers() headers, @Query('page') page?: string, @Query('limit') limit?: string) {
     const plantId = this.extractPlantId(headers);
     return this.masterDataService.getLabour(plantId, page, limit);

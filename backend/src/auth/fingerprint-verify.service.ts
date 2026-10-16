@@ -96,13 +96,15 @@ export class FingerprintVerifyService {
           };
         }
       }
-      throw new BadRequestException('This fingerprint does not exist');
+      throw new BadRequestException(
+        await this.mismatchMessage(liveIso, live),
+      );
     }
 
     // Gallery has templates but live scan did not yield FMR
     if (galleries.length && !liveIso) {
       throw new BadRequestException(
-        'This fingerprint does not exist. Keep finger steady on the sensor and Scan again.',
+        'Fingerprint could not be read. Keep your finger steady on the sensor and Scan again.',
       );
     }
 
@@ -116,8 +118,30 @@ export class FingerprintVerifyService {
     }
 
     throw new BadRequestException(
-      'This fingerprint does not exist. Place finger firmly on Mantra MFS500 and Scan again.',
+      'Fingerprint could not be read. Place your finger firmly on the sensor and Scan again.',
     );
+  }
+
+  /**
+   * Logged-in user's fingers did not match.
+   * "does not match" = this scan belongs to someone else (or not this login).
+   * "does not exist" = this scan is not stored on any user.
+   */
+  private async mismatchMessage(liveIso: string | null, livePid: string) {
+    const users = await this.prisma.user.findMany({
+      where: { deletedAt: null },
+      select: {
+        fingerprint1: true,
+        fingerprint2: true,
+        fingerprint1Template: true,
+        fingerprint2Template: true,
+      },
+    });
+    const found = users.some((u) => this.enrollmentRowMatches(u, liveIso, livePid));
+    if (found) {
+      return 'Fingerprint does not match the logged-in user';
+    }
+    return 'This fingerprint does not exist';
   }
 
   /**

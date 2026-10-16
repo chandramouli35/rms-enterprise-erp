@@ -7,6 +7,7 @@ import { InventoryModule } from '../inventory/inventory.module';
 import { ProductsModule } from '../products/products.module';
 import { FinanceModule } from '../finance/finance.module';
 import { ProcurementModule } from '../procurement/procurement.module';
+import { LabourWorkModule } from '../labour-work/labour-work.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { ProcurementModule } from '../procurement/procurement.module';
     ProductsModule,
     forwardRef(() => FinanceModule),
     ProcurementModule,
+    LabourWorkModule,
   ],
   controllers: [GatePassController],
   providers: [GatePassService, GatePassCronService],

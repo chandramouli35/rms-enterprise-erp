@@ -3,6 +3,7 @@ import api from '../api/axios';
 import StackHistoryModal from './StackHistoryModal';
 import { Layers } from 'lucide-react';
 import { usePlantStore } from '../store/plantStore';
+import { useUiStore } from '../store/uiStore';
 
 interface PaddyStack {
   id: string;
@@ -25,6 +26,35 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
   const [activeTrucks, setActiveTrucks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStack, setSelectedStack] = useState<string | null>(null);
+  const [looseOpen, setLooseOpen] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [unloaders, setUnloaders] = useState<{ id: string; name: string }[]>([]);
+  const [looseLeft, setLooseLeft] = useState<number | null>(null);
+  const [savingLoose, setSavingLoose] = useState(false);
+  const [looseForm, setLooseForm] = useState({
+    bags: '',
+    bagClass: 'A_CLASS',
+    stackNo: '',
+    unloaderName: '',
+  });
+
+  const loadLooseLeft = () => {
+    if (!plantId) return;
+    api
+      .get(`/api/procurement/stack/loose-paddy/today?plantId=${plantId}`)
+      .then((res) => setLooseLeft(Number(res.data?.remaining ?? 15)))
+      .catch(() => setLooseLeft(null));
+  };
+
+  const chooseStack = (stackNo: string) => {
+    if (picking) {
+      setLooseForm((f) => ({ ...f, stackNo }));
+      setPicking(false);
+      useUiStore.getState().addToast(`Stack ${stackNo} selected`, 'success');
+      return true;
+    }
+    return false;
+  };
 
   const fetchStacks = () => {
     setLoading(true);
@@ -74,7 +104,10 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
       <div 
         key={stackNo} 
         className="relative flex flex-col items-center cursor-pointer"
-        onClick={() => isOccupied && setSelectedStack(stackNo)}
+        onClick={() => {
+          if (chooseStack(stackNo)) return;
+          if (isOccupied) setSelectedStack(stackNo);
+        }}
       >
         <span className="text-[10px] font-bold text-[var(--text-muted-alt)] mb-1">{stackNo}</span>
         <div
@@ -95,6 +128,21 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
         <div className="flex items-center gap-2">
           <Layers className="text-[#e67e00]" size={20} />
           <h2 className="text-lg font-semibold text-[var(--text-main)]">Plant Layout & Stack View</h2>
+          <button
+            type="button"
+            onClick={() => {
+              setLooseOpen((v) => !v);
+              setPicking(false);
+              loadLooseLeft();
+              api
+                .get(`/api/procurement/unloaders/${plantId}`)
+                .then((res) => setUnloaders(Array.isArray(res.data) ? res.data : []))
+                .catch(() => setUnloaders([]));
+            }}
+            className="ml-3 text-xs font-bold bg-amber-400 hover:bg-amber-300 text-black px-3 py-1.5 rounded"
+          >
+            Add Loose Paddy Bags
+          </button>
         </div>
         
         <div className="flex items-center gap-4 text-xs font-medium bg-[var(--bg-app)] p-2 rounded-lg border border-[var(--border-subtle)]">
@@ -104,6 +152,110 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
           <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-500/50 border border-red-500"></div> 20.1%+</div>
         </div>
       </div>
+
+      {looseOpen && (
+        <form
+          className="px-4 py-3 border-b border-[var(--border-subtle)] bg-amber-400/10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!/^\d+$/.test(looseForm.bags) || Number(looseForm.bags) <= 0) {
+              useUiStore.getState().addToast('Bags must be a whole number', 'error');
+              return;
+            }
+            if (!looseForm.stackNo.trim()) {
+              useUiStore.getState().addToast('Stack No. is required', 'error');
+              return;
+            }
+            if (!looseForm.unloaderName) {
+              useUiStore.getState().addToast('Unloader Name is required', 'error');
+              return;
+            }
+            setSavingLoose(true);
+            try {
+              await api.post('/api/procurement/stack/loose-paddy', {
+                plantId,
+                bags: Number(looseForm.bags),
+                bagClass: looseForm.bagClass,
+                stackNo: looseForm.stackNo.trim(),
+                unloaderName: looseForm.unloaderName,
+              });
+              useUiStore.getState().addToast('Loose Paddy bags added to the stack count', 'success');
+              setLooseForm({ bags: '', bagClass: 'A_CLASS', stackNo: '', unloaderName: '' });
+              setPicking(false);
+              loadLooseLeft();
+              fetchStacks();
+            } catch (err: any) {
+              useUiStore.getState().addToast(err?.response?.data?.message || 'Could not add loose bags', 'error');
+            } finally {
+              setSavingLoose(false);
+            }
+          }}
+        >
+          <label className="text-xs text-[var(--text-muted-alt)]">
+            Bags
+            <input
+              className="mt-1 w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)]"
+              value={looseForm.bags}
+              onChange={(e) => setLooseForm((f) => ({ ...f, bags: e.target.value.replace(/\D/g, '') }))}
+              placeholder="0"
+            />
+          </label>
+          <label className="text-xs text-[var(--text-muted-alt)]">
+            Bag Class
+            <select
+              className="mt-1 w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)]"
+              value={looseForm.bagClass}
+              onChange={(e) => setLooseForm((f) => ({ ...f, bagClass: e.target.value }))}
+            >
+              <option value="A_CLASS">A Class</option>
+              <option value="B_CLASS">B Class</option>
+            </select>
+          </label>
+          <label className="text-xs text-[var(--text-muted-alt)] lg:col-span-2">
+            Stack No.
+            <div className="mt-1 flex gap-2">
+              <input
+                className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)]"
+                value={looseForm.stackNo}
+                onChange={(e) => setLooseForm((f) => ({ ...f, stackNo: e.target.value }))}
+                placeholder="Type or pick from drawing"
+              />
+              <button
+                type="button"
+                onClick={() => setPicking((v) => !v)}
+                className={`px-2 rounded text-xs font-bold whitespace-nowrap ${picking ? 'bg-[#e67e00] text-black' : 'border border-[var(--border-subtle)] text-[var(--text-main)]'}`}
+              >
+                {picking ? 'Click a stack' : 'From drawing'}
+              </button>
+            </div>
+          </label>
+          <label className="text-xs text-[var(--text-muted-alt)]">
+            Unloader Name
+            <select
+              className="mt-1 w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1.5 text-sm text-[var(--text-main)]"
+              value={looseForm.unloaderName}
+              onChange={(e) => setLooseForm((f) => ({ ...f, unloaderName: e.target.value }))}
+            >
+              <option value="">Select unloader</option>
+              {unloaders.map((u) => (
+                <option key={u.id || u.name} value={u.name}>{u.name}</option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <button
+              type="submit"
+              disabled={savingLoose}
+              className="w-full bg-[#e67e00] text-black font-bold text-sm rounded px-3 py-2 disabled:opacity-50"
+            >
+              {savingLoose ? 'Saving…' : 'Submit'}
+            </button>
+            <p className="text-[10px] text-[var(--text-muted-alt)] mt-1">
+              Count only, no weight. {looseLeft == null ? 'Daily limit 15 bags.' : `${looseLeft} of 15 bags left today.`}
+            </p>
+          </div>
+        </form>
+      )}
 
       <div className="p-6 flex-1 overflow-y-auto">
         {loading ? (
@@ -184,7 +336,10 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
               return (
                 <div 
                   key={stack.id}
-                  onClick={() => setSelectedStack(stack.stackNo)}
+                  onClick={() => {
+                    if (chooseStack(stack.stackNo)) return;
+                    setSelectedStack(stack.stackNo);
+                  }}
                   className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-transform hover:scale-105 ${colorClass}`}
                 >
                   {/* Cross out if empty */}

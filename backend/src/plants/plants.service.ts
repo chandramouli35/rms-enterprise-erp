@@ -34,6 +34,7 @@ export class PlantsService {
         code: data.code,
         location: data.location,
         standardBagWeight: data.standardBagWeight ? parseFloat(data.standardBagWeight) : 0.382,
+        wastageBagWeight: data.wastageBagWeight ? parseFloat(data.wastageBagWeight) : 0.382,
         aClassBagWeight: data.aClassBagWeight ? parseFloat(data.aClassBagWeight) : 0.380,
         bClassBagWeight: data.bClassBagWeight ? parseFloat(data.bClassBagWeight) : 0.385
       },
@@ -55,6 +56,9 @@ export class PlantsService {
         ...(data.location && { location: data.location }),
         ...(numIfPresent(data.standardBagWeight) !== undefined && {
           standardBagWeight: numIfPresent(data.standardBagWeight),
+        }),
+        ...(numIfPresent(data.wastageBagWeight) !== undefined && {
+          wastageBagWeight: numIfPresent(data.wastageBagWeight),
         }),
         ...(numIfPresent(data.aClassBagWeight) !== undefined && {
           aClassBagWeight: numIfPresent(data.aClassBagWeight),

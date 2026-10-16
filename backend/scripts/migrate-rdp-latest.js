@@ -15,6 +15,11 @@ const steps = [
   ['F28 GatePass soda NA + mill backfill', 'repair-f28-finance.js'],
   ['F28/F29 finance core tables', 'apply-f29-migration.js'],
   ['F47 Stack/Hoodi weight + settings', 'apply-f47-migration.js'],
+  ['F48 Manual Agency GP', 'apply-f48-migration.js'],
+  ['F49 e-GP Late + 3rd part stack', 'apply-f49-migration.js'],
+  ['F50 Loose paddy bags', 'apply-f50-migration.js'],
+  ['F51 Safai Dust and Patal wastage', 'apply-f51-migration.js'],
+  ['F53 Labour Work Order', 'apply-f53-migration.js'],
 ];
 
 let failed = 0;

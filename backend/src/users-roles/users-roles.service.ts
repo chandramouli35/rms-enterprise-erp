@@ -716,6 +716,10 @@ export class UsersRolesService {
       ],
     },
     {
+      name: 'Labour Work Order',
+      subModules: [],
+    },
+    {
       name: 'Staff Management',
       subModules: ['Staff List', 'Add Staff', 'Truck Management'],
     },

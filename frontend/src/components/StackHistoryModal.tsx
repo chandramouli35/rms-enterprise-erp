@@ -34,7 +34,7 @@ export default function StackHistoryModal({
           `/api/procurement/stack/history?plantId=${plantId}&stackNo=${encodeURIComponent(activeStack)}`,
         )
         .then((res) => {
-          const { inwards, transfers, dryerBharai } = res.data;
+          const { inwards, transfers, dryerBharai, loosePaddy } = res.data;
           const combined = [
             ...(inwards || []).map((i: any) => ({
               ...i,
@@ -45,6 +45,11 @@ export default function StackHistoryModal({
               ...d,
               type: 'DRYER_BHARAI',
               sortDate: new Date(d.date).getTime(),
+            })),
+            ...(loosePaddy || []).map((row: any) => ({
+              ...row,
+              type: 'LOOSE',
+              sortDate: new Date(row.createdAt).getTime(),
             })),
             ...(transfers || []).map((t: any) => ({
               ...t,
@@ -163,16 +168,16 @@ export default function StackHistoryModal({
                       Unloaded By
                     </th>
                     <th className="p-3 border-r border-[var(--border-subtle)] font-medium text-[var(--text-muted)]">
-                      Part Stack / Hoodi
+                      Part Stack No. / Hoodi
                     </th>
                     <th className="p-3 border-r border-[var(--border-subtle)] font-medium text-[var(--text-muted)]">
-                      Part Bags
+                      Part Stack Bags
                     </th>
                     <th className="p-3 border-r border-[var(--border-subtle)] font-medium text-[var(--text-muted)]">
-                      Part Unloader
+                      Part Stack Net Weight
                     </th>
                     <th className="p-3 border-r border-[var(--border-subtle)] font-medium text-[var(--text-muted)]">
-                      Part Weight
+                      Part Stack Unloader
                     </th>
                     <th className="p-3 font-medium text-[var(--text-muted)]">Type</th>
                   </tr>
@@ -191,11 +196,21 @@ export default function StackHistoryModal({
                         0;
                       totalBags += bags;
                       totalWt += wt;
-                      const partLabel = sv.partIsHoodi
-                        ? 'Hoodi'
-                        : sv.partStackNo ||
-                          record.paddyInwardDetails?.secondPartStackNo ||
-                          null;
+                      const partPoints =
+                        Array.isArray(sv.partPoints) && sv.partPoints.length
+                          ? sv.partPoints
+                          : sv.partStackNo || sv.partBags
+                            ? [
+                                {
+                                  label: sv.partIsHoodi ? 'Hoodi' : sv.partStackNo,
+                                  isHoodi: !!sv.partIsHoodi,
+                                  stackNo: sv.partStackNo,
+                                  bags: sv.partBags,
+                                  unloader: sv.partUnloader,
+                                  weight: sv.partWeight,
+                                },
+                              ]
+                            : [];
                       return (
                         <tr key={record.id} className="hover:bg-[var(--bg-app)]">
                           <td className="p-3 border-r border-[var(--border-subtle)]">
@@ -245,50 +260,88 @@ export default function StackHistoryModal({
                             ) || '-'}
                           </td>
                           <td className="p-3 border-r border-[var(--border-subtle)]">
-                            {sv.role === 'PART'
-                              ? record.paddyInwardDetails?.partUnloaderName
-                              : record.paddyInwardDetails?.allocateUnloader ||
-                                record.paddyInwardDetails?.unloadedBy ||
-                                '-'}
-                          </td>
-                          <td className="p-3 border-r border-[var(--border-subtle)]">
-                            {partLabel ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  openPart(sv.partStackNo || partLabel, sv.partIsHoodi)
-                                }
-                                className={`font-medium hover:underline ${
-                                  sv.partIsHoodi || partLabel === 'Hoodi'
-                                    ? 'text-[#e67e00]'
-                                    : 'text-blue-400'
-                                }`}
-                              >
-                                {sv.partIsHoodi ? '☑ Hoodi' : partLabel}
-                              </button>
-                            ) : (
-                              '-'
-                            )}
-                          </td>
-                          <td className="p-3 border-r border-[var(--border-subtle)] text-right font-mono">
-                            {sv.partBags != null && sv.partBags !== 0
-                              ? sv.partBags
-                              : record.paddyInwardDetails?.bagsInSecondPartStack ||
-                                '-'}
-                          </td>
-                          <td className="p-3 border-r border-[var(--border-subtle)]">
-                            {sv.partUnloader ||
-                              record.paddyInwardDetails?.partUnloaderName ||
+                            {sv.unloader ||
+                              (sv.role === 'PART'
+                                ? record.paddyInwardDetails?.partUnloaderName
+                                : record.paddyInwardDetails?.allocateUnloader ||
+                                  record.paddyInwardDetails?.unloadedBy) ||
                               '-'}
                           </td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">
+                            {partPoints.length
+                              ? partPoints.map((p: any, i: number) => (
+                                  <div key={i} className={i ? 'mt-1 pt-1 border-t border-[var(--border-subtle)]' : ''}>
+                                    <button
+                                      type="button"
+                                      onClick={() => openPart(p.stackNo || p.label, p.isHoodi)}
+                                      className={`font-medium hover:underline ${p.isHoodi ? 'text-[#e67e00]' : 'text-blue-400'}`}
+                                    >
+                                      {p.isHoodi ? 'Hoodi' : p.label}
+                                    </button>
+                                  </div>
+                                ))
+                              : '-'}
+                          </td>
                           <td className="p-3 border-r border-[var(--border-subtle)] text-right font-mono">
-                            {sv.partWeight != null && sv.partWeight !== 0
-                              ? Number(sv.partWeight).toFixed(2)
+                            {partPoints.length
+                              ? partPoints.map((p: any, i: number) => (
+                                  <div key={i} className={i ? 'mt-1 pt-1 border-t border-[var(--border-subtle)]' : ''}>
+                                    {p.bags ?? '-'}
+                                  </div>
+                                ))
+                              : '-'}
+                          </td>
+                          <td className="p-3 border-r border-[var(--border-subtle)] text-right font-mono">
+                            {partPoints.length
+                              ? partPoints.map((p: any, i: number) => (
+                                  <div key={i} className={i ? 'mt-1 pt-1 border-t border-[var(--border-subtle)]' : ''}>
+                                    {p.weight != null ? Number(p.weight).toFixed(2) : '-'}
+                                  </div>
+                                ))
+                              : '-'}
+                          </td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">
+                            {partPoints.length
+                              ? partPoints.map((p: any, i: number) => (
+                                  <div key={i} className={i ? 'mt-1 pt-1 border-t border-[var(--border-subtle)]' : ''}>
+                                    {p.unloader || '-'}
+                                  </div>
+                                ))
                               : '-'}
                           </td>
                           <td className="p-3 text-green-500 font-medium">
                             INWARD{sv.role === 'PART' ? ' (part)' : ''}
                           </td>
+                        </tr>
+                      );
+                    }
+                    if (record.type === 'LOOSE') {
+                      const bags = Number(record.bags) || 0;
+                      totalBags += bags;
+                      return (
+                        <tr key={record.id} className="bg-amber-500/10 hover:bg-amber-500/20">
+                          <td className="p-3 border-r border-[var(--border-subtle)]">{index + 1}</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">
+                            {record.entryDate || new Date(record.createdAt).toLocaleDateString()}
+                          </td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">-</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">-</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">-</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">-</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">Loose Paddy bag</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">-</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">-</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)] text-right font-mono">—</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)] text-right font-mono">+{bags}</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">
+                            {record.bagClass === 'B_CLASS' ? 'B Class' : 'A Class'}
+                          </td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">{record.unloaderName || '-'}</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">-</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">-</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">-</td>
+                          <td className="p-3 border-r border-[var(--border-subtle)]">-</td>
+                          <td className="p-3 text-amber-400 font-medium">Loose Paddy bag</td>
                         </tr>
                       );
                     }

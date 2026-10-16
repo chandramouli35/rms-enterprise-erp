@@ -443,6 +443,7 @@ export const YieldMillCompare: React.FC<{ basis: Basis }> = ({ basis }) => {
                 {(datesheet.itemKeys || []).map((k: string) => (
                   <th key={k} className="px-2 py-2 text-right">{k}</th>
                 ))}
+                <th className="px-2 py-2 text-right">Safai+Patal qtl</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-subtle)]">
@@ -454,6 +455,7 @@ export const YieldMillCompare: React.FC<{ basis: Basis }> = ({ basis }) => {
                       {row.items?.[k]?.qty ?? row.items?.[k]?.avg ?? row[k] ?? '—'}
                     </td>
                   ))}
+                  <td className="px-2 py-2 text-right text-amber-300">{row.wastage?.weightQtl ?? 0}</td>
                 </tr>
               ))}
               {datesheet.averageYield && (
@@ -462,6 +464,7 @@ export const YieldMillCompare: React.FC<{ basis: Basis }> = ({ basis }) => {
                   {(datesheet.itemKeys || []).map((k: string) => (
                     <td key={k} className="px-2 py-2 text-right">{datesheet.averageYield[k] ?? '—'}</td>
                   ))}
+                  <td />
                 </tr>
               )}
               {datesheet.diffInYield && (
@@ -475,6 +478,7 @@ export const YieldMillCompare: React.FC<{ basis: Basis }> = ({ basis }) => {
                       {datesheet.diffInYield[k] ?? '—'}
                     </td>
                   ))}
+                  <td />
                 </tr>
               )}
             </tbody>
@@ -535,6 +539,23 @@ export const YieldMillCompare: React.FC<{ basis: Basis }> = ({ basis }) => {
                   })}
                 </tr>
               ))}
+              <tr className="bg-amber-500/10">
+                <td className="px-3 py-2 font-medium text-amber-300 sticky left-0 bg-[var(--bg-panel)]">
+                  Safai Dust + Patal
+                  <div className="text-[10px] font-normal text-[var(--text-muted-alt)]">Accounted wastage, not a yield item</div>
+                </td>
+                {mills.map((m: any) => {
+                  const w = m.wastage || {};
+                  return (
+                    <td key={m.millKey} colSpan={2} className="px-2 py-2 text-right text-amber-200">
+                      <div>{w.safaiDustBags || 0} + {w.patalBags || 0} bags</div>
+                      <div className="text-[10px] text-[var(--text-muted-alt)]">
+                        {w.weightQtl || 0} qtl @ {w.bagWeightQtl || 0.382}
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
             </tbody>
           </table>
         </div>

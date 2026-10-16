@@ -22,21 +22,23 @@ export class FinanceLedgerService {
     return Math.round(n * 1000) / 1000;
   }
 
-  parsePartyKey(partyKey: string): { partyId?: string; partyPlantId?: string } {
+  parsePartyKey(partyKey: string): { partyId?: string; partyPlantId?: string; labourPartyId?: string } {
     if (!partyKey) throw new BadRequestException('Party is required');
     if (partyKey.startsWith('party:')) return { partyId: partyKey.slice(6) };
     if (partyKey.startsWith('plant:')) return { partyPlantId: partyKey.slice(6) };
+    if (partyKey.startsWith('labour:')) return { labourPartyId: partyKey.slice(7) };
     throw new BadRequestException('Invalid party key');
   }
 
-  partyKeyOf(row: { partyId?: string | null; partyPlantId?: string | null }) {
+  partyKeyOf(row: { partyId?: string | null; partyPlantId?: string | null; labourPartyId?: string | null }) {
+    if (row.labourPartyId) return `labour:${row.labourPartyId}`;
     if (row.partyId) return `party:${row.partyId}`;
     if (row.partyPlantId) return `plant:${row.partyPlantId}`;
     return '';
   }
 
   partyNameOf(row: any) {
-    return row.party?.name || row.partyPlant?.name || '—';
+    return row.labourParty?.name || row.party?.name || row.partyPlant?.name || '—';
   }
 
   /**
@@ -120,7 +122,7 @@ export class FinanceLedgerService {
     const where: any = { isActive: true };
     if (role === 'CUSTOMER') where.isCustomer = true;
     if (role === 'SUPPLIER') where.isSupplier = true;
-    const [parties, plantParties] = await Promise.all([
+    const [parties, plantParties, labourParties] = await Promise.all([
       this.prisma.financeParty.findMany({
         where,
         orderBy: { name: 'asc' },
@@ -128,6 +130,11 @@ export class FinanceLedgerService {
       }),
       this.prisma.plant.findMany({
         where: { deletedAt: null },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true },
+      }),
+      this.prisma.labourMaster.findMany({
+        where: { isActive: true },
         orderBy: { name: 'asc' },
         select: { id: true, name: true },
       }),
@@ -141,6 +148,15 @@ export class FinanceLedgerService {
         isSupplier: p.isSupplier,
       })),
       ...plantParties.map((p) => ({ key: `plant:${p.id}`, name: p.name, kind: 'PLANT' as const })),
+      ...(role === 'CUSTOMER'
+        ? []
+        : labourParties.map((p) => ({
+            key: `labour:${p.id}`,
+            name: p.name,
+            kind: 'LABOUR' as const,
+            isCustomer: false,
+            isSupplier: true,
+          }))),
     ];
   }
 
@@ -161,7 +177,7 @@ export class FinanceLedgerService {
     if (!(amount > 0) || Number.isNaN(amount)) {
       throw new BadRequestException('Amount must be a positive number');
     }
-    const { partyId, partyPlantId } = this.parsePartyKey(data.partyKey);
+    const { partyId, partyPlantId, labourPartyId } = this.parsePartyKey(data.partyKey);
     if (partyId) {
       const p = await this.prisma.financeParty.findUnique({ where: { id: partyId } });
       if (!p) throw new NotFoundException('Party not found');
@@ -169,6 +185,10 @@ export class FinanceLedgerService {
     if (partyPlantId) {
       const p = await this.prisma.plant.findUnique({ where: { id: partyPlantId } });
       if (!p) throw new NotFoundException('Mill party not found');
+    }
+    if (labourPartyId) {
+      const p = await this.prisma.labourMaster.findUnique({ where: { id: labourPartyId } });
+      if (!p) throw new NotFoundException('Labour party not found');
     }
 
     let financeSodaId: string | null = data.financeSodaId || null;
@@ -205,6 +225,7 @@ export class FinanceLedgerService {
         entryType,
         partyId: partyId || null,
         partyPlantId: partyPlantId || null,
+        labourPartyId: labourPartyId || null,
         financeSodaId,
         narration,
         notes: data.notes?.trim() || null,
@@ -215,6 +236,7 @@ export class FinanceLedgerService {
       include: {
         party: { select: { id: true, name: true } },
         partyPlant: { select: { id: true, name: true } },
+        labourParty: { select: { id: true, name: true } },
         financeSoda: { select: { id: true, sodaNumber: true, sodaType: true } },
       },
     });
@@ -226,6 +248,7 @@ export class FinanceLedgerService {
       include: {
         party: { select: { id: true, name: true } },
         partyPlant: { select: { id: true, name: true } },
+        labourParty: { select: { id: true, name: true } },
         financeSoda: { select: { id: true, sodaNumber: true, sodaType: true } },
       },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
@@ -254,15 +277,16 @@ export class FinanceLedgerService {
   /** Receivables (Sale) or Payables (Purchase) party rollups */
   async outstanding(kind: 'RECEIVABLES' | 'PAYABLES', opts?: { owingOnly?: boolean }) {
     const isRecv = kind === 'RECEIVABLES';
-    const billType = isRecv ? 'SALE' : 'PURCHASE';
+    const billTypes = isRecv ? ['SALE'] : ['PURCHASE', 'LABOUR'];
     const payType = isRecv ? 'RECEIPT' : 'PAYMENT';
     const owingOnly = opts?.owingOnly !== false;
 
     const entries = await this.prisma.financeLedgerEntry.findMany({
-      where: { entryType: { in: [billType, payType] } },
+      where: { entryType: { in: [...billTypes, payType] } },
       include: {
         party: { select: { id: true, name: true } },
         partyPlant: { select: { id: true, name: true } },
+        labourParty: { select: { id: true, name: true } },
         financeSoda: { select: { id: true, sodaNumber: true, sodaType: true, item: { select: { name: true } } } },
         plant: { select: { id: true, name: true } },
       },
@@ -302,7 +326,7 @@ export class FinanceLedgerService {
         map.set(key, acc);
       }
 
-      if (e.entryType === billType) {
+      if (billTypes.includes(e.entryType)) {
         const amt = isRecv ? e.debit : e.credit;
         acc.totalBilled += amt;
         if (e.financeSodaId) {
@@ -396,10 +420,11 @@ export class FinanceLedgerService {
     if (!partyKey?.trim()) {
       throw new BadRequestException('partyKey is required');
     }
-    const { partyId, partyPlantId } = this.parsePartyKey(partyKey);
+    const { partyId, partyPlantId, labourPartyId } = this.parsePartyKey(partyKey);
     const where: any = {};
     if (partyId) where.partyId = partyId;
     if (partyPlantId) where.partyPlantId = partyPlantId;
+    if (labourPartyId) where.labourPartyId = labourPartyId;
 
     if (filters?.from || filters?.to) {
       where.date = {};
@@ -416,6 +441,7 @@ export class FinanceLedgerService {
       include: {
         party: { select: { id: true, name: true } },
         partyPlant: { select: { id: true, name: true } },
+        labourParty: { select: { id: true, name: true } },
         financeSoda: { select: { id: true, sodaNumber: true, sodaType: true } },
         plant: { select: { id: true, name: true } },
       },
@@ -436,6 +462,7 @@ export class FinanceLedgerService {
           PURCHASE: 'Purchase',
           RECEIPT: 'Payment Received',
           PAYMENT: 'Payment Paid',
+          LABOUR: 'Labour Work Order',
           EXPENSE: 'Expense',
         } as any)[r.entryType] || r.entryType;
       const line = {

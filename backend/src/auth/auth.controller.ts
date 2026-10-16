@@ -45,7 +45,7 @@ export class AuthController {
 
   /**
    * 1:1 verify live Mantra scan against the logged-in user's enrolled fingerprints.
-   * Forms call this on Scan — returns error "This fingerprint does not exist" when verify fails.
+   * Forms call this on Scan. Mismatch vs this login, or not stored on any user.
    */
   @UseGuards(JwtAuthGuard)
   @Post('verify-fingerprint')

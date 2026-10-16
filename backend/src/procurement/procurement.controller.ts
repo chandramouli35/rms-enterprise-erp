@@ -25,6 +25,19 @@ export class ProcurementController {
   }
 
   
+  @Delete('paddy-inward/:id')
+  @RequirePermission('Procurement', 'canDelete')
+  async deletePaddyInward(@Param('id') id: string) {
+    try {
+      return await this.procurementService.deletePaddyInward(id);
+    } catch (error: any) {
+      throw new HttpException(
+        error.message || 'Failed to delete Paddy Inward',
+        error.status || HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   @Get('inward-details/:id')
   @RequirePermission('Procurement', 'canView')
   async getInwardDetails(@Param('id') id: string) {
@@ -52,7 +65,7 @@ export class ProcurementController {
     return this.procurementService.getNextUnloaderTruckCount(
       plantId,
       unloaderName,
-      kind === 'part' ? 'part' : 'main',
+      kind === 'part' ? 'part' : kind === 'third' ? 'third' : 'main',
       date,
       excludeBatchId,
     );
@@ -457,6 +470,13 @@ export class ProcurementController {
     );
   }
 
+  /** Feedback 48 — manual Direct Agency GP */
+  @Post('reports/manual-agency-gp')
+  @RequirePermission('Procurement', 'canAdd')
+  async createManualAgencyGp(@Body() body: any, @Req() req: any) {
+    return this.procurementService.createManualAgencyGp(body, req.user);
+  }
+
   /** Feedback 35 — dual Govt/Mill inward list report */
   @Get('reports/inward-list')
   @RequirePermission('Procurement', 'canView')
@@ -632,6 +652,26 @@ export class ProcurementController {
   async getActiveUnloadingTrucks(@Query('plantId') plantId: string) {
     if (!plantId) throw new BadRequestException('plantId is required');
     return await this.procurementService.getActiveUnloadingTrucks(plantId);
+  }
+
+  @Get('stack/loose-paddy/today')
+  @RequirePermission('Procurement', 'canView')
+  loosePaddyToday(@Query('plantId') plantId: string) {
+    if (!plantId) throw new BadRequestException('plantId is required');
+    return this.procurementService.loosePaddyToday(plantId);
+  }
+
+  @Post('stack/loose-paddy')
+  @RequirePermission('Procurement', 'canAdd')
+  async addLoosePaddyBags(@Body() body: any, @Req() req: any) {
+    try {
+      return await this.procurementService.addLoosePaddyBags(body, req.user);
+    } catch (error: any) {
+      throw new HttpException(
+        error.message || 'Failed to add loose paddy bags',
+        error.status || HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 
   @Get('stack/history')

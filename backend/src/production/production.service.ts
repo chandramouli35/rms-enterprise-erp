@@ -2,10 +2,15 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBatchDto } from './dto/create-batch.dto';
 import { InventoryService } from '../inventory/inventory.service';
+import { WastageRecordService } from './wastage-record.service';
 
 @Injectable()
 export class ProductionService {
-  constructor(private prisma: PrismaService, private inventoryService: InventoryService) {}
+  constructor(
+    private prisma: PrismaService,
+    private inventoryService: InventoryService,
+    private wastageRecord: WastageRecordService,
+  ) {}
 
   async getMetrics(plantId: string) {
     const whereClause = plantId === 'global' ? {} : { plantId };
@@ -142,6 +147,14 @@ export class ProductionService {
   }
 
   async createBatch(dto: CreateBatchDto) {
+    const safaiDustBags = this.wastageRecord.wholeBags(
+      dto.additionalOutputs?.['Safai Dust']?.produced,
+      'Safai Dust',
+    );
+    const patalBags = this.wastageRecord.wholeBags(
+      dto.additionalOutputs?.['Patal']?.produced,
+      'Patal',
+    );
     // 1. Create the Batch
     const batch = await this.prisma.productionBatch.create({
       data: {
@@ -169,6 +182,8 @@ export class ProductionService {
         wandBags: dto.additionalOutputs?.['Wand']?.produced || 0,
         parmalBags: dto.additionalOutputs?.['Parmal']?.produced || 0,
         frkBags: dto.additionalOutputs?.['FRK']?.produced || 0,
+        safaiDustBags,
+        patalBags,
         rBranReused: dto.additionalOutputs?.['R. Bran']?.reused || 0,
         kPhuckReused: dto.additionalOutputs?.['K. Phuck']?.reused || 0,
         brokenRiceReused: dto.additionalOutputs?.['Broken Rice']?.reused || 0,
@@ -212,7 +227,28 @@ export class ProductionService {
       }
     }
 
-    // Inventory deductions are now handled in submitBatch
+    // Feedback 51 — Safai Dust and Patal go to stock now. Other outputs still post on submit.
+    if (safaiDustBags || patalBags) {
+      const plant = await this.prisma.plant.findUnique({
+        where: { id: dto.plantId },
+        select: { wastageBagWeight: true, standardBagWeight: true },
+      });
+      const bagWeightQtl = this.wastageRecord.bagWeightQtl(plant);
+      await this.wastageRecord.addToStock({
+        plantId: dto.plantId,
+        shift: dto.shift,
+        safaiDustBags,
+        patalBags,
+        referenceId: batch.id,
+        bagWeightQtl,
+      });
+      await this.wastageRecord.notifyIfOverShiftLimit({
+        plantId: dto.plantId,
+        shift: dto.shift,
+        date: dto.date,
+        bagWeightQtl,
+      });
+    }
 
     return batch;
   }

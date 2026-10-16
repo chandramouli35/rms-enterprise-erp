@@ -16,6 +16,8 @@ model Plant {
 
   // Settings
   standardBagWeight Float  @default(0.382)
+  /// Feedback 51 — mill-wise average bag weight (qtl) for Safai Dust and Patal
+  wastageBagWeight  Float  @default(0.382)
   aClassBagWeight   Float  @default(0.380)
   bClassBagWeight   Float  @default(0.385)
   govtRate          Float? @default(0)
@@ -77,6 +79,8 @@ model Plant {
   driverMasters       DriverMaster[]
   staffMasters        StaffMaster[]
   labourMasters       LabourMaster[]
+  labourWorkOrders    LabourWorkOrder[]
+  labourWorkRates     LabourWorkRate[]
   pahunchMasters      PahunchMaster[]
   permissionOverrides PermissionOverride[]
   stockHealthConfig   StockHealthConfig?
@@ -425,6 +429,17 @@ model PaddyInwardDetails {
   informBaujiExcessWeight          Boolean? @default(false)
   partUnloaderName                 String?
   partUnloaderTruckCount           Float?
+  /// Feedback 49 — optional 3rd part stack (Add Part Stack)
+  thirdPartStackNo                 String?
+  bagsInThirdPartStack             Float?
+  thirdPartIsHoodi                 Boolean? @default(false)
+  thirdPartUnloadWeight            Float?
+  thirdPartUnloaderName            String?
+  thirdPartUnloaderTruckCount      Float?
+  /// Feedback 49 — e-GP Late: Agency row is Arthia Parchi bags, not Agency GP
+  egpLate                          Boolean  @default(false)
+  /// Bags added to each Boli on confirm, so delete can restore them
+  boliBagsApplied                  Json?
   meterNotWorking                  Boolean? @default(false)
   newTruckReading                  Float?
   /// Draft Time In / Confirm Time Out (HH:mm)
@@ -631,6 +646,10 @@ model GatePass {
   consignmentDispatches  ConsignmentDispatch[]
 
   items                 GatePassItem[]
+  /// Feedback 53 — labour party for the auto work order
+  labourPartyId         String?
+  labourParty           LabourMaster? @relation(fields: [labourPartyId], references: [id])
+  labourWorkOrders      LabourWorkOrder[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -754,6 +773,9 @@ model ProductionBatch {
   wandBags         Int @default(0)
   parmalBags       Int @default(0)
   frkBags          Int @default(0)
+  /// Feedback 51 — wastage bags. Stocked by count; weight uses mill wastageBagWeight. Not a yield item.
+  safaiDustBags    Int @default(0)
+  patalBags        Int @default(0)
 
   // Additional Outputs (Reused)
   rBranReused       Int @default(0)
@@ -1078,10 +1100,14 @@ model FinanceLedgerEntry {
   debit              Float    @default(0)
   credit             Float    @default(0)
   createdById        String?
+  /// Feedback 53 — labour party payable (credit)
+  labourPartyId      String?
+  labourParty        LabourMaster? @relation(fields: [labourPartyId], references: [id])
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
   @@index([partyId, date])
+  @@index([labourPartyId, date])
   @@index([partyPlantId, date])
   @@index([entryType])
   @@index([financeSodaId])
@@ -1417,6 +1443,102 @@ model LabourMaster {
   updatedAt DateTime @updatedAt
 
   @@index([plantId])
+
+  workOrders    LabourWorkOrder[]
+  gatePasses    GatePass[]
+  ledgerEntries FinanceLedgerEntry[]
+}
+
+/// Feedback 53 — labour work item (Rice, Paddy, Bardana Bundal, …)
+model LabourWorkItem {
+  id              String           @id @default(uuid())
+  name            String           @unique
+  groupName       String
+  unitLabel       String           @default("bag")
+  /// Corn rates are filled per mill by admin. No seeded rate.
+  ratesManualOnly Boolean          @default(false)
+  isActive        Boolean          @default(true)
+  sortOrder       Int              @default(0)
+  tasks           LabourWorkTask[]
+  orders          LabourWorkOrder[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model LabourWorkTask {
+  id        String                @id @default(uuid())
+  itemId    String
+  item      LabourWorkItem        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  name      String
+  /// LOAD | UNLOAD | OTHER — one order cannot mix LOAD and UNLOAD
+  direction String                @default("OTHER")
+  isActive  Boolean               @default(true)
+  rates     LabourWorkRate[]
+  lines     LabourWorkOrderLine[]
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  @@unique([itemId, name])
+}
+
+/// Mill default rate uses labourPartyId = "". A party id is the party-wise rate.
+model LabourWorkRate {
+  id            String         @id @default(uuid())
+  plantId       String
+  plant         Plant          @relation(fields: [plantId], references: [id])
+  labourPartyId String         @default("")
+  taskId        String
+  task          LabourWorkTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  rate          Float          @default(0)
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([plantId, labourPartyId, taskId])
+  @@index([plantId])
+}
+
+model LabourWorkOrder {
+  id              String                @id @default(uuid())
+  plantId         String
+  plant           Plant                 @relation(fields: [plantId], references: [id])
+  workOrderNo     Int
+  date            DateTime
+  labourPartyId   String?
+  labourParty     LabourMaster?         @relation(fields: [labourPartyId], references: [id])
+  source          String                // GP_AUTO | INWARD_AUTO | MANUAL
+  mode            String                // GP | INTERMILL
+  gatePassId      String?
+  gatePass        GatePass?             @relation(fields: [gatePassId], references: [id])
+  inwardId        String?
+  itemId          String?
+  item            LabourWorkItem?       @relation(fields: [itemId], references: [id])
+  itemName        String
+  quantity        Float
+  note            String?
+  fingerprintName String?
+  affectsStock    Boolean               @default(false)
+  sourceRef       String?               @unique
+  createdById     String?
+  lines           LabourWorkOrderLine[]
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@unique([plantId, workOrderNo])
+  @@index([plantId, date])
+  @@index([labourPartyId])
+}
+
+model LabourWorkOrderLine {
+  id        String          @id @default(uuid())
+  orderId   String
+  order     LabourWorkOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  taskId    String?
+  task      LabourWorkTask? @relation(fields: [taskId], references: [id])
+  taskName  String
+  rate      Float
+  amount    Float
+  createdAt DateTime        @default(now())
+
+  @@index([orderId])
 }
 
 model PahunchMaster {
@@ -1478,6 +1600,9 @@ model IntermillBatch {
   rawMaterial   Product           @relation("IntermillRawMaterial", fields: [rawMaterialId], references: [id])
   inputBags     Float
   status        String            @default("COMPLETED") // COMPLETED, PENDING_APPROVAL, REJECTED
+  /// Feedback 51 — wastage bags. Not yield products.
+  safaiDustBags Int               @default(0)
+  patalBags     Int               @default(0)
   plantId       String
   plant         Plant             @relation(fields: [plantId], references: [id])
   outputs       IntermillOutput[]
@@ -1803,6 +1928,23 @@ model DryerBharaiToStack {
   @@index([plantId, date])
 }
 
+/// Feedback 50 — loose paddy bags added to a stack count only (no weight)
+model LoosePaddyBag {
+  id              String   @id @default(uuid())
+  plantId         String
+  entryDate       String
+  bags            Int
+  bagClass        String
+  stackNo         String
+  unloaderName    String
+  submittedById   String?
+  submittedByName String?
+  createdAt       DateTime @default(now())
+
+  @@index([plantId, entryDate])
+  @@index([plantId, stackNo])
+}
+
 model PaddyStack {
   id              String  @id @default(uuid())
   plantId         String
@@ -2037,4 +2179,28 @@ model PaddyUsageRecord {
 
   @@unique([plantId, weekStart])
   @@index([plantId])
+}
+
+/// Feedback 48 — Direct / manual Agency GP (not from Paddy Inward)
+model ManualAgencyGp {
+  id              String   @id @default(uuid())
+  plantId         String
+  date            DateTime
+  agencyGp        String
+  truckNo         String
+  arthiaId        String?
+  arthiaName      String
+  partyName       String
+  mandi           String
+  bagsClass       String // A_CLASS | B_CLASS
+  bags            Float
+  isDirect        Boolean  @default(true)
+  submittedById   String?
+  submittedByName String?
+  biometricData   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([agencyGp])
+  @@index([plantId, date])
 }

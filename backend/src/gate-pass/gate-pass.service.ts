@@ -4,6 +4,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { FinanceSodaService } from '../finance/finance-soda.service';
 import { FinanceSalePurchaseService } from '../finance/finance-sale-purchase.service';
 import { ProcurementService } from '../procurement/procurement.service';
+import { LabourWorkService } from '../labour-work/labour-work.service';
 
 @Injectable()
 export class GatePassService {
@@ -15,6 +16,7 @@ export class GatePassService {
     @Inject(forwardRef(() => FinanceSalePurchaseService))
     private salePurchaseService: FinanceSalePurchaseService,
     private procurementService: ProcurementService,
+    private labourWork: LabourWorkService,
   ) {}
 
   /** Enforce minimum 30 minutes between GP In (start) and GP Out (complete). */
@@ -353,6 +355,7 @@ export class GatePassService {
         billNo: billNA ? null : String(billNo).trim(),
         billNoNA: billNA,
         bagTypeGp: bag,
+        labourPartyId: data.labourPartyId || null,
 
         // Items creation
         items: items && items.length > 0 ? {
@@ -872,6 +875,12 @@ export class GatePassService {
       } catch (e) {
         console.error('F29 sale/purchase sync on complete failed', e);
       }
+    }
+
+    try {
+      await this.labourWork.syncFromGatePass(id);
+    } catch (e) {
+      console.error('Labour work order from gate pass failed', e);
     }
 
     return updatedPass;

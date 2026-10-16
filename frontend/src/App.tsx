@@ -22,6 +22,7 @@ import { ExpensesManagement } from './pages/ExpensesManagement';
 import { TrucksDieselManagement } from './pages/TrucksDieselManagement';
 import { StaffManagement } from './pages/StaffManagement';
 import DryerWork from './pages/DryerWork';
+import { LabourWorkOrder } from './pages/LabourWorkOrder';
 import { CmsMonitoring } from './pages/CmsMonitoring';
 
 function App() {
@@ -56,6 +57,7 @@ function App() {
             <Route path="backup" element={<Navigate to="/dashboard" replace />} />
             <Route path="staff" element={<StaffManagement />} />
             <Route path="dryer" element={<DryerWork />} />
+            <Route path="labour-work" element={<LabourWorkOrder />} />
           </Route>
         </Route>
 

@@ -1397,6 +1397,8 @@ export class YieldService {
 
   private matchYieldItemKey(name: string): string | null {
     const n = (name || '').toLowerCase();
+    // Feedback 51 — Safai Dust and Patal are wastage stock, not yield lines
+    if (/safai/.test(n) || /\bpatal\b/.test(n)) return null;
     if (/bran|r\.?\s*bran/.test(n)) return 'R. Bran';
     if (/phuck|k\.?\s*phuck/.test(n)) return 'K. Phuck';
     if (/broken|kani/.test(n)) return 'Broken Rice';
@@ -1522,7 +1524,49 @@ export class YieldService {
       items[label] = this.cell(qty, pct, benchMap[label] ?? 0);
     }
 
-    return { items, netRice, purchasedUsed, paddyUsed, denominator };
+    const wastage = await this.getWastageAccounted(plantId, from, until);
+    return { items, netRice, purchasedUsed, paddyUsed, denominator, wastage };
+  }
+
+  /** Feedback 51 — mill average bag weight turns Safai Dust + Patal bags into quintals. Not a yield item. */
+  private async getWastageAccounted(plantId: string, from: Date, until: Date) {
+    const plant = await this.prisma.plant.findUnique({
+      where: { id: plantId },
+      select: { wastageBagWeight: true, standardBagWeight: true },
+    });
+    const set = Number(plant?.wastageBagWeight);
+    const standard = Number(plant?.standardBagWeight);
+    const bagWeightQtl =
+      Number.isFinite(set) && set > 0
+        ? set
+        : Number.isFinite(standard) && standard > 0
+          ? standard
+          : 0.382;
+    const [prod, inter] = await Promise.all([
+      this.prisma.productionBatch.aggregate({
+        where: { plantId, date: { gte: from, lte: until } },
+        _sum: { safaiDustBags: true, patalBags: true },
+      }),
+      this.prisma.intermillBatch.aggregate({
+        where: {
+          plantId,
+          date: { gte: from, lte: until },
+          status: { in: ['COMPLETED', 'PENDING_APPROVAL'] },
+        },
+        _sum: { safaiDustBags: true, patalBags: true },
+      }),
+    ]);
+    const safaiDustBags =
+      Number(prod._sum.safaiDustBags || 0) + Number(inter._sum.safaiDustBags || 0);
+    const patalBags = Number(prod._sum.patalBags || 0) + Number(inter._sum.patalBags || 0);
+    const bags = safaiDustBags + patalBags;
+    return {
+      safaiDustBags,
+      patalBags,
+      bags,
+      bagWeightQtl,
+      weightQtl: Number((bags * bagWeightQtl).toFixed(3)),
+    };
   }
 
   async getMillYieldCompare(params: {
@@ -1612,6 +1656,7 @@ export class YieldService {
         netRiceProduced: built.netRice,
         purchasedRiceUsed: built.purchasedUsed,
         paddyUsed: built.paddyUsed,
+        wastage: built.wastage,
         benchmarks: benchMap,
         targets,
       });
@@ -1875,7 +1920,7 @@ export class YieldService {
           pctSums[k] += cell.pct || 0;
         }
       }
-      rows.push({ date: label, items: rowItems });
+      rows.push({ date: label, items: rowItems, wastage: built.wastage });
       sliceCount++;
       if (sliceCount > 400) break;
     }

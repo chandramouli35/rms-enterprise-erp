@@ -25,6 +25,14 @@ interface HoodiRecord {
   partBags?: number | null;
   partUnloader?: string | null;
   partWeight?: number | null;
+  partPoints?: Array<{
+    label: string;
+    isHoodi?: boolean;
+    stackNo?: string;
+    bags?: number;
+    weight?: number;
+    unloader?: string | null;
+  }>;
 }
 
 export default function DailyHoodiReport() {
@@ -73,12 +81,21 @@ export default function DailyHoodiReport() {
       Bags: row.bags || 0,
       'Net Weight (Qtl)': row.netWeight ?? '-',
       'RST No.': row.rstNo || '-',
-      'Part Stack / Hoodi': row.partIsHoodi
-        ? 'Hoodi'
-        : row.partStackNo || '-',
-      'Part Bags': row.partBags ?? '-',
-      'Part Unloader': row.partUnloader || '-',
-      'Part Weight (Qtl)': row.partWeight ?? '-',
+      'Part Stack No. / Hoodi': (row.partPoints?.length
+        ? row.partPoints
+        : [{ label: row.partIsHoodi ? 'Hoodi' : row.partStackNo, bags: row.partBags, unloader: row.partUnloader, weight: row.partWeight }]
+      )
+        .map((p) => p.label || '-')
+        .join(' | '),
+      'Part Stack Bags': (row.partPoints?.length ? row.partPoints : [{ bags: row.partBags }])
+        .map((p) => p.bags ?? '-')
+        .join(' | '),
+      'Part Stack Net Weight': (row.partPoints?.length ? row.partPoints : [{ weight: row.partWeight }])
+        .map((p) => (p.weight != null ? Number(p.weight).toFixed(2) : '-'))
+        .join(' | '),
+      'Part Stack Unloader': (row.partPoints?.length ? row.partPoints : [{ unloader: row.partUnloader }])
+        .map((p) => (p as any).unloader || '-')
+        .join(' | '),
       'Unloaded By': row.unloadedBy || '-',
     }));
 
@@ -182,16 +199,16 @@ export default function DailyHoodiReport() {
                 RST No.
               </th>
               <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
-                Part Stack / Hoodi
+                Part Stack No. / Hoodi
               </th>
               <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
-                Part Bags
+                Part Stack Bags
               </th>
               <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
-                Part Unloader
+                Part Stack Net Weight
               </th>
               <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
-                Part Weight
+                Part Stack Unloader
               </th>
               <th className="px-4 py-3 text-xs font-semibold text-[var(--text-muted-alt)] uppercase tracking-wider">
                 Unloaded By
@@ -256,33 +273,44 @@ export default function DailyHoodiReport() {
                     {row.rstNo || '-'}
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    {row.partIsHoodi ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-orange-500/15 text-[#e67e00]">
-                        Hoodi
-                      </span>
-                    ) : row.partStackNo ? (
-                      <button
-                        type="button"
-                        onClick={() => openPartDestination(row)}
-                        className="font-mono font-bold text-[#e67e00] hover:underline"
-                        title="Open stack record"
-                      >
-                        {row.partStackNo}
-                      </button>
+                    {(row.partPoints?.length
+                      ? row.partPoints
+                      : row.partStackNo || row.partBags
+                        ? [{ label: row.partIsHoodi ? 'Hoodi' : row.partStackNo, isHoodi: row.partIsHoodi, stackNo: row.partStackNo, bags: row.partBags, unloader: row.partUnloader, weight: row.partWeight }]
+                        : []
+                    ).length ? (
+                      (row.partPoints?.length
+                        ? row.partPoints
+                        : [{ label: row.partIsHoodi ? 'Hoodi' : row.partStackNo, isHoodi: !!row.partIsHoodi, stackNo: row.partStackNo, bags: row.partBags, unloader: row.partUnloader, weight: row.partWeight }]
+                      ).map((p, i) => (
+                        <div key={i} className={i ? 'mt-1 pt-1 border-t border-[var(--border-subtle)]' : ''}>
+                          {p.isHoodi ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-orange-500/15 text-[#e67e00]">Hoodi</span>
+                          ) : (
+                            <button type="button" onClick={() => openPartDestination({ ...row, partIsHoodi: false, partStackNo: p.stackNo || p.label })} className="font-mono font-bold text-[#e67e00] hover:underline">
+                              {p.label || p.stackNo}
+                            </button>
+                          )}
+                        </div>
+                      ))
                     ) : (
                       <span className="text-[var(--text-muted-alt)]">-</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm font-mono text-[var(--text-main)]">
-                    {row.partBags != null ? row.partBags : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-[var(--text-main)]">
-                    {row.partUnloader || '-'}
+                    {(row.partPoints?.length ? row.partPoints : [{ bags: row.partBags }]).map((p, i) => (
+                      <div key={i} className={i ? 'mt-1 pt-1 border-t border-[var(--border-subtle)]' : ''}>{p.bags ?? '-'}</div>
+                    ))}
                   </td>
                   <td className="px-4 py-3 text-sm font-mono text-[var(--text-main)]">
-                    {row.partWeight != null
-                      ? Number(row.partWeight).toFixed(2)
-                      : '-'}
+                    {(row.partPoints?.length ? row.partPoints : [{ weight: row.partWeight }]).map((p, i) => (
+                      <div key={i} className={i ? 'mt-1 pt-1 border-t border-[var(--border-subtle)]' : ''}>{p.weight != null ? Number(p.weight).toFixed(2) : '-'}</div>
+                    ))}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-[var(--text-main)]">
+                    {(row.partPoints?.length ? row.partPoints : [{ unloader: row.partUnloader }]).map((p, i) => (
+                      <div key={i} className={i ? 'mt-1 pt-1 border-t border-[var(--border-subtle)]' : ''}>{(p as any).unloader || '-'}</div>
+                    ))}
                   </td>
                   <td className="px-4 py-3 text-sm text-[var(--text-main)]">
                     {row.unloadedBy || '-'}

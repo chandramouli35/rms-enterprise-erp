@@ -38,6 +38,20 @@ import StackToHoodiTransfer from "../components/StackToHoodiTransfer";
 import DryerBharaiToStackTransfer from "../components/DryerBharaiToStackTransfer";
 import DailyHoodiReport from "../components/DailyHoodiReport";
 import StackLayoutView from "../components/StackLayoutView";
+
+/** Feedback 52 — point weight = bags × (net ÷ total bags to 4 decimals), then 2 decimals. */
+function unloadPointWeight(form: any, pointBags: number): string {
+  const bags =
+    (parseFloat(String(form?.origAClass || "")) || 0) +
+    (parseFloat(String(form?.origBClass || "")) || 0) +
+    (parseFloat(String(form?.shortageAClass || "")) || 0) +
+    (parseFloat(String(form?.shortageBClass || "")) || 0);
+  const net =
+    parseFloat(String(form?.netWtMill || form?.netWeightWb || "")) || 0;
+  if (!(bags > 0) || !(pointBags > 0) || !(net > 0)) return "";
+  const avg = Number((net / bags).toFixed(4));
+  return (avg * pointBags).toFixed(2);
+}
 import { CustomModal } from "../components/CustomModal";
 import { usePlantStore } from "../store/plantStore";
 import { useUiStore } from "../store/uiStore";
@@ -182,6 +196,7 @@ export const ProcurementManagement = () => {
     bugs: 0,
     gpNo: "",
     mandiEgpNo: "",
+    egpLate: false,
     rstNo: "",
     mandiParchiNo: "",
     pahunchPersonName: "",
@@ -335,6 +350,7 @@ export const ProcurementManagement = () => {
     entryMadeByUserId: "",
     truckNo: "",
     mandiEgpNo: "",
+    egpLate: false,
     rstNo: "",
     mandiParchiNo: "",
     supplierId: "",
@@ -408,6 +424,12 @@ export const ProcurementManagement = () => {
     bagsInSecondPartStack: "",
     partIsHoodi: false,
     noPartStack: false,
+    showThirdPartStack: false,
+    thirdPartUnloaderName: "",
+    thirdPartUnloaderTruckCount: "",
+    thirdPartStackNo: "",
+    bagsInThirdPartStack: "",
+    thirdPartIsHoodi: false,
     unloaderInitials: "",
     unloaderName: "",
     unloadingEndTime: "",
@@ -447,6 +469,7 @@ export const ProcurementManagement = () => {
     benchmarkMoisture: "",
     safaiCut: "",
     processingCut: "",
+    wastageBagWeight: "",
     allowManualDateTimePaddyInward: false,
     allowManualDateTimeGateIn: false,
     allowManualDateTimeGateOut: false,
@@ -469,6 +492,10 @@ export const ProcurementManagement = () => {
           activePlant.processingCut != null
             ? String(activePlant.processingCut)
             : "4",
+        wastageBagWeight:
+          activePlant.wastageBagWeight != null
+            ? String(activePlant.wastageBagWeight)
+            : String(activePlant.standardBagWeight || 0.382),
         allowManualDateTimePaddyInward: !!(
           activePlant.allowManualDateTimePaddyInward ??
           activePlant.allowManualDateTime
@@ -504,6 +531,7 @@ export const ProcurementManagement = () => {
         benchmarkMoisture: numOr(plantSettings.benchmarkMoisture, 17),
         safaiCut: numOr(plantSettings.safaiCut, 2),
         processingCut: numOr(plantSettings.processingCut, 4),
+        wastageBagWeight: numOr(plantSettings.wastageBagWeight, 0.382),
         allowManualDateTimePaddyInward:
           !!plantSettings.allowManualDateTimePaddyInward,
         allowManualDateTimeGateIn: !!plantSettings.allowManualDateTimeGateIn,
@@ -520,6 +548,7 @@ export const ProcurementManagement = () => {
         benchmarkMoisture: payload.benchmarkMoisture.toString(),
         safaiCut: payload.safaiCut.toString(),
         processingCut: payload.processingCut.toString(),
+        wastageBagWeight: payload.wastageBagWeight.toString(),
         allowManualDateTimePaddyInward: payload.allowManualDateTimePaddyInward,
         allowManualDateTimeGateIn: payload.allowManualDateTimeGateIn,
         allowManualDateTimeGateOut: payload.allowManualDateTimeGateOut,
@@ -681,12 +710,11 @@ export const ProcurementManagement = () => {
     const origB = parseFloat(inwardFormData.origBClass) || 0;
     const shortA = parseFloat(inwardFormData.shortageAClass) || 0;
     const shortB = parseFloat(inwardFormData.shortageBClass) || 0;
-    // Feedback 33 Case 01: Required = (Agency bags + Shortage bags) × std weight
+    // Feedback 49: Required = (Arthia Parchi / Agency bags + Shortage bags) × mandi std 0.381 or 0.382
     const agencyA = parseFloat(inwardFormData.origAClassAg) || 0;
     const agencyB = parseFloat(inwardFormData.origBClassAg) || 0;
 
     const selectedPlant = plants.find((p) => p.id === activePlant?.id);
-    // Feedback 33 Case 01: Required = (Agency bags + Shortage bags) × 0.382 (plant standardBagWeight)
     const bagWt = selectedPlant?.standardBagWeight || 0.382;
     const agencyTotal = agencyA + agencyB;
     const shortTotal = shortA + shortB;
@@ -1653,7 +1681,8 @@ export const ProcurementManagement = () => {
         entryMadeByName: d.entryMadeByName || "",
         entryMadeByUserId: d.entryMadeByUserId || "",
         truckNo: d.truckNo || "",
-        mandiEgpNo: d.mandiEgNo || "",
+        mandiEgpNo: d.egpLate ? d.mandiEgNo || "" : d.mandiEgNo || "",
+        egpLate: !!d.egpLate,
         rstNo: d.rstNo || "",
         mandiParchiNo: d.mandiParchiNo || "",
         supplierId: batch.supplierId || "",
@@ -1686,6 +1715,17 @@ export const ProcurementManagement = () => {
         secondPartStackNo: d.secondPartStackNo || "",
         bagsInSecondPartStack: d.bagsInSecondPartStack ?? "",
         partIsHoodi: !!d.partIsHoodi,
+        showThirdPartStack: !!(
+          d.thirdPartUnloaderName ||
+          d.thirdPartStackNo ||
+          d.thirdPartIsHoodi ||
+          (d.bagsInThirdPartStack != null && Number(d.bagsInThirdPartStack) > 0)
+        ),
+        thirdPartUnloaderName: d.thirdPartUnloaderName || "",
+        thirdPartUnloaderTruckCount: d.thirdPartUnloaderTruckCount ?? "",
+        thirdPartStackNo: d.thirdPartStackNo || "",
+        bagsInThirdPartStack: d.bagsInThirdPartStack ?? "",
+        thirdPartIsHoodi: !!d.thirdPartIsHoodi,
         isHold: !!d.isHold,
         holdReason: d.holdReason || "",
         heldAt: d.heldAt || "",
@@ -2346,12 +2386,23 @@ export const ProcurementManagement = () => {
       "mobileNumber",
     ];
 
-    const requiredFields =
+    let requiredFields =
       working.isHold && effectiveStatus === "DRAFT"
         ? (["truckNo", "allocateUnloader", "date", "timeIn"] as string[])
         : effectiveStatus === "DRAFT"
-          ? draftRequired
-          : confirmRequired;
+          ? [...draftRequired]
+          : [...confirmRequired];
+    if (working.egpLate) {
+      requiredFields = requiredFields.filter((f) => f !== "mandiEgpNo");
+    }
+    if (
+      effectiveStatus !== "DRAFT" &&
+      working.showThirdPartStack &&
+      !(working.isHold && effectiveStatus === "DRAFT")
+    ) {
+      requiredFields.push("thirdPartUnloaderName", "bagsInThirdPartStack");
+      if (!working.thirdPartIsHoodi) requiredFields.push("thirdPartStackNo");
+    }
 
     let hasError = false;
     const newErrors: Record<string, string> = {};
@@ -2521,15 +2572,21 @@ export const ProcurementManagement = () => {
       const partBags = working.noPartStack
         ? 0
         : parseFloat(String(working.bagsInSecondPartStack ?? "")) || 0;
+      const thirdBags = working.showThirdPartStack
+        ? parseFloat(String(working.bagsInThirdPartStack ?? "")) || 0
+        : 0;
       const millBags =
         parseFloat(String(working.bagsRecAtMill ?? "")) ||
         (parseFloat(String(working.origAClass ?? "")) || 0) +
           (parseFloat(String(working.origBClass ?? "")) || 0);
-      if (millBags > 0 && mainBags + partBags > 0) {
-        if (Math.abs(mainBags + partBags - millBags) > 0.01) {
+      const splitBags = mainBags + partBags + thirdBags;
+      if (millBags > 0 && splitBags > 0) {
+        if (Math.abs(splitBags - millBags) > 0.01) {
           newErrors.bagsInMainStack = `Unloader bags (Main ${mainBags}${
             working.noPartStack ? "" : ` + Part ${partBags}`
-          } = ${mainBags + partBags}) must match Bags Rec. @ Mill (${millBags})`;
+          }${
+            working.showThirdPartStack ? ` + 3rd ${thirdBags}` : ""
+          } = ${splitBags}) must match Bags Rec. @ Mill (${millBags})`;
           hasError = true;
         }
       }
@@ -2568,6 +2625,7 @@ export const ProcurementManagement = () => {
       let truckCounts: {
         mainUnloaderTruckCount?: string | number;
         partUnloaderTruckCount?: string | number;
+        thirdPartUnloaderTruckCount?: string | number;
       } = {};
       if (effectiveStatus === "CONFIRMED" && selectedPlantId) {
         try {
@@ -2601,6 +2659,21 @@ export const ProcurementManagement = () => {
             );
             truckCounts.partUnloaderTruckCount = partRes.data?.nextCount;
           }
+          if (working.thirdPartUnloaderName && working.showThirdPartStack) {
+            const thirdRes = await api.get(
+              `/api/procurement/unloader-truck-count`,
+              {
+                params: {
+                  plantId: selectedPlantId,
+                  unloaderName: working.thirdPartUnloaderName,
+                  kind: "third",
+                  date: working.date || undefined,
+                  excludeBatchId: working.id || undefined,
+                },
+              },
+            );
+            truckCounts.thirdPartUnloaderTruckCount = thirdRes.data?.nextCount;
+          }
         } catch {
           /* backend will still assign on confirm */
         }
@@ -2631,7 +2704,23 @@ export const ProcurementManagement = () => {
         id: working.id || undefined,
         shortageQtl: working.actualShortageQtl,
         bagsRecAtMill: computedBagsRecAtMill,
-        bagsAtAgencyGp: computedBagsAtAgencyGp,
+        bagsAtAgencyGp: working.egpLate ? 0 : computedBagsAtAgencyGp,
+        egpLate: !!working.egpLate,
+        showThirdPartStack: !!working.showThirdPartStack,
+        ...(working.showThirdPartStack
+          ? {
+              thirdPartIsHoodi: !!working.thirdPartIsHoodi,
+              thirdPartStackNo: working.thirdPartIsHoodi
+                ? ""
+                : working.thirdPartStackNo,
+            }
+          : {
+              thirdPartUnloaderName: "",
+              thirdPartUnloaderTruckCount: null,
+              thirdPartStackNo: "",
+              bagsInThirdPartStack: null,
+              thirdPartIsHoodi: false,
+            }),
         boliInputs,
         category,
         plantId: selectedPlantId,
@@ -3411,17 +3500,47 @@ export const ProcurementManagement = () => {
                       )}
                     </div>
                     <div>
-                      <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
-                        Mandi e-GP / Bill No.{" "}
-                        <span className="text-red-500">*</span>
-                      </label>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <label className="block text-[var(--text-muted-alt)] text-xs">
+                          Mandi e-GP / Bill No.{" "}
+                          {!inwardFormData.egpLate && (
+                            <span className="text-red-500">*</span>
+                          )}
+                        </label>
+                        <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-400 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!inwardFormData.egpLate}
+                            onChange={(e) => {
+                              const on = e.target.checked;
+                              setInwardFormData((prev: any) => ({
+                                ...prev,
+                                egpLate: on,
+                              }));
+                              if (on) {
+                                setInwardErrors((prev) => {
+                                  const next = { ...prev };
+                                  delete next.mandiEgpNo;
+                                  return next;
+                                });
+                              }
+                            }}
+                            className="accent-[#e67e00] w-4 h-4"
+                          />
+                          e-GP Late
+                        </label>
+                      </div>
                       <input
                         type="text"
                         name="mandiEgpNo"
                         value={inwardFormData.mandiEgpNo}
                         onChange={handleInwardChange}
                         className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
-                        placeholder="EGP-458796"
+                        placeholder={
+                          inwardFormData.egpLate
+                            ? "Not required when e-GP Late"
+                            : "EGP-458796"
+                        }
                       />
                       {inwardErrors.mandiEgpNo && (
                         <span className="text-red-500 text-[10px] mt-1 block">
@@ -3939,6 +4058,22 @@ export const ProcurementManagement = () => {
                           </span>
                         )}
                       </div>
+                      <div>
+                        <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                          Net weight of Main Stack
+                        </label>
+                        <input
+                          type="text"
+                          readOnly
+                          value={unloadPointWeight(
+                            inwardFormData,
+                            parseFloat(String(inwardFormData.bagsInMainStack || "")) || 0,
+                          )}
+                          className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-amber-400 font-mono outline-none opacity-90"
+                          placeholder="Auto (bags × avg wt)"
+                          title="Bags × average bag weight (net ÷ total bags, 4 decimals), stored to 2 decimals"
+                        />
+                      </div>
                     </div>
 
                     {/* Row 2: Part Unloader / No Part Stack */}
@@ -4136,41 +4271,217 @@ export const ProcurementManagement = () => {
                           <input
                             type="text"
                             readOnly
-                            value={(() => {
-                              const totalBags =
-                                parseFloat(
-                                  String(
-                                    inwardFormData.totalBagsReceived ||
-                                      inwardFormData.bags ||
-                                      "",
-                                  ),
-                                ) || 0;
-                              const partBags =
-                                parseFloat(
-                                  String(inwardFormData.bagsInSecondPartStack || ""),
-                                ) || 0;
-                              const net =
-                                parseFloat(
-                                  String(
-                                    inwardFormData.netWtMill ||
-                                      inwardFormData.netWeightWb ||
-                                      "",
-                                  ),
-                                ) || 0;
-                              if (!(totalBags > 0) || !(partBags > 0) || !(net > 0))
-                                return "";
-                              return ((net / totalBags) * partBags).toFixed(3);
-                            })()}
+                            value={unloadPointWeight(
+                              inwardFormData,
+                              parseFloat(String(inwardFormData.bagsInSecondPartStack || "")) || 0,
+                            )}
                             className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-amber-400 font-mono outline-none opacity-90"
                             placeholder="Auto (bags × avg wt)"
-                            title="Feedback 47: part bags × (Total Net / Total Bags)"
+                            title="Bags × average bag weight (net ÷ total bags, 4 decimals), stored to 2 decimals"
                           />
                           <p className="text-[10px] text-[var(--text-muted-alt)] mt-0.5">
-                            Auto: Part Bags × (Net Weight ÷ Total Bags)
+                            Average bag weight to 4 decimals, then × bags, shown to 2 decimals
                           </p>
                         </div>
                       </div>
                     )}
+
+                    <div className="col-span-1 sm:col-span-2 2xl:col-span-4">
+                      {!inwardFormData.showThirdPartStack ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setInwardFormData((prev: any) => ({
+                              ...prev,
+                              showThirdPartStack: true,
+                            }))
+                          }
+                          className="text-xs font-bold text-[#e67e00] border border-[#e67e00]/40 rounded px-3 py-1.5 hover:bg-[#e67e00]/10"
+                        >
+                          Add Part Stack
+                        </button>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5">
+                          <div className="sm:col-span-2 2xl:col-span-4 flex items-center justify-between">
+                            <span className="text-xs font-bold text-amber-400 uppercase tracking-wide">
+                              3rd Part Stack
+                            </span>
+                            <button
+                              type="button"
+                              className="text-[10px] text-[var(--text-muted-alt)] underline"
+                              onClick={() =>
+                                setInwardFormData((prev: any) => ({
+                                  ...prev,
+                                  showThirdPartStack: false,
+                                  thirdPartUnloaderName: "",
+                                  thirdPartUnloaderTruckCount: "",
+                                  thirdPartStackNo: "",
+                                  bagsInThirdPartStack: "",
+                                  thirdPartIsHoodi: false,
+                                }))
+                              }
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <div>
+                            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                              Unloader 3 <span className="text-red-500">*</span>
+                            </label>
+                            <Combobox
+                              name="thirdPartUnloaderName"
+                              value={inwardFormData.thirdPartUnloaderName || ""}
+                              onChange={async (e: any) => {
+                                if (inwardFormData.isHold) return;
+                                handleInwardChange(e);
+                                const name = e?.target?.value;
+                                if (!name || !activePlant?.id) return;
+                                try {
+                                  const res = await api.get(
+                                    `/api/procurement/unloader-truck-count`,
+                                    {
+                                      params: {
+                                        plantId: activePlant.id,
+                                        unloaderName: name,
+                                        kind: "third",
+                                        date: inwardFormData.date || undefined,
+                                        excludeBatchId:
+                                          inwardFormData.id || undefined,
+                                      },
+                                    },
+                                  );
+                                  setInwardFormData((prev: any) => ({
+                                    ...prev,
+                                    thirdPartUnloaderName: name,
+                                    thirdPartUnloaderTruckCount: String(
+                                      res.data?.nextCount ?? "",
+                                    ),
+                                  }));
+                                } catch {
+                                  /* keep manual */
+                                }
+                              }}
+                              options={
+                                unloaderOptions.length > 0
+                                  ? unloaderOptions
+                                  : [
+                                      ...staff.filter((s: any) =>
+                                        /UNLOADER/i.test(s.role || ""),
+                                      ),
+                                      ...staff.filter(
+                                        (s: any) =>
+                                          !/UNLOADER/i.test(s.role || ""),
+                                      ),
+                                      ...labours,
+                                    ]
+                              }
+                              selectOnly
+                              listMaxHeightClass="max-h-48"
+                              className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+                              placeholder="Select Unloader"
+                            />
+                            {inwardErrors.thirdPartUnloaderName && (
+                              <span className="text-red-500 text-[10px] mt-1 block">
+                                {inwardErrors.thirdPartUnloaderName}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                              Truck count
+                            </label>
+                            <input
+                              type="number"
+                              name="thirdPartUnloaderTruckCount"
+                              value={inwardFormData.thirdPartUnloaderTruckCount || ""}
+                              readOnly
+                              className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-90"
+                              placeholder="After confirm"
+                              title="Serial credited only when Net Weight Paddy Inward is submitted"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                              Part Stack No.{" "}
+                              {!inwardFormData.thirdPartIsHoodi && (
+                                <span className="text-red-500">*</span>
+                              )}
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                name="thirdPartStackNo"
+                                value={
+                                  inwardFormData.thirdPartIsHoodi
+                                    ? ""
+                                    : inwardFormData.thirdPartStackNo || ""
+                                }
+                                onChange={handleInwardChange}
+                                disabled={!!inwardFormData.thirdPartIsHoodi}
+                                className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00] disabled:opacity-50"
+                                placeholder="Stack No."
+                              />
+                              <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-main)] whitespace-nowrap cursor-pointer shrink-0 px-2 py-2 rounded border border-[var(--border-subtle)]">
+                                <input
+                                  type="checkbox"
+                                  checked={!!inwardFormData.thirdPartIsHoodi}
+                                  onChange={(e) =>
+                                    setInwardFormData((prev: any) => ({
+                                      ...prev,
+                                      thirdPartIsHoodi: e.target.checked,
+                                      ...(e.target.checked
+                                        ? { thirdPartStackNo: "" }
+                                        : {}),
+                                    }))
+                                  }
+                                  className="accent-[#e67e00] w-4 h-4"
+                                />
+                                Hoodi
+                              </label>
+                            </div>
+                            {inwardErrors.thirdPartStackNo && (
+                              <span className="text-red-500 text-[10px] mt-1 block">
+                                {inwardErrors.thirdPartStackNo}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                              Bags in Part Stack (Unloader 3){" "}
+                              <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              name="bagsInThirdPartStack"
+                              value={inwardFormData.bagsInThirdPartStack || ""}
+                              onChange={handleInwardChange}
+                              className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+                              placeholder="0"
+                            />
+                            {inwardErrors.bagsInThirdPartStack && (
+                              <span className="text-red-500 text-[10px] mt-1 block">
+                                {inwardErrors.bagsInThirdPartStack}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                              Net weight of 3rd Part Stack
+                            </label>
+                            <input
+                              type="text"
+                              readOnly
+                              value={unloadPointWeight(
+                                inwardFormData,
+                                parseFloat(String(inwardFormData.bagsInThirdPartStack || "")) || 0,
+                              )}
+                              className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-amber-400 font-mono outline-none opacity-90"
+                              placeholder="Auto (bags × avg wt)"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                     <div>
                       <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
@@ -4686,7 +4997,9 @@ export const ProcurementManagement = () => {
                           </tr>
                           <tr>
                             <td className="py-3 text-[var(--text-muted)] font-medium">
-                              Bags @ Agency GP
+                              {inwardFormData.egpLate
+                                ? "Arthia Parchi bags"
+                                : "Bags @ Agency GP"}
                             </td>
                             <td className="py-3">
                               <input
@@ -4741,6 +5054,13 @@ export const ProcurementManagement = () => {
                           </tr>
                         </tbody>
                       </table>
+                      {inwardFormData.egpLate && (
+                        <p className="text-[11px] text-amber-400 mt-2">
+                          e-GP Late: these bags are Arthia Parchi bags. They are
+                          used for required weight and are not counted as Agency
+                          GP bags. Agency GP number is not required.
+                        </p>
+                      )}
                       {(() => {
                         const millExclShortage =
                           (parseFloat(inwardFormData.origAClass) || 0) +
@@ -6512,6 +6832,19 @@ export const ProcurementManagement = () => {
                           </div>
                           <div>
                             <p className="text-xs text-[var(--text-muted-alt)] mb-1">
+                              Safai / Patal bag weight
+                            </p>
+                            <p className="text-xl font-bold text-[var(--text-main)]">
+                              {plantSettings.wastageBagWeight !== ""
+                                ? plantSettings.wastageBagWeight
+                                : "0.382"}
+                              <span className="text-xs text-[var(--text-muted)] font-normal ml-1">
+                                qtl / bag
+                              </span>
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-[var(--text-muted-alt)] mb-1">
                               Processing Cut
                             </p>
                             <p className="text-xl font-bold text-[var(--text-main)]">
@@ -6676,6 +7009,24 @@ export const ProcurementManagement = () => {
                                 setPlantSettings({
                                   ...plantSettings,
                                   safaiCut: e.target.value,
+                                })
+                              }
+                              className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-amber-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-[var(--text-muted-alt)] mb-1 block">
+                              Safai / Patal average bag weight (Qtl)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.001"
+                              value={plantSettings.wastageBagWeight}
+                              onChange={(e) =>
+                                setPlantSettings({
+                                  ...plantSettings,
+                                  wastageBagWeight: e.target.value,
                                 })
                               }
                               className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] outline-none focus:border-amber-500"

@@ -44,7 +44,7 @@ export const ProductionManagement = () => {
   const { createBatch: createIntermillBatch, batches: intermillBatches, fetchBatches: fetchIntermillBatches, approveBatch: approveIntermillBatch } = useIntermillStore();
   const user = useAuthStore(state => state.user);
   const [products, setProducts] = useState<any[]>([]);
-  const [intermillData, setIntermillData] = useState({ rawMaterialId: '', inputBags: '' });
+  const [intermillData, setIntermillData] = useState({ rawMaterialId: '', inputBags: '', safaiDustBags: '', patalBags: '' });
   const [selectedOutputs, setSelectedOutputs] = useState<Record<string, boolean>>({});
   const [outputQuantities, setOutputQuantities] = useState<Record<string, string>>({});
 
@@ -76,6 +76,8 @@ export const ProductionManagement = () => {
     'Wand': { produced: '', reused: '', wandProduced: '' },
     'Parmal': { produced: '', reused: '' },
     'FRK': { produced: '', reused: '' },
+    'Safai Dust': { produced: '', reused: '' },
+    'Patal': { produced: '', reused: '' },
     'Dry Paddy': { produced: '', reused: '' }
   },
   remarks: 'Steam paddy batch for production.',
@@ -365,6 +367,8 @@ export const ProductionManagement = () => {
         'Wand': { produced: '', reused: '', wandProduced: '' },
         'Parmal': { produced: '', reused: '' },
         'FRK': { produced: '', reused: '' },
+        'Safai Dust': { produced: '', reused: '' },
+        'Patal': { produced: '', reused: '' },
         'Dry Paddy': { produced: '', reused: '' }
       },
       stackInputs: [],
@@ -389,14 +393,17 @@ export const ProductionManagement = () => {
     }
     
     const outputIds = Object.keys(selectedOutputs).filter(id => selectedOutputs[id]);
-    if (outputIds.length === 0) {
-      alert('Please select at least one expected output');
+    if (outputIds.length === 0 && !(Number(intermillData.safaiDustBags) > 0) && !(Number(intermillData.patalBags) > 0)) {
+      alert('Select an output, or enter Safai Dust / Patal bags');
       return;
     }
 
     // Wastage validation
     const totalInput = Number(intermillData.inputBags);
-    const totalOutput = outputIds.reduce((sum, id) => sum + Number(outputQuantities[id] || 0), 0);
+    const wastageBags =
+      (Number(intermillData.safaiDustBags) || 0) + (Number(intermillData.patalBags) || 0);
+    const totalOutput =
+      outputIds.reduce((sum, id) => sum + Number(outputQuantities[id] || 0), 0) + wastageBags;
     const difference = totalInput - totalOutput;
     const wastagePercent = (difference / totalInput) * 100;
     
@@ -420,6 +427,8 @@ export const ProductionManagement = () => {
         rawMaterialId: intermillData.rawMaterialId,
         inputBags: intermillData.inputBags,
         outputs,
+        safaiDustBags: Number(intermillData.safaiDustBags) || 0,
+        patalBags: Number(intermillData.patalBags) || 0,
         plantId: activePlant.id,
         status: wastagePercent > 2 ? 'Pending Approval' : 'Completed',
         wastagePercent
@@ -427,7 +436,7 @@ export const ProductionManagement = () => {
       alert(wastagePercent > 2 ? 'Batch saved and pending admin approval.' : 'Intermill Batch created successfully');
       
       setFormData(prev => ({...prev, batchNo: generateBatchNo()}));
-      setIntermillData({ rawMaterialId: '', inputBags: '' });
+      setIntermillData({ rawMaterialId: '', inputBags: '', safaiDustBags: '', patalBags: '' });
       setSelectedOutputs({});
       setOutputQuantities({});
       fetchBatches();
@@ -872,6 +881,32 @@ export const ProductionManagement = () => {
             <input type="number" min="0" value={formData.additionalOutputs['FRK'].reused} onChange={(e) => handleAdditionalOutputChange('FRK', 'reused', e.target.value)} placeholder="Enter reused bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
           </td>
         </tr>
+        <tr className="hover:bg-[var(--glass-bg)] bg-amber-500/5">
+          <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">Safai Dust</td>
+          <td className="px-4 py-2.5 font-bold text-[#e67e00]">
+            <span title="Available in Warehouse">{currentStock['Safai Dust'] || 0}</span>
+          </td>
+          <td className="px-4 py-2 text-[10px] text-[var(--text-muted-alt)]">
+            {((Number(formData.additionalOutputs['Safai Dust']?.produced) || 0) * (Number(activePlant?.wastageBagWeight) > 0 ? Number(activePlant.wastageBagWeight) : Number(activePlant?.standardBagWeight) || 0.382)).toFixed(3)} qtl
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" step="1" value={formData.additionalOutputs['Safai Dust'].produced} onChange={(e) => handleAdditionalOutputChange('Safai Dust', 'produced', e.target.value.replace(/\D/g, ''))} placeholder="Bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+          <td className="px-4 py-2 text-[10px] text-[var(--text-muted-alt)]">Stock only. Not a yield item.</td>
+        </tr>
+        <tr className="hover:bg-[var(--glass-bg)] bg-amber-500/5">
+          <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">Patal</td>
+          <td className="px-4 py-2.5 font-bold text-[#e67e00]">
+            <span title="Available in Warehouse">{currentStock['Patal'] || 0}</span>
+          </td>
+          <td className="px-4 py-2 text-[10px] text-[var(--text-muted-alt)]">
+            {((Number(formData.additionalOutputs['Patal']?.produced) || 0) * (Number(activePlant?.wastageBagWeight) > 0 ? Number(activePlant.wastageBagWeight) : Number(activePlant?.standardBagWeight) || 0.382)).toFixed(3)} qtl
+          </td>
+          <td className="px-4 py-2">
+            <input type="number" min="0" step="1" value={formData.additionalOutputs['Patal'].produced} onChange={(e) => handleAdditionalOutputChange('Patal', 'produced', e.target.value.replace(/\D/g, ''))} placeholder="Bags" className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-1.5 text-[var(--text-main)] focus:border-[#e67e00] outline-none" />
+          </td>
+          <td className="px-4 py-2 text-[10px] text-[var(--text-muted-alt)]">Stock only. Not a yield item.</td>
+        </tr>
         <tr className="hover:bg-[var(--glass-bg)]">
           <td className="px-4 py-2.5 font-medium text-[var(--text-main)]">Dry Paddy</td>
           <td className="px-4 py-2.5 font-bold text-[#e67e00]">
@@ -960,6 +995,23 @@ export const ProductionManagement = () => {
          </div>
       )}
 
+    <div className="bg-amber-500/10 p-4 rounded-lg border border-amber-500/30 mb-6">
+      <h4 className="font-bold text-[var(--text-main)] mb-1">Safai Dust and Patal</h4>
+      <p className="text-[11px] text-[var(--text-muted-alt)] mb-3">
+        Counted in stock and in the loss calculator. Not a yield item. Weight uses this mill&apos;s average bag weight ({Number(activePlant?.wastageBagWeight) > 0 ? Number(activePlant.wastageBagWeight) : Number(activePlant?.standardBagWeight) || 0.382} qtl). Admin is notified when the shift total is more than 10 bags.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <label className="text-xs text-[var(--text-muted-alt)]">
+          Safai Dust (bags)
+          <input type="number" min="0" step="1" value={intermillData.safaiDustBags} onChange={e => setIntermillData({...intermillData, safaiDustBags: e.target.value.replace(/\D/g, '')})} className="mt-1 w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+        </label>
+        <label className="text-xs text-[var(--text-muted-alt)]">
+          Patal (bags)
+          <input type="number" min="0" step="1" value={intermillData.patalBags} onChange={e => setIntermillData({...intermillData, patalBags: e.target.value.replace(/\D/g, '')})} className="mt-1 w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]" />
+        </label>
+      </div>
+    </div>
+
     <div className="bg-[var(--bg-base)] p-4 rounded-lg border border-[var(--border-subtle)] mb-6">
       <h4 className="font-bold text-[var(--text-main)] mb-4">Select Expected Output Products</h4>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1045,19 +1097,25 @@ export const ProductionManagement = () => {
               <div className="flex justify-between">
                 <span className="text-[var(--text-muted-alt)]">Total Output</span>
                 <span className="font-bold text-[var(--text-main)]">
-                  {Object.keys(selectedOutputs).filter(id => selectedOutputs[id]).reduce((sum, id) => sum + (Number(outputQuantities[id]) || 0), 0)} Bags
+                  {Object.keys(selectedOutputs).filter(id => selectedOutputs[id]).reduce((sum, id) => sum + (Number(outputQuantities[id]) || 0), 0) + (Number(intermillData.safaiDustBags) || 0) + (Number(intermillData.patalBags) || 0)} Bags
                 </span>
               </div>
               <div className="flex justify-between border-t border-[var(--border-subtle)] pt-2 mt-2">
                 <span className="text-[var(--text-muted-alt)]">Process Loss</span>
                 <span className="font-bold text-red-500">
-                  {Math.max(0, Number(intermillData.inputBags) - Object.keys(selectedOutputs).filter(id => selectedOutputs[id]).reduce((sum, id) => sum + (Number(outputQuantities[id]) || 0), 0))} Bags
+                  {Math.max(0, Number(intermillData.inputBags) - Object.keys(selectedOutputs).filter(id => selectedOutputs[id]).reduce((sum, id) => sum + (Number(outputQuantities[id]) || 0), 0) - (Number(intermillData.safaiDustBags) || 0) - (Number(intermillData.patalBags) || 0))} Bags
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--text-muted-alt)]">Yield %</span>
                 <span className="font-bold text-green-500">
-                  {(Number(intermillData.inputBags) > 0 ? (Object.keys(selectedOutputs).filter(id => selectedOutputs[id]).reduce((sum, id) => sum + (Number(outputQuantities[id]) || 0), 0) / Number(intermillData.inputBags)) * 100 : 0).toFixed(2)}%
+                  {(Number(intermillData.inputBags) > 0 ? ((Object.keys(selectedOutputs).filter(id => selectedOutputs[id]).reduce((sum, id) => sum + (Number(outputQuantities[id]) || 0), 0) + (Number(intermillData.safaiDustBags) || 0) + (Number(intermillData.patalBags) || 0)) / Number(intermillData.inputBags)) * 100 : 0).toFixed(2)}%
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--text-muted-alt)]">Safai Dust + Patal</span>
+                <span className="font-bold text-amber-400">
+                  {((Number(intermillData.safaiDustBags) || 0) + (Number(intermillData.patalBags) || 0))} bags / {(((Number(intermillData.safaiDustBags) || 0) + (Number(intermillData.patalBags) || 0)) * (Number(activePlant?.wastageBagWeight) > 0 ? Number(activePlant.wastageBagWeight) : Number(activePlant?.standardBagWeight) || 0.382)).toFixed(3)} qtl
                 </span>
               </div>
             </div>
@@ -1073,7 +1131,7 @@ export const ProductionManagement = () => {
     <textarea rows={2} name="remarks" value={formData.remarks} onChange={handleInputChange} className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] text-sm focus:border-[#e67e00] outline-none"></textarea>
   </div>
   <div className="flex gap-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
-    <button onClick={() => setFormData(prev => ({...prev, paddyUsedQty: '', moisture: '', batchNo: generateBatchNo(), additionalOutputs: { 'R. Bran': { produced: '', reused: '' }, 'K. Phuck': { produced: '', reused: '' }, 'Broken Rice': { produced: '', reused: '' }, 'Nakku 1': { produced: '', reused: '' }, 'Nakku 2': { produced: '', reused: '' }, 'Rejection': { produced: '', reused: '' }, 'Final Rice': { produced: '', reused: '' }, 'Mansoori': { produced: '', reused: '' }, 'Wand': { produced: '', reused: '', wandProduced: '' }, 'Parmal': { produced: '', reused: '' }, 'FRK': { produced: '', reused: '' }, 'Dry Paddy': { produced: '', reused: '' } }}))} className="flex-1 py-2 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded font-bold text-sm transition-colors border border-[var(--border-subtle)]">Reset</button>
+    <button onClick={() => setFormData(prev => ({...prev, paddyUsedQty: '', moisture: '', batchNo: generateBatchNo(), additionalOutputs: { 'R. Bran': { produced: '', reused: '' }, 'K. Phuck': { produced: '', reused: '' }, 'Broken Rice': { produced: '', reused: '' }, 'Nakku 1': { produced: '', reused: '' }, 'Nakku 2': { produced: '', reused: '' }, 'Rejection': { produced: '', reused: '' }, 'Final Rice': { produced: '', reused: '' }, 'Mansoori': { produced: '', reused: '' }, 'Wand': { produced: '', reused: '', wandProduced: '' }, 'Parmal': { produced: '', reused: '' }, 'FRK': { produced: '', reused: '' }, 'Safai Dust': { produced: '', reused: '' }, 'Patal': { produced: '', reused: '' }, 'Dry Paddy': { produced: '', reused: '' } }}))} className="flex-1 py-2 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded font-bold text-sm transition-colors border border-[var(--border-subtle)]">Reset</button>
     <button onClick={productionType === 'Rice Milling' ? handleCreateBatch : handleCreateIntermillBatch} disabled={loading} className="flex-[2] py-2 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded font-bold text-sm transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50">
       {loading ? 'Creating...' : 'Create Batch'}
     </button>

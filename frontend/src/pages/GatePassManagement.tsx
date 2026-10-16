@@ -1893,6 +1893,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
  const [trucks, setTrucks] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [labourParties, setLabourParties] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [quantityUnits, setQuantityUnits] = useState<QuantityUnit[]>(DEFAULT_QUANTITY_UNITS);
   const [stockMap, setStockMap] = useState<Record<string, number>>({});
@@ -1965,6 +1966,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
   isCompleteDateNA: false,
   weighbridgeActive: true,
   items: [{ itemName: '', quantity: '', unit: 'Quintal', productId: '' }],
+  labourPartyId: '',
   mainBags: '',
   shortageBags: '',
   isDraft: false,
@@ -2447,6 +2449,13 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
       setSuppliers(resSuppliers.data);
     } catch (error) {
       console.error('Failed to fetch suppliers:', error);
+    }
+    try {
+      const resLabour = await api.get('/api/master-data/labour');
+      const list = Array.isArray(resLabour.data) ? resLabour.data : resLabour.data?.data || [];
+      setLabourParties(list);
+    } catch {
+      setLabourParties([]);
     }
 
     try {
@@ -3109,6 +3118,20 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
     required
   />
   )}
+ </div>
+ <div className="col-span-1">
+   <label className="block text-xs text-[var(--text-muted-alt)] mb-1 font-medium">Labour Party</label>
+   <select
+     name="labourPartyId"
+     value={formData.labourPartyId || ''}
+     onChange={handleInputChange}
+     className="w-full bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:border-blue-500 outline-none"
+   >
+     <option value="">Select Labour Party</option>
+     {labourParties.map((p: any) => (
+       <option key={p.id} value={p.id}>{p.name}</option>
+     ))}
+   </select>
  </div>
  {formData.isTransfer && (
    <div className="col-span-1">
