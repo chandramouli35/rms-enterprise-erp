@@ -1259,7 +1259,7 @@ export const UsersAndRoles: React.FC = () => {
        Fingerprint Registration (2 required)
      </div>
      <p className="text-[11px] text-[var(--text-muted-alt)]">
-       Supervisor must enroll two fingers (e.g. left thumb + right thumb).
+       Supervisor must enroll two different fingers (for example left thumb, then right thumb). Place another finger for the second scan.
      </p>
      <div className="grid grid-cols-2 gap-3">
        <div className="space-y-1.5">
@@ -1599,6 +1599,9 @@ export const UsersAndRoles: React.FC = () => {
  <div className="flex items-center gap-2 text-amber-400 text-sm font-bold">
  <Fingerprint size={16} /> Re-register fingerprints (2)
  </div>
+ <p className="text-[11px] text-[var(--text-muted-alt)]">
+ Place another finger for the second scan. Finger 1 and Finger 2 cannot be the same finger.
+ </p>
  <div className="grid grid-cols-2 gap-2">
  <button type="button" onClick={() => captureTransferFingerprint(1)} className={`text-xs font-bold rounded-lg px-3 py-2 border ${transferForm.fingerprint1 ? 'text-green-400 border-green-500/30 bg-green-900/20' : 'text-[var(--text-muted-alt)] border-[var(--border-subtle)]'}`}>
  {transferForm.fingerprint1 ? 'Finger 1 ✓' : 'Scan Finger 1'}

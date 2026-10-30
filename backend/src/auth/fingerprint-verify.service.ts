@@ -157,6 +157,8 @@ export class FingerprintVerifyService {
     excludeStaffId?: string;
   }): Promise<void> {
     const already = 'This fingerprint is already registered';
+    const placeAnother =
+      'Place another finger. Scan a different finger for Finger 1 and Finger 2.';
     const livePid = String(opts.biometricData || '').trim();
     const liveIso = FingerprintVerifyService.resolveTemplate(
       livePid || null,
@@ -168,19 +170,19 @@ export class FingerprintVerifyService {
       (t): t is string => !!t && isMatchableTemplate(t),
     );
     for (const other of otherIsos) {
-      if (liveIso && templatesMatch(liveIso, other)) {
-        throw new BadRequestException(already);
+      if (liveIso && templatesMatch(liveIso, other, true)) {
+        throw new BadRequestException(placeAnother);
       }
     }
     for (const otherPid of opts.otherPidData || []) {
       const pid = String(otherPid || '').trim();
       if (!pid) continue;
       if (livePid && pid === livePid) {
-        throw new BadRequestException(already);
+        throw new BadRequestException(placeAnother);
       }
       const otherIso = extractTemplateBase64(pid);
-      if (liveIso && otherIso && templatesMatch(liveIso, otherIso)) {
-        throw new BadRequestException(already);
+      if (liveIso && otherIso && templatesMatch(liveIso, otherIso, true)) {
+        throw new BadRequestException(placeAnother);
       }
     }
 

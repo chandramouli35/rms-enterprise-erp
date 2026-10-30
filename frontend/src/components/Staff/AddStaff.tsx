@@ -253,7 +253,7 @@ export const AddStaff: React.FC = () => {
                   Fingerprint Registration (2 required)
                 </div>
                 <p className="text-[11px] text-[var(--text-muted-alt)]">
-                  Unloader must enroll two fingers (e.g. left thumb + right thumb). Contact number is optional.
+                  Unloader must enroll two different fingers (for example left thumb, then right thumb). Place another finger for the second scan. Contact number is optional.
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">

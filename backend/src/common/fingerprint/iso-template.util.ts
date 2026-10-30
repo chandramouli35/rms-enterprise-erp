@@ -186,6 +186,7 @@ function countAligned(
 export function templatesMatch(
   liveXmlOrTemplate: string,
   enrolledXmlOrTemplate: string,
+  loose = false,
 ): boolean {
   // Callers usually pass already-validated FMR base64; avoid re-parsing PidData
   const liveB64 = looksLikeIsoFmr(liveXmlOrTemplate.replace(/\s+/g, ''))
@@ -200,6 +201,8 @@ export function templatesMatch(
   const gallery = parseIso19794Minutiae(enrolledB64);
   if (probe.length < MIN_MINUTIAE || gallery.length < MIN_MINUTIAE) return false;
 
+  const minPaired = loose ? 6 : MIN_PAIRED;
+  const minRatio = loose ? 0.28 : MIN_RATIO;
   let best = 0;
   const stepP = probe.length > 30 ? 2 : 1;
   const stepG = gallery.length > 30 ? 2 : 1;
@@ -207,14 +210,14 @@ export function templatesMatch(
     for (let gi = 0; gi < gallery.length; gi += stepG) {
       const n = countAligned(probe, gallery, pi, gi);
       if (n > best) best = n;
-      if (best >= MIN_PAIRED && best / Math.min(probe.length, gallery.length) >= MIN_RATIO) {
+      if (best >= minPaired && best / Math.min(probe.length, gallery.length) >= minRatio) {
         return true;
       }
     }
   }
 
   const smaller = Math.min(probe.length, gallery.length);
-  return best >= MIN_PAIRED && best / smaller >= MIN_RATIO;
+  return best >= minPaired && best / smaller >= minRatio;
 }
 
 export function isMatchableTemplate(value: string | null | undefined): boolean {

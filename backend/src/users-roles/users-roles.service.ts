@@ -210,7 +210,7 @@ export class UsersRolesService {
       // already only 2 fields — enforce both are distinct when both present
       if (fingerprint1 && fingerprint2 && fingerprint1 === fingerprint2) {
         throw new BadRequestException(
-          'Finger 1 and Finger 2 must be two different captures.',
+          'Place another finger. Scan a different finger for Finger 1 and Finger 2.',
         );
       }
     }
@@ -448,7 +448,7 @@ export class UsersRolesService {
       data.fingerprint1 === data.fingerprint2
     ) {
       throw new BadRequestException(
-        'Finger 1 and Finger 2 must be two different captures.',
+        'Place another finger. Scan a different finger for Finger 1 and Finger 2.',
       );
     }
 

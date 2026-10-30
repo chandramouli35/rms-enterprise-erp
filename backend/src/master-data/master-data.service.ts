@@ -370,7 +370,7 @@ export class MasterDataService {
       }
       if (data.fingerprint1 === data.fingerprint2) {
         throw new BadRequestException(
-          'Finger 1 and Finger 2 must be two different captures.',
+          'Place another finger. Scan a different finger for Finger 1 and Finger 2.',
         );
       }
       await this.fingerprintVerify.assertEnrollmentPairNotDuplicate(
