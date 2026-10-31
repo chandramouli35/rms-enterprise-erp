@@ -1,6 +1,6 @@
 /**
- * Mantra MFS500 / MFS110 RD Service fingerprint capture + verify for RMS.
- * Supports both standard FMR (MFS500 / L0) and L1 (MFS110) formats.
+ * Mantra MFS110 RD Service fingerprint capture + verify for RMS.
+ * Uses the L1 capture format.
  *
  * One Scan click = one finger press on the device (never auto-retry CAPTURE).
  */
@@ -109,8 +109,7 @@ function readPidKind(): PidKind {
   } catch {
     /* ignore */
   }
-  // Default to FMR for Mantra MFS500 (will auto-fallback to L1 if MFS110 is detected)
-  return 'FMR';
+  return 'L1';
 }
 
 function writePidKind(kind: PidKind) {
@@ -248,7 +247,7 @@ async function findReadyRdService(): Promise<RdService> {
   const notReadyStatus = preferred.notReadyStatus || rest.notReadyStatus;
   if (notReadyStatus) {
     throw new Error(
-      `Fingerprint scanner found but status is ${notReadyStatus}. Plug in Mantra MFS500 and wait until RD Service shows READY, then Scan.`,
+      `Fingerprint scanner found but status is ${notReadyStatus}. Plug in the Mantra scanner and wait until RD Service shows READY, then Scan.`,
     );
   }
 
@@ -259,7 +258,7 @@ async function findReadyRdService(): Promise<RdService> {
     : '';
 
   throw new Error(
-    'Mantra RD Service not found on this PC (ports 11100–11120). Install Mantra MFS500 RD Service, confirm the tray icon shows running/READY, use Chrome/Edge on the same PC as the scanner. Test: https://rdtest.aadhaardevice.com/.' +
+    'Mantra RD Service not found on this PC (ports 11100–11120). Install the Mantra MFS110 RD Service, confirm the tray icon shows running/READY, use Chrome/Edge on the same PC as the scanner. Test: https://rdtest.aadhaardevice.com/.' +
       httpsTip,
   );
 }
@@ -303,23 +302,23 @@ function errorFromPidXml(xml: string): Error {
     /not ready|not connected/i.test(info)
   ) {
     return new Error(
-      `Device not ready${code ? ` (errCode ${code})` : ''}. Unplug/replug Mantra MFS500, wait for READY, place finger, then Scan.`,
+      `Device not ready${code ? ` (errCode ${code})` : ''}. Unplug and plug in the Mantra scanner, wait for READY, place your finger, then Scan.`,
     );
   }
   if (code === '700' || /timeout/i.test(info)) {
     return new Error(
-      'Capture timed out. Keep finger on the MFS500 sensor and Scan again.',
+      'Capture timed out. Keep your finger on the scanner and Scan again.',
     );
   }
   if (/pidoptions|strictly adhere/i.test(info)) {
     return new Error(
-      `RD rejected PidOptions (${info || 'invalid'}). Update Mantra MFS500 RD Service and retry.`,
+      `RD rejected PidOptions (${info || 'invalid'}). Update the Mantra RD Service and retry.`,
     );
   }
   return new Error(
     info
-      ? `${info}. Place finger firmly on Mantra MFS500 and Scan again.`
-      : 'Fingerprint capture failed. Place finger firmly on Mantra MFS500 and Scan again.',
+      ? `${info}. Place your finger firmly on the scanner and Scan again.`
+      : 'Fingerprint capture failed. Place your finger firmly on the scanner and Scan again.',
   );
 }
 
@@ -343,7 +342,7 @@ async function capturePid(rd: RdService, pidOptions: string): Promise<string> {
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new Error(
-        'Capture timed out waiting for RD Service. Place finger firmly on Mantra MFS110 and Scan again.',
+        'Capture timed out waiting for RD Service. Place your finger firmly on the scanner and Scan again.',
       );
     }
     throw new Error(
@@ -372,24 +371,21 @@ async function capturePid(rd: RdService, pidOptions: string): Promise<string> {
 }
 
 /**
- * Exactly ONE device CAPTURE per Scan click.
- * Never auto-retries with a second PidOptions in the same click (that caused 2 finger presses).
- * If PidOptions are rejected, switch preferred kind for the *next* Scan only.
+ * User-creation scans ask for a clear fingerprint template first so Finger 1
+ * and Finger 2 can be compared. If this scanner rejects that request, use the
+ * normal L1 scan so the button can still show Captured.
  */
-/** Enrollment must use a clear FMR template so Finger 1 and Finger 2 can be compared. */
-async function captureEnrollmentTemplate(): Promise<string> {
+async function captureEnrollmentScan(): Promise<string> {
   if (captureInFlight) return captureInFlight;
 
   captureInFlight = (async () => {
     const rd = await findReadyRdService();
-    const xml = await capturePid(rd, PID_OPTIONS_FMR);
-    writePidKind('FMR');
-    if (!extractIsoTemplateFromPidXml(xml)) {
-      throw new Error(
-        'Scan again and place your finger flat. Finger 1 and Finger 2 must be different fingers.',
-      );
+    try {
+      return await capturePid(rd, PID_OPTIONS_FMR);
+    } catch (e: any) {
+      if (!isPidOptionsRejected(String(e?.message || ''))) throw e;
+      return await capturePid(rd, PID_OPTIONS_L1);
     }
-    return xml;
   })();
 
   try {
@@ -399,6 +395,11 @@ async function captureEnrollmentTemplate(): Promise<string> {
   }
 }
 
+/**
+ * Exactly ONE device CAPTURE per Scan click.
+ * Never auto-retries with a second PidOptions in the same click (that caused 2 finger presses).
+ * If PidOptions are rejected, switch preferred kind for the *next* Scan only.
+ */
 async function capturePidDataOnce(): Promise<string> {
   if (captureInFlight) return captureInFlight;
 
@@ -540,13 +541,8 @@ export const biometricService = {
     excludeUserId?: string;
     excludeStaffId?: string;
   }): Promise<EnrollmentCapture> => {
-    const pidData = await captureEnrollmentTemplate();
+    const pidData = await captureEnrollmentScan();
     const isoTemplate = extractIsoTemplateFromPidXml(pidData);
-    if (!isoTemplate) {
-      throw new Error(
-        'Scan again and place your finger flat. Finger 1 and Finger 2 must be different fingers.',
-      );
-    }
     try {
       await api.post('/auth/check-fingerprint-available', {
         biometricData: pidData,

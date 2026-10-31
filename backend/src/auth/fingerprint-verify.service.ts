@@ -35,7 +35,7 @@ export class FingerprintVerifyService {
 
     if (!live && !liveIsoRaw) {
       throw new BadRequestException(
-        'Fingerprint scan required. Place finger on Mantra MFS500 and Scan.',
+        'Fingerprint scan required. Place your finger on the Mantra scanner and Scan.',
       );
     }
 
@@ -166,15 +166,10 @@ export class FingerprintVerifyService {
     );
     if (!livePid && !liveIso) return;
 
-    const otherFingerSent = [...(opts.otherIsoTemplates || []), ...(opts.otherPidData || [])].some(
-      (v) => !!String(v || '').trim(),
-    );
     const otherIsos = (opts.otherIsoTemplates || []).filter(
       (t): t is string => !!t && isMatchableTemplate(t),
     );
-    let comparedWithOtherFinger = false;
     for (const other of otherIsos) {
-      comparedWithOtherFinger = true;
       if (liveIso && templatesMatch(liveIso, other, true)) {
         throw new BadRequestException(placeAnother);
       }
@@ -186,15 +181,9 @@ export class FingerprintVerifyService {
         throw new BadRequestException(placeAnother);
       }
       const otherIso = extractTemplateBase64(pid);
-      if (liveIso && otherIso && isMatchableTemplate(otherIso)) {
-        comparedWithOtherFinger = true;
-        if (templatesMatch(liveIso, otherIso, true)) {
-          throw new BadRequestException(placeAnother);
-        }
+      if (liveIso && otherIso && isMatchableTemplate(otherIso) && templatesMatch(liveIso, otherIso, true)) {
+        throw new BadRequestException(placeAnother);
       }
-    }
-    if (otherFingerSent && (!liveIso || !comparedWithOtherFinger)) {
-      throw new BadRequestException(placeAnother);
     }
 
     const users = await this.prisma.user.findMany({
@@ -248,7 +237,7 @@ export class FingerprintVerifyService {
   ) {
     const placeAnother =
       'Place another finger. Scan a different finger for Finger 1 and Finger 2.';
-    if (fingerprint1 && fingerprint2 && (!tpl1 || !tpl2 || templatesMatch(tpl1, tpl2, true))) {
+    if (tpl1 && tpl2 && templatesMatch(tpl1, tpl2, true)) {
       throw new BadRequestException(placeAnother);
     }
     if (fingerprint1) {
