@@ -376,6 +376,29 @@ async function capturePid(rd: RdService, pidOptions: string): Promise<string> {
  * Never auto-retries with a second PidOptions in the same click (that caused 2 finger presses).
  * If PidOptions are rejected, switch preferred kind for the *next* Scan only.
  */
+/** Enrollment must use a clear FMR template so Finger 1 and Finger 2 can be compared. */
+async function captureEnrollmentTemplate(): Promise<string> {
+  if (captureInFlight) return captureInFlight;
+
+  captureInFlight = (async () => {
+    const rd = await findReadyRdService();
+    const xml = await capturePid(rd, PID_OPTIONS_FMR);
+    writePidKind('FMR');
+    if (!extractIsoTemplateFromPidXml(xml)) {
+      throw new Error(
+        'Scan again and place your finger flat. Finger 1 and Finger 2 must be different fingers.',
+      );
+    }
+    return xml;
+  })();
+
+  try {
+    return await captureInFlight;
+  } finally {
+    captureInFlight = null;
+  }
+}
+
 async function capturePidDataOnce(): Promise<string> {
   if (captureInFlight) return captureInFlight;
 
@@ -517,8 +540,13 @@ export const biometricService = {
     excludeUserId?: string;
     excludeStaffId?: string;
   }): Promise<EnrollmentCapture> => {
-    const pidData = await capturePidDataOnce();
+    const pidData = await captureEnrollmentTemplate();
     const isoTemplate = extractIsoTemplateFromPidXml(pidData);
+    if (!isoTemplate) {
+      throw new Error(
+        'Scan again and place your finger flat. Finger 1 and Finger 2 must be different fingers.',
+      );
+    }
     try {
       await api.post('/auth/check-fingerprint-available', {
         biometricData: pidData,

@@ -147,6 +147,8 @@ function countAligned(
   gallery: Minutia[],
   pi: number,
   gi: number,
+  maxDist = MATCH_DIST,
+  maxAngle = MATCH_ANGLE,
 ): number {
   const p0 = probe[pi];
   const g0 = gallery[gi];
@@ -165,13 +167,13 @@ function countAligned(
     const pa = (pm.angle + dAngle + 256) % 256;
 
     let best = -1;
-    let bestDist = MATCH_DIST + 0.01;
+    let bestDist = maxDist + 0.01;
     for (let i = 0; i < gallery.length; i++) {
       if (used.has(i)) continue;
       const g = gallery[i];
       const dist = Math.hypot(rx - g.x, ry - g.y);
       if (dist >= bestDist) continue;
-      if (angleDelta(pa, g.angle) > MATCH_ANGLE) continue;
+      if (angleDelta(pa, g.angle) > maxAngle) continue;
       bestDist = dist;
       best = i;
     }
@@ -201,14 +203,16 @@ export function templatesMatch(
   const gallery = parseIso19794Minutiae(enrolledB64);
   if (probe.length < MIN_MINUTIAE || gallery.length < MIN_MINUTIAE) return false;
 
-  const minPaired = loose ? 6 : MIN_PAIRED;
-  const minRatio = loose ? 0.28 : MIN_RATIO;
+  const minPaired = loose ? 4 : MIN_PAIRED;
+  const minRatio = loose ? 0.15 : MIN_RATIO;
+  const maxDist = loose ? 32 : MATCH_DIST;
+  const maxAngle = loose ? 40 : MATCH_ANGLE;
   let best = 0;
-  const stepP = probe.length > 30 ? 2 : 1;
-  const stepG = gallery.length > 30 ? 2 : 1;
+  const stepP = loose ? 1 : probe.length > 30 ? 2 : 1;
+  const stepG = loose ? 1 : gallery.length > 30 ? 2 : 1;
   for (let pi = 0; pi < probe.length; pi += stepP) {
     for (let gi = 0; gi < gallery.length; gi += stepG) {
-      const n = countAligned(probe, gallery, pi, gi);
+      const n = countAligned(probe, gallery, pi, gi, maxDist, maxAngle);
       if (n > best) best = n;
       if (best >= minPaired && best / Math.min(probe.length, gallery.length) >= minRatio) {
         return true;
