@@ -16,6 +16,7 @@ import { biometricService } from "../../services/biometricService";
 import { CustomModal } from "../CustomModal";
 import Combobox from "../Combobox";
 import { exportToExcel } from "../../utils/exportUtils";
+import { hasModulePermission } from "../../utils/modulePermissions";
 import ManualAgencyGpModal from "./ManualAgencyGpModal";
 
 type ListMode = "govt" | "mill";
@@ -60,6 +61,21 @@ export default function InwardListReport({
     /ADMIN|PLANT_MANAGER/i.test(roleStr);
   /** Admin: print + export. Supervisor: submit only. */
   const canPrintExport = isAdmin && !isSupervisor;
+  const canDeletePaddyInward = hasModulePermission(
+    "Procurement",
+    "canDelete",
+    "Paddy Inward",
+  );
+  const canAddInwardList = hasModulePermission(
+    "Procurement",
+    "canAdd",
+    "Inward List",
+  );
+  const canEditInwardList = hasModulePermission(
+    "Procurement",
+    "canEdit",
+    "Inward List",
+  );
   const today = todayStr();
 
   const [mode, setMode] = useState<ListMode>("mill");
@@ -511,19 +527,23 @@ export default function InwardListReport({
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setManualOpen(true)}
-            className="bg-yellow-400 hover:bg-yellow-300 text-black px-3 py-1.5 rounded text-sm font-bold"
-          >
-            Add Direct Agency GP
-          </button>
-          <button
-            onClick={() => setSubmitOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2"
-          >
-            <Fingerprint size={16} /> Submit Evening Lists
-          </button>
+          {canAddInwardList && (
+            <button
+              type="button"
+              onClick={() => setManualOpen(true)}
+              className="bg-yellow-400 hover:bg-yellow-300 text-black px-3 py-1.5 rounded text-sm font-bold"
+            >
+              Add Direct Agency GP
+            </button>
+          )}
+          {canEditInwardList && (
+            <button
+              onClick={() => setSubmitOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded text-sm font-bold flex items-center gap-2"
+            >
+              <Fingerprint size={16} /> Submit Evening Lists
+            </button>
+          )}
           {canPrintExport && (
             <>
               <button
@@ -751,7 +771,7 @@ export default function InwardListReport({
             onContinueDraft={onContinueDraft}
             onSupervisorClick={(name, at) => setSupervisorDetail({ name, at })}
             onDelete={
-              isAdmin
+              canDeletePaddyInward
                 ? async (r) => {
                     if (
                       !window.confirm(

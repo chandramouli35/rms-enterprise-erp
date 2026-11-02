@@ -1769,6 +1769,7 @@ import { DEFAULT_QUANTITY_UNITS, getUnitLabel, productFormatToUnit, getGatePassU
 import type { QuantityUnit } from '../constants/quantityUnits';
 import { biometricService } from '../services/biometricService';
 import { useSubmitLock } from '../hooks/useSubmitLock';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 import toast from 'react-hot-toast';
 
@@ -1851,6 +1852,14 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
  const activePlant = usePlantStore(state => state.activePlant);
  const setActivePlant = usePlantStore(state => state.setActivePlant);
  const user = useAuthStore(state => state.user);
+ const canAddGatePass = hasModulePermission('Gate Pass', 'canAdd', 'Create Gate Pass');
+ const canQuickAddFleet =
+   hasModulePermission('Staff Management', 'canAdd') ||
+   hasModulePermission('Procurement', 'canAdd') ||
+   hasModulePermission('Gate Pass', 'canAdd');
+ const canEditGatePass = hasModulePermission('Gate Pass', 'canEdit', 'Create Gate Pass');
+ const canEditReport = hasModulePermission('Gate Pass', 'canEdit', 'Report Summary');
+ const canEditTransfer = hasModulePermission('Gate Pass', 'canEdit', 'Transfer Entry Management');
  const hasBackdatePermission = user?.role === 'SUPER_ADMIN' || (user?.backdatePermissionUntil && new Date(user.backdatePermissionUntil) > new Date());
  const generatePassLock = useSubmitLock();
  const confirmTransferLock = useSubmitLock();
@@ -2114,6 +2123,10 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
  }, [activeTab, activePlant, transferStatusFilter]);
 
  const handleConfirmTransfer = async () => {
+   if (!canEditTransfer) {
+     useUiStore.getState().addToast('This role cannot confirm a transfer. Edit is required on Transfer Entry Management.', 'error');
+     return;
+   }
    if (!selectedTicket) return;
    if (!confirmForm.biometricData) {
      useUiStore.getState().addToast('Fingerprint is required to confirm transfer.', 'error');
@@ -2500,6 +2513,10 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
 
   const handleFinalizeReport = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditReport) {
+      toast.error('This role cannot finalize the Gate Pass report. Edit is required on Report Summary.');
+      return;
+    }
     if (!reportFinalizeForm.manualMatchConfirmed) {
       toast.error('You must confirm that the digital report matches the manual records.');
       return;
@@ -2532,6 +2549,10 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
 
   const handleCloseGatePass = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditGatePass) {
+      toast.error('This role cannot close a Gate Pass. Edit is required on Create Gate Pass.');
+      return;
+    }
     if (!closePassId) return;
     if (!closeForm.biometricData) {
       toast.error('Fingerprint / biometric is required to close the Gate Pass.');
@@ -2591,11 +2612,11 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
     const { name, value } = e.target;
     if (!value) return;
     try {
-      if (name === 'vehicleNo' && !trucks.find(t => t.truckNumber === value)) {
+      if (name === 'vehicleNo' && canQuickAddFleet && !trucks.find(t => t.truckNumber === value)) {
         await api.post('/api/master-data/trucks', { truckNumber: value });
         const res = await api.get('/api/master-data/trucks');
         setTrucks(res.data);
-      } else if (name === 'driverName' && !drivers.find(d => d.name === value)) {
+      } else if (name === 'driverName' && canQuickAddFleet && !drivers.find(d => d.name === value)) {
         await api.post('/api/master-data/drivers', { name: value, phone: formData.driverMobile || '' });
         const res = await api.get('/api/master-data/drivers');
         setDrivers(res.data);
@@ -2685,6 +2706,10 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
 
   const handleGeneratePass = async (e: React.FormEvent) => {
   e.preventDefault();
+  if (!canAddGatePass) {
+    useUiStore.getState().addToast('This role cannot create a Gate Pass. Add is required on Create Gate Pass.', 'error');
+    return;
+  }
   if (formData.plantId === 'global' || !formData.plantId) {
     useUiStore.getState().addToast('Please select a specific plant to generate a Gate Pass.', 'error');
     return;
@@ -3429,9 +3454,11 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
  <button type="button" onClick={handleReset} className="px-6 py-2.5 rounded-lg border border-[var(--border-subtle)] text-[var(--text-muted)] hover:bg-[var(--glass-bg)] font-medium text-sm transition">
  Reset
  </button>
+ {canAddGatePass && (
  <button type="submit" disabled={generatePassLock.pending} className="flex-1 bg-[#e67e00] hover:bg-[#d67500] text-black font-bold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
  <CheckCircle2 size={18} /> {generatePassLock.pending ? 'Saving…' : (formData.isDraft ? 'Save Draft' : `Generate Gate ${passCategory === 'INWARD' ? 'In' : 'Out'} Pass`)}
  </button>
+ )}
  </div>
  </form>
  </div>
@@ -3474,7 +3501,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
  <td className="py-3 text-center">
  <div className="flex items-center justify-center gap-2">
  <button onClick={() => handleViewPass(row.qrCode)} className="text-blue-500/50 group-hover:text-blue-500 transition" title="View"><Eye size={14} /></button>
- {row.status === 'ACTIVE' && (
+ {canEditGatePass && row.status === 'ACTIVE' && (
    <button
      onClick={() => {
        setClosePassId(row.id);
@@ -3494,7 +3521,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
      Close
    </button>
  )}
- {(row.status === 'ACTIVE' || row.status === 'COMPLETED') && (
+ {canEditGatePass && (row.status === 'ACTIVE' || row.status === 'COMPLETED') && (
    <button
      onClick={async () => {
        if (!window.confirm('Cancel this Gate Pass? Soda quota will roll back.')) return;
@@ -3743,7 +3770,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
                </td>
                <td className="py-3">
                  <div className="flex items-center gap-1">
-                   {ticket.status === 'PENDING_CONFIRMATION' &&
+                   {canEditTransfer && ticket.status === 'PENDING_CONFIRMATION' &&
                      (!activePlant?.id ||
                        activePlant.id === 'global' ||
                        activePlant.id === ticket.recipientPlantId) && (
@@ -3846,11 +3873,13 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
          </div>
          <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)]">
            <button onClick={() => setConfirmModalOpen(false)} className="px-4 py-2 bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg text-sm font-medium hover:bg-[var(--glass-bg-hover)] transition">Cancel</button>
+           {canEditTransfer && (
            <button
              onClick={handleConfirmTransfer}
              disabled={confirmTransferLock.pending || !confirmForm.supervisorName || !confirmForm.recipientPlantId || !confirmForm.biometricData}
              className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-green-500/20"
            >{confirmTransferLock.pending ? 'Confirming…' : 'Confirm & Generate GPs'}</button>
+           )}
          </div>
        </>
      )}
@@ -4111,7 +4140,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
     {entry.isTransfer ? (entry.deliveryAtNote || entry.remarks || '-') : (entry.remarks || '-')}
   </td>
   <td className="py-3 text-center">
-    {(entry.status === 'ACTIVE' || entry.status === 'COMPLETED') && (
+    {canEditGatePass && (entry.status === 'ACTIVE' || entry.status === 'COMPLETED') && (
       <button
         type="button"
         onClick={async () => {
@@ -4139,6 +4168,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
   
   {/* Report Closure Action */}
   <div className="mt-6 flex justify-end">
+    {canEditReport && (
     <button 
       onClick={() => setReportFinalizeModalOpen(true)}
       className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2"
@@ -4146,6 +4176,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
       <CheckCircle size={18} />
       Finalize Daily Report
     </button>
+    )}
   </div>
 
   {/* Pagination */}
@@ -4442,7 +4473,9 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
 
       <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)]">
         <button type="button" onClick={() => setReportFinalizeModalOpen(false)} className="px-4 py-2 bg-[var(--glass-bg)] border border-[var(--border-subtle)] rounded-lg text-sm font-medium hover:bg-[var(--glass-bg-hover)] transition">Cancel</button>
+        {canEditReport && (
         <button type="submit" disabled={finalizeReportLock.pending || !reportFinalizeForm.manualMatchConfirmed || !reportFinalizeForm.biometricData} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-blue-500/20">{finalizeReportLock.pending ? 'Finalizing…' : 'Finalize & Sign'}</button>
+        )}
       </div>
     </form>
   </CustomModal>
@@ -4534,7 +4567,9 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
       </label>
       <div className="flex justify-end gap-3 pt-2">
         <button type="button" onClick={() => setCloseModalOpen(false)} className="px-4 py-2 border border-[var(--border-subtle)] rounded-lg text-sm">Cancel</button>
+        {canEditGatePass && (
         <button type="submit" disabled={closePassLock.pending || !closeForm.biometricData} className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium">{closePassLock.pending ? 'Closing…' : 'Close & Sign'}</button>
+        )}
       </div>
     </form>
   </CustomModal>

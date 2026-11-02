@@ -3,6 +3,8 @@ import api from '../api/axios';
 import Pagination from '../components/Pagination';
 import { Edit2, Trash2 } from 'lucide-react';
 import { useSubmitLock } from '../hooks/useSubmitLock';
+import { useAuthStore } from '../store/authStore';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 export const PlantsList: React.FC = () => {
   const [plants, setPlants] = useState<any[]>([]);
@@ -14,6 +16,10 @@ export const PlantsList: React.FC = () => {
   const [editId, setEditId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', location: '', code: '', aClassBagWeight: '0.380', bClassBagWeight: '0.385', wastageBagWeight: '0.382' });
   const saveLock = useSubmitLock();
+  useAuthStore((s) => s.user);
+  const canAddPlant = hasModulePermission('Plants', 'canAdd');
+  const canEditPlant = hasModulePermission('Plants', 'canEdit');
+  const canDeletePlant = hasModulePermission('Plants', 'canDelete');
 
   useEffect(() => {
     fetchPlants();
@@ -33,6 +39,7 @@ export const PlantsList: React.FC = () => {
   };
 
   const openAddModal = () => {
+    if (!canAddPlant) return;
     setIsEditing(false);
     setEditId(null);
     setFormData({ name: '', location: '', code: '', aClassBagWeight: '0.380', bClassBagWeight: '0.385', wastageBagWeight: '0.382' });
@@ -40,6 +47,7 @@ export const PlantsList: React.FC = () => {
   };
 
   const openEditModal = (plant: any) => {
+    if (!canEditPlant) return;
     setIsEditing(true);
     setEditId(plant.id);
     setFormData({ 
@@ -55,6 +63,14 @@ export const PlantsList: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isEditing ? !canEditPlant : !canAddPlant) {
+      alert(
+        isEditing
+          ? 'Not allowed. Turn on Edit for Plants, then log in again.'
+          : 'Not allowed. Turn on Add for Plants, then log in again.',
+      );
+      return;
+    }
     await saveLock.wrapSubmit(async () => {
     try {
       if (isEditing && editId) {
@@ -72,6 +88,10 @@ export const PlantsList: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canDeletePlant) {
+      alert('Not allowed. Turn on Delete for Plants, then log in again.');
+      return;
+    }
     if (window.confirm('Are you sure you want to delete this plant?')) {
       try {
         await api.delete(`/plants/${id}`);
@@ -89,12 +109,14 @@ export const PlantsList: React.FC = () => {
         <div className="flex items-center gap-2">
           <h1 className="text-sm font-semibold text-[var(--text-muted)]">Plant Management</h1>
         </div>
+        {canAddPlant && (
         <button 
           onClick={openAddModal}
           className="bg-[#e67e00] hover:bg-[#cc7000] text-black px-3 py-1.5 rounded-sm font-bold text-xs transition-colors"
         >
           Register New Plant
         </button>
+        )}
       </div>
 
       <div className="glass-panel rounded-xl overflow-hidden">
@@ -118,12 +140,16 @@ export const PlantsList: React.FC = () => {
                   <td className="p-4 text-[var(--text-muted)]">{plant.location || 'N/A'}</td>
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-2">
+                      {canEditPlant && (
                       <button onClick={() => openEditModal(plant)} className="p-1.5 text-blue-400 hover:bg-blue-400/10 rounded-md transition-colors" title="Edit">
                         <Edit2 size={16} />
                       </button>
+                      )}
+                      {canDeletePlant && (
                       <button onClick={() => handleDelete(plant.id)} className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-md transition-colors" title="Delete">
                         <Trash2 size={16} />
                       </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -139,7 +165,7 @@ export const PlantsList: React.FC = () => {
         />
       </div>
 
-      {isModalOpen && (
+      {(isEditing ? canEditPlant : canAddPlant) && isModalOpen && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="glass-panel p-6 rounded-xl w-full max-w-md border border-[var(--border-subtle)]">
             <h2 className="text-xl font-bold mb-4">{isEditing ? 'Edit Plant' : 'Register New Plant'}</h2>

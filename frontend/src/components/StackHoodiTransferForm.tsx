@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { useUiStore } from '../store/uiStore';
 import { biometricService } from '../services/biometricService';
 import { Fingerprint, Scale } from 'lucide-react';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 export type StackTransferMode = 'stack_to_hoodi' | 'dryer_bharai_to_stack';
 
@@ -35,6 +36,11 @@ export default function StackHoodiTransferForm({ mode }: Props) {
   const autoRealtime = !allowManual;
 
   const isStackToHoodi = mode === 'stack_to_hoodi';
+  const canTransfer = hasModulePermission(
+    'Procurement',
+    'canAdd',
+    isStackToHoodi ? 'Stack to Hoodi' : 'Dryer Bharai to Stack',
+  );
   const endpoint = isStackToHoodi
     ? '/api/procurement/hoodi-transfer'
     : '/api/procurement/dryer-bharai-transfer';
@@ -579,6 +585,7 @@ export default function StackHoodiTransferForm({ mode }: Props) {
           )}
 
           <div className="flex justify-end pt-4">
+            {canTransfer ? (
             <button
               type="submit"
               disabled={loading}
@@ -592,6 +599,11 @@ export default function StackHoodiTransferForm({ mode }: Props) {
                   ? 'Transfer to Hoodi'
                   : 'Record Dryer Bharai to Stack'}
             </button>
+            ) : (
+              <p className="text-sm text-[var(--text-muted-alt)]">
+                Add permission is required to save this transfer.
+              </p>
+            )}
           </div>
         </form>
       </div>

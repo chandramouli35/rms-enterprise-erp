@@ -6,6 +6,7 @@ import { biometricService } from '../../services/biometricService';
 import { useAuthStore } from '../../store/authStore';
 import { useUiStore } from '../../store/uiStore';
 import { useSubmitLock } from '../../hooks/useSubmitLock';
+import { hasModulePermission } from '../../utils/modulePermissions';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const fmtMoney = (n: number | null | undefined) =>
@@ -44,6 +45,7 @@ export const ExpenseEntryPanel: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const addToast = useUiStore((s) => s.addToast);
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const canAddExpense = hasModulePermission('Expenses', 'canAdd', 'Expenses');
   const submitLock = useSubmitLock();
 
   const [plants, setPlants] = useState<any[]>([]);
@@ -133,6 +135,10 @@ export const ExpenseEntryPanel: React.FC = () => {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAddExpense) {
+      addToast('Not allowed. Turn on Add for Expenses → Expenses, then log in again.', 'error');
+      return;
+    }
     if (!plantId) {
       addToast('Select a mill', 'error');
       return;
@@ -244,6 +250,7 @@ export const ExpenseEntryPanel: React.FC = () => {
         </div>
       ) : (
         <>
+          {canAddExpense && (
           <form
             onSubmit={submit}
             className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-4 space-y-4"
@@ -470,6 +477,12 @@ export const ExpenseEntryPanel: React.FC = () => {
               </button>
             </div>
           </form>
+          )}
+          {!canAddExpense && (
+            <p className="text-sm text-[var(--text-muted)]">
+              This role can view Expenses. Add is required to submit an expense.
+            </p>
+          )}
 
           <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] overflow-hidden">
             <div className="px-4 py-3 border-b border-[var(--border-subtle)] font-semibold text-[var(--text-main)]">

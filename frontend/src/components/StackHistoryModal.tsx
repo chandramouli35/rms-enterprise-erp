@@ -2,6 +2,8 @@ import React from 'react';
 import { X, CheckCircle, Package } from 'lucide-react';
 import api from '../api/axios';
 import { useUiStore } from '../store/uiStore';
+import { useAuthStore } from '../store/authStore';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 interface StackHistoryModalProps {
   isOpen: boolean;
@@ -18,6 +20,8 @@ export default function StackHistoryModal({
   plantId,
   onStackCompleted,
 }: StackHistoryModalProps) {
+  useAuthStore((s) => s.user);
+  const canEditStack = hasModulePermission('Procurement', 'canEdit', 'Stack to Hoodi');
   const [loading, setLoading] = React.useState(true);
   const [history, setHistory] = React.useState<any[]>([]);
   const [activeStack, setActiveStack] = React.useState(stackNo);
@@ -65,6 +69,10 @@ export default function StackHistoryModal({
   }, [isOpen, activeStack, plantId]);
 
   const handleMarkComplete = async () => {
+    if (!canEditStack) {
+      alert('Not allowed. Turn on Edit for Procurement → Stack to Hoodi, then log in again.');
+      return;
+    }
     try {
       await api.patch(`/api/procurement/stack/${activeStack}/complete`, {
         plantId,
@@ -499,8 +507,10 @@ export default function StackHistoryModal({
             Close
           </button>
           
+          {canEditStack && (
           <button
             onClick={async () => {
+            if (!canEditStack) return;
             try {
                 await api.post(
                   `/api/procurement/stack/${activeStack}/send-to-hoodi`,
@@ -518,13 +528,16 @@ export default function StackHistoryModal({
           >
             Send for drying to hoodi
           </button>
+          )}
 
+          {canEditStack && (
           <button
             onClick={handleMarkComplete}
             className="px-5 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
           >
             <CheckCircle size={18} /> Mark Stack Complete
           </button>
+          )}
         </div>
       </div>
     </div>

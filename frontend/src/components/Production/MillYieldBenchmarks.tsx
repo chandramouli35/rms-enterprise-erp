@@ -3,6 +3,7 @@ import { Edit2, RefreshCw, Save, X, Trash2, ShieldAlert } from 'lucide-react';
 import api from '../../api/axios';
 import { useAuthStore } from '../../store/authStore';
 import { usePlantStore } from '../../store/plantStore';
+import { hasModulePermission } from '../../utils/modulePermissions';
 
 type BenchRow = {
   id: string;
@@ -26,6 +27,8 @@ export const MillYieldBenchmarks: React.FC = () => {
   const { user } = useAuthStore();
   const activePlant = usePlantStore((s) => s.activePlant);
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const canEditBench = isAdmin && hasModulePermission('Yield Mgmt', 'canEdit', 'Mill Yield Benchmarks');
+  const canDeleteBench = isAdmin && hasModulePermission('Yield Mgmt', 'canDelete', 'Mill Yield Benchmarks');
   const [rows, setRows] = useState<BenchRow[]>([]);
   const [targets, setTargets] = useState({
     yieldTargetPctPaddy: 71,
@@ -192,9 +195,11 @@ export const MillYieldBenchmarks: React.FC = () => {
             className="block bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-sm w-28"
           />
         </div>
+        {canEditBench && (
         <button onClick={saveTargets} className="px-3 py-1.5 bg-amber-500 text-black text-xs font-bold rounded-lg">
           Save Targets
         </button>
+        )}
       </div>
 
       {loading ? (
@@ -279,9 +284,12 @@ export const MillYieldBenchmarks: React.FC = () => {
                           </div>
                         ) : (
                           <div className="flex justify-end gap-1">
+                            {canEditBench && (
                             <button onClick={() => startEdit(row)} className="p-1 text-blue-400" title="Edit">
                               <Edit2 size={14} />
                             </button>
+                            )}
+                            {canDeleteBench && (
                             <button
                               onClick={() => remove(row.id, row.itemLabel)}
                               className="p-1 text-red-400"
@@ -289,6 +297,7 @@ export const MillYieldBenchmarks: React.FC = () => {
                             >
                               <Trash2 size={14} />
                             </button>
+                            )}
                           </div>
                         )}
                       </td>

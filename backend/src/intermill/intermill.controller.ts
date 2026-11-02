@@ -24,7 +24,7 @@ export class IntermillController {
   }
 
   @Post(':id/approve')
-  @RequirePermission('Production', 'canEdit')
+  @RequirePermission('Production', 'canApprove')
   approve(@Param('id') id: string, @Request() req) {
     const user = req.user;
     return this.intermillService.approve(id, user);

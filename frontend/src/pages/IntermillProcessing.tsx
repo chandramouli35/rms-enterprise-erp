@@ -6,10 +6,13 @@ import { useAuthStore } from '../store/authStore';
 import api from '../api/axios';
 import { getUnitLabel } from '../constants/quantityUnits';
 import { useSubmitLock } from '../hooks/useSubmitLock';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 export const IntermillProcessing = () => {
   const activePlant = usePlantStore(state => state.activePlant);
-  const user = useAuthStore(state => state.user);
+  useAuthStore((state) => state.user);
+  const canAddBatch = hasModulePermission('Production', 'canAdd', 'Batch Creation');
+  const canApproveBatch = hasModulePermission('Production', 'canApprove', 'Intermill History');
   const { batches, fetchBatches, createBatch, approveBatch, loading } = useIntermillStore();
   const [products, setProducts] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -108,9 +111,11 @@ export const IntermillProcessing = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-bold text-[var(--text-main)]">Intermill Processing Batches</h2>
+        {canAddBatch && (
         <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold">
           <Plus className="w-4 h-4" /> Create New Batch
         </button>
+        )}
       </div>
 
       <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] overflow-hidden">
@@ -141,7 +146,7 @@ export const IntermillProcessing = () => {
                     )}
                   </td>
                   <td className="p-3">
-                    {batch.status === 'PENDING_APPROVAL' && user?.role === 'Admin' && (
+                    {batch.status === 'PENDING_APPROVAL' && canApproveBatch && (
                       <button onClick={() => approveBatch(batch.id)} className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-xs font-bold">Approve</button>
                     )}
                   </td>
@@ -276,7 +281,7 @@ export const IntermillProcessing = () => {
 
             <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)]">
               <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-[var(--text-muted)] hover:text-[var(--text-main)]">Cancel</button>
-              <button onClick={handleSubmit} disabled={submitLock.pending} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-lg disabled:opacity-50">{submitLock.pending ? 'Submitting...' : 'Create Batch'}</button>
+              {canAddBatch && <button onClick={handleSubmit} disabled={submitLock.pending} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-lg disabled:opacity-50">{submitLock.pending ? 'Submitting...' : 'Create Batch'}</button>}
             </div>
           </div>
         </div>

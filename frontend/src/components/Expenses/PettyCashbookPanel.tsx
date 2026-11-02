@@ -3,6 +3,7 @@ import api from '../../api/axios';
 import { expensesApi } from '../../api/expenses';
 import { useAuthStore } from '../../store/authStore';
 import { useUiStore } from '../../store/uiStore';
+import { hasModulePermission } from '../../utils/modulePermissions';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const daysAgo = (n: number) => {
@@ -23,6 +24,8 @@ export const PettyCashbookPanel: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const addToast = useUiStore((s) => s.addToast);
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const canAddTicket = isAdmin && hasModulePermission('Expenses', 'canAdd', 'Petty Cashbook');
+  const canEditTicket = isAdmin && hasModulePermission('Expenses', 'canEdit', 'Petty Cashbook');
 
   const [plants, setPlants] = useState<any[]>([]);
   const [plantId, setPlantId] = useState('');
@@ -101,6 +104,10 @@ export const PettyCashbookPanel: React.FC = () => {
   const printRange = () => window.print();
 
   const raiseTicket = async () => {
+    if (!canAddTicket) {
+      addToast('Not allowed. Turn on Add for Expenses → Petty Cashbook, then log in again.', 'error');
+      return;
+    }
     if (!plantId || !ticketSupervisor) {
       addToast('Select mill and supervisor', 'error');
       return;
@@ -125,6 +132,10 @@ export const PettyCashbookPanel: React.FC = () => {
   };
 
   const setTicketStatus = async (id: string, status: string) => {
+    if (!canEditTicket) {
+      addToast('Not allowed. Turn on Edit for Expenses → Petty Cashbook, then log in again.', 'error');
+      return;
+    }
     try {
       await expensesApi.updateTicket(id, status);
       addToast(`Ticket marked ${status}`, 'success');
@@ -182,7 +193,7 @@ export const PettyCashbookPanel: React.FC = () => {
                   >
                     <td className="px-3 py-1.5 font-medium">
                       {d?.label || ''}
-                      {d?.kind === 'FUND' && isAdmin && (
+                      {d?.kind === 'FUND' && canAddTicket && (
                         <button
                           type="button"
                           className="ml-2 text-[10px] text-amber-400 hover:underline print:hidden"
@@ -209,7 +220,7 @@ export const PettyCashbookPanel: React.FC = () => {
                     <td className="px-3 py-1.5">{c?.gpWo || ''}</td>
                     <td className="px-3 py-1.5">
                       {c?.partyName || ''}
-                      {c?.id && isAdmin && (
+                      {c?.id && canAddTicket && (
                         <button
                           type="button"
                           className="ml-2 text-[10px] text-amber-400 hover:underline print:hidden"
@@ -518,7 +529,7 @@ export const PettyCashbookPanel: React.FC = () => {
                         {t.status === 'OK' || t.status === 'CLOSED' ? t.status : '—'}
                       </td>
                       <td className="px-3 py-2 text-right space-x-2">
-                        {isAdmin && t.status !== 'OK' && (
+                        {canEditTicket && t.status !== 'OK' && (
                           <button
                             type="button"
                             className="text-xs text-emerald-400 hover:underline"
@@ -527,7 +538,7 @@ export const PettyCashbookPanel: React.FC = () => {
                             Mark OK
                           </button>
                         )}
-                        {isAdmin && t.status !== 'CLOSED' && (
+                        {canEditTicket && t.status !== 'CLOSED' && (
                           <button
                             type="button"
                             className="text-xs text-amber-400 hover:underline"
@@ -546,7 +557,7 @@ export const PettyCashbookPanel: React.FC = () => {
         </div>
       )}
 
-      {ticketOpen && isAdmin && (
+      {ticketOpen && canAddTicket && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 print:hidden">
           <div className="w-full max-w-md rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-5 space-y-3">
             <h3 className="font-bold text-[var(--text-main)]">Raise Ticket</h3>

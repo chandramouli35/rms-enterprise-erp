@@ -16,6 +16,7 @@ import { StockHealthReport } from '../components/Yield/StockHealthReport';
 import { ConsignmentDispatchReport } from '../components/Yield/ConsignmentDispatchReport';
 import { YieldMillCompare } from '../components/Yield/YieldMillCompare';
 import { MillYieldBenchmarks } from '../components/Production/MillYieldBenchmarks';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 export const YieldManagement = () => {
  const activePlant = usePlantStore(state => state.activePlant);
@@ -24,6 +25,7 @@ export const YieldManagement = () => {
  const isAdminRole = role === 'ADMIN';
  const isSuperAdmin = role === 'SUPER_ADMIN';
  const canSeeBenchmarks = isSuperAdmin || isAdminRole;
+ const canSaveYield = hasModulePermission('Yield Mgmt', 'canAdd', 'Yield Calculator');
  const [searchParams, setSearchParams] = useSearchParams();
  const activeTab = searchParams.get('tab') || (isAdminRole ? 'mill_yield_benchmarks' : 'yield_from_rice');
 
@@ -347,7 +349,7 @@ export const YieldManagement = () => {
 
      <div className="flex gap-4 mt-8">
      <button onClick={() => setCalcData({ paddy: '', headRice: '', brokenRice: '', bran: '', husk: '', loss: '' })} className="flex-1 py-3 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded-xl font-bold transition-colors border border-[var(--border-subtle)]">Reset</button>
-     <button onClick={handleCalculateYield} className="flex-[2] py-3 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded-xl font-bold transition-colors shadow-lg shadow-amber-500/20">Calculate & Save Yield</button>
+     {canSaveYield && <button onClick={handleCalculateYield} className="flex-[2] py-3 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded-xl font-bold transition-colors shadow-lg shadow-amber-500/20">Calculate & Save Yield</button>}
      </div>
      </div>
      </div>

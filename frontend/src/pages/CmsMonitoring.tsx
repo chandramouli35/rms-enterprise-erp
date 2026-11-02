@@ -3,6 +3,8 @@ import { Navigate, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { cmsApi } from '../api/cms';
 import { usePlantStore } from '../store/plantStore';
+import { useAuthStore } from '../store/authStore';
+import { hasModulePermission } from '../utils/modulePermissions';
 import {
   CMS_TAB_SUBMODULE,
   CMS_TABS,
@@ -715,6 +717,8 @@ function AlertsPanel({ plantId }: { plantId?: string }) {
 
 /** CMS User Permission Controls — On/Off for all rights per normal-user role */
 function UserRightsPanel() {
+  useAuthStore((s) => s.user);
+  const canEditRights = hasModulePermission('CMS', 'canEdit', 'CMS User Permission Controls');
   const [roles, setRoles] = useState<any[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [permissions, setPermissions] = useState<any[]>([]);
@@ -756,6 +760,7 @@ function UserRightsPanel() {
   const usersOnRole = selectedRole?.users || [];
 
   const toggleModule = (moduleIndex: number, on: boolean) => {
+    if (!canEditRights) return;
     setPermissions((prev) => {
       const next = structuredClone(prev);
       const mod = next[moduleIndex];
@@ -784,6 +789,7 @@ function UserRightsPanel() {
   };
 
   const toggleSub = (moduleIndex: number, subIndex: number, on: boolean) => {
+    if (!canEditRights) return;
     setPermissions((prev) => {
       const next = structuredClone(prev);
       const mod = next[moduleIndex];
@@ -808,6 +814,10 @@ function UserRightsPanel() {
   };
 
   const save = async () => {
+    if (!canEditRights) {
+      setMsg('Not allowed. Turn on Edit for CMS → CMS User Permission Controls, then log in again.');
+      return;
+    }
     if (!selectedRoleId) return;
     setSaving(true);
     setMsg('');
@@ -845,6 +855,7 @@ function UserRightsPanel() {
             ))}
           </select>
         </label>
+        {canEditRights && (
         <button
           type="button"
           onClick={save}
@@ -853,6 +864,12 @@ function UserRightsPanel() {
         >
           {saving ? 'Saving…' : 'Save rights'}
         </button>
+        )}
+        {!canEditRights && (
+          <p className="text-xs text-[var(--text-muted)]">
+            This role can view CMS rights. Edit is required to change On/Off or save.
+          </p>
+        )}
       </div>
 
       {usersOnRole.length > 0 && (
@@ -882,6 +899,7 @@ function UserRightsPanel() {
                 <span className="text-sm font-medium text-[var(--text-main)]">
                   {mod.name}
                 </span>
+                {canEditRights ? (
                 <button
                   type="button"
                   onClick={() => toggleModule(idx, !on)}
@@ -893,6 +911,17 @@ function UserRightsPanel() {
                 >
                   {on ? 'On' : 'Off'}
                 </button>
+                ) : (
+                <span
+                  className={`text-xs px-3 py-1 rounded border ${
+                    on
+                      ? 'border-emerald-500 text-emerald-600 bg-emerald-500/10'
+                      : 'border-[var(--border-subtle)] text-[var(--text-muted)]'
+                  }`}
+                >
+                  {on ? 'On' : 'Off'}
+                </span>
+                )}
               </div>
               {Array.isArray(mod.subModules) && mod.subModules.length > 0 && (
                 <div className="mt-2 ml-3 grid sm:grid-cols-2 gap-1.5">
@@ -906,6 +935,7 @@ function UserRightsPanel() {
                         <span className="text-[var(--text-muted)] truncate">
                           {sub.name}
                         </span>
+                        {canEditRights ? (
                         <button
                           type="button"
                           onClick={() => toggleSub(idx, subIdx, !subOn)}
@@ -917,6 +947,17 @@ function UserRightsPanel() {
                         >
                           {subOn ? 'On' : 'Off'}
                         </button>
+                        ) : (
+                        <span
+                          className={`px-2 py-0.5 rounded border shrink-0 ${
+                            subOn
+                              ? 'border-emerald-500/60 text-emerald-600'
+                              : 'border-[var(--border-subtle)] text-[var(--text-muted)]'
+                          }`}
+                        >
+                          {subOn ? 'On' : 'Off'}
+                        </span>
+                        )}
                       </div>
                     );
                   })}

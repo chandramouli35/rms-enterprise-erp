@@ -3,6 +3,7 @@ import { RefreshCw, Download, Calculator, FileSpreadsheet, Layers } from 'lucide
 import api from '../../api/axios';
 import { usePlantStore } from '../../store/plantStore';
 import { useAuthStore } from '../../store/authStore';
+import { hasModulePermission } from '../../utils/modulePermissions';
 import { useUiStore } from '../../store/uiStore';
 import { exportToExcel, exportToPDF, exportMultiPagePDF } from '../../utils/exportUtils';
 import { biometricService } from '../../services/biometricService';
@@ -23,6 +24,7 @@ export const YieldMillCompare: React.FC<{ basis: Basis }> = ({ basis }) => {
   const { user } = useAuthStore();
   const roleName = typeof user?.role === 'string' ? user.role : (user?.role as any)?.name;
   const canExport = roleName === 'SUPER_ADMIN';
+  const canAddPaddy = hasModulePermission('Yield Mgmt', 'canAdd', 'Yield from Paddy');
   const activePlant = usePlantStore((s) => s.activePlant);
   const notify = (message: string, type: 'success' | 'error' | 'info' = 'info') =>
     useUiStore.getState().addToast(message, type);
@@ -350,7 +352,7 @@ export const YieldMillCompare: React.FC<{ basis: Basis }> = ({ basis }) => {
             <option value="bags">Bags</option>
             <option value="weight">Weight</option>
           </select>
-          {basis === 'paddy' && (
+          {basis === 'paddy' && canAddPaddy && (
             <button
               onClick={openPaddyPopup}
               className="px-3 py-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-400 rounded-lg text-xs flex items-center gap-1"
@@ -616,9 +618,11 @@ export const YieldMillCompare: React.FC<{ basis: Basis }> = ({ basis }) => {
               >
                 Cancel
               </button>
+              {canAddPaddy && (
               <button onClick={submitPaddy} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">
                 Submit
               </button>
+              )}
             </div>
           </div>
         </div>

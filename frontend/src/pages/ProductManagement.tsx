@@ -3,6 +3,8 @@ import { Search, Plus, Edit2, Trash2, Box } from 'lucide-react';
 import Pagination from '../components/Pagination';
 import { usePlantStore } from '../store/plantStore';
 import { HasPermission } from '../components/HasPermission';
+import { useAuthStore } from '../store/authStore';
+import { hasModulePermission } from '../utils/modulePermissions';
 import { productsApi } from '../api/products';
 import {
   DEFAULT_QUANTITY_UNITS,
@@ -34,6 +36,10 @@ export const ProductManagement = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [search, setSearch] = useState('');
   const saveLock = useSubmitLock();
+  useAuthStore((s) => s.user);
+  const canAddProduct = hasModulePermission('Products', 'canAdd');
+  const canEditProduct = hasModulePermission('Products', 'canEdit');
+  const canDeleteProduct = hasModulePermission('Products', 'canDelete');
 
   const fetchUnits = async () => {
     try {
@@ -65,6 +71,14 @@ export const ProductManagement = () => {
   }, [currentPage, activePlant?.id]);
 
   const handleSave = async () => {
+    if (isEditing ? !canEditProduct : !canAddProduct) {
+      alert(
+        isEditing
+          ? 'Not allowed. Turn on Edit for Products, then log in again.'
+          : 'Not allowed. Turn on Add for Products, then log in again.',
+      );
+      return;
+    }
     if (!formData.name.trim()) {
       alert('Product name is required.');
       return;
@@ -95,6 +109,10 @@ export const ProductManagement = () => {
   };
 
   const handleCreateUnit = async () => {
+    if (!canAddProduct) {
+      alert('Not allowed. Turn on Add for Products, then log in again.');
+      return;
+    }
     if (!newUnitForm.code.trim() || !newUnitForm.label.trim()) {
       alert('Unit code and label are required.');
       return;
@@ -117,6 +135,10 @@ export const ProductManagement = () => {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canDeleteProduct) {
+      alert('Not allowed. Turn on Delete for Products, then log in again.');
+      return;
+    }
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
         await productsApi.remove(id);
@@ -128,12 +150,14 @@ export const ProductManagement = () => {
   };
 
   const openAddModal = () => {
+    if (!canAddProduct) return;
     setFormData(emptyForm);
     setIsEditing(false);
     setIsModalOpen(true);
   };
 
   const openEditModal = (product: any) => {
+    if (!canEditProduct) return;
     setFormData({
       id: product.id,
       name: product.name,
@@ -256,7 +280,7 @@ export const ProductManagement = () => {
         </div>
       </div>
 
-      {isModalOpen && (
+      {(isEditing ? canEditProduct : canAddProduct) && isModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-[var(--bg-panel)] rounded-xl shadow-2xl border border-[var(--border-subtle)] w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="px-6 py-4 border-b border-[var(--border-subtle)] bg-[var(--bg-panel-hover)]">
@@ -278,6 +302,7 @@ export const ProductManagement = () => {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-sm font-medium text-[var(--text-muted-alt)]">Quantity Format</label>
+                  {canAddProduct && (
                   <button
                     type="button"
                     onClick={() => setIsUnitModalOpen(true)}
@@ -285,6 +310,7 @@ export const ProductManagement = () => {
                   >
                     + Add New Unit
                   </button>
+                  )}
                 </div>
                 <select
                   value={formData.quantityFormat}
@@ -331,6 +357,7 @@ export const ProductManagement = () => {
               >
                 Cancel
               </button>
+              {(isEditing ? canEditProduct : canAddProduct) && (
               <button
                 onClick={handleSave}
                 disabled={saveLock.pending}
@@ -338,12 +365,13 @@ export const ProductManagement = () => {
               >
                 {saveLock.pending ? 'Saving...' : 'Save Product'}
               </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {isUnitModalOpen && (
+      {canAddProduct && isUnitModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
           <div className="bg-[var(--bg-panel)] rounded-xl shadow-2xl border border-[var(--border-subtle)] w-full max-w-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-[var(--border-subtle)] bg-[var(--bg-panel-hover)]">
@@ -388,12 +416,14 @@ export const ProductManagement = () => {
               >
                 Cancel
               </button>
+              {canAddProduct && (
               <button
                 onClick={handleCreateUnit}
                 className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black rounded-lg font-bold text-sm"
               >
                 Save Unit
               </button>
+              )}
             </div>
           </div>
         </div>

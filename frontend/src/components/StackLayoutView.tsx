@@ -4,6 +4,7 @@ import StackHistoryModal from './StackHistoryModal';
 import { Layers } from 'lucide-react';
 import { usePlantStore } from '../store/plantStore';
 import { useUiStore } from '../store/uiStore';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 interface PaddyStack {
   id: string;
@@ -21,6 +22,7 @@ interface StackLayoutViewProps {
 
 export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
   const activePlant = usePlantStore(state => state.activePlant);
+  const canAddLoose = hasModulePermission('Procurement', 'canAdd', 'Paddy Inward');
   const isBeasAgro = activePlant?.name?.toLowerCase().includes('beas agro');
   const [stacks, setStacks] = useState<PaddyStack[]>([]);
   const [activeTrucks, setActiveTrucks] = useState<any[]>([]);
@@ -242,7 +244,7 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
               ))}
             </select>
           </label>
-          <div>
+          {canAddLoose && <div>
             <button
               type="submit"
               disabled={savingLoose}
@@ -253,7 +255,7 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
             <p className="text-[10px] text-[var(--text-muted-alt)] mt-1">
               Count only, no weight. {looseLeft == null ? 'Daily limit 15 bags.' : `${looseLeft} of 15 bags left today.`}
             </p>
-          </div>
+          </div>}
         </form>
       )}
 

@@ -13,6 +13,7 @@ import {
 import api from '../api/axios';
 import { exportToExcel } from '../utils/exportUtils';
 import { useAuthStore } from '../store/authStore';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 const CHART_COLORS = ['#e67e00', '#3b82f6', '#22c55e', '#a855f7', '#ef4444', '#14b8a6'];
 
@@ -95,6 +96,9 @@ function TrendBadge({ trend }: { trend?: TrendInfo | null }) {
 
 export default function ShortageRecoveryReport({ activePlant }: { activePlant: any }) {
   const user = useAuthStore((s) => s.user);
+  const canEditProcurement = hasModulePermission('Procurement', 'canEdit');
+  const canSubmitDaily =
+    canEditProcurement || hasModulePermission('Dashboard', 'canEdit');
   const today = new Date().toISOString().slice(0, 10);
   const monthStart = `${today.slice(0, 8)}01`;
   const [view, setView] = useState<ViewMode>('daily');
@@ -131,6 +135,7 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
   };
 
   const handleSubmitDaily = async () => {
+    if (!canSubmitDaily) return;
     setSubmitting(true);
     try {
       await api.post('/api/procurement/reports/shortage-daily/submit', {
@@ -205,6 +210,7 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
   }, [activePlant, filters, view, ledgerMode]);
 
   const handlePunchRecovery = async (detailsId: string, value: string) => {
+    if (!canEditProcurement) return;
     const val = parseFloat(value);
     if (isNaN(val) || !detailsId) return;
     try {
@@ -890,6 +896,7 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
             <input
               type="number"
               step="0.01"
+              disabled={!canEditProcurement}
               key={`${row.detailsId}-${recoveryByDetails[row.detailsId] || 0}`}
               defaultValue={recoveryByDetails[row.detailsId] || 0}
               onBlur={(e) => {
@@ -926,7 +933,7 @@ export default function ShortageRecoveryReport({ activePlant }: { activePlant: a
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {view === 'daily' && (
+          {view === 'daily' && canSubmitDaily && (
             <button
               onClick={handleSubmitDaily}
               disabled={submitting}

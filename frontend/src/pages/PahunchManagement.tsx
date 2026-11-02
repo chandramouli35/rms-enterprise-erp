@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { usePlantStore } from '../store/plantStore';
 import Pagination from '../components/Pagination';
 import { useSubmitLock } from '../hooks/useSubmitLock';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 export default function PahunchManagement() {
   const user = useAuthStore(state => state.user);
@@ -18,6 +19,10 @@ export default function PahunchManagement() {
   
   // Modal state
   const [addModal, setAddModal] = useState({ isOpen: false, name: '', contact: '' });
+  const canAddPahunch =
+    hasModulePermission('Staff Management', 'canAdd', 'Add Staff') ||
+    hasModulePermission('Procurement', 'canAdd');
+  const canDeletePahunch = hasModulePermission('Staff Management', 'canDelete');
   const addPahunchLock = useSubmitLock();
 
   const fetchPahunchs = async () => {
@@ -41,6 +46,10 @@ export default function PahunchManagement() {
 
   const handleAddPahunch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAddPahunch) {
+      alert('Not allowed. Turn on Add for Staff Management → Add Staff, then log in again.');
+      return;
+    }
     await addPahunchLock.wrapSubmit(async () => {
     try {
       await api.post('/api/master-data/pahunch', {
@@ -59,6 +68,10 @@ export default function PahunchManagement() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canDeletePahunch) {
+      alert('Not allowed. Turn on Delete for Staff Management, then log in again.');
+      return;
+    }
     if (!confirm('Are you sure you want to delete this Pahunch contractor?')) return;
     try {
       await api.delete(`/api/master-data/Pahunch/${id}`, {
@@ -84,12 +97,14 @@ export default function PahunchManagement() {
           </h1>
           <p className="text-[var(--text-muted-alt)] text-sm mt-1">Manage Pahunch contractors</p>
         </div>
+        {canAddPahunch && (
         <button 
           onClick={() => setAddModal({ isOpen: true, name: '', contact: '' })}
           className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold shadow hover:bg-[#cc7000] transition-colors flex items-center gap-2"
         >
           <Plus size={18} /> Add Contractor
         </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)]">
@@ -116,9 +131,11 @@ export default function PahunchManagement() {
                   <td className="p-4 font-bold">{Pahunch.name}</td>
                   <td className="p-4">{Pahunch.contact || '-'}</td>
                   <td className="p-4 text-right">
+                    {canDeletePahunch && (
                     <button onClick={() => handleDelete(Pahunch.id)} className="p-2 text-[var(--text-muted-alt)] hover:text-red-400 rounded transition-colors tooltip-trigger" title="Delete">
                       <Trash2 size={16} />
                     </button>
+                    )}
                   </td>
                 </tr>
               ))
@@ -134,7 +151,7 @@ export default function PahunchManagement() {
       />
 
       {/* Add Modal */}
-      {addModal.isOpen && (
+      {canAddPahunch && addModal.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] p-6 max-w-md w-full shadow-2xl">
             <h2 className="text-xl font-bold text-[var(--text-main)] mb-4">Add Pahunch Contractor</h2>

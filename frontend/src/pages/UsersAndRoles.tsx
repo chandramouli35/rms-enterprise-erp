@@ -13,9 +13,15 @@ import {
  UserCheck, UserX, Calendar, Clock, X, Eye, EyeOff, Fingerprint, ArrowRightLeft
 } from 'lucide-react';
 import { useSubmitLock } from '../hooks/useSubmitLock';
+import { useAuthStore } from '../store/authStore';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 export const UsersAndRoles: React.FC = () => {
  const location = useLocation();
+ useAuthStore((s) => s.user);
+ const canAddUsers = hasModulePermission('Users and Roles', 'canAdd');
+ const canEditUsers = hasModulePermission('Users and Roles', 'canEdit');
+ const canDeleteUsers = hasModulePermission('Users and Roles', 'canDelete');
  const [searchParams, setSearchParams] = useSearchParams();
  const activeTab = searchParams.get('tab') || 'Users';
  
@@ -342,6 +348,14 @@ export const UsersAndRoles: React.FC = () => {
  };
 
  const handleToggleStatus = async (id: string) => {
+ if (!canEditUsers) {
+   setModalConfig({
+     isOpen: true,
+     title: 'Not allowed',
+     content: 'Turn on Edit for Users and Roles, then log in again.',
+   });
+   return;
+ }
  try {
  await api.patch(`/users-roles/users/${id}/status`);
  setUsers(users.map(u => u.id === id ? { ...u, status: u.status === 'Active' ? 'Inactive' : 'Active' } : u));
@@ -353,6 +367,7 @@ export const UsersAndRoles: React.FC = () => {
  };
 
  const handlePermissionChange = (moduleIndex: number, field: string, subModuleIndex: number | null = null) => {
+ if (!canEditUsers) return;
  const updated = [...permissions];
  const module = updated[moduleIndex];
  
@@ -467,6 +482,7 @@ export const UsersAndRoles: React.FC = () => {
  };
 
  const handleEditRoleClick = (role: any) => {
+   if (!canEditUsers) return;
    setEditingRoleId(role.id);
    setNewRoleForm({
      name: role.name || '',
@@ -478,6 +494,17 @@ export const UsersAndRoles: React.FC = () => {
 
  const handleAddRole = async (e: React.FormEvent) => {
  e.preventDefault();
+ const editing = !!editingRoleId;
+ if (editing ? !canEditUsers : !canAddUsers) {
+   setModalConfig({
+     isOpen: true,
+     title: 'Not allowed',
+     content: editing
+       ? 'Turn on Edit for Users and Roles, then log in again.'
+       : 'Turn on Add for Users and Roles, then log in again.',
+   });
+   return;
+ }
  if (roleNameExists) {
    setModalConfig({
      isOpen: true,
@@ -769,12 +796,14 @@ export const UsersAndRoles: React.FC = () => {
  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] flex flex-col">
  <div className="flex justify-between items-center mb-6">
  <h3 className="text-[var(--text-main)] font-semibold text-lg">Users List</h3>
+ {canAddUsers && (
  <button 
  onClick={() => setIsAddUserModalOpen(true)}
  className="bg-[#e67e00] hover:bg-[#cc7000] text-black px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
  >
  <Plus size={16} /> Add User
  </button>
+ )}
  </div>
  <div className="flex items-center justify-between mb-4">
  <div className="flex items-center gap-3">
@@ -839,7 +868,7 @@ export const UsersAndRoles: React.FC = () => {
  <span className="inline-block max-w-full px-2.5 py-1 rounded-full text-xs font-medium border bg-amber-500/10 text-[#e67e00] border-amber-500/20 break-words [overflow-wrap:anywhere]">{user.role}</span>
  </td>
  <td className="px-3 py-3 text-[var(--text-muted)]">{user.plant}</td>
- <td className="px-3 py-3 cursor-pointer" onClick={() => handleToggleStatus(user.id)}>
+ <td className={`px-3 py-3 ${canEditUsers ? 'cursor-pointer' : ''}`} onClick={() => { if (canEditUsers) handleToggleStatus(user.id); }}>
  <span className={`px-2 py-1 rounded text-xs font-medium ${user.status === 'Active' ? 'text-[#e67e00] bg-amber-500/10 border border-amber-500/20' : 'text-red-400 bg-red-400/10 border-red-400/20'}`}>
  {user.status}
  </span>
@@ -847,9 +876,9 @@ export const UsersAndRoles: React.FC = () => {
  <td className="px-3 py-3 text-[var(--text-muted-alt)]">{user.lastLogin}</td>
  <td className="px-3 py-3">
  <div className="flex items-center justify-center gap-2">
- <button title="Edit" onClick={() => handleEditUserClick(user)} className="p-1.5 text-[var(--text-muted-alt)] hover:text-[#e67e00] hover:bg-[#e67e00]/10 rounded transition-colors"><Edit2 size={14} /></button>
- <button title="Transfer to another mill" onClick={() => handleTransferUserClick(user)} className="p-1.5 text-[var(--text-muted-alt)] hover:text-sky-400 hover:bg-sky-400/10 rounded transition-colors"><ArrowRightLeft size={14} /></button>
- <button title="Delete" onClick={() => handleDeleteUser(user.id)} className="p-1.5 text-[var(--text-muted-alt)] hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"><Trash2 size={14} /></button>
+ {canEditUsers && <button title="Edit" onClick={() => handleEditUserClick(user)} className="p-1.5 text-[var(--text-muted-alt)] hover:text-[#e67e00] hover:bg-[#e67e00]/10 rounded transition-colors"><Edit2 size={14} /></button>}
+ {canEditUsers && <button title="Transfer to another mill" onClick={() => handleTransferUserClick(user)} className="p-1.5 text-[var(--text-muted-alt)] hover:text-sky-400 hover:bg-sky-400/10 rounded transition-colors"><ArrowRightLeft size={14} /></button>}
+ {canDeleteUsers && <button title="Delete" onClick={() => handleDeleteUser(user.id)} className="p-1.5 text-[var(--text-muted-alt)] hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"><Trash2 size={14} /></button>}
  </div>
  </td>
  </tr>
@@ -873,12 +902,12 @@ export const UsersAndRoles: React.FC = () => {
  <div className="p-6 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)]">
  <div className="flex justify-between items-center mb-6">
  <h3 className="text-[var(--text-main)] font-semibold text-lg">System Roles</h3>
- <button 
+ {canAddUsers && <button 
  onClick={handleOpenAddRole}
  className="bg-[#e67e00] hover:bg-[#cc7000] text-black px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
  >
  <Plus size={16} /> Add Role
- </button>
+ </button>}
  </div>
  <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
  {roles.map(r => (
@@ -900,6 +929,7 @@ export const UsersAndRoles: React.FC = () => {
  {String(r.name || '').replace(/_/g, '_\u200B')}
  </h4>
  </div>
+ {canEditUsers && (
  <button
  type="button"
  onClick={() => handleEditRoleClick(r)}
@@ -909,6 +939,7 @@ export const UsersAndRoles: React.FC = () => {
  >
  <Edit2 size={14} />
  </button>
+ )}
  </div>
  <p className="text-sm text-[var(--text-muted-alt)] mb-4 break-words [overflow-wrap:anywhere]">
  {r.description || 'System role with predefined permissions.'}
@@ -956,9 +987,9 @@ export const UsersAndRoles: React.FC = () => {
  className="min-w-[12rem] max-w-[min(100%,20rem)] bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 shadow-sm"
  />
  </div>
- <button onClick={savePermissions} disabled={permissionsLock.pending} className="bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50">
+ {canEditUsers && <button onClick={savePermissions} disabled={permissionsLock.pending} className="bg-[#e67e00] text-[var(--text-main)] hover:bg-[#cc7000] px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50">
  <Check size={16} /> {permissionsLock.pending ? 'Saving...' : 'Save Changes'}
- </button>
+ </button>}
  </div>
  </div>
  
@@ -1004,8 +1035,9 @@ export const UsersAndRoles: React.FC = () => {
                  <input 
                    type="checkbox" 
                    checked={module.permissions[action]} 
+                   disabled={!canEditUsers}
                    onChange={() => handlePermissionChange(idx, action)}
-                   className="w-4 h-4 rounded border-gray-600 text-[#e67e00] bg-[var(--bg-base)] focus:ring-[#e67e00] border-[var(--border-subtle)] focus:ring-offset-[#121212] cursor-pointer" 
+                   className="w-4 h-4 rounded border-gray-600 text-[#e67e00] bg-[var(--bg-base)] focus:ring-[#e67e00] border-[var(--border-subtle)] focus:ring-offset-[#121212] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50" 
                  />
                )}
              </td>
@@ -1031,8 +1063,9 @@ export const UsersAndRoles: React.FC = () => {
                    <input 
                      type="checkbox" 
                      checked={sub.permissions[action]} 
+                     disabled={!canEditUsers}
                      onChange={() => handlePermissionChange(idx, action, subIdx)}
-                     className="w-3.5 h-3.5 rounded border-gray-600 text-[#e67e00] bg-[var(--bg-base)] focus:ring-[#e67e00] border-[var(--border-subtle)] focus:ring-offset-[#121212] cursor-pointer" 
+                     className="w-3.5 h-3.5 rounded border-gray-600 text-[#e67e00] bg-[var(--bg-base)] focus:ring-[#e67e00] border-[var(--border-subtle)] focus:ring-offset-[#121212] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50" 
                    />
                  )}
                </td>

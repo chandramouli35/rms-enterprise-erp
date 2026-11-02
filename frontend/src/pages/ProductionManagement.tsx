@@ -19,6 +19,7 @@ import { DailyStockReport } from '../components/Production/DailyStockReport';
 import { ShiftWiseReport } from '../components/Production/ShiftWiseReport';
 import { biometricService } from '../services/biometricService';
 import { getUnitLabel } from '../constants/quantityUnits';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 const INTERMILL_ITEMS = [
   'R. Bran', 'K. Phuck', 'Broken Rice', 'Nakku 1', 'Nakku 2', 
@@ -42,7 +43,10 @@ export const ProductionManagement = () => {
 
   // Intermill States
   const { createBatch: createIntermillBatch, batches: intermillBatches, fetchBatches: fetchIntermillBatches, approveBatch: approveIntermillBatch } = useIntermillStore();
-  const user = useAuthStore(state => state.user);
+  useAuthStore((state) => state.user);
+  const canAddBatch = hasModulePermission('Production', 'canAdd', 'Batch Creation');
+  const canEditTracking = hasModulePermission('Production', 'canEdit', 'Production Tracking');
+  const canApproveProduction = hasModulePermission('Production', 'canApprove', 'Intermill History');
   const [products, setProducts] = useState<any[]>([]);
   const [intermillData, setIntermillData] = useState({ rawMaterialId: '', inputBags: '', safaiDustBags: '', patalBags: '' });
   const [selectedOutputs, setSelectedOutputs] = useState<Record<string, boolean>>({});
@@ -668,9 +672,11 @@ export const ProductionManagement = () => {
     </div>
     <div className="flex gap-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
       <button onClick={() => setFormData(prev => ({...prev, paddyDryingTargetStack: '', batchNo: generateBatchNo()}))} className="flex-1 py-2 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded font-bold text-sm transition-colors border border-[var(--border-subtle)]">Reset</button>
+      {canAddBatch && (
       <button onClick={handleCreateBatch} disabled={loading} className="flex-[2] py-2 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded font-bold text-sm transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50">
         {loading ? 'Creating...' : 'Create Batch'}
       </button>
+      )}
     </div>
   </div>
  )}
@@ -1132,9 +1138,11 @@ export const ProductionManagement = () => {
   </div>
   <div className="flex gap-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
     <button onClick={() => setFormData(prev => ({...prev, paddyUsedQty: '', moisture: '', batchNo: generateBatchNo(), additionalOutputs: { 'R. Bran': { produced: '', reused: '' }, 'K. Phuck': { produced: '', reused: '' }, 'Broken Rice': { produced: '', reused: '' }, 'Nakku 1': { produced: '', reused: '' }, 'Nakku 2': { produced: '', reused: '' }, 'Rejection': { produced: '', reused: '' }, 'Final Rice': { produced: '', reused: '' }, 'Mansoori': { produced: '', reused: '' }, 'Wand': { produced: '', reused: '', wandProduced: '' }, 'Parmal': { produced: '', reused: '' }, 'FRK': { produced: '', reused: '' }, 'Safai Dust': { produced: '', reused: '' }, 'Patal': { produced: '', reused: '' }, 'Dry Paddy': { produced: '', reused: '' } }}))} className="flex-1 py-2 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded font-bold text-sm transition-colors border border-[var(--border-subtle)]">Reset</button>
+    {canAddBatch && (
     <button onClick={productionType === 'Rice Milling' ? handleCreateBatch : handleCreateIntermillBatch} disabled={loading} className="flex-[2] py-2 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded font-bold text-sm transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50">
       {loading ? 'Creating...' : 'Create Batch'}
     </button>
+    )}
   </div>
 </div>
 
@@ -1276,14 +1284,14 @@ export const ProductionManagement = () => {
              <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.damagePercent} onChange={e => setAnalysisFormData({...analysisFormData, damagePercent: e.target.value})} /></td>
              <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.discolourPercent} onChange={e => setAnalysisFormData({...analysisFormData, discolourPercent: e.target.value})} /></td>
              <td className="px-1 py-1"><input type="number" step="0.1" className="w-12 bg-transparent border border-[var(--border-subtle)] rounded px-1" value={analysisFormData.frkPercent} onChange={e => setAnalysisFormData({...analysisFormData, frkPercent: e.target.value})} /></td>
-             <td className="px-1 py-1"><button onClick={handleSaveAnalysis} disabled={loading} className="px-2 py-1 bg-[#e67e00] hover:bg-[#cc7000] text-black font-bold rounded shadow-lg disabled:opacity-50 text-[10px]">Save Analysis</button></td>
+             <td className="px-1 py-1">{canEditTracking && <button onClick={handleSaveAnalysis} disabled={loading} className="px-2 py-1 bg-[#e67e00] hover:bg-[#cc7000] text-black font-bold rounded shadow-lg disabled:opacity-50 text-[10px]">Save Analysis</button>}</td>
            </tr>
          )}
        </tbody>
      </table>
    </div>
    
-   {selectedBatchId && selectedBatchDetails?.status !== 'SUBMITTED' && selectedBatchDetails?.status !== 'Completed' && (
+   {canEditTracking && selectedBatchId && selectedBatchDetails?.status !== 'SUBMITTED' && selectedBatchDetails?.status !== 'Completed' && (
       <div className="mt-4 flex justify-end">
         <button onClick={handleSubmitBatch} disabled={loading} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded shadow-lg disabled:opacity-50 transition-colors">
           Submit Batch (Fingerprint Required)
@@ -1586,7 +1594,7 @@ export const ProductionManagement = () => {
                   )}
                 </td>
                 <td className="p-3">
-                  {batch.status === 'PENDING_APPROVAL' && user?.role === 'Admin' && (
+                  {batch.status === 'PENDING_APPROVAL' && canApproveProduction && (
                     <button onClick={() => approveIntermillBatch(batch.id)} className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-xs font-bold">Approve</button>
                   )}
                 </td>

@@ -13,6 +13,7 @@ import { useUiStore } from "../../store/uiStore";
 import { useAuthStore } from "../../store/authStore";
 import { useMandiStore } from "../../store/mandiStore";
 import { biometricService } from "../../services/biometricService";
+import { hasModulePermission } from "../../utils/modulePermissions";
 import Pagination from "../Pagination";
 import Combobox from "../Combobox";
 import { CustomModal } from "../CustomModal";
@@ -56,6 +57,8 @@ export default function BoliRecordPanel({
   );
   /** Supervisor Boli Record must not show Payment / Final Hisab */
   const hidePaymentHisab = isSupervisor && !isAdmin;
+  const canAddBoli = hasModulePermission("Procurement", "canAdd", "Boli Record");
+  const canEditBoli = hasModulePermission("Procurement", "canEdit", "Boli Record");
   const boliTableColSpan = hidePaymentHisab ? 15 : 17;
   const { mandis } = useMandiStore();
 
@@ -678,6 +681,7 @@ export default function BoliRecordPanel({
   };
 
   const canEditRow = (row: any) => {
+    if (!canEditBoli) return false;
     if (isAdmin) return true;
     if (!isSupervisor) return false;
     const d = new Date(row.date);
@@ -926,7 +930,7 @@ export default function BoliRecordPanel({
               </button>
             </>
           )}
-          {activePlant && (
+          {activePlant && canAddBoli && (
             <button
               onClick={() => onOpenEstimate()}
               className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
@@ -1040,7 +1044,7 @@ export default function BoliRecordPanel({
           </button>
         </div>
 
-        {isAdmin && (
+        {isAdmin && canEditBoli && (
           <div className="rounded-xl border border-[#e67e00]/30 bg-[var(--bg-panel-alt)] p-4 space-y-3">
             <h3 className="text-sm font-bold text-[var(--text-main)]">
               Admin — Mandi Base Rates (Today Rate / M/C Point)
@@ -1363,7 +1367,7 @@ export default function BoliRecordPanel({
                       </td>
                       <td className="p-2 text-right">
                         <div className="flex justify-end gap-1">
-                          {isAdmin && (
+                          {isAdmin && canEditBoli && (
                             <button
                               onClick={() => openAdminEdit(r)}
                               className="text-[#e67e00] hover:text-orange-400 text-[10px] font-bold px-1"
@@ -2399,14 +2403,16 @@ export default function BoliRecordPanel({
                     ? "Fingerprint ✓"
                     : "Scan Fingerprint"}
               </button>
-              <button
-                type="submit"
-                disabled={!billYes || !selectedOpen || finalSaving}
-                className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {finalSaving ? "Submitting…" : "Submit with Fingerprint"}
-              </button>
-              {selectedOpen && (
+              {canEditBoli && (
+                <button
+                  type="submit"
+                  disabled={!billYes || !selectedOpen || finalSaving}
+                  className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {finalSaving ? "Submitting…" : "Submit with Fingerprint"}
+                </button>
+              )}
+              {selectedOpen && canEditBoli && (
                 <button
                   type="button"
                   onClick={cancelEntireSoda}
@@ -2511,13 +2517,15 @@ export default function BoliRecordPanel({
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={adminEditLock.pending}
-                className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold disabled:opacity-50"
-              >
-                {adminEditLock.pending ? "Saving..." : "Save"}
-              </button>
+              {canEditBoli && (
+                <button
+                  type="submit"
+                  disabled={adminEditLock.pending}
+                  className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold disabled:opacity-50"
+                >
+                  {adminEditLock.pending ? "Saving..." : "Save"}
+                </button>
+              )}
             </div>
           </form>
         )}

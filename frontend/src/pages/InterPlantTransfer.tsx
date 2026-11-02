@@ -10,11 +10,16 @@ import { useUiStore } from '../store/uiStore';
 import { exportToPDF, exportToExcel } from '../utils/exportUtils';
 import Pagination from '../components/Pagination';
 import { useSubmitLock } from '../hooks/useSubmitLock';
+import { useAuthStore } from '../store/authStore';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 export const InterPlantTransfer = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'transfer_request';
   const activePlant = usePlantStore((state) => state.activePlant);
+  useAuthStore((s) => s.user);
+  const canAddTransfer = hasModulePermission('Transfer', 'canAdd', 'Transfer Request');
+  const canEditTransfer = hasModulePermission('Transfer', 'canEdit', 'Transfer Tracking');
   const [loading, setLoading] = useState(false);
   const submitRequestLock = useSubmitLock();
   const [transfers, setTransfers] = useState<any[]>([]);
@@ -317,12 +322,12 @@ export const InterPlantTransfer = () => {
                   }} className="bg-green-500/10 text-green-500 hover:bg-green-500/20 px-2 py-1 rounded text-xs flex gap-1 items-center font-bold">
                     <Download size={14} /> Excel
                   </button>
-                  <button 
+                  {canAddTransfer && <button 
                     onClick={() => setIsModalOpen(true)}
                     className="flex items-center gap-2 bg-[#e67e00] hover:bg-[#cc7000] text-black px-4 py-2 rounded-lg font-bold text-sm transition-colors shadow-lg shadow-amber-500/20"
                   >
                     <Plus size={16} /> Create Request
-                  </button>
+                  </button>}
                 </div>
               </div>
 
@@ -522,12 +527,12 @@ export const InterPlantTransfer = () => {
                       </div>
                       
                       <div className="flex items-center gap-3">
-                        {selectedTransfer.status === 'Approved' && (
+                        {canEditTransfer && selectedTransfer.status === 'Approved' && (
                           <button onClick={() => updateStatus(selectedTransfer.id, 'Dispatched')} className="bg-[#e67e00] text-black px-4 py-2 rounded font-bold text-sm">
                             Mark Dispatched
                           </button>
                         )}
-                        {(selectedTransfer.status === 'Dispatched' || selectedTransfer.status === 'In Transit') && (
+                        {canEditTransfer && (selectedTransfer.status === 'Dispatched' || selectedTransfer.status === 'In Transit') && (
                           <button onClick={() => updateStatus(selectedTransfer.id, 'Delivered')} className="bg-green-500 text-black px-4 py-2 rounded font-bold text-sm">
                             Mark Delivered
                           </button>
@@ -724,9 +729,11 @@ export const InterPlantTransfer = () => {
 
             <div className="p-6 border-t border-[var(--border-subtle)] flex justify-end gap-3 shrink-0 bg-[var(--bg-base)]">
               <button onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 bg-[var(--bg-panel-alt)] hover:bg-[var(--bg-panel-hover)] text-[var(--text-main)] rounded-lg font-bold text-sm transition-colors border border-[var(--border-subtle)]">Cancel</button>
+              {canAddTransfer && (
               <button onClick={handleSubmitRequest} disabled={loading || submitRequestLock.pending || !formData.fromPlantId || !formData.toPlantId || !formData.quantity} className="px-6 py-2.5 bg-[#e67e00] hover:bg-[#cc7000] text-black rounded-lg font-bold text-sm transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50">
                 {(loading || submitRequestLock.pending) ? 'Submitting...' : 'Submit Request'}
               </button>
+              )}
             </div>
 
           </div>

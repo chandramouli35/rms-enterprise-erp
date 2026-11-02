@@ -10,6 +10,7 @@ export class ProcurementController {
   constructor(private readonly procurementService: ProcurementService) {}
 
   @Post('save-purchase')
+  // Guard allows Add or Edit on Paddy Inward. View-only roles do not see Save.
   @RequirePermission('Procurement', 'canAdd')
   async savePurchase(@Body() data: any, @Req() req: any) {
     try {

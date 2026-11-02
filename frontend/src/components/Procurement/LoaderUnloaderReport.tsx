@@ -5,6 +5,7 @@ import { exportToExcel } from "../../utils/exportUtils";
 import { useUiStore } from "../../store/uiStore";
 import { useAuthStore } from "../../store/authStore";
 import { biometricService } from "../../services/biometricService";
+import { hasModulePermission } from "../../utils/modulePermissions";
 
 type DaySheet = {
   date: string;
@@ -160,6 +161,11 @@ export default function LoaderUnloaderReport({
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const user = useAuthStore((s) => s.user);
+  const canSubmitUnloader = hasModulePermission(
+    "Procurement",
+    "canEdit",
+    "Loader & Unloader",
+  );
   const toast = useUiStore((s) => s.addToast);
   const [viewMode, setViewMode] = useState<ViewMode>("daily");
   const [dailyDate, setDailyDate] = useState(today);
@@ -890,6 +896,7 @@ export default function LoaderUnloaderReport({
                             ? "Supervisor punched"
                             : "Punch Supervisor"}
                       </button>
+                      {canSubmitUnloader && (
                       <button
                         type="button"
                         disabled={
@@ -901,6 +908,7 @@ export default function LoaderUnloaderReport({
                         <Send size={14} />
                         {st.submitting ? "Submitting…" : "Submit to Admin"}
                       </button>
+                      )}
                     </div>
                   )}
                 </div>

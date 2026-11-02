@@ -24,6 +24,8 @@ import api from "../api/axios";
 import { CustomModal } from "../components/CustomModal";
 import Combobox from "../components/Combobox";
 import { useSubmitLock } from "../hooks/useSubmitLock";
+import { useAuthStore } from "../store/authStore";
+import { hasModulePermission } from "../utils/modulePermissions";
 import {
   connectWebSerialWeighbridge,
   FIXED_WEIGHBRIDGE,
@@ -36,6 +38,9 @@ export const WeighbridgeManagement = () => {
   const [searchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "capture";
   const activePlant = usePlantStore((state) => state.activePlant);
+  useAuthStore((s) => s.user);
+  const canCapture = hasModulePermission("Weighbridge", "canAdd", "Capture");
+  const canEditSettings = hasModulePermission("Weighbridge", "canEdit", "Settings");
 
   const [localPlantId, setLocalPlantId] = useState("");
   const [localPlantName, setLocalPlantName] = useState("");
@@ -639,6 +644,14 @@ export const WeighbridgeManagement = () => {
   };
 
   const handleSaveSettings = async () => {
+    if (!canEditSettings) {
+      setModalConfig({
+        isOpen: true,
+        title: "Not allowed",
+        content: "This role cannot save Weighbridge settings. Edit is required.",
+      });
+      return;
+    }
     if (!activePlant) return;
     setIsSavingSettings(true);
     try {
@@ -768,6 +781,14 @@ export const WeighbridgeManagement = () => {
   };
 
   const handleSaveTransaction = async () => {
+    if (!canCapture) {
+      setModalConfig({
+        isOpen: true,
+        title: "Not allowed",
+        content: "This role cannot save a weighbridge transaction. Add is required on Capture.",
+      });
+      return;
+    }
     if (!weightData || !plantId) {
       setModalConfig({
         isOpen: true,
@@ -1339,6 +1360,7 @@ export const WeighbridgeManagement = () => {
                     >
                       Reset
                     </button>
+                    {canCapture && (
                     <button
                       onClick={handleSaveTransaction}
                       disabled={saveTransactionLock.pending}
@@ -1349,6 +1371,7 @@ export const WeighbridgeManagement = () => {
                         ? "Saving..."
                         : "Save Transaction"}
                     </button>
+                    )}
                   </div>
                 </div>
 
@@ -1412,6 +1435,7 @@ export const WeighbridgeManagement = () => {
                     </div>
                   </div>
 
+                  {canCapture && (
                   <div className="grid grid-cols-3 gap-2 mt-5">
                     <button
                       onClick={handleTare}
@@ -1450,6 +1474,7 @@ export const WeighbridgeManagement = () => {
                       </span>
                     </button>
                   </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1695,6 +1720,7 @@ export const WeighbridgeManagement = () => {
                     </div>
                   </div>
 
+                  {canCapture && (
                   <div className="mt-5 pt-4 border-t border-[var(--border-subtle-alt)] space-y-2">
                     {webSerialConnected ? (
                       <button
@@ -1728,6 +1754,9 @@ export const WeighbridgeManagement = () => {
                           ? `Fixed profile ${FIXED_WEIGHBRIDGE.port} @ ${FIXED_WEIGHBRIDGE.baudRate}. First click may ask Chrome to allow COM4 once; after that no selection.`
                           : "Use Chrome or Edge on the weighbridge PC to connect the indicator."}
                     </p>
+                  </div>
+                  )}
+                  <div className="mt-2">
                     <button
                       type="button"
                       onClick={refreshConnectionStatus}
@@ -2179,6 +2208,7 @@ export const WeighbridgeManagement = () => {
                       </div>
                     )}
                   </div>
+                  {canEditSettings && (
                   <button
                     disabled={isSavingSettings}
                     onClick={handleSaveSettings}
@@ -2187,6 +2217,7 @@ export const WeighbridgeManagement = () => {
                     <Save size={16} />{" "}
                     {isSavingSettings ? "Saving..." : "Save Settings"}
                   </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -2229,6 +2260,7 @@ export const WeighbridgeManagement = () => {
             >
               Cancel
             </button>
+            {canCapture && (
             <button
               onClick={() => {
                 const weight = parseInt(manualWeightInput, 10);
@@ -2247,6 +2279,7 @@ export const WeighbridgeManagement = () => {
             >
               Confirm {manualTarget === "tare" ? "Tare" : "Gross"}
             </button>
+            )}
           </>
         }
       >

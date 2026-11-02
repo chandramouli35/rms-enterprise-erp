@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useUiStore } from '../../store/uiStore';
 import api from '../../api/axios';
 import { usePlantStore } from '../../store/plantStore';
+import { useAuthStore } from '../../store/authStore';
+import { hasModulePermission } from '../../utils/modulePermissions';
 
 interface BoliCompletionTableProps {
   sodaPending: any[];
@@ -27,12 +29,19 @@ export default function BoliCompletionTable({
   editable = true,
 }: BoliCompletionTableProps) {
   const activePlantId = usePlantStore((state) => state.activePlant?.id);
+  useAuthStore((s) => s.user);
+  const canEditBoli = hasModulePermission('Procurement', 'canEdit', 'Boli Record');
+  const canWrite = editable && canEditBoli;
 
   const [showCompletionPopup, setShowCompletionPopup] = useState(false);
   const [completionData, setCompletionData] = useState<any>(null);
   const [saving, setSaving] = useState(false);
 
   const handleBoliCompletionToggle = (e: React.ChangeEvent<HTMLInputElement>, boli: any, soda: any) => {
+    if (!canWrite) {
+      e.target.checked = false;
+      return;
+    }
     if (!e.target.checked) return;
 
     if (boli.finalBags == null || boli.finalBags === '') {
@@ -84,6 +93,10 @@ export default function BoliCompletionTable({
   };
 
   const confirmCompletion = async () => {
+    if (!canWrite) {
+      useUiStore.getState().addToast('Not allowed. Turn on Edit for Procurement → Boli Record, then log in again.', 'error');
+      return;
+    }
     if (!completionData || saving) return;
     setSaving(true);
     try {
@@ -139,9 +152,11 @@ export default function BoliCompletionTable({
 
   return (
     <div className="overflow-x-auto mb-4 border border-[var(--border-subtle)] rounded">
-      {!editable && (
+      {!canWrite && (
         <div className="px-3 py-2 text-xs text-amber-400 bg-amber-500/10 border-b border-amber-500/20">
-          View-only — Mandi Type is Control. Switch to Boli to receive/complete bolis.
+          {editable
+            ? 'Edit is required to receive or complete bolis.'
+            : 'View-only — Mandi Type is Control. Switch to Boli to receive/complete bolis.'}
         </div>
       )}
       <table className="w-full text-sm text-left whitespace-nowrap">
@@ -180,19 +195,19 @@ export default function BoliCompletionTable({
                   min="0"
                   step="1"
                   value={boliInputs[boli.id] || ''}
-                  disabled={!editable}
+                  disabled={!canWrite}
                   onChange={(e) => setBoliInputs((prev) => ({ ...prev, [boli.id]: e.target.value }))}
-                  className={`w-20 bg-[var(--bg-base)] border border-blue-500/50 rounded px-2 py-1 text-[var(--text-main)] outline-none focus:border-blue-500 ${!editable ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`w-20 bg-[var(--bg-base)] border border-blue-500/50 rounded px-2 py-1 text-[var(--text-main)] outline-none focus:border-blue-500 ${!canWrite ? 'opacity-50 cursor-not-allowed' : ''}`}
                   placeholder="Bags"
                 />
               </td>
               <td className="p-2 text-center">
                 <input
                   type="checkbox"
-                  disabled={!editable}
+                  disabled={!canWrite}
                   onChange={(e) => handleBoliCompletionToggle(e, boli, soda)}
-                  className={`accent-blue-500 w-4 h-4 ${!editable ? 'opacity-40 cursor-not-allowed' : ''}`}
-                  title={editable ? 'Mark this boli completed' : 'View-only for Control'}
+                  className={`accent-blue-500 w-4 h-4 ${!canWrite ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  title={canWrite ? 'Mark this boli completed' : 'View-only for Control'}
                 />
               </td>
             </tr>

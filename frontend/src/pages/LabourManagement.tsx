@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { usePlantStore } from '../store/plantStore';
 import Pagination from '../components/Pagination';
 import { useSubmitLock } from '../hooks/useSubmitLock';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 export default function LabourManagement() {
   const user = useAuthStore(state => state.user);
@@ -19,6 +20,10 @@ export default function LabourManagement() {
   
   // Modal state
   const [addModal, setAddModal] = useState({ isOpen: false, name: '', type: '', contact: '', firmName: '' });
+  const canAddLabour =
+    hasModulePermission('Staff Management', 'canAdd', 'Add Staff') ||
+    hasModulePermission('Procurement', 'canAdd');
+  const canDeleteLabour = hasModulePermission('Staff Management', 'canDelete');
   const addLabourLock = useSubmitLock();
 
   const fetchLabours = async () => {
@@ -52,6 +57,10 @@ export default function LabourManagement() {
 
   const handleAddLabour = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAddLabour) {
+      alert('Not allowed. Turn on Add for Staff Management → Add Staff, then log in again.');
+      return;
+    }
     await addLabourLock.wrapSubmit(async () => {
     try {
       await api.post('/api/master-data/labour', {
@@ -72,6 +81,10 @@ export default function LabourManagement() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canDeleteLabour) {
+      alert('Not allowed. Turn on Delete for Staff Management, then log in again.');
+      return;
+    }
     if (!confirm('Are you sure you want to delete this labour contractor?')) return;
     try {
       await api.delete(`/api/master-data/labour/${id}`, {
@@ -97,12 +110,14 @@ export default function LabourManagement() {
           </h1>
           <p className="text-[var(--text-muted-alt)] text-sm mt-1">Manage labour contractors</p>
         </div>
+        {canAddLabour && (
         <button 
           onClick={() => setAddModal({ isOpen: true, name: '', type: 'Pahunch Person', contact: '', firmName: '' })}
           className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold shadow hover:bg-[#cc7000] transition-colors flex items-center gap-2"
         >
           <Plus size={18} /> Add Contractor
         </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)]">
@@ -133,9 +148,11 @@ export default function LabourManagement() {
                   <td className="p-4">{labour.type || '-'}</td>
                   <td className="p-4">{labour.contact || '-'}</td>
                   <td className="p-4 text-right">
+                    {canDeleteLabour && (
                     <button onClick={() => handleDelete(labour.id)} className="p-2 text-[var(--text-muted-alt)] hover:text-red-400 rounded transition-colors tooltip-trigger" title="Delete">
                       <Trash2 size={16} />
                     </button>
+                    )}
                   </td>
                 </tr>
               ))
@@ -151,7 +168,7 @@ export default function LabourManagement() {
       />
 
       {/* Add Modal */}
-      {addModal.isOpen && (
+      {canAddLabour && addModal.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] p-6 max-w-md w-full shadow-2xl">
             <h2 className="text-xl font-bold text-[var(--text-main)] mb-4">Add Labour Contractor</h2>

@@ -63,6 +63,7 @@ import Pagination from "../components/Pagination";
 import { exportToExcel } from "../utils/exportUtils";
 import Combobox from "../components/Combobox";
 import { useSubmitLock } from "../hooks/useSubmitLock";
+import { hasModulePermission } from "../utils/modulePermissions";
 
 /** Bag counts: leading/lone 0 disappears (96 not 096). */
 function wholeCountNoLeadingZero(raw: string): string {
@@ -131,9 +132,54 @@ export const ProcurementManagement = () => {
   const hidePaymentHisab = isSupervisor;
   const isAdmin =
     user?.role === "SUPER_ADMIN" || user?.role === "PLANT_MANAGER";
-  const canApproveArtia = isAdmin;
-  /** Mandi Master mutations — Admin only (not Supervisor) */
-  const canManageMandi = isAdmin;
+  const canSavePaddyInward =
+    hasModulePermission("Procurement", "canAdd", "Paddy Inward") ||
+    hasModulePermission("Procurement", "canEdit", "Paddy Inward");
+  const canAddSupplier = hasModulePermission(
+    "Procurement",
+    "canAdd",
+    "Supplier Master",
+  );
+  const canEditSupplier = hasModulePermission(
+    "Procurement",
+    "canEdit",
+    "Supplier Master",
+  );
+  const canAddBoli = hasModulePermission("Procurement", "canAdd", "Boli Record");
+  const canEditBoli = hasModulePermission(
+    "Procurement",
+    "canEdit",
+    "Boli Record",
+  );
+  const canEditQuality = hasModulePermission(
+    "Procurement",
+    "canEdit",
+    "Quality Inspection",
+  );
+  const canEditSettings = hasModulePermission(
+    "Procurement",
+    "canEdit",
+    "Global Settings (Govt Rate)",
+  );
+  const canQuickAddFleet =
+    hasModulePermission("Staff Management", "canAdd") ||
+    hasModulePermission("Procurement", "canAdd") ||
+    hasModulePermission("Gate Pass", "canAdd");
+  const canQuickAddPahunch =
+    hasModulePermission("Staff Management", "canAdd") ||
+    hasModulePermission("Procurement", "canAdd");
+  const canSettleHisab =
+    (user?.role === "SUPER_ADMIN" ||
+      user?.role === "ADMIN" ||
+      user?.role === "PLANT_MANAGER") &&
+    hasModulePermission("Procurement", "canEdit", "Boli Record");
+  const canAddMandi =
+    isAdmin && hasModulePermission("Procurement", "canAdd", "Mandi Master");
+  const canEditMandi =
+    isAdmin && hasModulePermission("Procurement", "canEdit", "Mandi Master");
+  const canDeleteMandi =
+    isAdmin && hasModulePermission("Procurement", "canDelete", "Mandi Master");
+  const canManageMandi = canAddMandi || canEditMandi || canDeleteMandi;
   const [category, setCategory] = useState<"OPERATIONAL" | "NON_OPERATIONAL">(
     "OPERATIONAL",
   );
@@ -1345,6 +1391,16 @@ export const ProcurementManagement = () => {
   const handlePaddyPurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (paddyPurchaseSavingRef.current || isPaddyPurchaseSaving) return;
+    const boliAllowed = paddyPurchaseModal.id ? canEditBoli : canAddBoli;
+    if (!boliAllowed) {
+      useUiStore
+        .getState()
+        .addToast(
+          "This role cannot save a Boli Record. Add or Edit is required.",
+          "error",
+        );
+      return;
+    }
 
     const selectedPlantId = paddyPurchaseModal.plantId || activePlant?.id;
     if (!selectedPlantId) {
@@ -1540,12 +1596,13 @@ export const ProcurementManagement = () => {
     if (!value) return;
 
     try {
-      if (name === "truckNo" && !trucks.find((t) => t.truckNumber === value)) {
+      if (name === "truckNo" && canQuickAddFleet && !trucks.find((t) => t.truckNumber === value)) {
         await api.post("/api/master-data/trucks", { truckNumber: value });
         const res = await api.get("/api/master-data/trucks");
         setTrucks(res.data);
       } else if (
         name === "driverName" &&
+        canQuickAddFleet &&
         !drivers.find((d) => d.name === value)
       ) {
         await api.post("/api/master-data/drivers", {
@@ -1557,6 +1614,7 @@ export const ProcurementManagement = () => {
         setDrivers(res.data);
       } else if (
         (name === "pahunchPersonName" || name === "pahunchPerson") &&
+        canQuickAddPahunch &&
         !pahunchs.find((p) => p.name === value)
       ) {
         await api.post("/api/master-data/pahunch", { name: value });
@@ -2123,7 +2181,7 @@ export const ProcurementManagement = () => {
   };
 
   const handleApproveSupplier = async (id: string) => {
-    if (!canApproveArtia) return;
+    if (!canEditSupplier) return;
     try {
       await api.put(`/api/procurement/suppliers/${id}/approve`);
       useUiStore.getState().addToast("Arthiya approved", "success");
@@ -2139,7 +2197,7 @@ export const ProcurementManagement = () => {
   };
 
   const handleRejectSupplier = async (id: string) => {
-    if (!canApproveArtia) return;
+    if (!canEditSupplier) return;
     if (
       !window.confirm(
         "Decline and remove this Arthiya application?",
@@ -2265,6 +2323,15 @@ export const ProcurementManagement = () => {
     overrides: Record<string, any> = {},
   ): Promise<boolean> => {
     if (isSubmitting) return false;
+    if (!canSavePaddyInward) {
+      useUiStore
+        .getState()
+        .addToast(
+          "This role cannot save Paddy Inward. Add or Edit is required on Procurement → Paddy Inward.",
+          "error",
+        );
+      return false;
+    }
     const now = new Date();
     const dateStr = now.toISOString().split("T")[0];
     const timeStr = now.toTimeString().slice(0, 5);
@@ -2834,6 +2901,13 @@ export const ProcurementManagement = () => {
 
   const handleSettleHisabSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canSettleHisab) {
+      useUiStore.getState().addToast(
+        "Not allowed. Turn on Edit for Procurement → Boli Record, then log in again.",
+        "error",
+      );
+      return;
+    }
     if (!settleHisabModal.hisab) return;
     await settleHisabLock.wrapSubmit(async () => {
       try {
@@ -2974,7 +3048,7 @@ export const ProcurementManagement = () => {
                 <h2 className="text-xl font-bold flex items-center gap-2 text-[var(--text-main)]">
                   <Users className="text-[#e67e00]" /> Mandi Master
                 </h2>
-                {canManageMandi ? (
+                {canAddMandi ? (
                   <button
                     onClick={() =>
                       setAddMandiModal({
@@ -3001,7 +3075,9 @@ export const ProcurementManagement = () => {
                   <tr className="border-b border-[var(--border-subtle)] uppercase text-[var(--text-muted-alt)] text-left">
                     <th className="p-3">Name</th>
                     <th className="p-3">Status</th>
-                    {canManageMandi && <th className="p-3">Actions</th>}
+                    {(canEditMandi || canDeleteMandi) && (
+                      <th className="p-3">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -3014,7 +3090,7 @@ export const ProcurementManagement = () => {
                         {m.name}
                       </td>
                       <td className="p-3">
-                        {canManageMandi ? (
+                        {canEditMandi ? (
                           <label className="relative inline-flex items-center cursor-pointer">
                             <input
                               type="checkbox"
@@ -3036,27 +3112,31 @@ export const ProcurementManagement = () => {
                           </span>
                         )}
                       </td>
-                      {canManageMandi && (
+                      {(canEditMandi || canDeleteMandi) && (
                         <td className="p-3 flex gap-2">
-                          <button
-                            onClick={() =>
-                              setAddMandiModal({
-                                isOpen: true,
-                                id: m.id,
-                                name: m.name,
-                                isActive: m.isActive,
-                              })
-                            }
-                            className="text-amber-500 hover:text-amber-400 p-1 bg-amber-500/10 rounded"
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteMandi(m.id)}
-                            className="text-red-500 hover:text-red-400 p-1 bg-red-500/10 rounded"
-                          >
-                            <Trash size={14} />
-                          </button>
+                          {canEditMandi && (
+                            <button
+                              onClick={() =>
+                                setAddMandiModal({
+                                  isOpen: true,
+                                  id: m.id,
+                                  name: m.name,
+                                  isActive: m.isActive,
+                                })
+                              }
+                              className="text-amber-500 hover:text-amber-400 p-1 bg-amber-500/10 rounded"
+                            >
+                              <Edit size={14} />
+                            </button>
+                          )}
+                          {canDeleteMandi && (
+                            <button
+                              onClick={() => handleDeleteMandi(m.id)}
+                              className="text-red-500 hover:text-red-400 p-1 bg-red-500/10 rounded"
+                            >
+                              <Trash size={14} />
+                            </button>
+                          )}
                         </td>
                       )}
                     </tr>
@@ -3080,22 +3160,24 @@ export const ProcurementManagement = () => {
                     </span>
                   )}
                 </h2>
-                <button
-                  onClick={() =>
-                    setAddSupplierModal({
-                      isOpen: true,
-                      name: "",
-                      firmNames: "",
-                      mandi: "",
-                      contact: "",
-                      plantId: activePlant?.id || "",
-                      biometricData: "",
-                    })
-                  }
-                  className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
-                >
-                  + {isSupervisor ? "Add Arthiya (Admin Approval)" : "Add Arthiya"}
-                </button>
+                {canAddSupplier && (
+                  <button
+                    onClick={() =>
+                      setAddSupplierModal({
+                        isOpen: true,
+                        name: "",
+                        firmNames: "",
+                        mandi: "",
+                        contact: "",
+                        plantId: activePlant?.id || "",
+                        biometricData: "",
+                      })
+                    }
+                    className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
+                  >
+                    + {isSupervisor ? "Add Arthiya (Admin Approval)" : "Add Arthiya"}
+                  </button>
+                )}
               </div>
             </div>
             <div className="flex-1 overflow-auto bg-[var(--bg-base)] p-6">
@@ -3108,7 +3190,7 @@ export const ProcurementManagement = () => {
                     <th className="p-3">Mandi</th>
                     <th className="p-3">Contact</th>
                     <th className="p-3">Status</th>
-                    {canApproveArtia && (
+                    {canEditSupplier && (
                       <th className="p-3 text-right">Actions</th>
                     )}
                   </tr>
@@ -3143,7 +3225,7 @@ export const ProcurementManagement = () => {
                           </span>
                         )}
                       </td>
-                      {canApproveArtia && (
+                      {canEditSupplier && (
                         <td className="p-3 text-right">
                           {s.status === "PENDING_APPROVAL" && (
                             <div className="inline-flex items-center gap-2">
@@ -3172,7 +3254,7 @@ export const ProcurementManagement = () => {
                   {suppliers.length === 0 && (
                     <tr>
                       <td
-                        colSpan={canApproveArtia ? 7 : 6}
+                        colSpan={canEditSupplier ? 7 : 6}
                         className="p-6 text-center text-[var(--text-muted-alt)]"
                       >
                         No Arthiya found for this mill. Add one for the selected
@@ -4560,7 +4642,7 @@ export const ProcurementManagement = () => {
                         <input
                           type="checkbox"
                           checked={!!inwardFormData.isHold}
-                          disabled={!!inwardFormData.isHold}
+                          disabled={!!inwardFormData.isHold || !canSavePaddyInward}
                           onChange={async (e) => {
                             if (!e.target.checked) return; // permanent — no deselection
                             const ok = window.confirm(
@@ -6396,35 +6478,43 @@ export const ProcurementManagement = () => {
               >
                 Cancel
               </button>
-              <button
-                onClick={() => handleInwardSubmit("DRAFT")}
-                disabled={isSubmitting}
-                className="px-6 py-2.5 bg-[var(--bg-panel)] border border-blue-500/30 text-blue-400 rounded-lg font-bold hover:bg-blue-900/20 disabled:opacity-50"
-              >
-                {isSubmitting ? "Saving..." : "Save Draft"}
-              </button>
-              <button
-                onClick={() => {
-                  if (!inwardFormData.biometricData) {
-                    alert("Supervisor Biometric Verification is required.");
-                    return;
-                  }
-                  if (
-                    inwardFormData.shortageRecoveryOpt === "Yes" &&
-                    !inwardFormData.headBiometricData
-                  ) {
-                    alert(
-                      "Head Supervisor Biometric Verification is required for Shortage Recovery.",
-                    );
-                    return;
-                  }
-                  handleInwardSubmit("CONFIRMED");
-                }}
-                disabled={isSubmitting}
-                className="px-8 py-2.5 bg-green-600 hover:bg-green-700 text-[var(--text-main)] rounded-lg font-bold shadow-lg shadow-green-600/20 disabled:opacity-50"
-              >
-                {isSubmitting ? "Saving..." : "Save & Confirm"}
-              </button>
+              {canSavePaddyInward ? (
+                <>
+                  <button
+                    onClick={() => handleInwardSubmit("DRAFT")}
+                    disabled={isSubmitting}
+                    className="px-6 py-2.5 bg-[var(--bg-panel)] border border-blue-500/30 text-blue-400 rounded-lg font-bold hover:bg-blue-900/20 disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Saving..." : "Save Draft"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!inwardFormData.biometricData) {
+                        alert("Supervisor Biometric Verification is required.");
+                        return;
+                      }
+                      if (
+                        inwardFormData.shortageRecoveryOpt === "Yes" &&
+                        !inwardFormData.headBiometricData
+                      ) {
+                        alert(
+                          "Head Supervisor Biometric Verification is required for Shortage Recovery.",
+                        );
+                        return;
+                      }
+                      handleInwardSubmit("CONFIRMED");
+                    }}
+                    disabled={isSubmitting}
+                    className="px-8 py-2.5 bg-green-600 hover:bg-green-700 text-[var(--text-main)] rounded-lg font-bold shadow-lg shadow-green-600/20 disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Saving..." : "Save & Confirm"}
+                  </button>
+                </>
+              ) : (
+                <p className="text-sm text-[var(--text-muted-alt)] self-center">
+                  This role can view Paddy Inward. Add or Edit is required to save.
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -6746,7 +6836,7 @@ export const ProcurementManagement = () => {
                           <Settings className="w-4 h-4 text-amber-500" />
                           Procurement & Cut Configurations
                         </h4>
-                        {!isEditingSettings && (
+                        {!isEditingSettings && canEditSettings && (
                           <button
                             onClick={() => setIsEditingSettings(true)}
                             className="text-amber-500 hover:text-amber-400 px-3 py-1 bg-amber-500/10 rounded font-bold text-xs"
@@ -7150,12 +7240,14 @@ export const ProcurementManagement = () => {
                             >
                               Cancel
                             </button>
-                            <button
-                              onClick={handleUpdateSettings}
-                              className="bg-amber-500 hover:bg-amber-600 text-black px-6 py-2 rounded-lg font-bold shadow-md text-sm transition-all"
-                            >
-                              Save Changes
-                            </button>
+                            {canEditSettings && (
+                              <button
+                                onClick={handleUpdateSettings}
+                                className="bg-amber-500 hover:bg-amber-600 text-black px-6 py-2 rounded-lg font-bold shadow-md text-sm transition-all"
+                              >
+                                Save Changes
+                              </button>
+                            )}
                           </div>
                         </div>
                       )}
@@ -7256,21 +7348,23 @@ export const ProcurementManagement = () => {
                           </span>
                         </td>
                         <td className="p-3">
-                          <button
-                            onClick={() =>
-                              setInspectModal({
-                                isOpen: true,
-                                batchId: p.purchaseNo,
-                                moisture: p.moisture || 0,
-                                broken: p.broken || 0,
-                                discoloration: 0,
-                                foreignMatter: 0,
-                              })
-                            }
-                            className="bg-[#e67e00] text-black px-3 py-1 rounded text-xs font-bold"
-                          >
-                            Inspect
-                          </button>
+                          {canEditQuality && (
+                            <button
+                              onClick={() =>
+                                setInspectModal({
+                                  isOpen: true,
+                                  batchId: p.purchaseNo,
+                                  moisture: p.moisture || 0,
+                                  broken: p.broken || 0,
+                                  discoloration: 0,
+                                  foreignMatter: 0,
+                                })
+                              }
+                              className="bg-[#e67e00] text-black px-3 py-1 rounded text-xs font-bold"
+                            >
+                              Inspect
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -7458,8 +7552,7 @@ export const ProcurementManagement = () => {
                         </td>
                         )}
                         <td className="p-3 text-center">
-                          {user?.role === "SUPER_ADMIN" ||
-                          user?.role === "PLANT_MANAGER" ? (
+                          {canSettleHisab ? (
                             <button
                               onClick={() =>
                                 setSettleHisabModal({
@@ -8465,17 +8558,19 @@ export const ProcurementManagement = () => {
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={isPaddyPurchaseSaving}
-              className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold hover:bg-[#cc7000] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isPaddyPurchaseSaving
-                ? "Saving…"
-                : paddyPurchaseModal.id
-                  ? "Update with Fingerprint"
-                  : "Submit with Fingerprint"}
-            </button>
+            {(paddyPurchaseModal.id ? canEditBoli : canAddBoli) && (
+              <button
+                type="submit"
+                disabled={isPaddyPurchaseSaving}
+                className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold hover:bg-[#cc7000] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isPaddyPurchaseSaving
+                  ? "Saving…"
+                  : paddyPurchaseModal.id
+                    ? "Update with Fingerprint"
+                    : "Submit with Fingerprint"}
+              </button>
+            )}
           </div>
         </form>
       </CustomModal>
@@ -8838,13 +8933,15 @@ export const ProcurementManagement = () => {
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={inspectLock.pending}
-              className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold hover:bg-[#cc7000] transition-colors disabled:opacity-50"
-            >
-              {inspectLock.pending ? "Submitting..." : "Complete Inspection"}
-            </button>
+            {canEditQuality && (
+              <button
+                type="submit"
+                disabled={inspectLock.pending}
+                className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold hover:bg-[#cc7000] transition-colors disabled:opacity-50"
+              >
+                {inspectLock.pending ? "Submitting..." : "Complete Inspection"}
+              </button>
+            )}
           </div>
         </form>
       </CustomModal>
@@ -8951,6 +9048,7 @@ export const ProcurementManagement = () => {
               >
                 Cancel
               </button>
+              {canSettleHisab && (
               <button
                 type="submit"
                 disabled={settleHisabLock.pending}
@@ -8958,6 +9056,7 @@ export const ProcurementManagement = () => {
               >
                 {settleHisabLock.pending ? "Submitting..." : "Settle Hisab"}
               </button>
+              )}
             </div>
           </form>
         )}

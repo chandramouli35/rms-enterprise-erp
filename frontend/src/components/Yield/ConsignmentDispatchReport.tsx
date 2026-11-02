@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Plus, RefreshCw, Download } from 'lucide-react';
 import api from '../../api/axios';
 import { usePlantStore } from '../../store/plantStore';
+import { useAuthStore } from '../../store/authStore';
+import { hasModulePermission } from '../../utils/modulePermissions';
 import { biometricService } from '../../services/biometricService';
 import { toast } from 'react-hot-toast';
 import { exportToExcel } from '../../utils/exportUtils';
@@ -33,6 +35,9 @@ export const ConsignmentDispatchReport: React.FC<{ promptOpen?: boolean; onPromp
   onPromptClose,
 }) => {
   const activePlant = usePlantStore((s) => s.activePlant);
+  useAuthStore((s) => s.user);
+  const canAddConsignment = hasModulePermission('Yield Mgmt', 'canAdd', 'Consignment Dispatch');
+  const canEditConsignment = hasModulePermission('Yield Mgmt', 'canEdit', 'Consignment Dispatch');
   const [rows, setRows] = useState<any[]>([]);
   const [summary, setSummary] = useState({ totalMainBags: 0, wagonsDelivery: 0 });
   const [gatePasses, setGatePasses] = useState<any[]>([]);
@@ -108,6 +113,11 @@ export const ConsignmentDispatchReport: React.FC<{ promptOpen?: boolean; onPromp
   };
 
   const submit = async () => {
+    const allowed = form.id ? canEditConsignment : canAddConsignment;
+    if (!allowed) {
+      toast.error('This role cannot save Consignment Dispatch. Add or Edit is required.');
+      return;
+    }
     if (!form.isNilDay && !gpReportReady && !form.acknowledgeGpReminder) {
       toast.error('GP report not finalized for this date. Acknowledge the reminder to continue (max 1 backdate).');
       setGpReminder(true);
@@ -394,9 +404,11 @@ export const ConsignmentDispatchReport: React.FC<{ promptOpen?: boolean; onPromp
           >
             Cancel
           </button>
+          {(form.id ? canEditConsignment : canAddConsignment) && (
           <button onClick={submit} disabled={submitLock.pending} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
             {submitLock.pending ? 'Submitting...' : 'Submit with Fingerprint'}
           </button>
+          )}
         </div>
       </div>
     </div>
@@ -445,12 +457,14 @@ export const ConsignmentDispatchReport: React.FC<{ promptOpen?: boolean; onPromp
           >
             <Download size={14} /> Excel
           </button>
+          {canAddConsignment && (
           <button
             onClick={() => openFill()}
             className="px-3 py-1.5 bg-amber-500 text-black rounded-lg text-xs font-bold flex items-center gap-1"
           >
             <Plus size={14} /> Add More
           </button>
+          )}
         </div>
       </div>
 
@@ -528,9 +542,11 @@ export const ConsignmentDispatchReport: React.FC<{ promptOpen?: boolean; onPromp
               rows.map((r) => (
                 <tr
                   key={r.id}
-                  className="hover:bg-[var(--glass-bg)] cursor-pointer"
-                  onClick={() => openFill(r)}
-                  title="Tap to fill unfilled fields"
+                  className={`hover:bg-[var(--glass-bg)] ${canEditConsignment ? 'cursor-pointer' : ''}`}
+                  onClick={() => {
+                    if (canEditConsignment) openFill(r);
+                  }}
+                  title={canEditConsignment ? 'Tap to fill unfilled fields' : undefined}
                 >
                   <td className="px-3 py-2">{r.date ? new Date(r.date).toLocaleDateString() : '—'}</td>
                   <td className="px-3 py-2">{r.gpNo || '—'}</td>

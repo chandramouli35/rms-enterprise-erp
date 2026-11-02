@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { usePlantStore } from '../store/plantStore';
 import Pagination from '../components/Pagination';
 import { biometricService } from '../services/biometricService';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 function normalizeTruckNumber(raw: string): string {
   return String(raw || '')
@@ -21,7 +22,13 @@ export default function TruckManagement() {
 
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'PLANT_MANAGER';
   const isSupervisor = user?.role === 'SUPERVISOR';
-  const canApprove = isAdmin;
+  const canAddTruck =
+    isSupervisor ||
+    hasModulePermission('Staff Management', 'canAdd', 'Truck Management') ||
+    hasModulePermission('Procurement', 'canAdd') ||
+    hasModulePermission('Gate Pass', 'canAdd');
+  const canApprove = hasModulePermission('Staff Management', 'canEdit', 'Truck Management');
+  const canDeleteTruck = hasModulePermission('Staff Management', 'canDelete', 'Truck Management');
 
   const [trucks, setTrucks] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -132,6 +139,10 @@ export default function TruckManagement() {
 
   const handleAddTruck = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAddTruck) {
+      alert('Not allowed. Turn on Add for Staff Management → Truck Management, then log in again.');
+      return;
+    }
     if (isSubmitting) return;
 
     const normalized =
@@ -244,7 +255,7 @@ export default function TruckManagement() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!isAdmin) return;
+    if (!canDeleteTruck) return;
     if (!confirm('Are you sure you want to delete this truck?')) return;
     try {
       await api.delete(`/api/master-data/trucks/${id}`, {
@@ -280,6 +291,7 @@ export default function TruckManagement() {
               : 'Manage and approve trucks'}
           </p>
         </div>
+        {canAddTruck && (
         <button
           onClick={() =>
             setAddModal({
@@ -297,6 +309,7 @@ export default function TruckManagement() {
         >
           <Plus size={18} /> {isSupervisor ? 'Add New Truck Application' : 'Add Truck'}
         </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)]">
@@ -392,7 +405,7 @@ export default function TruckManagement() {
                         </button>
                       </>
                     )}
-                    {isAdmin && (
+                    {canDeleteTruck && (
                       <button
                         onClick={() => handleDelete(truck.id)}
                         className="p-2 text-[var(--text-muted-alt)] hover:text-red-400 rounded transition-colors"
@@ -415,7 +428,7 @@ export default function TruckManagement() {
         onPageChange={setCurrentPage}
       />
 
-      {addModal.isOpen && (
+      {canAddTruck && addModal.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)] p-6 max-w-md w-full shadow-2xl">
             <h2 className="text-xl font-bold text-[var(--text-main)] mb-4">

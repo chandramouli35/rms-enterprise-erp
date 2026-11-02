@@ -3,6 +3,7 @@ import { useAuthStore } from '../../store/authStore';
 import { usePlantStore } from '../../store/plantStore';
 import api from '../../api/axios';
 import { Users, Trash2 } from 'lucide-react';
+import { hasModulePermission } from '../../utils/modulePermissions';
 
 type FilterType = 'ALL' | 'PAHUNCH' | 'LABOUR' | 'DRIVER' | 'UNLOADER';
 
@@ -10,6 +11,7 @@ export const StaffList: React.FC = () => {
   const { activePlant } = usePlantStore();
   const activePlantId = activePlant?.id;
   const { user } = useAuthStore();
+  const canDeleteStaff = hasModulePermission('Staff Management', 'canDelete');
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [staffList, setStaffList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -66,6 +68,10 @@ export const StaffList: React.FC = () => {
   }, [activePlantId, filter]);
 
   const handleDelete = async (id: string, category: string) => {
+    if (!canDeleteStaff) {
+      alert('Not allowed. Turn on Delete for Staff Management, then log in again.');
+      return;
+    }
     if (!window.confirm('Are you sure you want to delete this staff member?')) return;
     try {
       const endpoint =
@@ -153,6 +159,7 @@ export const StaffList: React.FC = () => {
                   </td>
                   <td className="p-4 text-sm text-[var(--text-muted)]">{new Date(staff.createdAt).toLocaleDateString()}</td>
                   <td className="p-4 text-sm text-right">
+                    {canDeleteStaff && (
                     <button
                       onClick={() => handleDelete(staff.id, staff._category)}
                       className="p-2 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded transition-colors"
@@ -160,6 +167,7 @@ export const StaffList: React.FC = () => {
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
+                    )}
                   </td>
                 </tr>
               ))

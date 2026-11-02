@@ -5,6 +5,7 @@ import { usePlantStore } from '../store/plantStore';
 import { useAuthStore } from '../store/authStore';
 import { useUiStore } from '../store/uiStore';
 import { biometricService } from '../services/biometricService';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 const isAdminRole = (role?: string) => role === 'SUPER_ADMIN' || role === 'ADMIN';
 
@@ -15,6 +16,8 @@ export const LabourWorkOrder: React.FC = () => {
   const tab = params.get('tab') || 'entry';
   const plantId = activePlant?.id || '';
   const admin = isAdminRole(user?.role);
+  const canAdd = hasModulePermission('Labour Work Order', 'canAdd');
+  const canEdit = hasModulePermission('Labour Work Order', 'canEdit');
 
   return (
     <div className="p-4 md:p-6 text-[var(--text-main)]">
@@ -49,11 +52,11 @@ export const LabourWorkOrder: React.FC = () => {
       {!plantId ? (
         <p className="text-sm text-amber-400">Select a mill at the top of the page.</p>
       ) : tab === 'rates' ? (
-        <RatesTab plantId={plantId} admin={admin} />
+        <RatesTab plantId={plantId} admin={admin} canAdd={canAdd} canEdit={canEdit} />
       ) : tab === 'report' ? (
         <ReportTab plantId={plantId} />
       ) : (
-        <EntryTab plantId={plantId} admin={admin} role={user?.role} />
+        <EntryTab plantId={plantId} role={user?.role} canAdd={canAdd} canEdit={canEdit} />
       )}
     </div>
   );
@@ -61,12 +64,14 @@ export const LabourWorkOrder: React.FC = () => {
 
 function EntryTab({
   plantId,
-  admin,
   role,
+  canAdd,
+  canEdit,
 }: {
   plantId: string;
-  admin: boolean;
   role?: string;
+  canAdd: boolean;
+  canEdit: boolean;
 }) {
   const addToast = useUiStore((s) => s.addToast);
   const [catalog, setCatalog] = useState<any[]>([]);
@@ -100,6 +105,10 @@ function EntryTab({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAdd) {
+      addToast('Not allowed. Turn on Add for Labour Work Order, then log in again.', 'error');
+      return;
+    }
     setSaving(true);
     try {
       let fingerprintToken = '';
@@ -253,12 +262,13 @@ function EntryTab({
         <input type="checkbox" checked={fingerprint} onChange={(e) => setFingerprint(e.target.checked)} />
         Update with Fingerprint
       </label>
-      {admin && (
+      {canEdit && (
         <label className="flex items-center gap-2 text-sm md:col-span-2">
           <input
             type="checkbox"
             checked={backdate === 'on'}
             onChange={async (e) => {
+              if (!canEdit) return;
               const next = e.target.checked ? 'on' : 'off';
               await api.put('/api/labour-work/settings', { backdate: next });
               setBackdate(next);
@@ -267,11 +277,18 @@ function EntryTab({
           Allow back-date entry (global setting). Off keeps the entry at the current time.
         </label>
       )}
+      {canAdd && (
       <div>
         <button disabled={saving} className="bg-[#e67e00] text-white px-4 py-2 rounded font-medium">
           {saving ? 'Saving…' : 'Submit'}
         </button>
       </div>
+      )}
+      {!canAdd && (
+        <p className="text-xs text-[var(--text-muted-alt)] md:col-span-2">
+          This role can view Labour Work Order. Add is required to submit a work order.
+        </p>
+      )}
     </form>
   );
 }
@@ -346,7 +363,17 @@ function ReportTab({ plantId }: { plantId: string }) {
   );
 }
 
-function RatesTab({ plantId, admin }: { plantId: string; admin: boolean }) {
+function RatesTab({
+  plantId,
+  admin,
+  canAdd,
+  canEdit,
+}: {
+  plantId: string;
+  admin: boolean;
+  canAdd: boolean;
+  canEdit: boolean;
+}) {
   const addToast = useUiStore((s) => s.addToast);
   const [parties, setParties] = useState<any[]>([]);
   const [partyId, setPartyId] = useState('');
@@ -378,6 +405,10 @@ function RatesTab({ plantId, admin }: { plantId: string; admin: boolean }) {
   }, [plantId, partyId]);
 
   const save = async () => {
+    if (!canEdit) {
+      addToast('Not allowed. Turn on Edit for Labour Work Order, then log in again.', 'error');
+      return;
+    }
     try {
       await api.put('/api/labour-work/rates', {
         plantId,
@@ -403,9 +434,11 @@ function RatesTab({ plantId, admin }: { plantId: string; admin: boolean }) {
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
+        {canEdit && (
         <button type="button" onClick={save} className="bg-[#e67e00] text-white px-3 py-1.5 rounded text-sm">
           Save rates
         </button>
+        )}
       </div>
       <div className="overflow-x-auto border border-[var(--border-subtle)] rounded">
         <table className="w-full text-sm">
@@ -425,7 +458,7 @@ function RatesTab({ plantId, admin }: { plantId: string; admin: boolean }) {
                   <input
                     className="w-28 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1"
                     value={draft[row.taskId] ?? ''}
-                    disabled={row.ratesManualOnly && !admin}
+                    disabled={!canEdit || (row.ratesManualOnly && !admin)}
                     onChange={(e) => setDraft({ ...draft, [row.taskId]: e.target.value })}
                   />
                   {row.ratesManualOnly && !admin && (
@@ -437,7 +470,7 @@ function RatesTab({ plantId, admin }: { plantId: string; admin: boolean }) {
           </tbody>
         </table>
       </div>
-      {admin && (
+      {canAdd && (
         <div className="border border-[var(--border-subtle)] rounded p-3 space-y-2 max-w-xl">
           <h3 className="font-bold text-sm">Add product or task</h3>
           <div className="flex gap-2">
@@ -446,7 +479,7 @@ function RatesTab({ plantId, admin }: { plantId: string; admin: boolean }) {
               type="button"
               className="px-3 py-1.5 border rounded text-sm"
               onClick={async () => {
-                if (!product.trim()) return;
+                if (!canAdd || !product.trim()) return;
                 await api.post('/api/labour-work/items', { name: product.trim() });
                 setProduct('');
                 load();
@@ -467,7 +500,7 @@ function RatesTab({ plantId, admin }: { plantId: string; admin: boolean }) {
               type="button"
               className="px-3 py-1.5 border rounded text-sm"
               onClick={async () => {
-                if (!itemId || !taskName.trim()) return;
+                if (!canAdd || !itemId || !taskName.trim()) return;
                 await api.post('/api/labour-work/tasks', { itemId, name: taskName.trim() });
                 setTaskName('');
                 load();

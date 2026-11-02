@@ -2,10 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Eye, X, Search, Calendar, FileText, Plus } from 'lucide-react';
 import api from '../api/axios';
 import { usePlantStore } from '../store/plantStore';
+import { useAuthStore } from '../store/authStore';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 export default function BeasAgroForm() {
   const activePlant = usePlantStore(state => state.activePlant);
   const activePlantId = activePlant?.id || '';
+  useAuthStore((s) => s.user);
+  const canAddLog = hasModulePermission('Dryer Work', 'canAdd', 'BEAS AGRO');
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -83,6 +87,10 @@ export default function BeasAgroForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAddLog) {
+      alert('Not allowed. Turn on Add for Dryer Work → BEAS AGRO, then log in again.');
+      return;
+    }
     if (isLoading) return;
     if (!activePlantId) return alert('Select a plant first');
     setIsLoading(true);
@@ -343,6 +351,7 @@ export default function BeasAgroForm() {
       </div>
 
       <div className="flex justify-end pt-2">
+        {canAddLog ? (
         <button 
           type="submit" 
           disabled={isLoading}
@@ -350,6 +359,9 @@ export default function BeasAgroForm() {
         >
           {isLoading ? 'SAVING...' : 'SAVE RECORD'}
         </button>
+        ) : (
+          <p className="text-xs text-[var(--text-muted)]">Add is required to save this dryer log.</p>
+        )}
       </div>
     </form>
       ) : (

@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSubmitLock } from '../../hooks/useSubmitLock';
 import { biometricService } from '../../services/biometricService';
 import { useUiStore } from '../../store/uiStore';
+import { hasModulePermission } from '../../utils/modulePermissions';
 
 type StaffCategory = 'DRIVER' | 'LABOUR' | 'PAHUNCH' | 'UNLOADER';
 
@@ -14,6 +15,9 @@ export const AddStaff: React.FC = () => {
   const { activePlant } = usePlantStore();
   const activePlantId = activePlant?.id;
   const { user } = useAuthStore();
+  const canAddStaff = hasModulePermission('Staff Management', 'canAdd', 'Add Staff');
+  const canAddViaProcurement = hasModulePermission('Procurement', 'canAdd');
+  const canAddViaGatePass = hasModulePermission('Gate Pass', 'canAdd');
   const navigate = useNavigate();
   const [category, setCategory] = useState<StaffCategory>('DRIVER');
   const [error, setError] = useState('');
@@ -59,9 +63,20 @@ export const AddStaff: React.FC = () => {
     }
   };
 
+  const canSubmit =
+    category === 'UNLOADER'
+      ? canAddStaff
+      : category === 'DRIVER'
+        ? canAddStaff || canAddViaProcurement || canAddViaGatePass
+        : canAddStaff || canAddViaProcurement;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (!canSubmit) {
+      setError('Not allowed. Turn on Add for Staff Management → Add Staff, then log in again.');
+      return;
+    }
     
     if (category !== 'DRIVER' && !activePlantId && user?.role !== 'SUPER_ADMIN') {
       setError('Please select a plant before adding this staff category.');
@@ -306,6 +321,7 @@ export const AddStaff: React.FC = () => {
           </section>
 
           <div className="flex justify-end mt-8">
+            {canSubmit ? (
             <button
               type="submit"
               disabled={
@@ -316,6 +332,11 @@ export const AddStaff: React.FC = () => {
             >
               {submitLock.pending ? 'Adding...' : 'Add Staff'}
             </button>
+            ) : (
+              <p className="text-xs text-[var(--text-muted)]">
+                Add is required to save this staff category.
+              </p>
+            )}
           </div>
         </form>
       </div>

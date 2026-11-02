@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { REQUIRE_PERMISSION_KEY } from '../decorators/require-permission.decorator';
 
@@ -38,6 +38,7 @@ export class PermissionsGuard implements CanActivate {
     if (user.role?.name === 'SUPER_ADMIN') return true;
 
     const handlerName = context.getHandler().name;
+    const permissions = user.role?.modulePermissions || [];
     if (
       user.role?.name === 'SUPERVISOR' &&
       ['createTruck', 'getAllTrucks', 'checkTruckExists'].includes(handlerName)
@@ -45,8 +46,25 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
+    // Save is allowed for Add or Edit on Paddy Inward (or the Procurement parent row).
+    // View-only roles can open the screen; the Save buttons stay hidden for them.
+    if (handlerName === 'savePurchase') {
+      const accepted = acceptedNamesFor('Procurement');
+      const onProc = (p: any) => accepted.includes(p.moduleName);
+      const isParent = (p: any) => !p.subModuleName || p.subModuleName === '';
+      const parentRow = permissions.find((p: any) => onProc(p) && isParent(p));
+      const paddy = permissions.find(
+        (p: any) => onProc(p) && p.subModuleName === 'Paddy Inward',
+      );
+      const canWrite = (row: any) =>
+        !!row && (row.canAdd === true || row.canEdit === true);
+      if (canWrite(parentRow) || canWrite(paddy)) return true;
+      throw new ForbiddenException(
+        'Not allowed to save Paddy Inward. Turn on Add or Edit for Procurement → Paddy Inward on this role, then log in again.',
+      );
+    }
+
     const { action, subModuleName, anyOf, moduleName, moduleNames } = required;
-    const permissions = user.role?.modulePermissions || [];
 
     const hasAction = (modNames: string[], sub?: string) => {
       const accepted = modNames.flatMap((m) => acceptedNamesFor(m));

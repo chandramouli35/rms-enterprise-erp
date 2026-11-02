@@ -3,6 +3,7 @@ import api from '../../api/axios';
 import { expensesApi } from '../../api/expenses';
 import { useAuthStore } from '../../store/authStore';
 import { useUiStore } from '../../store/uiStore';
+import { hasModulePermission } from '../../utils/modulePermissions';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const fmtMoney = (n: number | null | undefined) =>
@@ -14,6 +15,7 @@ export const AddFundsPanel: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const addToast = useUiStore((s) => s.addToast);
   const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+  const canAddFunds = isAdmin && hasModulePermission('Expenses', 'canAdd', 'Add Funds');
 
   const [plants, setPlants] = useState<any[]>([]);
   const [plantId, setPlantId] = useState('');
@@ -67,6 +69,10 @@ export const AddFundsPanel: React.FC = () => {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAddFunds) {
+      addToast('Not allowed. Turn on Add for Expenses → Add Funds, then log in again.', 'error');
+      return;
+    }
     if (!plantId) {
       addToast('Select a mill', 'error');
       return;
@@ -127,7 +133,7 @@ export const AddFundsPanel: React.FC = () => {
             ))}
           </select>
         </label>
-        {plantId && (
+        {canAddFunds && plantId && (
           <button
             type="button"
             onClick={() => setFormOpen(true)}
@@ -138,7 +144,7 @@ export const AddFundsPanel: React.FC = () => {
         )}
       </div>
 
-      {formOpen && plantId && (
+      {canAddFunds && formOpen && plantId && (
         <form
           onSubmit={submit}
           className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-4 grid sm:grid-cols-2 gap-3"

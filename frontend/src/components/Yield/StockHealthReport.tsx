@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Calendar, Download, Edit2, RefreshCw, Save, X } from 'lucide-react';
 import api from '../../api/axios';
 import { useAuthStore } from '../../store/authStore';
+import { hasModulePermission } from '../../utils/modulePermissions';
 import { exportToExcel } from '../../utils/exportUtils';
 
 type StockHealthRow = {
@@ -43,8 +44,8 @@ const ConsignmentCell = ({
 );
 
 export const StockHealthReport: React.FC = () => {
-  const { user } = useAuthStore();
-  const canEdit = user?.role === 'SUPER_ADMIN';
+  useAuthStore((s) => s.user);
+  const canEdit = hasModulePermission('Yield Mgmt', 'canEdit', 'Stock Health Report');
 
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'till_date' | 'weekly' | 'monthly' | 'range'>('till_date');
@@ -303,6 +304,7 @@ export const StockHealthReport: React.FC = () => {
                             onChange={(e) => setEditValue(e.target.value)}
                             className="w-24 bg-[var(--bg-base)] border border-amber-500/50 rounded px-2 py-1 text-sm text-right"
                           />
+                          {canEdit && (
                           <button
                             onClick={saveTotalWork}
                             disabled={saving}
@@ -310,6 +312,7 @@ export const StockHealthReport: React.FC = () => {
                           >
                             <Save size={14} />
                           </button>
+                          )}
                           <button
                             onClick={() => setEditingPlantId(null)}
                             className="p-1 text-[var(--text-muted)] hover:bg-[var(--glass-bg)] rounded"

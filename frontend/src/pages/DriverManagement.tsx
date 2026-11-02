@@ -4,6 +4,7 @@ import { Truck, Plus, Trash2, Edit2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { usePlantStore } from '../store/plantStore';
 import { useSubmitLock } from '../hooks/useSubmitLock';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 export default function DriverManagement() {
   const user = useAuthStore(state => state.user);
@@ -15,6 +16,12 @@ export default function DriverManagement() {
   
   const [addModal, setAddModal] = useState({ isOpen: false, name: '', phone: '', age: '' });
   const [editModal, setEditModal] = useState({ isOpen: false, id: '', name: '', phone: '', age: '' });
+  const canAddDriver =
+    hasModulePermission('Staff Management', 'canAdd', 'Add Staff') ||
+    hasModulePermission('Procurement', 'canAdd') ||
+    hasModulePermission('Gate Pass', 'canAdd');
+  const canEditDriver = hasModulePermission('Staff Management', 'canEdit');
+  const canDeleteDriver = hasModulePermission('Staff Management', 'canDelete');
   const addDriverLock = useSubmitLock();
   const editDriverLock = useSubmitLock();
 
@@ -59,6 +66,10 @@ export default function DriverManagement() {
 
   const handleAddDriver = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAddDriver) {
+      alert('Not allowed. Turn on Add for Staff Management → Add Staff, then log in again.');
+      return;
+    }
     if (!validateForm(addModal.name, addModal.phone, addModal.age)) return;
     await addDriverLock.wrapSubmit(async () => {
     try {
@@ -80,6 +91,10 @@ export default function DriverManagement() {
 
   const handleEditDriver = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditDriver) {
+      alert('Not allowed. Turn on Edit for Staff Management, then log in again.');
+      return;
+    }
     if (!validateForm(editModal.name, editModal.phone, editModal.age)) return;
     await editDriverLock.wrapSubmit(async () => {
     try {
@@ -100,6 +115,10 @@ export default function DriverManagement() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canDeleteDriver) {
+      alert('Not allowed. Turn on Delete for Staff Management, then log in again.');
+      return;
+    }
     if (!window.confirm('Are you sure you want to delete this driver?')) return;
     try {
       await api.delete(`/api/master-data/drivers/${id}`, {
@@ -125,12 +144,14 @@ export default function DriverManagement() {
           </h1>
           <p className="text-[var(--text-muted-alt)] text-sm mt-1">Manage drivers</p>
         </div>
+        {canAddDriver && (
         <button 
           onClick={() => setAddModal({ isOpen: true, name: '', phone: '', age: '' })}
           className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold shadow hover:bg-[#cc7000] transition-colors flex items-center gap-2"
         >
           <Plus size={18} /> Add Driver
         </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto bg-[var(--bg-panel)] rounded-xl border border-[var(--border-subtle)]">
@@ -160,12 +181,16 @@ export default function DriverManagement() {
                   <td className="p-4">{driver.age || '-'}</td>
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-2">
+                      {canEditDriver && (
                       <button onClick={() => setEditModal({ isOpen: true, id: driver.id, name: driver.name, phone: driver.phone || '', age: driver.age?.toString() || '' })} className="p-1.5 text-blue-400 hover:bg-blue-400/10 rounded-md transition-colors" title="Edit">
                         <Edit2 size={16} />
                       </button>
+                      )}
+                      {canDeleteDriver && (
                       <button onClick={() => handleDelete(driver.id)} className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-md transition-colors" title="Delete">
                         <Trash2 size={16} />
                       </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -175,7 +200,7 @@ export default function DriverManagement() {
         </table>
       </div>
 
-      {addModal.isOpen && (
+      {canAddDriver && addModal.isOpen && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="glass-panel p-6 rounded-xl w-full max-w-md border border-[var(--border-subtle)]">
             <h2 className="text-xl font-bold mb-4">Add Driver</h2>
@@ -201,7 +226,7 @@ export default function DriverManagement() {
         </div>
       )}
 
-      {editModal.isOpen && (
+      {canEditDriver && editModal.isOpen && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="glass-panel p-6 rounded-xl w-full max-w-md border border-[var(--border-subtle)]">
             <h2 className="text-xl font-bold mb-4">Edit Driver</h2>

@@ -2,10 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Eye, X, Search, Calendar, FileText, Plus } from 'lucide-react';
 import api from '../api/axios';
 import { usePlantStore } from '../store/plantStore';
+import { useAuthStore } from '../store/authStore';
+import { hasModulePermission } from '../utils/modulePermissions';
 
 export default function GoyalAgroForm() {
   const activePlant = usePlantStore(state => state.activePlant);
   const activePlantId = activePlant?.id || '';
+  useAuthStore((s) => s.user);
+  const canAddLog = hasModulePermission('Dryer Work', 'canAdd', 'GOYAL AGRO');
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -88,6 +92,10 @@ export default function GoyalAgroForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canAddLog) {
+      alert('Not allowed. Turn on Add for Dryer Work → GOYAL AGRO, then log in again.');
+      return;
+    }
     if (isLoading) return;
     if (!activePlantId) return alert('Select a plant first');
     setIsLoading(true);
@@ -344,9 +352,13 @@ export default function GoyalAgroForm() {
       </div>
 
       <div className="flex justify-end mt-1">
+        {canAddLog ? (
         <button type="submit" disabled={isLoading} className="bg-[#e67e00] hover:bg-amber-600 text-white px-4 py-1.5 rounded text-xs font-bold shadow transition-all hover:-translate-y-1 flex items-center gap-1">
           {isLoading ? 'Saving...' : 'Save Log'}
         </button>
+        ) : (
+          <p className="text-xs text-[var(--text-muted)]">Add is required to save this dryer log.</p>
+        )}
       </div>
 
     </form>
