@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import { formatDisplayDate } from './formatDate';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx-js-style';
 
@@ -157,11 +158,6 @@ export const boldColorStyle = (rgb: string): ExcelCellStyle => ({
 
 export const formatExcelDate = (value: any): string => {
   if (value == null || value === '') return '';
-  const d = new Date(value);
-  if (!Number.isFinite(d.getTime())) return String(value);
-  // Stable YYYY-MM-DD — avoids Excel locale / epoch misreads
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  const formatted = formatDisplayDate(value);
+  return formatted || String(value);
 };

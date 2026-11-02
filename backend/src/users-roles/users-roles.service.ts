@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FingerprintVerifyService } from '../auth/fingerprint-verify.service';
 import * as bcrypt from 'bcrypt';
@@ -12,19 +16,20 @@ export class UsersRolesService {
 
   async getStats() {
     const notDeleted = { deletedAt: null as Date | null };
-    const [totalUsers, activeUsers, inactiveUsers, totalRoles] = await Promise.all([
-      this.prisma.user.count({ where: notDeleted }),
-      this.prisma.user.count({ where: { ...notDeleted, isActive: true } }),
-      this.prisma.user.count({ where: { ...notDeleted, isActive: false } }),
-      this.prisma.role.count()
-    ]);
+    const [totalUsers, activeUsers, inactiveUsers, totalRoles] =
+      await Promise.all([
+        this.prisma.user.count({ where: notDeleted }),
+        this.prisma.user.count({ where: { ...notDeleted, isActive: true } }),
+        this.prisma.user.count({ where: { ...notDeleted, isActive: false } }),
+        this.prisma.role.count(),
+      ]);
 
     return {
       totalUsers,
       activeUsers,
       inactiveUsers,
       totalRoles,
-      totalPermissions: 156 // Fixed per UI requirements, or sum of (totalRoles * 10 modules * 5 flags)
+      totalPermissions: 156, // Fixed per UI requirements, or sum of (totalRoles * 10 modules * 5 flags)
     };
   }
 
@@ -34,7 +39,7 @@ export class UsersRolesService {
       const pageNum = parseInt(page || '1', 10);
       const limitNum = parseInt(limit || '10', 10);
       const skip = (pageNum - 1) * limitNum;
-      
+
       const [total, users] = await this.prisma.$transaction([
         this.prisma.user.count({ where: notDeleted }),
         this.prisma.user.findMany({
@@ -42,31 +47,36 @@ export class UsersRolesService {
           include: {
             role: true,
             plantAccess: {
-              include: { plant: true }
-            }
+              include: { plant: true },
+            },
           },
           skip,
-          take: limitNum
-        })
+          take: limitNum,
+        }),
       ]);
 
-      const data = users.map(user => ({
+      const data = users.map((user) => ({
         id: user.id,
         username: user.username,
         fullname: user.username, // Assuming username as fullname for now
         email: user.email,
         role: user.role.name,
         roleId: user.roleId,
-        plant: user.plantAccess.length > 0 ? user.plantAccess.map(pa => pa.plant.name).join(', ') : 'None',
+        plant:
+          user.plantAccess.length > 0
+            ? user.plantAccess.map((pa) => pa.plant.name).join(', ')
+            : 'None',
         plantId: user.plantAccess.length > 0 ? user.plantAccess[0].plantId : '',
-        plantIds: user.plantAccess.map(pa => pa.plantId),
-        plantAccess: user.plantAccess.map(pa => ({
+        plantIds: user.plantAccess.map((pa) => pa.plantId),
+        plantAccess: user.plantAccess.map((pa) => ({
           plantId: pa.plantId,
           plant: pa.plant,
         })),
         status: user.isActive ? 'Active' : 'Inactive',
-        lastLogin: user.lastLogin ? user.lastLogin.toLocaleDateString() : 'Never',
-        avatar: `https://ui-avatars.com/api/?name=${user.username}`
+        lastLogin: user.lastLogin
+          ? user.lastLogin.toLocaleDateString()
+          : 'Never',
+        avatar: `https://ui-avatars.com/api/?name=${user.username}`,
       }));
 
       return { data, total };
@@ -77,28 +87,31 @@ export class UsersRolesService {
       include: {
         role: true,
         plantAccess: {
-          include: { plant: true }
-        }
-      }
+          include: { plant: true },
+        },
+      },
     });
 
-    return users.map(user => ({
+    return users.map((user) => ({
       id: user.id,
       username: user.username,
       fullname: user.username, // Assuming username as fullname for now
       email: user.email,
       role: user.role.name,
       roleId: user.roleId,
-      plant: user.plantAccess.length > 0 ? user.plantAccess.map(pa => pa.plant.name).join(', ') : 'None',
+      plant:
+        user.plantAccess.length > 0
+          ? user.plantAccess.map((pa) => pa.plant.name).join(', ')
+          : 'None',
       plantId: user.plantAccess.length > 0 ? user.plantAccess[0].plantId : '',
-      plantIds: user.plantAccess.map(pa => pa.plantId),
-      plantAccess: user.plantAccess.map(pa => ({
+      plantIds: user.plantAccess.map((pa) => pa.plantId),
+      plantAccess: user.plantAccess.map((pa) => ({
         plantId: pa.plantId,
         plant: pa.plant,
       })),
       status: user.isActive ? 'Active' : 'Inactive',
       lastLogin: user.lastLogin ? user.lastLogin.toLocaleDateString() : 'Never',
-      avatar: `https://ui-avatars.com/api/?name=${user.username}`
+      avatar: `https://ui-avatars.com/api/?name=${user.username}`,
     }));
   }
 
@@ -200,7 +213,10 @@ export class UsersRolesService {
       tpl2,
     );
 
-    const normalizedPlants = await this.normalizePlantIdsForRole(role, plantIds);
+    const normalizedPlants = await this.normalizePlantIdsForRole(
+      role,
+      plantIds,
+    );
 
     // Non-admin: max 2 fingerprints (schema has only 2 slots); reject extras if sent
     if (
@@ -245,7 +261,9 @@ export class UsersRolesService {
     } catch (err: any) {
       if (err?.code === 'P2002') {
         const fields = err?.meta?.target;
-        const fieldLabel = Array.isArray(fields) ? fields.join(', ') : 'username or email';
+        const fieldLabel = Array.isArray(fields)
+          ? fields.join(', ')
+          : 'username or email';
         throw new BadRequestException(
           `A user with this ${fieldLabel} already exists. Choose a different value.`,
         );
@@ -257,7 +275,10 @@ export class UsersRolesService {
   /** Admin / Superadmin always multi-mill; others need "Add more than one mill" permission. */
   private roleAllowsMultipleMillsByName(roleName?: string | null): boolean {
     if (!roleName) return false;
-    const n = String(roleName).trim().toUpperCase().replace(/[\s-]+/g, '_');
+    const n = String(roleName)
+      .trim()
+      .toUpperCase()
+      .replace(/[\s-]+/g, '_');
     return (
       n === 'SUPER_ADMIN' ||
       n === 'SUPERADMIN' ||
@@ -309,19 +330,19 @@ export class UsersRolesService {
   async toggleUserStatus(id: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new Error('User not found');
-    
+
     return this.prisma.user.update({
       where: { id },
-      data: { isActive: !user.isActive }
+      data: { isActive: !user.isActive },
     });
   }
 
   async updateUser(id: string, data: any) {
     const { email, roleId, plantIds, newPassword, currentPassword } = data;
-    
+
     let updateData: any = {
       email,
-      roleId
+      roleId,
     };
 
     if (newPassword) {
@@ -334,16 +355,18 @@ export class UsersRolesService {
     const effectiveRoleId = roleId;
     const role = effectiveRoleId
       ? await this.prisma.role.findUnique({ where: { id: effectiveRoleId } })
-      : await this.prisma.user.findUnique({
-          where: { id },
-          include: { role: true },
-        }).then((u) => u?.role || null);
+      : await this.prisma.user
+          .findUnique({
+            where: { id },
+            include: { role: true },
+          })
+          .then((u) => u?.role || null);
 
     const user = await this.prisma.user.update({
       where: { id },
-      data: updateData
+      data: updateData,
     });
-    
+
     if (plantIds && Array.isArray(plantIds)) {
       const normalizedPlants = await this.normalizePlantIdsForRole(
         role as any,
@@ -351,7 +374,10 @@ export class UsersRolesService {
       );
       await this.prisma.userPlantAccess.deleteMany({ where: { userId: id } });
       await this.prisma.userPlantAccess.createMany({
-        data: normalizedPlants.map((pid: string) => ({ userId: id, plantId: pid }))
+        data: normalizedPlants.map((pid: string) => ({
+          userId: id,
+          plantId: pid,
+        })),
       });
     }
 
@@ -361,8 +387,8 @@ export class UsersRolesService {
         userId: user.id,
         action: 'UPDATED_USER',
         module: 'Users & Roles',
-        details: `User ${user.username} updated.`
-      }
+        details: `User ${user.username} updated.`,
+      },
     });
 
     return user;
@@ -392,7 +418,7 @@ export class UsersRolesService {
         action: 'DELETED_USER',
         module: 'Users & Roles',
         details: `User ${user.username} archived (soft-deleted). Historical records preserved.`,
-      }
+      },
     });
 
     return { message: 'User deleted successfully' };
@@ -429,11 +455,17 @@ export class UsersRolesService {
       );
     }
     if (!data.plantId || !data.username || !data.password) {
-      throw new BadRequestException('plantId, username and password are required.');
+      throw new BadRequestException(
+        'plantId, username and password are required.',
+      );
     }
-    const alreadyOnPlant = source.plantAccess.some((p) => p.plantId === data.plantId);
+    const alreadyOnPlant = source.plantAccess.some(
+      (p) => p.plantId === data.plantId,
+    );
     if (alreadyOnPlant && source.plantAccess.length === 1) {
-      throw new BadRequestException('User is already assigned only to this mill.');
+      throw new BadRequestException(
+        'User is already assigned only to this mill.',
+      );
     }
 
     const isSupervisor = /supervisor/i.test(source.role?.name || '');
@@ -487,7 +519,9 @@ export class UsersRolesService {
 
     // Archive Mill A account — keep fingerprints & id for historical reference
     const stamp = source.id.slice(0, 8);
-    await this.prisma.userPlantAccess.deleteMany({ where: { userId: source.id } });
+    await this.prisma.userPlantAccess.deleteMany({
+      where: { userId: source.id },
+    });
     await this.prisma.user.update({
       where: { id: source.id },
       data: {
@@ -540,8 +574,10 @@ export class UsersRolesService {
     }));
   }
 
-  async createRole(data: { name: string, description?: string }) {
-    const trimmed = String(data.name || '').trim().toUpperCase();
+  async createRole(data: { name: string; description?: string }) {
+    const trimmed = String(data.name || '')
+      .trim()
+      .toUpperCase();
     if (!trimmed) {
       throw new BadRequestException('Role name is required.');
     }
@@ -622,7 +658,9 @@ export class UsersRolesService {
 
   /** Live duplicate check while typing role name. */
   async checkRoleExists(name: string, excludeId?: string) {
-    const trimmed = String(name || '').trim().toUpperCase();
+    const trimmed = String(name || '')
+      .trim()
+      .toUpperCase();
     if (!trimmed || trimmed.length < 2) {
       return { exists: false, name: trimmed || null };
     }
@@ -640,7 +678,7 @@ export class UsersRolesService {
     };
   }
 
-    private readonly MODULE_STRUCTURE = [
+  private readonly MODULE_STRUCTURE = [
     {
       name: 'Dashboard',
       subModules: [],
@@ -821,17 +859,44 @@ export class UsersRolesService {
     'Stack to Hoodi': ['Stack to Hoodi', 'Stack to Hoodi Transfer'],
     'Dryer Bharai to Stack': ['Dryer Bharai to Stack', 'Dryer Bharai'],
     'Loader & Unloader': ['Loader & Unloader', 'Loader Unloader'],
-    'Global Settings (Govt Rate)': ['Global Settings (Govt Rate)', 'Global Settings'],
+    'Global Settings (Govt Rate)': [
+      'Global Settings (Govt Rate)',
+      'Global Settings',
+    ],
     // CMS renames — keep older permission rows working
-    'Real-time Paddy Inward (Notified)': ['Real-time Paddy Inward (Notified)', 'Paddy Inward', 'Overview'],
-    'Boli Record with Pending Boli Also': ['Boli Record with Pending Boli Also', 'Boli Record'],
-    'Real-time GP Entry Tracking (Notified)': ['Real-time GP Entry Tracking (Notified)', 'GP Entry Tracking'],
-    'Alerts on Abnormal Transactions': ['Alerts on Abnormal Transactions', 'Abnormal Alerts'],
+    'Real-time Paddy Inward (Notified)': [
+      'Real-time Paddy Inward (Notified)',
+      'Paddy Inward',
+      'Overview',
+    ],
+    'Boli Record with Pending Boli Also': [
+      'Boli Record with Pending Boli Also',
+      'Boli Record',
+    ],
+    'Real-time GP Entry Tracking (Notified)': [
+      'Real-time GP Entry Tracking (Notified)',
+      'GP Entry Tracking',
+    ],
+    'Alerts on Abnormal Transactions': [
+      'Alerts on Abnormal Transactions',
+      'Abnormal Alerts',
+    ],
     'Real-time Basis Tracking': ['Real-time Basis Tracking', 'Overview'],
-    'CMS User Permission Controls': ['CMS User Permission Controls', 'User Rights Controls'],
+    'CMS User Permission Controls': [
+      'CMS User Permission Controls',
+      'User Rights Controls',
+    ],
   };
 
-  private flagsFromPerm(row?: { canView?: boolean; canAdd?: boolean; canEdit?: boolean; canDelete?: boolean; canApprove?: boolean } | null) {
+  private flagsFromPerm(
+    row?: {
+      canView?: boolean;
+      canAdd?: boolean;
+      canEdit?: boolean;
+      canDelete?: boolean;
+      canApprove?: boolean;
+    } | null,
+  ) {
     return {
       view: !!row?.canView,
       add: !!row?.canAdd,
@@ -849,7 +914,9 @@ export class UsersRolesService {
     const findParent = (modName: string) => {
       const names = this.MODULE_ALIASES[modName] || [modName];
       return existing.find(
-        (e) => names.includes(e.moduleName) && (!e.subModuleName || e.subModuleName === ''),
+        (e) =>
+          names.includes(e.moduleName) &&
+          (!e.subModuleName || e.subModuleName === ''),
       );
     };
 
@@ -857,10 +924,14 @@ export class UsersRolesService {
       const modNames = this.MODULE_ALIASES[modName] || [modName];
       const subNames = this.SUBMODULE_ALIASES[subName] || [subName];
       // Prefer exact match first
-      const exact = existing.find((e) => e.moduleName === modName && e.subModuleName === subName);
+      const exact = existing.find(
+        (e) => e.moduleName === modName && e.subModuleName === subName,
+      );
       if (exact) return exact;
       return existing.find(
-        (e) => modNames.includes(e.moduleName) && subNames.includes(e.subModuleName || ''),
+        (e) =>
+          modNames.includes(e.moduleName) &&
+          subNames.includes(e.subModuleName || ''),
       );
     };
 
@@ -874,10 +945,15 @@ export class UsersRolesService {
         subModules: mod.subModules.map((subName) => {
           const subPerm = findSub(mod.name, subName);
           const raw = this.flagsFromPerm(subPerm);
-          const hasAny = raw.view || raw.add || raw.edit || raw.delete || raw.approve;
+          const hasAny =
+            raw.view || raw.add || raw.edit || raw.delete || raw.approve;
           // New/empty rows inherit parent so existing Yield/Gate access isn't blanked on UI
           const subFlags =
-            subPerm && hasAny ? raw : parentFlags.view ? { ...parentFlags } : raw;
+            subPerm && hasAny
+              ? raw
+              : parentFlags.view
+                ? { ...parentFlags }
+                : raw;
           return {
             name: subName,
             permissions: subFlags,
@@ -889,13 +965,15 @@ export class UsersRolesService {
 
   async updateRolePermissions(roleId: string, permissions: any[]) {
     // Flatten the incoming nested array
-    const permsArray = Array.isArray(permissions) ? permissions : (permissions as any)?.permissions || [];
-    
+    const permsArray = Array.isArray(permissions)
+      ? permissions
+      : (permissions as any)?.permissions || [];
+
     // Delete existing to recreate them cleanly
     await this.prisma.modulePermission.deleteMany({ where: { roleId } });
-    
+
     const dataToInsert: any[] = [];
-    
+
     for (const p of permsArray) {
       // Insert Parent module
       dataToInsert.push({
@@ -906,9 +984,9 @@ export class UsersRolesService {
         canAdd: p.permissions?.add ?? p.canAdd ?? false,
         canEdit: p.permissions?.edit ?? p.canEdit ?? false,
         canDelete: p.permissions?.delete ?? p.canDelete ?? false,
-        canApprove: p.permissions?.approve ?? p.canApprove ?? false
+        canApprove: p.permissions?.approve ?? p.canApprove ?? false,
       });
-      
+
       // Insert subModules if any
       if (p.subModules && Array.isArray(p.subModules)) {
         for (const sub of p.subModules) {
@@ -920,7 +998,7 @@ export class UsersRolesService {
             canAdd: sub.permissions?.add ?? false,
             canEdit: sub.permissions?.edit ?? false,
             canDelete: sub.permissions?.delete ?? false,
-            canApprove: sub.permissions?.approve ?? false
+            canApprove: sub.permissions?.approve ?? false,
           });
         }
       }
@@ -928,7 +1006,7 @@ export class UsersRolesService {
 
     if (dataToInsert.length > 0) {
       await this.prisma.modulePermission.createMany({
-        data: dataToInsert
+        data: dataToInsert,
       });
     }
 
@@ -938,35 +1016,41 @@ export class UsersRolesService {
   async getAuditLogs() {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    
+
     const sevenDaysAgo = new Date(todayStart);
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
+
     const thirtyDaysAgo = new Date(todayStart);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     return {
       total: await this.prisma.systemAuditLog.count(),
-      today: await this.prisma.systemAuditLog.count({ where: { createdAt: { gte: todayStart } } }),
-      last7Days: await this.prisma.systemAuditLog.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
-      last30Days: await this.prisma.systemAuditLog.count({ where: { createdAt: { gte: thirtyDaysAgo } } })
+      today: await this.prisma.systemAuditLog.count({
+        where: { createdAt: { gte: todayStart } },
+      }),
+      last7Days: await this.prisma.systemAuditLog.count({
+        where: { createdAt: { gte: sevenDaysAgo } },
+      }),
+      last30Days: await this.prisma.systemAuditLog.count({
+        where: { createdAt: { gte: thirtyDaysAgo } },
+      }),
     };
   }
-  
+
   async getAuditList() {
     const logs = await this.prisma.systemAuditLog.findMany({
       include: { user: true },
       orderBy: { createdAt: 'desc' },
-      take: 100
+      take: 100,
     });
-    return logs.map(l => ({
+    return logs.map((l) => ({
       id: l.id,
       user: l.user.username,
       action: l.action,
       module: l.module,
       details: l.details,
       time: l.createdAt.toISOString(),
-      avatar: `https://ui-avatars.com/api/?name=${l.user.username}`
+      avatar: `https://ui-avatars.com/api/?name=${l.user.username}`,
     }));
   }
 }

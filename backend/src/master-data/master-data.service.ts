@@ -449,8 +449,9 @@ export class MasterDataService {
   }
 
   // ===================== PAHUNCH MASTER =====================
-  async getPahunch(plantId: string, page?: string, limit?: string) {
-    const where = { plantId, isActive: true };
+  async getPahunch(plantId: string, page?: string, limit?: string, allPlants = false) {
+    const where: any = { isActive: true };
+    if (!allPlants && plantId) where.plantId = plantId;
     if (page) {
       const pageNum = parseInt(page || '1', 10);
       const limitNum = parseInt(limit || '10', 10);

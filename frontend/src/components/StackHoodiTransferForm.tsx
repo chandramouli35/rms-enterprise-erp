@@ -149,13 +149,14 @@ export default function StackHoodiTransferForm({ mode }: Props) {
           setErrorMsg('No weighbridge reading found for this truck');
           return;
         }
-        const gross = wb.grossWeight != null ? Number(wb.grossWeight) : null;
-        const tare = wb.tareWeight != null ? Number(wb.tareWeight) : null;
+        const kgToQtl = (kg: number) => Number((kg / 100).toFixed(3));
+        const gross = wb.grossWeight != null ? kgToQtl(Number(wb.grossWeight)) : null;
+        const tare = wb.tareWeight != null ? kgToQtl(Number(wb.tareWeight)) : null;
         const net =
           wb.netWeight != null
-            ? Number(wb.netWeight)
+            ? kgToQtl(Number(wb.netWeight))
             : gross != null && tare != null
-              ? gross - tare
+              ? Number((gross - tare).toFixed(3))
               : null;
         setFormData((prev) => ({
           ...prev,

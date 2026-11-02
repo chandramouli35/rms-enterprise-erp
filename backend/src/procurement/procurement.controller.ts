@@ -127,7 +127,7 @@ export class ProcurementController {
   }
 
   @Get('suppliers')
-  @RequireAnyPermission(['Procurement', 'Gate Pass'], 'canView')
+  @RequireAnyPermission(['Procurement', 'Gate Pass', 'Weighbridge'], 'canView')
   getSuppliers(
     @Query('plantId') plantId?: string,
     @Query('activeOnly') activeOnly?: string,

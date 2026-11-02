@@ -57,6 +57,7 @@ export class CmsService {
         },
         select: {
           bags: true,
+          finalBags: true,
           bagsReceived: true,
           isCompleted: true,
           sodaPending: { select: { plantId: true } },
@@ -115,9 +116,10 @@ export class CmsService {
     const mills = plants.map((p) => {
       const millInwards = inwards.filter((i) => i.plantId === p.id);
       const millBolis = bolis.filter((b) => b.sodaPending.plantId === p.id);
-      const pendingBolis = millBolis.filter(
-        (b) => !b.isCompleted && (b.bagsReceived || 0) < (b.bags || 0),
-      );
+      const pendingBolis = millBolis.filter((b) => {
+        const qty = b.finalBags != null ? Number(b.finalBags) : 0;
+        return !b.isCompleted && (b.bagsReceived || 0) < qty;
+      });
       const millInv = inventory.filter((i) => i.plantId === p.id);
       const millProd = production.filter((x) => x.plantId === p.id);
       const millYields = yields
@@ -152,10 +154,10 @@ export class CmsService {
         boli: {
           total: millBolis.length,
           pending: pendingBolis.length,
-          bagsPending: pendingBolis.reduce(
-            (s, b) => s + Math.max(0, (b.bags || 0) - (b.bagsReceived || 0)),
-            0,
-          ),
+          bagsPending: pendingBolis.reduce((s, b) => {
+            const qty = b.finalBags != null ? Number(b.finalBags) : 0;
+            return s + Math.max(0, qty - (b.bagsReceived || 0));
+          }, 0),
         },
         gatePass: { active: gpActive, today: gpCreated },
         paddyStockMt: millInv.reduce((s, i) => s + (i.quantity || 0), 0),
@@ -285,12 +287,13 @@ export class CmsService {
           },
         },
       },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take: 300,
     });
 
     const mapped = rows.map((b) => {
-      const pendingBags = Math.max(0, (b.bags || 0) - (b.bagsReceived || 0));
+            const qty = b.finalBags != null ? Number(b.finalBags) : 0;
+      const pendingBags = Math.max(0, qty - (b.bagsReceived || 0));
       const isPending = !b.isCompleted && pendingBags > 0;
       return {
         id: b.id,
@@ -301,7 +304,7 @@ export class CmsService {
         date: b.sodaPending.date,
         artia: b.sodaPending.supplier.name,
         mandi: b.sodaPending.supplier.mandi,
-        bags: b.bags,
+        bags: b.finalBags != null ? b.finalBags : 0,
         bagsReceived: b.bagsReceived,
         pendingBags,
         rate: b.rate,

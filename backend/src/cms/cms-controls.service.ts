@@ -366,7 +366,7 @@ export class CmsControlsService {
           baseRate: base,
           delta: Math.round(delta * 100) / 100,
           moisture: b.moisture,
-          bags: b.bags,
+          bags: b.finalBags != null ? b.finalBags : 0,
           at: b.createdAt,
         };
       })

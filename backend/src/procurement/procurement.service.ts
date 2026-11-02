@@ -25,6 +25,44 @@ export class ProcurementService {
     return /SUPERVISOR/i.test(this.roleName(user));
   }
 
+  /**
+   * Artia / mandi / overall bag totals are Final Bags only.
+   * A line that does not have Final Bags yet adds nothing to the sum.
+   * The estimate stays on the line itself and is not added into the total.
+   */
+  private artiaBagCount(row: {
+    isCancelled?: boolean;
+    finalBags?: number | null;
+  }): number {
+    if (row.isCancelled) return 0;
+    if (row.finalBags != null && Number.isFinite(Number(row.finalBags))) {
+      return Number(row.finalBags);
+    }
+    return 0;
+  }
+
+  private sumArtiaBags(
+    lines: Array<{
+      id?: string;
+      isCancelled?: boolean;
+      bags?: number | null;
+      finalBags?: number | null;
+    }>,
+    override?: { id: string; finalBags: number | null },
+  ): number {
+    return lines.reduce((sum, line) => {
+      const finalBags =
+        override && line.id === override.id ? override.finalBags : line.finalBags;
+      return (
+        sum +
+        this.artiaBagCount({
+          isCancelled: line.isCancelled || line.bags === 0 || finalBags === 0,
+          finalBags,
+        })
+      );
+    }, 0);
+  }
+
   /** Feedback 52 — truck average bag weight, kept to 4 decimal places. */
   private avgBagWeight4(totalWt: number, totalBags: number): number {
     if (!totalBags || totalBags <= 0 || !Number.isFinite(totalWt)) return 0;
@@ -1970,12 +2008,9 @@ export class ProcurementService {
     });
   }
 
-  async getSuppliers(plantId?: string, opts?: { activeOnly?: boolean }) {
-    // Mill-scoped Arthiya: when plantId set, only that mill's suppliers
-    const where: any =
-      plantId && plantId !== 'global' && plantId !== 'all'
-        ? { plantId }
-        : {};
+  async getSuppliers(_plantId?: string, opts?: { activeOnly?: boolean }) {
+    // Suppliers are shared by every mill. A plant filter must not hide them on Demo 3.
+    const where: any = {};
     if (opts?.activeOnly) {
       where.status = 'ACTIVE';
     }
@@ -2694,7 +2729,7 @@ export class ProcurementService {
   async getSodaPendingById(id: string) {
     const p = await this.prisma.paddySodaPending.findUnique({
       where: { id },
-      include: { supplier: true, bolis: { orderBy: { createdAt: 'asc' } } },
+      include: { supplier: true, bolis: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] } },
     });
     if (!p) throw new BadRequestException('Estimate Purchase not found');
     return {
@@ -2761,7 +2796,7 @@ export class ProcurementService {
       where: whereSoda,
       include: {
         supplier: true,
-        bolis: { orderBy: { createdAt: 'asc' } },
+        bolis: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
       },
       orderBy: [{ supplier: { name: 'asc' } }, { date: 'asc' }],
     });
@@ -3148,7 +3183,7 @@ export class ProcurementService {
       bump(
         a,
         Number(r.rate),
-        Number(r.estimatedBags) || 0,
+        this.artiaBagCount(r),
         r.date,
         r.boliNo || null,
         r.moisture ?? null,
@@ -3176,7 +3211,7 @@ export class ProcurementService {
       bump(
         m,
         Number(r.rate),
-        Number(r.estimatedBags) || 0,
+        this.artiaBagCount(r),
         r.date,
         r.boliNo || null,
         r.moisture ?? null,
@@ -3196,7 +3231,7 @@ export class ProcurementService {
       bump(
         overall,
         Number(r.rate),
-        Number(r.estimatedBags) || 0,
+        this.artiaBagCount(r),
         r.date,
         r.boliNo || null,
         r.moisture ?? null,
@@ -3538,6 +3573,38 @@ export class ProcurementService {
   }
 
   async getSupervisorsForPlant(plantId: string) {
+    const isSupervisorUser = (u: {
+      isActive?: boolean;
+      deletedAt?: Date | null;
+      role?: { name?: string | null } | null;
+    }) =>
+      !!u?.isActive &&
+      !u.deletedAt &&
+      /supervisor/i.test(u.role?.name || '');
+    const toOption = (u: {
+      id: string;
+      username: string;
+      role?: { name?: string | null } | null;
+    }) => ({
+      id: u.id,
+      username: u.username,
+      name: u.username,
+      role: u.role?.name || '',
+    });
+
+    const universal = !plantId || plantId === 'global' || plantId === 'all';
+    if (universal) {
+      const users = await this.prisma.user.findMany({
+        where: {
+          isActive: true,
+          deletedAt: null,
+          role: { name: { contains: 'supervisor', mode: 'insensitive' } },
+        },
+        include: { role: true },
+        orderBy: { username: 'asc' },
+      });
+      return users.filter(isSupervisorUser).map(toOption);
+    }
     const access = await this.prisma.userPlantAccess.findMany({
       where: { plantId },
       include: {
@@ -3546,8 +3613,8 @@ export class ProcurementService {
     });
     return access
       .map((a) => a.user)
-      .filter((u) => u?.isActive && !u.deletedAt && /SUPERVISOR/i.test(u.role?.name || ''))
-      .map((u) => ({ id: u.id, username: u.username, role: u.role.name }));
+      .filter(isSupervisorUser)
+      .map(toOption);
   }
 
   /**
@@ -3645,7 +3712,7 @@ export class ProcurementService {
       include: {
         sodaPending: { include: { supplier: true } },
       },
-      orderBy: [{ sodaPendingId: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ sodaPendingId: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
     });
 
     let lineSeq = 0;
@@ -3846,9 +3913,13 @@ export class ProcurementService {
             artiaBillChecked: true,
           },
         });
+        const siblings = await tx.paddyBoli.findMany({
+          where: { sodaPendingId: boli.sodaPendingId },
+        });
         await tx.paddySodaPending.update({
           where: { id: boli.sodaPendingId },
           data: {
+            bags: this.sumArtiaBags(siblings),
             cancelCount: prevCancel + 1,
             biometricData: data.biometricData,
             supervisorName: data.supervisorName || soda.supervisorName,
@@ -3899,16 +3970,21 @@ export class ProcurementService {
         },
       });
 
-      const siblings = await tx.paddyBoli.findMany({ where: { sodaPendingId: boli.sodaPendingId } });
+      const siblings = await tx.paddyBoli.findMany({
+        where: { sodaPendingId: boli.sodaPendingId },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      });
       const sodaPayment = siblings.reduce((sum, b) => {
         const bags = b.id === boliId ? finalBags : b.finalBags;
         const pay = b.id === boliId ? payment : (b.payment ?? this.calcBoliPayment(govtRate, b.rate, bags));
         return sum + (pay || 0);
       }, 0);
+      const sodaBags = this.sumArtiaBags(siblings, { id: boliId, finalBags });
 
       await tx.paddySodaPending.update({
         where: { id: boli.sodaPendingId },
         data: {
+          bags: sodaBags,
           payment: sodaPayment,
           finalHisabAmt: sodaPayment,
           biometricData: data.biometricData,
@@ -3991,7 +4067,7 @@ export class ProcurementService {
 
       const siblings = await tx.paddyBoli.findMany({
         where: { sodaPendingId: boli.sodaPendingId },
-        orderBy: { createdAt: 'asc' },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       });
       const sodaPayment = siblings.reduce((sum, b) => {
         const pay =
@@ -4000,10 +4076,15 @@ export class ProcurementService {
             : b.payment ?? this.calcBoliPayment(govtRate, b.rate, b.finalBags);
         return sum + (pay || 0);
       }, 0);
+      const sodaBags = this.sumArtiaBags(siblings, {
+        id: boliId,
+        finalBags: nextFinal,
+      });
 
       await tx.paddySodaPending.update({
         where: { id: boli.sodaPendingId },
         data: {
+          bags: sodaBags,
           payment: sodaPayment,
           finalHisabAmt: sodaPayment,
           ...(data.note != null ? { note: String(data.note) } : {}),
@@ -4113,7 +4194,7 @@ export class ProcurementService {
       this.prisma.paddySodaPending.count({ where: whereClause }),
       this.prisma.paddySodaPending.findMany({
         where: whereClause,
-        include: { supplier: true, bolis: { orderBy: { createdAt: 'asc' } } },
+        include: { supplier: true, bolis: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] } },
         orderBy: [{ supplier: { name: 'asc' } }, { date: 'asc' }],
         skip,
         take: limitNum,
@@ -4441,7 +4522,6 @@ export class ProcurementService {
     }
 
     const activeBolis = bolisData.filter((b: any) => b.bags > 0);
-    const totalBags = activeBolis.reduce((sum: number, b: any) => sum + b.bags, 0);
     const avgMoisture =
       activeBolis.length > 0
         ? activeBolis.reduce((sum: number, b: any) => sum + b.moisture, 0) / activeBolis.length
@@ -4557,6 +4637,7 @@ export class ProcurementService {
       }
 
       const sodaPayment = upserted.reduce((sum, b) => sum + (b.payment || 0), 0);
+      const sodaBags = this.sumArtiaBags(upserted);
 
       return tx.paddySodaPending.update({
       where: { id },
@@ -4565,7 +4646,7 @@ export class ProcurementService {
           supplierId: data.supplierId || existing.supplierId,
         date: data.date ? new Date(data.date) : undefined,
         moisture: avgMoisture,
-        bags: totalBags,
+        bags: sodaBags,
         rate: avgRate,
           govtRate,
           todayRate:

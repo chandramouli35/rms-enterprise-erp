@@ -147,7 +147,7 @@ export default function BoliRecordPanel({
         const tA = new Date(a.createdAt || 0).getTime();
         const tB = new Date(b.createdAt || 0).getTime();
         if (tA !== tB) return tA - tB;
-        return 0;
+        return String(a.id || '').localeCompare(String(b.id || ''));
       });
   }, [selectedOpen, openBolis]);
 
@@ -1521,7 +1521,9 @@ export default function BoliRecordPanel({
                 </h3>
                 <p className="text-[10px] text-[var(--text-muted-alt)]">
                   Artia-wise and Mandi-wise high / low Boli purchase rates for
-                  the selected filters.
+                  the selected filters. Bag totals add Final Bags only. An
+                  estimate is not included until Final Bags are saved, and
+                  saving Final Bags does not move the line.
                 </p>
               </div>
               {purchaseTrends.overall?.count > 0 && (
@@ -1951,7 +1953,10 @@ export default function BoliRecordPanel({
                             ? `+${item.rateVsBase}`
                             : item.rateVsBase
                           : "",
-                      bags: item.estimatedBags ?? "",
+                      bags:
+                        item.finalBags != null && item.finalBags !== ""
+                          ? item.finalBags
+                          : "",
                     })),
                     [
                       { key: "mandi", header: "Mandi" },

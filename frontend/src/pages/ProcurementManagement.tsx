@@ -502,6 +502,16 @@ export const ProcurementManagement = () => {
   );
 
   useEffect(() => {
+    const name = user?.username || "";
+    if (!name || !isSupervisor) return;
+    setInwardFormData((prev: any) =>
+      prev.pahunchPersonName
+        ? prev
+        : { ...prev, pahunchPersonName: name },
+    );
+  }, [user?.username, isSupervisor]);
+
+  useEffect(() => {
     refreshArtiaTillDateShortage(inwardFormData.supplierId, activePlant?.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inwardFormData.supplierId, activePlant?.id]);
@@ -627,6 +637,9 @@ export const ProcurementManagement = () => {
       entryMadeByName:
         user?.username || user?.email || prev.entryMadeByName || "",
       entryMadeByUserId: user?.id || prev.entryMadeByUserId || "",
+      pahunchPersonName:
+        prev.pahunchPersonName ||
+        (isSupervisor ? user?.username || "" : ""),
       // When Auto Update ON: also punch GP Complete Date & Time Out
       ...(autoUpdateDateTime
         ? { gpCompleteDate: dateStr, timeOut: timeStr }
@@ -685,13 +698,15 @@ export const ProcurementManagement = () => {
             .addToast("No weighbridge reading found for this truck", "error");
         return;
       }
-      const gross = wb.grossWeight != null ? Number(wb.grossWeight) : null;
-      const tare = wb.tareWeight != null ? Number(wb.tareWeight) : null;
+      // Weighbridge stores the scale reading in kg. Paddy Inward weights are quintals.
+      const kgToQtl = (kg: number) => Number((kg / 100).toFixed(3));
+      const gross = wb.grossWeight != null ? kgToQtl(Number(wb.grossWeight)) : null;
+      const tare = wb.tareWeight != null ? kgToQtl(Number(wb.tareWeight)) : null;
       const netFromWb =
         wb.netWeight != null
-          ? Number(wb.netWeight)
+          ? kgToQtl(Number(wb.netWeight))
           : gross != null && tare != null
-            ? gross - tare
+            ? Number((gross - tare).toFixed(3))
             : null;
       setInwardFormData((prev: any) => ({
         ...prev,
@@ -1142,6 +1157,23 @@ export const ProcurementManagement = () => {
   });
   const [boliRecordRefreshKey, setBoliRecordRefreshKey] = useState(0);
   const [plantSupervisors, setPlantSupervisors] = useState<any[]>([]);
+  /** Paddy Inward Supervisor list: users whose role name contains Supervisor only. */
+  const inwardSupervisorOptions = React.useMemo(() => {
+    const byName = new Map<string, { name: string }>();
+    const add = (raw: unknown) => {
+      const name = String(raw || "").trim();
+      if (!name) return;
+      byName.set(name.toLowerCase(), { name });
+    };
+    for (const row of plantSupervisors) {
+      if (!/supervisor/i.test(String(row?.role || ""))) continue;
+      add(row?.name || row?.username);
+    }
+    if (isSupervisor) add(user?.username);
+    return Array.from(byName.values()).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }, [plantSupervisors, isSupervisor, user?.username]);
 
   const isPaddyBlock1Valid =
     paddyPurchaseModal.plantId &&
@@ -1195,11 +1227,9 @@ export const ProcurementManagement = () => {
   ]);
 
 
-  const fetchPlantSupervisors = async (plantId?: string) => {
-    const pid = plantId || activePlant?.id;
-    if (!pid) return;
+  const fetchPlantSupervisors = async (_plantId?: string) => {
     try {
-      const res = await api.get(`/api/procurement/supervisors/${pid}`);
+      const res = await api.get(`/api/procurement/supervisors/all`);
       setPlantSupervisors(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
       console.error(e);
@@ -1575,10 +1605,23 @@ export const ProcurementManagement = () => {
           setUnloaderOptions([]);
         }
         try {
-          const res = await api.get("/api/master-data/pahunch");
-          setPahunchs(res.data);
+          const res = await api.get("/api/master-data/pahunch", {
+            params: { all: "1" },
+          });
+          const rows = Array.isArray(res.data)
+            ? res.data
+            : Array.isArray(res.data?.data)
+              ? res.data.data
+              : [];
+          setPahunchs(rows);
         } catch (e) {
           console.error("Failed to fetch pahunchs", e);
+        }
+        try {
+          const res = await api.get(`/api/procurement/supervisors/all`);
+          setPlantSupervisors(Array.isArray(res.data) ? res.data : []);
+        } catch (e) {
+          console.error("Failed to fetch supervisors", e);
         }
       };
 
@@ -1971,12 +2014,10 @@ export const ProcurementManagement = () => {
     }
   };
 
-  const fetchSuppliers = async (plantIdOverride?: string) => {
+  const fetchSuppliers = async (_plantIdOverride?: string) => {
     try {
-      const pid = plantIdOverride || activePlant?.id;
-      const res = await api.get(`/api/procurement/suppliers`, {
-        params: pid ? { plantId: pid } : {},
-      });
+      // Suppliers are shared across mills. Demo 3 and every other mill see the same list.
+      const res = await api.get(`/api/procurement/suppliers`);
       setSuppliers(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
       console.error("Error fetching suppliers", error);
@@ -2986,12 +3027,16 @@ export const ProcurementManagement = () => {
 
       if (p.bolis && p.bolis.length > 0) {
         p.bolis.forEach((b: any) => {
+          const lineBags =
+            b.finalBags != null && b.finalBags !== ''
+              ? parseFloat(b.finalBags) || 0
+              : 0;
           processRate(
             parseFloat(b.rate) || 0,
-            parseFloat(b.bags) || 0,
+            lineBags,
             parseFloat(b.moisture || p.mc) || 0,
           );
-          stats[d].totalBags += parseFloat(b.bags) || 0;
+          stats[d].totalBags += lineBags;
         });
         stats[d].purchases += p.bolis.length;
       } else {
@@ -3257,8 +3302,7 @@ export const ProcurementManagement = () => {
                         colSpan={canEditSupplier ? 7 : 6}
                         className="p-6 text-center text-[var(--text-muted-alt)]"
                       >
-                        No Arthiya found for this mill. Add one for the selected
-                        mill.
+                        No Arthiya found. Add one — it is shared by every mill.
                       </td>
                     </tr>
                   )}
@@ -3676,7 +3720,7 @@ export const ProcurementManagement = () => {
                         name="pahunchPersonName"
                         value={inwardFormData.pahunchPersonName}
                         onChange={handleInwardChange}
-                        options={pahunchs}
+                        options={inwardSupervisorOptions}
                         selectOnly
                         listMaxHeightClass="max-h-48"
                         className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
@@ -8107,7 +8151,7 @@ export const ProcurementManagement = () => {
                 }
                 options={activeSuppliers}
                 valueKey="id"
-                placeholder="Select Arthiya (this mill)"
+                placeholder="Select Arthiya"
                 className="bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"
                 required
               />

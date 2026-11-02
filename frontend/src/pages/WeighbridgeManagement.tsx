@@ -34,6 +34,11 @@ import {
   fixedSerialOptions,
 } from "../utils/webSerialWeighbridge";
 
+/** Scale and saved weighbridge rows are kilograms. The form shows quintals. */
+const KG_PER_QTL = 100;
+const kgToQtl = (kg: number) => Number((Number(kg || 0) / KG_PER_QTL).toFixed(3));
+const qtlToKg = (qtl: number) => Number(qtl || 0) * KG_PER_QTL;
+
 export const WeighbridgeManagement = () => {
   const [searchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "capture";
@@ -48,6 +53,8 @@ export const WeighbridgeManagement = () => {
 
   // Tab 1: Dynamic State
   const [vehicleNo, setVehicleNo] = useState("");
+  const [trucks, setTrucks] = useState<any[]>([]);
+  const [supplierMaster, setSupplierMaster] = useState<any[]>([]);
   const [transType, setTransType] = useState("Inward");
   const [driverName, setDriverName] = useState("");
   const [materialType, setMaterialType] = useState("Paddy");
@@ -114,6 +121,31 @@ export const WeighbridgeManagement = () => {
       }
     };
     fetchPendingSodas();
+    const fetchTrucksAndSuppliers = async () => {
+      try {
+        const res = await api.get("/api/master-data/trucks/all");
+        const rows = Array.isArray(res.data) ? res.data : res.data?.data || [];
+        setTrucks(rows);
+      } catch (err) {
+        console.error(err);
+        setTrucks([]);
+      }
+      try {
+        const res = await api.get("/api/procurement/suppliers", {
+          params: { activeOnly: "true" },
+        });
+        const rows = Array.isArray(res.data)
+          ? res.data
+          : Array.isArray(res.data?.data)
+            ? res.data.data
+            : [];
+        setSupplierMaster(rows);
+      } catch (err) {
+        console.error(err);
+        setSupplierMaster([]);
+      }
+    };
+    fetchTrucksAndSuppliers();
   }, [activePlant?.id, activeTab]);
 
   useEffect(() => {
@@ -221,9 +253,9 @@ export const WeighbridgeManagement = () => {
       row.vehicleNo || "",
       row.materialType || "",
       row.supplierName || "",
-      row.grossWeight || 0,
-      row.tareWeight || 0,
-      row.netWeight || 0,
+      kgToQtl(row.grossWeight || 0),
+      kgToQtl(row.tareWeight || 0),
+      kgToQtl(row.netWeight || 0),
       row.challanNo || "",
       row.driverName || "",
     ]);
@@ -322,9 +354,9 @@ export const WeighbridgeManagement = () => {
                   Gross Wt
                 </p>
                 <p className="text-lg font-semibold text-[var(--text-main)]">
-                  {row.grossWeight?.toLocaleString() || 0}{" "}
+                  {kgToQtl(row.grossWeight || 0).toLocaleString()}{" "}
                   <span className="text-xs text-[var(--text-muted-alt)] font-normal">
-                    kg
+                    qtl
                   </span>
                 </p>
               </div>
@@ -333,18 +365,18 @@ export const WeighbridgeManagement = () => {
                   Tare Wt
                 </p>
                 <p className="text-lg font-semibold text-[var(--text-muted)]">
-                  {row.tareWeight?.toLocaleString() || 0}{" "}
+                  {kgToQtl(row.tareWeight || 0).toLocaleString()}{" "}
                   <span className="text-xs text-[var(--text-muted-alt)] font-normal">
-                    kg
+                    qtl
                   </span>
                 </p>
               </div>
               <div className="text-center border-l border-[var(--border-subtle-alt)]">
                 <p className="text-xs text-amber-500/70 mb-1">Net Wt</p>
                 <p className="text-xl font-bold text-amber-500">
-                  {row.netWeight?.toLocaleString() || 0}{" "}
+                  {kgToQtl(row.netWeight || 0).toLocaleString()}{" "}
                   <span className="text-xs text-amber-500/50 font-normal">
-                    kg
+                    qtl
                   </span>
                 </p>
               </div>
@@ -373,7 +405,7 @@ export const WeighbridgeManagement = () => {
     dataBits: "8",
     stopBits: "1",
     parity: "None",
-    weightUnit: "Kilogram (kg)",
+    weightUnit: "Quintal (qtl)",
     autoCapture: true,
     autoSave: true,
     autoTare: false,
@@ -903,13 +935,13 @@ export const WeighbridgeManagement = () => {
       setModalConfig({
         isOpen: true,
         title: "Tare Captured",
-        content: `Tare weight set to ${currentWeight} kg.`,
+        content: `Tare weight set to ${kgToQtl(currentWeight)} qtl.`,
       });
     } else {
       setModalConfig({
         isOpen: true,
         title: "Error",
-        content: "Cannot tare 0 kg. Ensure scale is active.",
+        content: "Cannot tare 0 qtl. Ensure scale is active.",
       });
     }
   };
@@ -924,7 +956,7 @@ export const WeighbridgeManagement = () => {
       setModalConfig({
         isOpen: true,
         title: "Weight Captured",
-        content: `Gross weight locked at ${currentWeight} kg. You can now save the transaction.`,
+        content: `Gross weight locked at ${kgToQtl(currentWeight)} qtl. You can now save the transaction.`,
       });
     } else {
       setModalConfig({
@@ -1037,15 +1069,16 @@ export const WeighbridgeManagement = () => {
                         <label className="block text-xs font-medium text-[var(--text-muted-alt)] mb-1">
                           Vehicle No. <span className="text-red-500">*</span>
                         </label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={vehicleNo}
-                            onChange={(e) => setVehicleNo(e.target.value)}
-                            placeholder="e.g. PB10AB1234"
-                            className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 uppercase"
-                          />
-                        </div>
+                        <Combobox
+                          name="vehicleNo"
+                          value={vehicleNo}
+                          onChange={(e: any) =>
+                            setVehicleNo(String(e.target.value || "").toUpperCase())
+                          }
+                          options={trucks}
+                          placeholder="Select truck"
+                          className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500 uppercase"
+                        />
                       </div>
                     </div>
 
@@ -1108,33 +1141,17 @@ export const WeighbridgeManagement = () => {
                             setSelectedSodaId("");
                             setBagsReceived("");
                           }}
-                          options={
-                            transType === "Inward"
-                              ? Array.from(
-                                  new Set(
-                                    pendingSodas
-                                      .map((s) => s.partyMandi)
-                                      .filter(Boolean),
-                                  ),
-                                ).map((s) => ({
-                                  id: s as string,
-                                  name: s as string,
-                                }))
-                              : [
-                                  {
-                                    id: "Ganga Traders",
-                                    name: "Ganga Traders",
-                                  },
-                                  {
-                                    id: "Sharma Rice Traders",
-                                    name: "Sharma Rice Traders",
-                                  },
-                                  {
-                                    id: "Kisan Supply Co.",
-                                    name: "Kisan Supply Co.",
-                                  },
-                                ]
-                          }
+                          options={Array.from(
+                            new Set(
+                              [
+                                ...supplierMaster.map((s) => s.name),
+                                ...pendingSodas.map((s) => s.partyMandi),
+                              ].filter(Boolean),
+                            ),
+                          ).map((s) => ({
+                            id: s as string,
+                            name: s as string,
+                          }))}
                           valueKey="id"
                           placeholder="Select Party / Supplier"
                           className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:border-amber-500"
@@ -1398,9 +1415,9 @@ export const WeighbridgeManagement = () => {
 
                     <div className="text-center py-6">
                       <div className="text-5xl font-black text-[var(--text-main)] tabular-nums tracking-tight">
-                        {currentWeight.toLocaleString()}{" "}
+                        {kgToQtl(currentWeight).toLocaleString()}{" "}
                         <span className="text-2xl text-[var(--text-muted-alt)] font-medium ml-1">
-                          kg
+                          qtl
                         </span>
                       </div>
                       <div className="text-blue-500 font-medium mt-2">
@@ -1417,9 +1434,9 @@ export const WeighbridgeManagement = () => {
                           Tare Weight
                         </div>
                         <div className="text-xl font-bold text-[var(--text-main)]">
-                          {tareWeight.toLocaleString()}{" "}
+                          {kgToQtl(tareWeight).toLocaleString()}{" "}
                           <span className="text-sm text-[var(--text-muted-alt)]">
-                            kg
+                            qtl
                           </span>
                         </div>
                       </div>
@@ -1428,8 +1445,8 @@ export const WeighbridgeManagement = () => {
                           Net Weight
                         </div>
                         <div className="text-xl font-bold text-green-500">
-                          {netWeight.toLocaleString()}{" "}
-                          <span className="text-sm opacity-70">kg</span>
+                          {kgToQtl(netWeight).toLocaleString()}{" "}
+                          <span className="text-sm opacity-70">qtl</span>
                         </div>
                       </div>
                     </div>
@@ -1628,9 +1645,9 @@ export const WeighbridgeManagement = () => {
 
                   <div className="text-center mt-2">
                     <div className="text-3xl font-black text-green-500 tabular-nums tracking-tight">
-                      {currentWeight.toLocaleString()}{" "}
+                      {kgToQtl(currentWeight).toLocaleString()}{" "}
                       <span className="text-lg opacity-80 font-medium ml-1">
-                        kg
+                        qtl
                       </span>
                     </div>
                     <div className="flex items-center justify-center gap-1.5 mt-2">
@@ -1864,13 +1881,13 @@ export const WeighbridgeManagement = () => {
                     <th className="px-4 py-3 font-medium">Material</th>
                     <th className="px-4 py-3 font-medium">Supplier</th>
                     <th className="px-4 py-3 font-medium text-right">
-                      Gross Wt (kg)
+                      Gross Wt (qtl)
                     </th>
                     <th className="px-4 py-3 font-medium text-right">
-                      Tare Wt (kg)
+                      Tare Wt (qtl)
                     </th>
                     <th className="px-4 py-3 font-medium text-right">
-                      Net Wt (kg)
+                      Net Wt (qtl)
                     </th>
                     <th className="px-4 py-3 font-medium">Challan No.</th>
                     <th className="px-4 py-3 font-medium">Driver Name</th>
@@ -1924,13 +1941,13 @@ export const WeighbridgeManagement = () => {
                         </td>
                         <td className="px-4 py-3">{row.supplierName || "-"}</td>
                         <td className="px-4 py-3 text-right tabular-nums">
-                          {row.grossWeight?.toLocaleString() || "-"}
+                          {row.grossWeight != null ? kgToQtl(row.grossWeight).toLocaleString() : "-"}
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums text-[var(--text-muted-alt)]">
-                          {row.tareWeight?.toLocaleString() || "-"}
+                          {row.tareWeight != null ? kgToQtl(row.tareWeight).toLocaleString() : "-"}
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums font-semibold text-green-500">
-                          {row.netWeight?.toLocaleString() || "-"}
+                          {row.netWeight != null ? kgToQtl(row.netWeight).toLocaleString() : "-"}
                         </td>
                         <td className="px-4 py-3 text-[var(--text-muted-alt)]">
                           {row.challanNo || "-"}
@@ -2114,6 +2131,7 @@ export const WeighbridgeManagement = () => {
                     }
                     className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-3 text-sm text-[var(--text-main)] focus:outline-none focus:border-blue-500 appearance-none"
                   >
+                    <option>Quintal (qtl)</option>
                     <option>Kilogram (kg)</option>
                     <option>Tonne (t)</option>
                   </select>
@@ -2263,9 +2281,9 @@ export const WeighbridgeManagement = () => {
             {canCapture && (
             <button
               onClick={() => {
-                const weight = parseInt(manualWeightInput, 10);
-                if (!isNaN(weight) && weight > 0) {
-                  applyManualWeight(weight, manualTarget);
+                const qtl = parseFloat(manualWeightInput);
+                if (!isNaN(qtl) && qtl > 0) {
+                  applyManualWeight(qtlToKg(qtl), manualTarget);
                 } else {
                   setModalConfig({
                     isOpen: true,
@@ -2317,7 +2335,7 @@ export const WeighbridgeManagement = () => {
           </div>
           <div>
             <label className="block text-sm font-medium text-[var(--text-muted-alt)] mb-1.5">
-              {manualTarget === "tare" ? "Tare" : "Gross"} Weight (kg){" "}
+              {manualTarget === "tare" ? "Tare" : "Gross"} Weight (qtl){" "}
               <span className="text-red-500">*</span>
             </label>
             <input
@@ -2326,7 +2344,7 @@ export const WeighbridgeManagement = () => {
               value={manualWeightInput}
               onChange={(e) => setManualWeightInput(e.target.value)}
               className="w-full bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg px-4 py-2.5 text-[var(--text-main)] focus:outline-none focus:border-amber-500 font-medium text-lg"
-              placeholder="e.g. 15000"
+              placeholder="e.g. 150.000"
               autoFocus
             />
           </div>

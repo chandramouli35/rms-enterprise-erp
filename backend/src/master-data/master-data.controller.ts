@@ -171,9 +171,15 @@ export class MasterDataController {
   // ===================== PAHUNCH MASTER =====================
   @Get('pahunch')
   @RequireAnyPermission(['Procurement', 'Staff Management'], 'canView')
-  async getPahunch(@Headers() headers, @Query('page') page?: string, @Query('limit') limit?: string) {
+  async getPahunch(
+    @Headers() headers,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('all') all?: string,
+  ) {
     const plantId = this.extractPlantId(headers);
-    return this.masterDataService.getPahunch(plantId, page, limit);
+    const allPlants = all === '1' || all === 'true';
+    return this.masterDataService.getPahunch(plantId, page, limit, allPlants);
   }
 
   @Post('pahunch')
