@@ -64,6 +64,12 @@ export class FinanceLedgerService {
 
     const shaped = this.salePurchase.shapeLine(line);
     const soda = line.financeSoda;
+    // Party is required for statement / AR-AP rollups — never create orphan ledger rows
+    if (!soda.partyId && !soda.partyPlantId) {
+      throw new BadRequestException(
+        `Cannot sync ledger for soda ${soda.sodaNumber}: party is missing on the deal`,
+      );
+    }
     const amount = FinanceLedgerService.round3(shaped.netPayment || 0);
     const isSale = line.reportType === 'SALE';
     const sodaLabel = `${isSale ? 'SO' : 'PO'}-${String(soda.sodaNumber).padStart(2, '0')}`;
@@ -111,11 +117,20 @@ export class FinanceLedgerService {
       select: { id: true },
     });
     let synced = 0;
+    let failed = 0;
+    const errors: string[] = [];
     for (const line of lines) {
-      const row = await this.syncReportLine(line.id);
-      if (row) synced += 1;
+      try {
+        const row = await this.syncReportLine(line.id);
+        if (row) synced += 1;
+      } catch (err: any) {
+        failed += 1;
+        if (errors.length < 10) {
+          errors.push(`${line.id}: ${err?.message || err}`);
+        }
+      }
     }
-    return { scanned: lines.length, synced };
+    return { scanned: lines.length, synced, failed, errors };
   }
 
   async listPartyOptions(role?: 'CUSTOMER' | 'SUPPLIER' | 'ALL') {

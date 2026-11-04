@@ -117,6 +117,8 @@ export class FinanceSalePurchaseService {
       this.logger.error(
         `Ledger sync failed for sale-purchase line ${lineId}: ${err?.message || err}`,
       );
+      // Must not swallow — otherwise report exists without Party Ledger (F31)
+      throw err;
     }
   }
 
@@ -499,12 +501,20 @@ export class FinanceSalePurchaseService {
       orderBy: { createdAt: 'asc' },
     });
     let created = 0;
+    let failed = 0;
     for (const gp of gps) {
-      const line = await this.syncFromGatePass(gp.id);
-      if (line) created += 1;
+      try {
+        const line = await this.syncFromGatePass(gp.id);
+        if (line) created += 1;
+      } catch (err: any) {
+        failed += 1;
+        this.logger.error(
+          `Backfill GP ${gp.id} failed: ${err?.message || err}`,
+        );
+      }
     }
     const ledger = await this.ledger.backfillFromReportLines();
-    return { scanned: gps.length, created, ledger };
+    return { scanned: gps.length, created, failed, ledger };
   }
 
   // ─── Feedback 30 — Junction Report ───────────────────────────────────────

@@ -122,7 +122,13 @@ export const ReceivablesPayables: React.FC<{ kind: Kind }> = ({ kind }) => {
   const backfill = async () => {
     try {
       const res = await financeLedgerApi.backfill();
-      addToast(`Ledger backfill: ${res.data.synced}/${res.data.scanned} lines`, 'success');
+      const failed = res.data.failed || 0;
+      addToast(
+        failed
+          ? `Ledger backfill: ${res.data.synced}/${res.data.scanned} synced, ${failed} failed`
+          : `Ledger backfill: ${res.data.synced}/${res.data.scanned} lines`,
+        failed ? 'error' : 'success',
+      );
       await load();
       if (partyKey) await loadStatement(partyKey);
     } catch (e: any) {

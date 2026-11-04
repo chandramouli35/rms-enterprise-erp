@@ -434,12 +434,16 @@ export class GatePassService {
       }
     }
 
-    // Feedback 29: non-draft GP with soda → Sale/Purchase report line + Section H
+    // Feedback 29/31: non-draft GP with soda → Sale/Purchase report + Party Ledger
     if (!isDraft && resolvedFinanceSodaId) {
       try {
         await this.salePurchaseService.syncFromGatePass(newPass.id);
-      } catch (e) {
-        console.error('F29 sale/purchase sync failed', e);
+      } catch (e: any) {
+        console.error('F29/F31 sale/purchase + ledger sync failed', e);
+        throw new BadRequestException(
+          e?.message ||
+            'Gate Pass saved but Sale/Purchase ledger sync failed. Use Sync ledger from reports, then retry.',
+        );
       }
     }
 
@@ -676,11 +680,15 @@ export class GatePassService {
       },
     });
 
-    // F29: remove sale/purchase report row + roll back soda Section K
+    // F29/F31: remove sale/purchase report row + Party Ledger + roll back Section K
     try {
       await this.salePurchaseService.removeForGatePass(id);
-    } catch (e) {
-      console.error('F29 remove report line failed', e);
+    } catch (e: any) {
+      console.error('F29/F31 remove report/ledger line failed', e);
+      throw new BadRequestException(
+        e?.message ||
+          'Gate Pass cancelled but Sale/Purchase ledger cleanup failed. Retry cancel or Sync ledger from reports.',
+      );
     }
 
     return updated;
@@ -868,12 +876,16 @@ export class GatePassService {
       }
     }
 
-    // F29: draft → submitted on complete → push report line if linked soda
+    // F29/F31: draft → submitted on complete → report line + Party Ledger
     if (pass.financeSodaId) {
       try {
         await this.salePurchaseService.syncFromGatePass(id);
-      } catch (e) {
-        console.error('F29 sale/purchase sync on complete failed', e);
+      } catch (e: any) {
+        console.error('F29/F31 sale/purchase + ledger sync on complete failed', e);
+        throw new BadRequestException(
+          e?.message ||
+            'Gate Pass completed but Sale/Purchase ledger sync failed. Use Sync ledger from reports, then retry.',
+        );
       }
     }
 
