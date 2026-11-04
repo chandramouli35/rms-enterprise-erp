@@ -1,8 +1,26 @@
-import { Controller, Post, Body, Get, Param, HttpException, HttpStatus, Put, Patch, Delete, UseGuards, Query, BadRequestException, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Param,
+  HttpException,
+  HttpStatus,
+  Put,
+  Patch,
+  Delete,
+  UseGuards,
+  Query,
+  BadRequestException,
+  Req,
+} from '@nestjs/common';
 import { ProcurementService } from './procurement.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { RequirePermission, RequireAnyPermission } from '../common/decorators/require-permission.decorator';
+import {
+  RequirePermission,
+  RequireAnyPermission,
+} from '../common/decorators/require-permission.decorator';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('api/procurement')
@@ -21,11 +39,13 @@ export class ProcurementController {
       });
     } catch (error: any) {
       console.error(error);
-      throw new HttpException(`Failed to save: ${error.message || error}`, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        `Failed to save: ${error.message || error}`,
+        HttpStatus.BAD_REQUEST,
+      );
     }
   }
 
-  
   @Delete('paddy-inward/:id')
   @RequirePermission('Procurement', 'canDelete')
   async deletePaddyInward(@Param('id') id: string) {
@@ -91,9 +111,17 @@ export class ProcurementController {
     @Query('mandi') mandi?: string,
     @Query('supplierId') supplierId?: string,
     @Query('page') page?: string,
-    @Query('limit') limit?: string
+    @Query('limit') limit?: string,
   ) {
-    return this.procurementService.getInwards(plantId, dateFrom, dateTo, mandi, supplierId, page, limit);
+    return this.procurementService.getInwards(
+      plantId,
+      dateFrom,
+      dateTo,
+      mandi,
+      supplierId,
+      page,
+      limit,
+    );
   }
 
   @Get('recent/:plantId')
@@ -103,9 +131,15 @@ export class ProcurementController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Query('page') page?: string,
-    @Query('limit') limit?: string
+    @Query('limit') limit?: string,
   ) {
-    return this.procurementService.getRecentPurchases(plantId, dateFrom, dateTo, page, limit);
+    return this.procurementService.getRecentPurchases(
+      plantId,
+      dateFrom,
+      dateTo,
+      page,
+      limit,
+    );
   }
 
   @Get('occupied-stacks/:plantId')
@@ -143,16 +177,26 @@ export class ProcurementController {
     return this.procurementService.createSupplier(data, req.user);
   }
 
+  @Put('suppliers/:id')
+  @RequirePermission('Procurement', 'canEdit')
+  updateSupplier(
+    @Param('id') id: string,
+    @Body() data: any,
+    @Req() req: any,
+  ) {
+    return this.procurementService.updateSupplier(id, data, req.user);
+  }
+
   @Put('suppliers/:id/approve')
   @RequirePermission('Procurement', 'canEdit')
   approveSupplier(@Param('id') id: string, @Req() req: any) {
-    return this.procurementService.approveSupplier(id, req.user?.id);
+    return this.procurementService.approveSupplier(id, req.user);
   }
 
   @Put('suppliers/:id/reject')
   @RequirePermission('Procurement', 'canEdit')
   rejectSupplier(@Param('id') id: string, @Req() req: any) {
-    return this.procurementService.rejectSupplier(id, req.user?.id);
+    return this.procurementService.rejectSupplier(id, req.user);
   }
 
   @Get('analytics/:plantId')
@@ -169,9 +213,16 @@ export class ProcurementController {
 
   @Post('boli-rate/:batchId')
   @RequirePermission('Procurement', 'canEdit')
-  async updateBoliRate(@Param('batchId') batchId: string, @Body() data: { newRate: number; arhtiaCorrection: number }) {
+  async updateBoliRate(
+    @Param('batchId') batchId: string,
+    @Body() data: { newRate: number; arhtiaCorrection: number },
+  ) {
     try {
-      return await this.procurementService.updateBoliRate(batchId, data.newRate, data.arhtiaCorrection);
+      return await this.procurementService.updateBoliRate(
+        batchId,
+        data.newRate,
+        data.arhtiaCorrection,
+      );
     } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -194,7 +245,15 @@ export class ProcurementController {
     @Query('supplierId') supplierId?: string,
     @Query('mandi') mandi?: string,
   ) {
-    return this.procurementService.getSodaPending(plantId, dateFrom, dateTo, page, limit, supplierId, mandi);
+    return this.procurementService.getSodaPending(
+      plantId,
+      dateFrom,
+      dateTo,
+      page,
+      limit,
+      supplierId,
+      mandi,
+    );
   }
 
   @Get('boli-records/:plantId')
@@ -289,9 +348,17 @@ export class ProcurementController {
 
   @Put('soda-pending/:id')
   @RequirePermission('Procurement', 'canEdit')
-  async updateSodaPending(@Param('id') id: string, @Body() data: any, @Req() req: any) {
+  async updateSodaPending(
+    @Param('id') id: string,
+    @Body() data: any,
+    @Req() req: any,
+  ) {
     try {
-      return await this.procurementService.updateSodaPending(id, data, req.user);
+      return await this.procurementService.updateSodaPending(
+        id,
+        data,
+        req.user,
+      );
     } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -299,7 +366,11 @@ export class ProcurementController {
 
   @Put('bolis/:id/final')
   @RequirePermission('Procurement', 'canEdit')
-  async submitFinalBoli(@Param('id') id: string, @Body() data: any, @Req() req: any) {
+  async submitFinalBoli(
+    @Param('id') id: string,
+    @Body() data: any,
+    @Req() req: any,
+  ) {
     try {
       return await this.procurementService.submitFinalBoli(id, data, req.user);
     } catch (error: any) {
@@ -371,9 +442,17 @@ export class ProcurementController {
   /** Feedback 32 — Admin edit Payment / Note / Final Bags on Table 01 */
   @Put('bolis/:id/admin-table01')
   @RequirePermission('Procurement', 'canEdit')
-  async adminUpdateBoliRecord(@Param('id') id: string, @Body() data: any, @Req() req: any) {
+  async adminUpdateBoliRecord(
+    @Param('id') id: string,
+    @Body() data: any,
+    @Req() req: any,
+  ) {
     try {
-      return await this.procurementService.adminUpdateBoliRecord(id, data, req.user);
+      return await this.procurementService.adminUpdateBoliRecord(
+        id,
+        data,
+        req.user,
+      );
     } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -381,7 +460,11 @@ export class ProcurementController {
 
   @Put('bolis/:id/complete')
   @RequirePermission('Procurement', 'canEdit')
-  async completeBoli(@Param('id') id: string, @Body() data: any, @Req() req: any) {
+  async completeBoli(
+    @Param('id') id: string,
+    @Body() data: any,
+    @Req() req: any,
+  ) {
     try {
       return await this.procurementService.completeBoli(id, data, req.user);
     } catch (error: any) {
@@ -393,7 +476,11 @@ export class ProcurementController {
   @RequirePermission('Procurement', 'canEdit')
   async settleHisab(@Body() data: any, @Req() req: any) {
     try {
-      return await this.procurementService.settleHisab({ ...data, user: req.user, userId: req.user?.id || data.userId });
+      return await this.procurementService.settleHisab({
+        ...data,
+        user: req.user,
+        userId: req.user?.id || data.userId,
+      });
     } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -414,7 +501,13 @@ export class ProcurementController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
   ) {
-    return this.procurementService.getShortageSummaryReport(plantId, mandiId, supplierId, dateFrom, dateTo);
+    return this.procurementService.getShortageSummaryReport(
+      plantId,
+      mandiId,
+      supplierId,
+      dateFrom,
+      dateTo,
+    );
   }
 
   /** Feedback 34 — daily consolidated multi-mill shortage */
@@ -424,7 +517,10 @@ export class ProcurementController {
     @Query('date') date?: string,
     @Query('live') live?: string,
   ) {
-    return this.procurementService.getDailyConsolidatedShortage(date, live !== '1');
+    return this.procurementService.getDailyConsolidatedShortage(
+      date,
+      live !== '1',
+    );
   }
 
   /** Feedback 34 — submit / freeze evening daily shortage report */
@@ -450,7 +546,9 @@ export class ProcurementController {
   @Get('reports/shortage-mill-trend')
   @RequireAnyPermission(['Procurement', 'Dashboard'], 'canView')
   async getMillShortageTrend(@Query('days') days?: string) {
-    return this.procurementService.getMillShortageTrend(days ? parseInt(days, 10) : 14);
+    return this.procurementService.getMillShortageTrend(
+      days ? parseInt(days, 10) : 14,
+    );
   }
 
   /** Mandi / Artia shortage trend for Mandi and Artia wise view */
@@ -525,7 +623,10 @@ export class ProcurementController {
         user: req.user,
       });
     } catch (error: any) {
-      throw new HttpException(error.message || 'Submit failed', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        error.message || 'Submit failed',
+        HttpStatus.BAD_REQUEST,
+      );
     }
   }
 
@@ -536,7 +637,10 @@ export class ProcurementController {
     @Query('plantId') plantId?: string,
     @Query('date') date?: string,
   ) {
-    return this.procurementService.getDailyInwardSummary(plantId || 'global', date);
+    return this.procurementService.getDailyInwardSummary(
+      plantId || 'global',
+      date,
+    );
   }
 
   /** Feedback 35 — multi-mill mandi balance dashboard (bags, auto) */
@@ -552,7 +656,10 @@ export class ProcurementController {
     @Param('id') id: string,
     @Body('shortageRecoveryQtl') shortageRecoveryQtl: number,
   ) {
-    return this.procurementService.updateShortageRecovery(id, shortageRecoveryQtl);
+    return this.procurementService.updateShortageRecovery(
+      id,
+      shortageRecoveryQtl,
+    );
   }
   @Post('hoodi-transfer')
   @RequirePermission('Procurement', 'canAdd')
@@ -593,12 +700,19 @@ export class ProcurementController {
   async getHoodiReport(
     @Query('plantId') plantId: string,
     @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string
+    @Query('dateTo') dateTo?: string,
   ) {
     try {
-      return await this.procurementService.getHoodiReport(plantId, dateFrom, dateTo);
+      return await this.procurementService.getHoodiReport(
+        plantId,
+        dateFrom,
+        dateTo,
+      );
     } catch (error: any) {
-      throw new HttpException(`Failed to get report: ${error.message || error}`, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        `Failed to get report: ${error.message || error}`,
+        HttpStatus.BAD_REQUEST,
+      );
     }
   }
 
@@ -677,22 +791,36 @@ export class ProcurementController {
 
   @Get('stack/history')
   @RequirePermission('Procurement', 'canView')
-  async getStackHistory(@Query('plantId') plantId: string, @Query('stackNo') stackNo: string) {
-    if (!plantId || !stackNo) throw new BadRequestException('plantId and stackNo required');
+  async getStackHistory(
+    @Query('plantId') plantId: string,
+    @Query('stackNo') stackNo: string,
+  ) {
+    if (!plantId || !stackNo)
+      throw new BadRequestException('plantId and stackNo required');
     return await this.procurementService.getStackHistory(plantId, stackNo);
   }
 
   @Patch('stack/:stackNo/complete')
   @RequirePermission('Procurement', 'canEdit')
-  async markStackComplete(@Param('stackNo') stackNo: string, @Body('plantId') plantId: string) {
+  async markStackComplete(
+    @Param('stackNo') stackNo: string,
+    @Body('plantId') plantId: string,
+  ) {
     if (!plantId) throw new BadRequestException('plantId is required');
     return await this.procurementService.markStackComplete(plantId, stackNo);
   }
 
   @Post('stack/:stackNo/send-to-hoodi')
   @RequirePermission('Procurement', 'canEdit')
-  async sendStackToHoodi(@Param('stackNo') stackNo: string, @Body('plantId') plantId: string) {
+  async sendStackToHoodi(
+    @Param('stackNo') stackNo: string,
+    @Body('plantId') plantId: string,
+  ) {
     if (!plantId) throw new BadRequestException('plantId is required');
-    return await this.procurementService.sendStackToHoodi(plantId, stackNo, 'system');
+    return await this.procurementService.sendStackToHoodi(
+      plantId,
+      stackNo,
+      'system',
+    );
   }
 }

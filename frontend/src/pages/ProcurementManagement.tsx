@@ -145,7 +145,17 @@ export const ProcurementManagement = () => {
     "canEdit",
     "Supplier Master",
   );
-  const canAddBoli = hasModulePermission("Procurement", "canAdd", "Boli Record");
+  /** Artia Yes / No approve is Admin only — supervisors must not see or call it. */
+  const canApproveArtia =
+    !isSupervisor &&
+    /^(SUPER_ADMIN|PLANT_MANAGER|ADMIN)$/i.test(
+      String((user as any)?.role?.name || user?.role || "").trim(),
+    );
+  const canAddBoli = hasModulePermission(
+    "Procurement",
+    "canAdd",
+    "Boli Record",
+  );
   const canEditBoli = hasModulePermission(
     "Procurement",
     "canEdit",
@@ -192,8 +202,10 @@ export const ProcurementManagement = () => {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
   const [labours, setLabours] = useState<any[]>([]);
-  /** Combined names for Allocate Unloader / Part Unloader (staff + labour + plant users) */
+  /** Mill-scoped UNLOADER staff for Allocate Unloader dropdowns */
   const [unloaderOptions, setUnloaderOptions] = useState<any[]>([]);
+  /** Supervisors with UserPlantAccess for the active mill only */
+  const [plantSupervisors, setPlantSupervisors] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchPlants = async () => {
@@ -501,15 +513,88 @@ export const ProcurementManagement = () => {
     defaultInwardFormData,
   );
 
+  const withSupervisorUnloaderDefaults = (base: any) => {
+    const name = String(user?.username || "").trim();
+    if (!isSupervisor || !name) return base;
+    const next = { ...base };
+    // Default Supervisor only when this user belongs to the active mill list
+    const onThisMill = plantSupervisors.some((row: any) => {
+      if (!/supervisor/i.test(String(row?.role || ""))) return false;
+      const n = String(row?.name || row?.username || "")
+        .trim()
+        .toLowerCase();
+      return n === name.toLowerCase();
+    });
+    if (onThisMill && !String(next.pahunchPersonName || "").trim()) {
+      next.pahunchPersonName = name;
+    }
+    if (!String(next.allocateUnloader || "").trim()) {
+      next.allocateUnloader = name;
+      if (!String(next.unloaderInitials || "").trim()) {
+        next.unloaderInitials = name.slice(0, 2).toUpperCase();
+      }
+    }
+    return next;
+  };
+
   useEffect(() => {
-    const name = user?.username || "";
-    if (!name || !isSupervisor) return;
-    setInwardFormData((prev: any) =>
-      prev.pahunchPersonName
-        ? prev
-        : { ...prev, pahunchPersonName: name },
-    );
-  }, [user?.username, isSupervisor]);
+    if (!user?.username || !isSupervisor) return;
+    setInwardFormData((prev: any) => withSupervisorUnloaderDefaults(prev));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.username, isSupervisor, plantSupervisors]);
+
+  /**
+   * Unloader dropdown: this mill's UNLOADER staff only (no labour).
+   * Logged-in supervisor is injected so default Unloader can be selected.
+   */
+  const millUnloaderOptions = React.useMemo(() => {
+    const pid = activePlant?.id;
+    const fromApi = Array.isArray(unloaderOptions) ? unloaderOptions : [];
+    const fromStaff = staff.filter((s: any) => {
+      const role = String(s.role || "");
+      if (/labour|labor/i.test(role)) return false;
+      if (!/UNLOADER/i.test(role)) return false;
+      return !pid || !s.plantId || s.plantId === pid;
+    });
+    const base = fromApi.length > 0 ? fromApi : fromStaff;
+    const rows = [...base];
+    const selfName = String(user?.username || "").trim();
+    if (
+      isSupervisor &&
+      selfName &&
+      !rows.some(
+        (r: any) =>
+          String(r.name || r.username || "").toLowerCase() ===
+          selfName.toLowerCase(),
+      )
+    ) {
+      rows.unshift({
+        id: user?.id || "self-supervisor",
+        name: selfName,
+        source: "supervisor",
+      });
+    }
+    return rows;
+  }, [
+    unloaderOptions,
+    staff,
+    activePlant?.id,
+    isSupervisor,
+    user?.id,
+    user?.username,
+  ]);
+
+  /** Party list with mandi always available for small secondary text. */
+  const partyOptionsWithMandi = React.useMemo(
+    () =>
+      activeSuppliers.map((s: any) => ({
+        ...s,
+        name: s.name,
+        mandi: String(s.mandi || "").trim(),
+        secondary: String(s.mandi || "").trim(),
+      })),
+    [activeSuppliers],
+  );
 
   useEffect(() => {
     refreshArtiaTillDateShortage(inwardFormData.supplierId, activePlant?.id);
@@ -638,8 +723,7 @@ export const ProcurementManagement = () => {
         user?.username || user?.email || prev.entryMadeByName || "",
       entryMadeByUserId: user?.id || prev.entryMadeByUserId || "",
       pahunchPersonName:
-        prev.pahunchPersonName ||
-        (isSupervisor ? user?.username || "" : ""),
+        prev.pahunchPersonName || (isSupervisor ? user?.username || "" : ""),
       // When Auto Update ON: also punch GP Complete Date & Time Out
       ...(autoUpdateDateTime
         ? { gpCompleteDate: dateStr, timeOut: timeStr }
@@ -700,8 +784,10 @@ export const ProcurementManagement = () => {
       }
       // Weighbridge stores the scale reading in kg. Paddy Inward weights are quintals.
       const kgToQtl = (kg: number) => Number((kg / 100).toFixed(3));
-      const gross = wb.grossWeight != null ? kgToQtl(Number(wb.grossWeight)) : null;
-      const tare = wb.tareWeight != null ? kgToQtl(Number(wb.tareWeight)) : null;
+      const gross =
+        wb.grossWeight != null ? kgToQtl(Number(wb.grossWeight)) : null;
+      const tare =
+        wb.tareWeight != null ? kgToQtl(Number(wb.tareWeight)) : null;
       const netFromWb =
         wb.netWeight != null
           ? kgToQtl(Number(wb.netWeight))
@@ -766,20 +852,38 @@ export const ProcurementManagement = () => {
   }, [inwardFormData.allocationType, inwardFormData.hoodiUpload]);
 
   useEffect(() => {
-    // Auto calculate Required Net Wt and Shortage
+    // Auto calculate Required Net Wt and Shortage — Artia A/B bag weights
     const origA = parseFloat(inwardFormData.origAClass) || 0;
     const origB = parseFloat(inwardFormData.origBClass) || 0;
     const shortA = parseFloat(inwardFormData.shortageAClass) || 0;
     const shortB = parseFloat(inwardFormData.shortageBClass) || 0;
-    // Feedback 49: Required = (Arthia Parchi / Agency bags + Shortage bags) × mandi std 0.381 or 0.382
     const agencyA = parseFloat(inwardFormData.origAClassAg) || 0;
     const agencyB = parseFloat(inwardFormData.origBClassAg) || 0;
 
+    const selectedArtia = suppliers.find(
+      (s: any) => s.id === inwardFormData.supplierId,
+    );
     const selectedPlant = plants.find((p) => p.id === activePlant?.id);
-    const bagWt = selectedPlant?.standardBagWeight || 0.382;
+    const aWt =
+      Number(selectedArtia?.aClassBagWeight) > 0
+        ? Number(selectedArtia.aClassBagWeight)
+        : 0.38;
+    const bWt =
+      Number(selectedArtia?.bClassBagWeight) > 0
+        ? Number(selectedArtia.bClassBagWeight)
+        : 0.385;
     const agencyTotal = agencyA + agencyB;
     const shortTotal = shortA + shortB;
-    const req = ((agencyTotal + shortTotal) * bagWt).toFixed(3);
+    const totalBags = agencyTotal + shortTotal;
+    const reqQtl =
+      (agencyA + shortA) * aWt + (agencyB + shortB) * bWt;
+    const bagWt =
+      totalBags > 0
+        ? reqQtl / totalBags
+        : selectedArtia
+          ? aWt
+          : selectedPlant?.standardBagWeight || 0.382;
+    const req = reqQtl.toFixed(3);
 
     const actualWt = parseFloat(inwardFormData.netWtMill) || 0;
     const netDiff = parseFloat(req) - actualWt;
@@ -937,8 +1041,10 @@ export const ProcurementManagement = () => {
     inwardFormData.informBaujiExcessWeight,
     inwardFormData.informBaujiBagsLess,
     inwardFormData.autoNarration,
+    inwardFormData.supplierId,
     activePlant,
     plants,
+    suppliers,
   ]);
   const [dhanakLots, setDhanakLots] = useState([
     { id: 1, dhankNo: "1", bags: "", moisture: "", bardanaClass: "" },
@@ -946,9 +1052,34 @@ export const ProcurementManagement = () => {
 
   const [inwardErrors, setInwardErrors] = useState<Record<string, string>>({});
 
-  /** Plant standard bag weight (Qtl) — used for Quality Cut bags ↔ quintal */
-  const plantBagWt =
-    plants.find((p) => p.id === activePlant?.id)?.standardBagWeight || 0.382;
+  /** Selected Artia A/B bag weights (qtl). Fallback to plant only if no Artia. */
+  const selectedInwardArtia = suppliers.find(
+    (s: any) => s.id === inwardFormData.supplierId,
+  );
+  const artiaAClassWt =
+    Number(selectedInwardArtia?.aClassBagWeight) > 0
+      ? Number(selectedInwardArtia.aClassBagWeight)
+      : 0.38;
+  const artiaBClassWt =
+    Number(selectedInwardArtia?.bClassBagWeight) > 0
+      ? Number(selectedInwardArtia.bClassBagWeight)
+      : 0.385;
+  const plantBagWt = (() => {
+    if (!selectedInwardArtia) {
+      return (
+        plants.find((p) => p.id === activePlant?.id)?.standardBagWeight || 0.382
+      );
+    }
+    const aBags =
+      (parseFloat(inwardFormData.origAClassAg) || 0) +
+      (parseFloat(inwardFormData.shortageAClass) || 0);
+    const bBags =
+      (parseFloat(inwardFormData.origBClassAg) || 0) +
+      (parseFloat(inwardFormData.shortageBClass) || 0);
+    const total = aBags + bBags;
+    if (total <= 0) return artiaAClassWt;
+    return (aBags * artiaAClassWt + bBags * artiaBClassWt) / total;
+  })();
 
   /** Live Quality Cut (bags or %) → Qtl/Bags for Section 8 table 01 */
   const liveQualityCut = (() => {
@@ -1096,15 +1227,21 @@ export const ProcurementManagement = () => {
   };
 
   // Modal States
-  const [addSupplierModal, setAddSupplierModal] = useState({
+  const emptyAddSupplierModal = () => ({
     isOpen: false,
+    id: "",
     name: "",
     firmNames: "",
     mandi: "",
     contact: "",
     plantId: "",
+    aClassBagWeight: "0.380",
+    bClassBagWeight: "0.385",
     biometricData: "",
   });
+  const [addSupplierModal, setAddSupplierModal] = useState(
+    emptyAddSupplierModal(),
+  );
   const [isScanningSupplierFp, setIsScanningSupplierFp] = useState(false);
   const [addMandiModal, setAddMandiModal] = useState({
     isOpen: false,
@@ -1156,8 +1293,10 @@ export const ProcurementManagement = () => {
     date: "",
   });
   const [boliRecordRefreshKey, setBoliRecordRefreshKey] = useState(0);
-  const [plantSupervisors, setPlantSupervisors] = useState<any[]>([]);
-  /** Paddy Inward Supervisor list: users whose role name contains Supervisor only. */
+  /**
+   * Paddy Inward Supervisor dropdown — exclusive active mill only.
+   * Never mixes supervisors from other plants.
+   */
   const inwardSupervisorOptions = React.useMemo(() => {
     const byName = new Map<string, { name: string }>();
     const add = (raw: unknown) => {
@@ -1169,11 +1308,12 @@ export const ProcurementManagement = () => {
       if (!/supervisor/i.test(String(row?.role || ""))) continue;
       add(row?.name || row?.username);
     }
-    if (isSupervisor) add(user?.username);
+    // Logged-in supervisor is included only if already on this mill list
+    // (login already requires plant access — do not inject cross-mill names)
     return Array.from(byName.values()).sort((a, b) =>
       a.name.localeCompare(b.name),
     );
-  }, [plantSupervisors, isSupervisor, user?.username]);
+  }, [plantSupervisors]);
 
   const isPaddyBlock1Valid =
     paddyPurchaseModal.plantId &&
@@ -1197,8 +1337,7 @@ export const ProcurementManagement = () => {
         });
         const row = res.data;
         if (!row) return;
-        const todayRate =
-          row.todayRate != null ? String(row.todayRate) : "";
+        const todayRate = row.todayRate != null ? String(row.todayRate) : "";
         const mcPoint = row.mcPoint != null ? String(row.mcPoint) : "";
         setPaddyPurchaseModal((prev: any) => ({
           ...prev,
@@ -1226,13 +1365,19 @@ export const ProcurementManagement = () => {
     activePlant?.id,
   ]);
 
-
-  const fetchPlantSupervisors = async (_plantId?: string) => {
+  const fetchPlantSupervisors = async (plantId?: string) => {
     try {
-      const res = await api.get(`/api/procurement/supervisors/all`);
+      const pid = plantId || activePlant?.id;
+      if (!pid || pid === "global") {
+        setPlantSupervisors([]);
+        return;
+      }
+      // Exclusive mill only — never /supervisors/all
+      const res = await api.get(`/api/procurement/supervisors/${pid}`);
       setPlantSupervisors(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
       console.error(e);
+      setPlantSupervisors([]);
     }
   };
 
@@ -1618,10 +1763,16 @@ export const ProcurementManagement = () => {
           console.error("Failed to fetch pahunchs", e);
         }
         try {
-          const res = await api.get(`/api/procurement/supervisors/all`);
-          setPlantSupervisors(Array.isArray(res.data) ? res.data : []);
+          const pid = activePlant?.id;
+          if (pid && pid !== "global") {
+            const res = await api.get(`/api/procurement/supervisors/${pid}`);
+            setPlantSupervisors(Array.isArray(res.data) ? res.data : []);
+          } else {
+            setPlantSupervisors([]);
+          }
         } catch (e) {
           console.error("Failed to fetch supervisors", e);
+          setPlantSupervisors([]);
         }
       };
 
@@ -1639,7 +1790,11 @@ export const ProcurementManagement = () => {
     if (!value) return;
 
     try {
-      if (name === "truckNo" && canQuickAddFleet && !trucks.find((t) => t.truckNumber === value)) {
+      if (
+        name === "truckNo" &&
+        canQuickAddFleet &&
+        !trucks.find((t) => t.truckNumber === value)
+      ) {
         await api.post("/api/master-data/trucks", { truckNumber: value });
         const res = await api.get("/api/master-data/trucks");
         setTrucks(res.data);
@@ -1683,13 +1838,18 @@ export const ProcurementManagement = () => {
       fetchDraftInwards();
       fetchSodaPending({ forInward: true });
       const pid = activePlant?.id;
-      if (pid) {
+      if (pid && pid !== "global") {
         api
           .get(`/api/procurement/unloaders/${pid}`)
           .then((res) =>
             setUnloaderOptions(Array.isArray(res.data) ? res.data : []),
           )
           .catch(() => setUnloaderOptions([]));
+        // Supervisor dropdown: this mill only
+        fetchPlantSupervisors(pid);
+      } else {
+        setUnloaderOptions([]);
+        setPlantSupervisors([]);
       }
     }
   }, [
@@ -1700,6 +1860,28 @@ export const ProcurementManagement = () => {
     recentPurchasesCurrentPage,
     inwardFormData.supplierId,
   ]);
+
+  // If selected Supervisor is not on this mill, clear it (then re-default self if on mill)
+  useEffect(() => {
+    if (activeTab !== "paddy_inward") return;
+    const selected = String(inwardFormData.pahunchPersonName || "")
+      .trim()
+      .toLowerCase();
+    if (!selected) return;
+    const allowed = new Set(
+      inwardSupervisorOptions.map((o) => o.name.toLowerCase()),
+    );
+    if (allowed.size === 0) return;
+    if (!allowed.has(selected)) {
+      setInwardFormData((prev: any) =>
+        withSupervisorUnloaderDefaults({
+          ...prev,
+          pahunchPersonName: "",
+        }),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, activePlant?.id, inwardSupervisorOptions]);
 
   useEffect(() => {
     if (activeTab === "soda_pending") {
@@ -1847,26 +2029,26 @@ export const ProcurementManagement = () => {
         labour: d.labourType || "",
         unloadingStartTime: toTimeInput(d.unloadingStartTime),
         unloadingFinishTime: toTimeInput(d.unloadingEndTime),
-    origAClass:
-      d.aClassReceived && Number(d.aClassReceived) !== 0
-        ? d.aClassReceived
-        : "",
-    origBClass:
-      d.bClassReceived && Number(d.bClassReceived) !== 0
-        ? d.bClassReceived
-        : "",
-    shortageAClass:
-      d.shortageAClass && Number(d.shortageAClass) !== 0
-        ? d.shortageAClass
-        : "",
-    shortageBClass:
-      d.shortageBClass && Number(d.shortageBClass) !== 0
-        ? d.shortageBClass
-        : "",
-    origAClassAg:
-      d.aClassGiven && Number(d.aClassGiven) !== 0 ? d.aClassGiven : "",
-    origBClassAg:
-      d.bClassGiven && Number(d.bClassGiven) !== 0 ? d.bClassGiven : "",
+        origAClass:
+          d.aClassReceived && Number(d.aClassReceived) !== 0
+            ? d.aClassReceived
+            : "",
+        origBClass:
+          d.bClassReceived && Number(d.bClassReceived) !== 0
+            ? d.bClassReceived
+            : "",
+        shortageAClass:
+          d.shortageAClass && Number(d.shortageAClass) !== 0
+            ? d.shortageAClass
+            : "",
+        shortageBClass:
+          d.shortageBClass && Number(d.shortageBClass) !== 0
+            ? d.shortageBClass
+            : "",
+        origAClassAg:
+          d.aClassGiven && Number(d.aClassGiven) !== 0 ? d.aClassGiven : "",
+        origBClassAg:
+          d.bClassGiven && Number(d.bClassGiven) !== 0 ? d.bClassGiven : "",
         qualityCutType: d.qualityCutType || "",
         qualityCutValue: d.qualityCutValue ?? 0,
         qualityCutReason: d.qualityCutReason || "",
@@ -2082,7 +2264,8 @@ export const ProcurementManagement = () => {
         params.append("page", "1");
         params.append("limit", "1000");
       } else {
-        if (listFilters.dateFrom) params.append("dateFrom", listFilters.dateFrom);
+        if (listFilters.dateFrom)
+          params.append("dateFrom", listFilters.dateFrom);
         if (listFilters.dateTo) params.append("dateTo", listFilters.dateTo);
         if (listFilters.supplierId)
           params.append("supplierId", listFilters.supplierId);
@@ -2146,13 +2329,14 @@ export const ProcurementManagement = () => {
     e.preventDefault();
     if (!addSupplierModal.name) return;
     const supplierPlantId = addSupplierModal.plantId || activePlant?.id;
-    if (!supplierPlantId) {
+    const isEdit = !!addSupplierModal.id;
+    if (!isEdit && !supplierPlantId) {
       useUiStore
         .getState()
         .addToast("Select a mill before adding Arthiya", "error");
       return;
     }
-    if (isSupervisor && !addSupplierModal.biometricData) {
+    if (!isEdit && isSupervisor && !addSupplierModal.biometricData) {
       useUiStore
         .getState()
         .addToast(
@@ -2161,48 +2345,87 @@ export const ProcurementManagement = () => {
         );
       return;
     }
+    if (isEdit && !canApproveArtia) {
+      useUiStore
+        .getState()
+        .addToast("Only Admin can edit Arthiya bag weights", "error");
+      return;
+    }
     await addSupplierLock.wrapSubmit(async () => {
       try {
-        await api.post("/api/procurement/suppliers", {
-          name: addSupplierModal.name,
-          contact: addSupplierModal.contact,
-          firmNames: addSupplierModal.firmNames
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          mandi: addSupplierModal.mandi,
-          plantId: supplierPlantId,
-          ...(addSupplierModal.biometricData
-            ? { biometricData: addSupplierModal.biometricData }
-            : {}),
-        });
-        setAddSupplierModal({
-          isOpen: false,
-          name: "",
-          firmNames: "",
-          mandi: "",
-          contact: "",
-          plantId: "",
-          biometricData: "",
-        });
+        const bagPayload = {
+          aClassBagWeight: parseFloat(addSupplierModal.aClassBagWeight) || 0.38,
+          bClassBagWeight: parseFloat(addSupplierModal.bClassBagWeight) || 0.385,
+        };
+        if (isEdit) {
+          await api.put(`/api/procurement/suppliers/${addSupplierModal.id}`, {
+            name: addSupplierModal.name,
+            contact: addSupplierModal.contact,
+            firmNames: addSupplierModal.firmNames
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
+            mandi: addSupplierModal.mandi,
+            ...bagPayload,
+          });
+        } else {
+          await api.post("/api/procurement/suppliers", {
+            name: addSupplierModal.name,
+            contact: addSupplierModal.contact,
+            firmNames: addSupplierModal.firmNames
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
+            mandi: addSupplierModal.mandi,
+            plantId: supplierPlantId,
+            ...bagPayload,
+            ...(addSupplierModal.biometricData
+              ? { biometricData: addSupplierModal.biometricData }
+              : {}),
+          });
+        }
+        setAddSupplierModal(emptyAddSupplierModal());
         fetchSuppliers(supplierPlantId);
         useUiStore
           .getState()
           .addToast(
-            isSupervisor
-              ? "Arthiya sent to Admin for confirmation"
-              : "Arthiya added for this mill",
+            isEdit
+              ? "Arthiya updated"
+              : isSupervisor
+                ? "Arthiya sent to Admin for confirmation"
+                : "Arthiya added for this mill",
             "success",
           );
       } catch (error: any) {
-        console.error("Failed to add supplier", error);
+        console.error("Failed to save supplier", error);
         useUiStore
           .getState()
           .addToast(
-            error?.response?.data?.message || "Failed to add Arthiya",
+            error?.response?.data?.message || "Failed to save Arthiya",
             "error",
           );
       }
+    });
+  };
+
+  const openEditSupplier = (s: any) => {
+    if (!canApproveArtia) {
+      useUiStore
+        .getState()
+        .addToast("Only Admin can edit Arthiya bag weights", "error");
+      return;
+    }
+    setAddSupplierModal({
+      isOpen: true,
+      id: s.id,
+      name: s.name || "",
+      firmNames: Array.isArray(s.firmNames) ? s.firmNames.join(", ") : "",
+      mandi: s.mandi || "",
+      contact: s.contact || "",
+      plantId: s.plantId || activePlant?.id || "",
+      aClassBagWeight: String(s.aClassBagWeight ?? "0.380"),
+      bClassBagWeight: String(s.bClassBagWeight ?? "0.385"),
+      biometricData: "",
     });
   };
 
@@ -2222,7 +2445,12 @@ export const ProcurementManagement = () => {
   };
 
   const handleApproveSupplier = async (id: string) => {
-    if (!canEditSupplier) return;
+    if (!canApproveArtia) {
+      useUiStore
+        .getState()
+        .addToast("Only Admin can approve Arthiya", "error");
+      return;
+    }
     try {
       await api.put(`/api/procurement/suppliers/${id}/approve`);
       useUiStore.getState().addToast("Arthiya approved", "success");
@@ -2238,13 +2466,13 @@ export const ProcurementManagement = () => {
   };
 
   const handleRejectSupplier = async (id: string) => {
-    if (!canEditSupplier) return;
-    if (
-      !window.confirm(
-        "Decline and remove this Arthiya application?",
-      )
-    )
+    if (!canApproveArtia) {
+      useUiStore
+        .getState()
+        .addToast("Only Admin can decline Arthiya", "error");
       return;
+    }
+    if (!window.confirm("Decline and remove this Arthiya application?")) return;
     try {
       await api.put(`/api/procurement/suppliers/${id}/reject`);
       useUiStore.getState().addToast("Arthiya application declined", "success");
@@ -2282,9 +2510,7 @@ export const ProcurementManagement = () => {
 
   const handleDeleteMandi = async (id: string) => {
     if (!canManageMandi) {
-      useUiStore
-        .getState()
-        .addToast("Only Admin can delete Mandis", "error");
+      useUiStore.getState().addToast("Only Admin can delete Mandis", "error");
       return;
     }
     if (window.confirm("Are you sure you want to delete this Mandi?")) {
@@ -2522,11 +2748,7 @@ export const ProcurementManagement = () => {
       if (entryDate && entryDate > todayLocal) {
         newErrors.date = "Future dates are not allowed for supervisors";
         hasError = true;
-      } else if (
-        entryDate &&
-        entryDate < todayLocal &&
-        !canManualDateTime
-      ) {
+      } else if (entryDate && entryDate < todayLocal && !canManualDateTime) {
         newErrors.date =
           "Backdated entries require Auto Update Date & Time OFF for this mill";
         hasError = true;
@@ -2565,7 +2787,8 @@ export const ProcurementManagement = () => {
         (parseFloat(String(working.shortageAClass ?? "")) || 0) +
         (parseFloat(String(working.shortageBClass ?? "")) || 0);
       if (millBagsTotal <= 0) {
-        newErrors.origBClass = "Enter Bardana bags (figure starts from the number, not 0)";
+        newErrors.origBClass =
+          "Enter Bardana bags (figure starts from the number, not 0)";
         hasError = true;
       }
     }
@@ -2840,10 +3063,34 @@ export const ProcurementManagement = () => {
         heldAt: working.isHold
           ? working.heldAt || new Date().toISOString()
           : working.heldAt || null,
-        standardBagWeight:
-          plants.find((p) => p.id === selectedPlantId)?.standardBagWeight ||
-          activePlant?.standardBagWeight ||
-          0.382,
+        standardBagWeight: (() => {
+          const artia = suppliers.find(
+            (s: any) => s.id === working.supplierId,
+          );
+          if (!artia) {
+            return (
+              plants.find((p) => p.id === selectedPlantId)?.standardBagWeight ||
+              activePlant?.standardBagWeight ||
+              0.382
+            );
+          }
+          const aWt =
+            Number(artia.aClassBagWeight) > 0
+              ? Number(artia.aClassBagWeight)
+              : 0.38;
+          const bWt =
+            Number(artia.bClassBagWeight) > 0
+              ? Number(artia.bClassBagWeight)
+              : 0.385;
+          const aBags =
+            (parseFloat(working.origAClassAg as any) || 0) +
+            (parseFloat(working.shortageAClass as any) || 0);
+          const bBags =
+            (parseFloat(working.origBClassAg as any) || 0) +
+            (parseFloat(working.shortageBClass as any) || 0);
+          const total = aBags + bBags;
+          return total > 0 ? (aBags * aWt + bBags * bWt) / total : aWt;
+        })(),
         entryMadeByName:
           working.entryMadeByName || user?.username || user?.email || undefined,
         entryMadeByUserId: working.entryMadeByUserId || user?.id || undefined,
@@ -2892,7 +3139,9 @@ export const ProcurementManagement = () => {
         await fetchDraftInwards();
         setDraftModalOpen(true);
       } else {
-        setInwardFormData({ ...defaultInwardFormData });
+        setInwardFormData(
+          withSupervisorUnloaderDefaults({ ...defaultInwardFormData }),
+        );
         setBoliInputs({});
         fetchDraftInwards();
       }
@@ -2943,10 +3192,12 @@ export const ProcurementManagement = () => {
   const handleSettleHisabSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSettleHisab) {
-      useUiStore.getState().addToast(
-        "Not allowed. Turn on Edit for Procurement → Boli Record, then log in again.",
-        "error",
-      );
+      useUiStore
+        .getState()
+        .addToast(
+          "Not allowed. Turn on Edit for Procurement → Boli Record, then log in again.",
+          "error",
+        );
       return;
     }
     if (!settleHisabModal.hisab) return;
@@ -3028,7 +3279,7 @@ export const ProcurementManagement = () => {
       if (p.bolis && p.bolis.length > 0) {
         p.bolis.forEach((b: any) => {
           const lineBags =
-            b.finalBags != null && b.finalBags !== ''
+            b.finalBags != null && b.finalBags !== ""
               ? parseFloat(b.finalBags) || 0
               : 0;
           processRate(
@@ -3209,18 +3460,17 @@ export const ProcurementManagement = () => {
                   <button
                     onClick={() =>
                       setAddSupplierModal({
+                        ...emptyAddSupplierModal(),
                         isOpen: true,
-                        name: "",
-                        firmNames: "",
-                        mandi: "",
-                        contact: "",
                         plantId: activePlant?.id || "",
-                        biometricData: "",
                       })
                     }
                     className="bg-[#e67e00] text-black px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-orange-500/20"
                   >
-                    + {isSupervisor ? "Add Arthiya (Admin Approval)" : "Add Arthiya"}
+                    +{" "}
+                    {isSupervisor
+                      ? "Add Arthiya (Admin Approval)"
+                      : "Add Arthiya"}
                   </button>
                 )}
               </div>
@@ -3233,9 +3483,11 @@ export const ProcurementManagement = () => {
                     <th className="p-3">Mill</th>
                     <th className="p-3">Firm Names</th>
                     <th className="p-3">Mandi</th>
+                    <th className="p-3">A Class (Qtl)</th>
+                    <th className="p-3">B Class (Qtl)</th>
                     <th className="p-3">Contact</th>
                     <th className="p-3">Status</th>
-                    {canEditSupplier && (
+                    {canApproveArtia && (
                       <th className="p-3 text-right">Actions</th>
                     )}
                   </tr>
@@ -3258,6 +3510,12 @@ export const ProcurementManagement = () => {
                           : "-"}
                       </td>
                       <td className="p-3">{s.mandi || "-"}</td>
+                      <td className="p-3 font-mono text-[var(--text-main)]">
+                        {Number(s.aClassBagWeight ?? 0.38).toFixed(3)}
+                      </td>
+                      <td className="p-3 font-mono text-[var(--text-main)]">
+                        {Number(s.bClassBagWeight ?? 0.385).toFixed(3)}
+                      </td>
                       <td className="p-3">{s.contact || "-"}</td>
                       <td className="p-3">
                         {s.status === "PENDING_APPROVAL" ? (
@@ -3270,28 +3528,38 @@ export const ProcurementManagement = () => {
                           </span>
                         )}
                       </td>
-                      {canEditSupplier && (
+                      {canApproveArtia && (
                         <td className="p-3 text-right">
-                          {s.status === "PENDING_APPROVAL" && (
-                            <div className="inline-flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleApproveSupplier(s.id)}
-                                className="p-2 bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded"
-                                title="Approve"
-                              >
-                                <Check size={16} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRejectSupplier(s.id)}
-                                className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded"
-                                title="Decline"
-                              >
-                                <X size={16} />
-                              </button>
-                            </div>
-                          )}
+                          <div className="inline-flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEditSupplier(s)}
+                              className="p-2 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 rounded"
+                              title="Edit bag weights"
+                            >
+                              <Edit size={16} />
+                            </button>
+                            {s.status === "PENDING_APPROVAL" && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveSupplier(s.id)}
+                                  className="p-2 bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded"
+                                  title="Approve"
+                                >
+                                  <Check size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRejectSupplier(s.id)}
+                                  className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded"
+                                  title="Decline"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -3299,7 +3567,7 @@ export const ProcurementManagement = () => {
                   {suppliers.length === 0 && (
                     <tr>
                       <td
-                        colSpan={canEditSupplier ? 7 : 6}
+                        colSpan={canApproveArtia ? 9 : 8}
                         className="p-6 text-center text-[var(--text-muted-alt)]"
                       >
                         No Arthiya found. Add one — it is shared by every mill.
@@ -3595,12 +3863,22 @@ export const ProcurementManagement = () => {
                         name="supplierId"
                         value={inwardFormData.supplierId}
                         onChange={handleInwardChange}
-                        options={activeSuppliers}
+                        options={partyOptionsWithMandi}
                         valueKey="id"
                         selectOnly
                         placeholder="Select Supplier"
                         className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
                       />
+                      {(() => {
+                        const mandi = partyOptionsWithMandi.find(
+                          (s: any) => s.id === inwardFormData.supplierId,
+                        )?.mandi;
+                        return mandi ? (
+                          <span className="text-[10px] text-[var(--text-muted-alt)] mt-0.5 block">
+                            Mandi: {mandi}
+                          </span>
+                        ) : null;
+                      })()}
                       {inwardErrors.supplierId && (
                         <span className="text-red-500 text-[10px] mt-1 block">
                           {inwardErrors.supplierId}
@@ -3726,6 +4004,12 @@ export const ProcurementManagement = () => {
                         className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
                         placeholder="Select Supervisor"
                       />
+                      {inwardSupervisorOptions.length === 0 && (
+                        <span className="text-[10px] text-amber-500 mt-1 block">
+                          No supervisors assigned to this mill. Give plant
+                          access under Users & Roles.
+                        </span>
+                      )}
                       {inwardErrors.pahunchPersonName && (
                         <span className="text-red-500 text-[10px] mt-1 block">
                           {inwardErrors.pahunchPersonName}
@@ -4049,19 +4333,7 @@ export const ProcurementManagement = () => {
                               /* keep manual */
                             }
                           }}
-                          options={
-                            unloaderOptions.length > 0
-                              ? unloaderOptions
-                              : [
-                                  ...staff.filter((s: any) =>
-                                    /UNLOADER/i.test(s.role || ""),
-                                  ),
-                                  ...staff.filter(
-                                    (s: any) => !/UNLOADER/i.test(s.role || ""),
-                                  ),
-                                  ...labours,
-                                ]
-                          }
+                          options={millUnloaderOptions}
                           selectOnly
                           listMaxHeightClass="max-h-48"
                           className={`bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00] ${
@@ -4081,14 +4353,12 @@ export const ProcurementManagement = () => {
                             {inwardErrors.allocateUnloader}
                           </span>
                         )}
-                        {unloaderOptions.length === 0 &&
-                          staff.length === 0 &&
-                          labours.length === 0 && (
-                            <span className="text-[10px] text-amber-500 mt-1 block">
-                              No unloaders found. Add under Staff Management →
-                              UNLOADER, or create a plant user.
-                            </span>
-                          )}
+                        {millUnloaderOptions.length === 0 && (
+                          <span className="text-[10px] text-amber-500 mt-1 block">
+                            No unloaders for this mill. Add Staff → role
+                            UNLOADER for this plant only (labour is excluded).
+                          </span>
+                        )}
                       </div>
                       <div>
                         <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
@@ -4193,7 +4463,9 @@ export const ProcurementManagement = () => {
                           readOnly
                           value={unloadPointWeight(
                             inwardFormData,
-                            parseFloat(String(inwardFormData.bagsInMainStack || "")) || 0,
+                            parseFloat(
+                              String(inwardFormData.bagsInMainStack || ""),
+                            ) || 0,
                           )}
                           className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-amber-400 font-mono outline-none opacity-90"
                           placeholder="Auto (bags × avg wt)"
@@ -4282,11 +4554,7 @@ export const ProcurementManagement = () => {
                                 /* keep manual */
                               }
                             }}
-                            options={
-                              unloaderOptions.length > 0
-                                ? unloaderOptions
-                                : [...staff, ...labours]
-                            }
+                            options={millUnloaderOptions}
                             selectOnly
                             listMaxHeightClass="max-h-48"
                             className={`bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00] ${
@@ -4324,23 +4592,23 @@ export const ProcurementManagement = () => {
                           <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
                             Part Stack No.{" "}
                             {!inwardFormData.partIsHoodi && (
-                            <span className="text-red-500">*</span>
+                              <span className="text-red-500">*</span>
                             )}
                           </label>
                           <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            name="secondPartStackNo"
+                            <input
+                              type="text"
+                              name="secondPartStackNo"
                               value={
                                 inwardFormData.partIsHoodi
                                   ? ""
                                   : inwardFormData.secondPartStackNo
                               }
-                            onChange={handleInwardChange}
+                              onChange={handleInwardChange}
                               disabled={!!inwardFormData.partIsHoodi}
                               className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00] disabled:opacity-50"
-                            placeholder="Stack No."
-                          />
+                              placeholder="Stack No."
+                            />
                             <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-main)] whitespace-nowrap cursor-pointer shrink-0 px-2 py-2 rounded border border-[var(--border-subtle)]">
                               <input
                                 type="checkbox"
@@ -4399,14 +4667,19 @@ export const ProcurementManagement = () => {
                             readOnly
                             value={unloadPointWeight(
                               inwardFormData,
-                              parseFloat(String(inwardFormData.bagsInSecondPartStack || "")) || 0,
+                              parseFloat(
+                                String(
+                                  inwardFormData.bagsInSecondPartStack || "",
+                                ),
+                              ) || 0,
                             )}
                             className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-amber-400 font-mono outline-none opacity-90"
                             placeholder="Auto (bags × avg wt)"
                             title="Bags × average bag weight (net ÷ total bags, 4 decimals), stored to 2 decimals"
                           />
                           <p className="text-[10px] text-[var(--text-muted-alt)] mt-0.5">
-                            Average bag weight to 4 decimals, then × bags, shown to 2 decimals
+                            Average bag weight to 4 decimals, then × bags, shown
+                            to 2 decimals
                           </p>
                         </div>
                       </div>
@@ -4487,20 +4760,7 @@ export const ProcurementManagement = () => {
                                   /* keep manual */
                                 }
                               }}
-                              options={
-                                unloaderOptions.length > 0
-                                  ? unloaderOptions
-                                  : [
-                                      ...staff.filter((s: any) =>
-                                        /UNLOADER/i.test(s.role || ""),
-                                      ),
-                                      ...staff.filter(
-                                        (s: any) =>
-                                          !/UNLOADER/i.test(s.role || ""),
-                                      ),
-                                      ...labours,
-                                    ]
-                              }
+                              options={millUnloaderOptions}
                               selectOnly
                               listMaxHeightClass="max-h-48"
                               className="bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
@@ -4519,7 +4779,9 @@ export const ProcurementManagement = () => {
                             <input
                               type="number"
                               name="thirdPartUnloaderTruckCount"
-                              value={inwardFormData.thirdPartUnloaderTruckCount || ""}
+                              value={
+                                inwardFormData.thirdPartUnloaderTruckCount || ""
+                              }
                               readOnly
                               className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-90"
                               placeholder="After confirm"
@@ -4599,7 +4861,11 @@ export const ProcurementManagement = () => {
                               readOnly
                               value={unloadPointWeight(
                                 inwardFormData,
-                                parseFloat(String(inwardFormData.bagsInThirdPartStack || "")) || 0,
+                                parseFloat(
+                                  String(
+                                    inwardFormData.bagsInThirdPartStack || "",
+                                  ),
+                                ) || 0,
                               )}
                               className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-amber-400 font-mono outline-none opacity-90"
                               placeholder="Auto (bags × avg wt)"
@@ -4686,7 +4952,9 @@ export const ProcurementManagement = () => {
                         <input
                           type="checkbox"
                           checked={!!inwardFormData.isHold}
-                          disabled={!!inwardFormData.isHold || !canSavePaddyInward}
+                          disabled={
+                            !!inwardFormData.isHold || !canSavePaddyInward
+                          }
                           onChange={async (e) => {
                             if (!e.target.checked) return; // permanent — no deselection
                             const ok = window.confirm(
@@ -4972,281 +5240,644 @@ export const ProcurementManagement = () => {
                       !!inwardFormData.informBaujiBagsLess ||
                       !!inwardFormData.bagsRecLessThanAgencyGp;
                     return (
-                  <div
-                    className={`bg-[var(--bg-panel-alt)] rounded-xl overflow-hidden border ${
-                      lowerBagFlag
-                        ? "border-amber-500 ring-2 ring-amber-500/40 shadow-[0_0_0_1px_rgba(245,158,11,0.25)]"
-                        : "border-[var(--border-subtle-alt)]"
-                    }`}
-                  >
-                    <div
-                      className={`px-4 py-2 border-b font-bold text-sm flex flex-wrap items-center justify-between gap-2 ${
-                        lowerBagFlag
-                          ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
-                          : "bg-blue-900/10 border-[var(--border-subtle-alt)] text-blue-400"
-                      }`}
-                    >
-                      <span>5. Bardana Details</span>
-                      {lowerBagFlag && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500 text-black">
-                          FLAG · Lower Bag Count Consideration
-                        </span>
-                      )}
-                    </div>
-                    <div className={`p-4 ${lowerBagFlag ? "bg-amber-500/5" : ""}`}>
-                      <table className="w-full text-sm text-left">
-                        <thead>
-                          <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)]">
-                            <th className="pb-2 font-medium w-1/3"></th>
-                            <th
-                              className="pb-2 font-medium text-center"
-                              colSpan={2}
-                            >
-                              Original Bardana
-                            </th>
-                            <th
-                              className="pb-2 font-medium text-center text-[#e67e00]"
-                              colSpan={2}
-                            >
-                              Shortage Received
-                            </th>
-                            <th className="pb-2 font-medium text-center text-right">
-                              Total Bags
-                            </th>
-                          </tr>
-                          <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)]">
-                            <th className="pb-2 font-medium"></th>
-                            <th className="pb-2 font-medium">A Class</th>
-                            <th className="pb-2 font-medium">B Class</th>
-                            <th className="pb-2 font-medium text-[#e67e00]">
-                              A Class
-                            </th>
-                            <th className="pb-2 font-medium text-[#e67e00]">
-                              B Class
-                            </th>
-                            <th className="pb-2 font-medium text-right"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr className="border-b border-[var(--border-subtle-alt)]">
-                            <td className="py-3 text-[var(--text-muted)] font-medium">
-                              Bags Rec. @ Mill
-                            </td>
-                            <td className="py-3">
-                              <input
-                                type="number"
-                                min="0"
-                                name="origAClass"
-                                value={
-                                  inwardFormData.origAClass === 0 ||
-                                  inwardFormData.origAClass === "0"
-                                    ? ""
-                                    : inwardFormData.origAClass ?? ""
-                                }
-                                onChange={handleInwardChange}
-                                className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"
-                              />
-                              {inwardErrors.origAClass && (
-                                <span className="text-red-500 text-[10px] mt-1 block">
-                                  {inwardErrors.origAClass}
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3">
-                              <input
-                                type="number"
-                                min="0"
-                                name="origBClass"
-                                value={
-                                  inwardFormData.origBClass === 0 ||
-                                  inwardFormData.origBClass === "0"
-                                    ? ""
-                                    : inwardFormData.origBClass ?? ""
-                                }
-                                onChange={handleInwardChange}
-                                className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"
-                              />
-                              {inwardErrors.origBClass && (
-                                <span className="text-red-500 text-[10px] mt-1 block">
-                                  {inwardErrors.origBClass}
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3">
-                              <input
-                                type="number"
-                                min="0"
-                                name="shortageAClass"
-                                value={
-                                  inwardFormData.shortageAClass === 0 ||
-                                  inwardFormData.shortageAClass === "0"
-                                    ? ""
-                                    : inwardFormData.shortageAClass ?? ""
-                                }
-                                onChange={handleInwardChange}
-                                className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]"
-                              />
-                              {inwardErrors.shortageAClass && (
-                                <span className="text-red-500 text-[10px] mt-1 block">
-                                  {inwardErrors.shortageAClass}
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3">
-                              <input
-                                type="number"
-                                min="0"
-                                name="shortageBClass"
-                                value={
-                                  inwardFormData.shortageBClass === 0 ||
-                                  inwardFormData.shortageBClass === "0"
-                                    ? ""
-                                    : inwardFormData.shortageBClass ?? ""
-                                }
-                                onChange={handleInwardChange}
-                                className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]"
-                              />
-                              {inwardErrors.shortageBClass && (
-                                <span className="text-red-500 text-[10px] mt-1 block">
-                                  {inwardErrors.shortageBClass}
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3 text-right font-bold text-[var(--text-main)]">
-                              {(parseFloat(inwardFormData.origAClass) || 0) +
-                                (parseFloat(inwardFormData.origBClass) || 0) +
-                                (parseFloat(inwardFormData.shortageAClass) ||
-                                  0) +
-                                (parseFloat(inwardFormData.shortageBClass) ||
-                                  0)}
-                            </td>
-                          </tr>
-                          <tr>
-                            <td className="py-3 text-[var(--text-muted)] font-medium">
-                              {inwardFormData.egpLate
-                                ? "Arthia Parchi bags"
-                                : "Bags @ Agency GP"}
-                            </td>
-                            <td className="py-3">
-                              <input
-                                type="number"
-                                min="0"
-                                name="origAClassAg"
-                                value={
-                                  inwardFormData.origAClassAg === 0 ||
-                                  inwardFormData.origAClassAg === "0"
-                                    ? ""
-                                    : inwardFormData.origAClassAg ?? ""
-                                }
-                                onChange={handleInwardChange}
-                                className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"
-                              />
-                              {inwardErrors.origAClassAg && (
-                                <span className="text-red-500 text-[10px] mt-1 block">
-                                  {inwardErrors.origAClassAg}
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3">
-                              <input
-                                type="number"
-                                min="0"
-                                name="origBClassAg"
-                                value={
-                                  inwardFormData.origBClassAg === 0 ||
-                                  inwardFormData.origBClassAg === "0"
-                                    ? ""
-                                    : inwardFormData.origBClassAg ?? ""
-                                }
-                                onChange={handleInwardChange}
-                                className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"
-                              />
-                              {inwardErrors.origBClassAg && (
-                                <span className="text-red-500 text-[10px] mt-1 block">
-                                  {inwardErrors.origBClassAg}
-                                </span>
-                              )}
-                            </td>
-                            <td
-                              className="py-3 text-center text-gray-500"
-                              colSpan={2}
-                            >
-                              -
-                            </td>
-                            <td className="py-3 text-right font-bold text-[var(--text-main)]">
-                              {(parseFloat(inwardFormData.origAClassAg) || 0) +
-                                (parseFloat(inwardFormData.origBClassAg) || 0)}
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                      {inwardFormData.egpLate && (
-                        <p className="text-[11px] text-amber-400 mt-2">
-                          e-GP Late: these bags are Arthia Parchi bags. They are
-                          used for required weight and are not counted as Agency
-                          GP bags. Agency GP number is not required.
-                        </p>
-                      )}
-                      {(() => {
-                        const millExclShortage =
-                          (parseFloat(inwardFormData.origAClass) || 0) +
-                          (parseFloat(inwardFormData.origBClass) || 0);
-                        const agencyBags =
-                          (parseFloat(inwardFormData.origAClassAg) || 0) +
-                          (parseFloat(inwardFormData.origBClassAg) || 0);
-                        const bagsLess = Math.max(0, agencyBags - millExclShortage);
-                        // Client Feedback: Inform Bauji only when mill bags < 90% of Agency GP
-                        // (shortfall > 10% of Required Agency Bags). Below that = normal bags shortage.
-                        const thresholdMet =
-                          agencyBags > 0 && millExclShortage < agencyBags * 0.9;
-                        const bagsLessEnabled = bagsLess > 0 && thresholdMet;
-                        const shortfallPct =
-                          agencyBags > 0
-                            ? ((bagsLess / agencyBags) * 100).toFixed(1)
-                            : "0";
-                        return (
-                          <div className="mt-3 space-y-2">
-                            {bagsLess > 0 && !thresholdMet && (
-                              <p className="text-[10px] text-amber-400/90 leading-snug">
-                                Bags short by {bagsLess} ({shortfallPct}% of Agency GP) —
-                                within 10%. Use normal Shortage by Bags. Inform Bauji is
-                                only allowed when shortfall exceeds 10% of Agency GP bags.
-                              </p>
+                      <div
+                        className={`bg-[var(--bg-panel-alt)] rounded-xl overflow-hidden border ${
+                          lowerBagFlag
+                            ? "border-amber-500 ring-2 ring-amber-500/40 shadow-[0_0_0_1px_rgba(245,158,11,0.25)]"
+                            : "border-[var(--border-subtle-alt)]"
+                        }`}
+                      >
+                        <div
+                          className={`px-4 py-2 border-b font-bold text-sm flex flex-wrap items-center justify-between gap-2 ${
+                            lowerBagFlag
+                              ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                              : "bg-blue-900/10 border-[var(--border-subtle-alt)] text-blue-400"
+                          }`}
+                        >
+                          <span>5. Bardana Details</span>
+                          {lowerBagFlag && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500 text-black">
+                              FLAG · Lower Bag Count Consideration
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className={`p-4 ${lowerBagFlag ? "bg-amber-500/5" : ""}`}
+                        >
+                          <table className="w-full text-sm text-left">
+                            <thead>
+                              <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)]">
+                                <th className="pb-2 font-medium w-1/3"></th>
+                                <th
+                                  className="pb-2 font-medium text-center"
+                                  colSpan={2}
+                                >
+                                  Original Bardana
+                                </th>
+                                <th
+                                  className="pb-2 font-medium text-center text-[#e67e00]"
+                                  colSpan={2}
+                                >
+                                  Shortage Received
+                                </th>
+                                <th className="pb-2 font-medium text-center text-right">
+                                  Total Bags
+                                </th>
+                              </tr>
+                              <tr className="text-[var(--text-muted-alt)] text-xs border-b border-[var(--border-subtle)]">
+                                <th className="pb-2 font-medium"></th>
+                                <th className="pb-2 font-medium">A Class</th>
+                                <th className="pb-2 font-medium">B Class</th>
+                                <th className="pb-2 font-medium text-[#e67e00]">
+                                  A Class
+                                </th>
+                                <th className="pb-2 font-medium text-[#e67e00]">
+                                  B Class
+                                </th>
+                                <th className="pb-2 font-medium text-right"></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr className="border-b border-[var(--border-subtle-alt)]">
+                                <td className="py-3 text-[var(--text-muted)] font-medium">
+                                  Bags Rec. @ Mill
+                                </td>
+                                <td className="py-3">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    name="origAClass"
+                                    value={
+                                      inwardFormData.origAClass === 0 ||
+                                      inwardFormData.origAClass === "0"
+                                        ? ""
+                                        : (inwardFormData.origAClass ?? "")
+                                    }
+                                    onChange={handleInwardChange}
+                                    className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"
+                                  />
+                                  {inwardErrors.origAClass && (
+                                    <span className="text-red-500 text-[10px] mt-1 block">
+                                      {inwardErrors.origAClass}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    name="origBClass"
+                                    value={
+                                      inwardFormData.origBClass === 0 ||
+                                      inwardFormData.origBClass === "0"
+                                        ? ""
+                                        : (inwardFormData.origBClass ?? "")
+                                    }
+                                    onChange={handleInwardChange}
+                                    className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"
+                                  />
+                                  {inwardErrors.origBClass && (
+                                    <span className="text-red-500 text-[10px] mt-1 block">
+                                      {inwardErrors.origBClass}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    name="shortageAClass"
+                                    value={
+                                      inwardFormData.shortageAClass === 0 ||
+                                      inwardFormData.shortageAClass === "0"
+                                        ? ""
+                                        : (inwardFormData.shortageAClass ?? "")
+                                    }
+                                    onChange={handleInwardChange}
+                                    className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]"
+                                  />
+                                  {inwardErrors.shortageAClass && (
+                                    <span className="text-red-500 text-[10px] mt-1 block">
+                                      {inwardErrors.shortageAClass}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    name="shortageBClass"
+                                    value={
+                                      inwardFormData.shortageBClass === 0 ||
+                                      inwardFormData.shortageBClass === "0"
+                                        ? ""
+                                        : (inwardFormData.shortageBClass ?? "")
+                                    }
+                                    onChange={handleInwardChange}
+                                    className="w-16 bg-[var(--bg-base)] border border-[#e67e00]/50 rounded px-2 py-1 text-[var(--text-main)]"
+                                  />
+                                  {inwardErrors.shortageBClass && (
+                                    <span className="text-red-500 text-[10px] mt-1 block">
+                                      {inwardErrors.shortageBClass}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 text-right font-bold text-[var(--text-main)]">
+                                  {(parseFloat(inwardFormData.origAClass) ||
+                                    0) +
+                                    (parseFloat(inwardFormData.origBClass) ||
+                                      0) +
+                                    (parseFloat(
+                                      inwardFormData.shortageAClass,
+                                    ) || 0) +
+                                    (parseFloat(
+                                      inwardFormData.shortageBClass,
+                                    ) || 0)}
+                                </td>
+                              </tr>
+                              <tr>
+                                <td className="py-3 text-[var(--text-muted)] font-medium">
+                                  {inwardFormData.egpLate
+                                    ? "Arthia Parchi bags"
+                                    : "Bags @ Agency GP"}
+                                </td>
+                                <td className="py-3">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    name="origAClassAg"
+                                    value={
+                                      inwardFormData.origAClassAg === 0 ||
+                                      inwardFormData.origAClassAg === "0"
+                                        ? ""
+                                        : (inwardFormData.origAClassAg ?? "")
+                                    }
+                                    onChange={handleInwardChange}
+                                    className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"
+                                  />
+                                  {inwardErrors.origAClassAg && (
+                                    <span className="text-red-500 text-[10px] mt-1 block">
+                                      {inwardErrors.origAClassAg}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    name="origBClassAg"
+                                    value={
+                                      inwardFormData.origBClassAg === 0 ||
+                                      inwardFormData.origBClassAg === "0"
+                                        ? ""
+                                        : (inwardFormData.origBClassAg ?? "")
+                                    }
+                                    onChange={handleInwardChange}
+                                    className="w-16 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-2 py-1 text-[var(--text-main)]"
+                                  />
+                                  {inwardErrors.origBClassAg && (
+                                    <span className="text-red-500 text-[10px] mt-1 block">
+                                      {inwardErrors.origBClassAg}
+                                    </span>
+                                  )}
+                                </td>
+                                <td
+                                  className="py-3 text-center text-gray-500"
+                                  colSpan={2}
+                                >
+                                  -
+                                </td>
+                                <td className="py-3 text-right font-bold text-[var(--text-main)]">
+                                  {(parseFloat(inwardFormData.origAClassAg) ||
+                                    0) +
+                                    (parseFloat(inwardFormData.origBClassAg) ||
+                                      0)}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                          {inwardFormData.egpLate && (
+                            <p className="text-[11px] text-amber-400 mt-2">
+                              e-GP Late: these bags are Arthia Parchi bags. They
+                              are used for required weight and are not counted
+                              as Agency GP bags. Agency GP number is not
+                              required.
+                            </p>
+                          )}
+                          {(() => {
+                            const millExclShortage =
+                              (parseFloat(inwardFormData.origAClass) || 0) +
+                              (parseFloat(inwardFormData.origBClass) || 0);
+                            const agencyBags =
+                              (parseFloat(inwardFormData.origAClassAg) || 0) +
+                              (parseFloat(inwardFormData.origBClassAg) || 0);
+                            const bagsLess = Math.max(
+                              0,
+                              agencyBags - millExclShortage,
+                            );
+                            // Client Feedback: Inform Bauji only when mill bags < 90% of Agency GP
+                            // (shortfall > 10% of Required Agency Bags). Below that = normal bags shortage.
+                            const thresholdMet =
+                              agencyBags > 0 &&
+                              millExclShortage < agencyBags * 0.9;
+                            const bagsLessEnabled =
+                              bagsLess > 0 && thresholdMet;
+                            const shortfallPct =
+                              agencyBags > 0
+                                ? ((bagsLess / agencyBags) * 100).toFixed(1)
+                                : "0";
+                            return (
+                              <div className="mt-3 space-y-2">
+                                {bagsLess > 0 && !thresholdMet && (
+                                  <p className="text-[10px] text-amber-400/90 leading-snug">
+                                    Bags short by {bagsLess} ({shortfallPct}% of
+                                    Agency GP) — within 10%. Use normal Shortage
+                                    by Bags. Inform Bauji is only allowed when
+                                    shortfall exceeds 10% of Agency GP bags.
+                                  </p>
+                                )}
+                                {thresholdMet && (
+                                  <p className="text-[10px] text-red-400/90 leading-snug">
+                                    Shortfall {shortfallPct}% of Agency GP bags
+                                    (&gt; 10%) — Admin will be notified. You may
+                                    select Inform Bauji.
+                                  </p>
+                                )}
+                                <label
+                                  className={`flex items-start gap-2 text-xs ${bagsLessEnabled ? "cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    name="informBaujiBagsLess"
+                                    disabled={!bagsLessEnabled}
+                                    checked={
+                                      !!inwardFormData.informBaujiBagsLess ||
+                                      !!inwardFormData.bagsRecLessThanAgencyGp
+                                    }
+                                    onChange={(e) =>
+                                      setInwardFormData((prev: any) => ({
+                                        ...prev,
+                                        informBaujiBagsLess: e.target.checked,
+                                        bagsRecLessThanAgencyGp:
+                                          e.target.checked,
+                                      }))
+                                    }
+                                    className="accent-red-500 w-4 h-4 mt-0.5 shrink-0"
+                                  />
+                                  <span className="leading-snug">
+                                    <span className="block text-gray-400 font-normal">
+                                      Entry as per weight, Bags Received less
+                                      than Agency GP
+                                    </span>
+                                    <span
+                                      className={
+                                        bagsLessEnabled
+                                          ? "text-red-500 font-semibold"
+                                          : "text-gray-500 font-semibold"
+                                      }
+                                    >
+                                      Inform Bauji
+                                    </span>
+                                  </span>
+                                </label>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* 6. Weight Details */}
+                  {(() => {
+                    const excessWtFlag =
+                      !!inwardFormData.informBaujiExcessWeight;
+                    return (
+                      <div
+                        className={`bg-[var(--bg-panel-alt)] rounded-xl overflow-hidden flex flex-col border ${
+                          excessWtFlag
+                            ? "border-rose-500 ring-2 ring-rose-500/40 shadow-[0_0_0_1px_rgba(244,63,94,0.25)]"
+                            : "border-[var(--border-subtle-alt)]"
+                        }`}
+                      >
+                        <div
+                          className={`px-4 py-2 border-b font-bold text-sm flex flex-wrap items-center justify-between gap-2 ${
+                            excessWtFlag
+                              ? "bg-rose-500/20 border-rose-500/40 text-rose-300"
+                              : "bg-blue-900/10 border-[var(--border-subtle-alt)] text-blue-400"
+                          }`}
+                        >
+                          <span>6. Weight Details</span>
+                          <div className="flex items-center gap-2">
+                            {excessWtFlag && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-500 text-white">
+                                FLAG · Excess Weight Consideration
+                              </span>
                             )}
-                            {thresholdMet && (
-                              <p className="text-[10px] text-red-400/90 leading-snug">
-                                Shortfall {shortfallPct}% of Agency GP bags (&gt; 10%) —
-                                Admin will be notified. You may select Inform Bauji.
-                              </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!inwardFormData.truckNo) {
+                                  useUiStore
+                                    .getState()
+                                    .addToast(
+                                      "Select truck number first",
+                                      "error",
+                                    );
+                                  return;
+                                }
+                                fetchWeighbridgeForTruck(
+                                  inwardFormData.truckNo,
+                                  false,
+                                );
+                              }}
+                              className="text-[10px] font-bold uppercase tracking-wide text-[#e67e00] hover:text-white transition-colors flex items-center gap-1"
+                              title="Re-fetch Gross / Tare / Net Mill from weighbridge"
+                            >
+                              <svg
+                                className="w-3.5 h-3.5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                />
+                              </svg>
+                              Fetch WB
+                            </button>
+                          </div>
+                        </div>
+                        <div
+                          className={`p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 content-start ${excessWtFlag ? "bg-rose-500/5" : ""}`}
+                        >
+                          <p className="sm:col-span-2 text-[10px] text-[var(--text-muted-alt)] -mt-1 mb-1">
+                            Gross and Tare can be{" "}
+                            <span className="text-[var(--text-main)] font-medium">
+                              fetched from weighbridge
+                            </span>{" "}
+                            or{" "}
+                            <span className="text-[var(--text-main)] font-medium">
+                              punched manually
+                            </span>
+                            {autoUpdateDateTime
+                              ? " (allowed even when Auto Update Date & Time is ON)"
+                              : " (Auto Update Date & Time is OFF — Date/Time fields are also manual)"}
+                            . Net at Mill = Gross − Tare. Only{" "}
+                            <span className="text-[var(--text-main)] font-medium">
+                              Net Wt. at Party
+                            </span>{" "}
+                            is always typed separately.
+                          </p>
+                          <div>
+                            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                              Gross Weight (Qtl){" "}
+                              <span className="text-red-500">*</span>
+                              <span className="ml-1 text-[10px] opacity-70">
+                                {canManualWeighbridgePunch
+                                  ? "(weighbridge / manual)"
+                                  : "(weighbridge)"}
+                              </span>
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.001"
+                              name="grossWeight"
+                              value={inwardFormData.grossWeight}
+                              readOnly={!canManualWeighbridgePunch}
+                              onChange={
+                                canManualWeighbridgePunch
+                                  ? handleInwardChange
+                                  : undefined
+                              }
+                              title={
+                                canManualWeighbridgePunch
+                                  ? "Fetch from weighbridge or punch manually"
+                                  : "Auto-fetched from mill weighbridge"
+                              }
+                              className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${
+                                canManualWeighbridgePunch
+                                  ? "focus:border-[#e67e00]"
+                                  : "opacity-90 cursor-not-allowed"
+                              }`}
+                            />
+                            {inwardErrors.grossWeight && (
+                              <span className="text-red-500 text-[10px] mt-1 block">
+                                {inwardErrors.grossWeight}
+                              </span>
                             )}
+                          </div>
+                          <div>
+                            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                              Tare Weight (Qtl)
+                              <span className="ml-1 text-[10px] opacity-70">
+                                {canManualWeighbridgePunch
+                                  ? "(weighbridge / manual)"
+                                  : "(weighbridge)"}
+                              </span>
+                            </label>
+                            <div className="flex gap-2 items-start">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.001"
+                                name="tareWeight"
+                                value={inwardFormData.tareWeight}
+                                readOnly={!canManualWeighbridgePunch}
+                                onChange={
+                                  canManualWeighbridgePunch
+                                    ? handleInwardChange
+                                    : undefined
+                                }
+                                title={
+                                  canManualWeighbridgePunch
+                                    ? "Fetch from weighbridge or punch manually"
+                                    : "Auto-fetched from mill weighbridge"
+                                }
+                                className={`flex-1 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${
+                                  canManualWeighbridgePunch
+                                    ? "focus:border-[#e67e00]"
+                                    : "opacity-90 cursor-not-allowed"
+                                }`}
+                              />
+                              <button
+                                type="button"
+                                title="Supervisor fingerprint during tare — stamps Entry Completion (and GP Complete when Auto Update ON)"
+                                onClick={async () => {
+                                  try {
+                                    const xml =
+                                      await biometricService.captureAndVerifyLoggedInUser();
+                                    setInwardFormData((p: any) =>
+                                      applySupervisorFingerprintStamps(p, xml),
+                                    );
+                                    useUiStore
+                                      .getState()
+                                      .addToast(
+                                        autoUpdateDateTime
+                                          ? "Tare fingerprint — GP Complete & Entry Completion stamped"
+                                          : "Tare fingerprint — Entry Completion stamped",
+                                        "success",
+                                      );
+                                  } catch (e: any) {
+                                    useUiStore
+                                      .getState()
+                                      .addToast(e.message, "error");
+                                  }
+                                }}
+                                className={`shrink-0 px-2.5 py-2 rounded border text-xs font-bold flex items-center gap-1 ${
+                                  inwardFormData.biometricData
+                                    ? "bg-green-900/20 border-green-500/40 text-green-400"
+                                    : "bg-blue-600 border-blue-500 text-white hover:bg-blue-700"
+                                }`}
+                              >
+                                <ShieldCheck size={14} />
+                                {inwardFormData.biometricData ? "OK" : "Scan"}
+                              </button>
+                            </div>
+                            <p className="text-[10px] text-[var(--text-muted-alt)] mt-1">
+                              Supervisor fingerprint at tare stamps Entry
+                              Completion
+                              {autoUpdateDateTime
+                                ? " + GP Complete Date & Time Out"
+                                : ""}
+                              .
+                            </p>
+                          </div>
+                          <div>
+                            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                              Net Weight (WB) : (Qtl)
+                              <span className="ml-1 text-[10px] opacity-70">
+                                (Gross − Tare)
+                              </span>
+                            </label>
+                            <input
+                              type="number"
+                              name="netWeightWb"
+                              value={inwardFormData.netWeightWb}
+                              readOnly
+                              className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed"
+                              title="Gross − Tare from weighbridge"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                              Required Nt Wt. : (Qtl)
+                              <span className="block text-[10px] opacity-80">
+                                (agency + shortage bags)
+                              </span>
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              name="reqNetWt"
+                              value={inwardFormData.reqNetWt}
+                              disabled
+                              className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed"
+                              title="Auto calculated"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                              <span>
+                                Net Wt. at Mill : (Qtl){" "}
+                                <span className="text-red-500">*</span>
+                                <span className="ml-1 text-[10px] opacity-70">
+                                  (weighbridge)
+                                </span>
+                              </span>
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              name="netWtMill"
+                              value={inwardFormData.netWtMill}
+                              readOnly
+                              title="Gross − Tare (auto). Gross/Tare may be fetched or punched manually."
+                              className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] font-bold outline-none opacity-90 cursor-not-allowed"
+                            />
+                            {inwardErrors.netWtMill && (
+                              <span className="text-red-500 text-[10px] mt-1 block">
+                                {inwardErrors.netWtMill}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-[var(--text-main)] font-bold text-xs mb-1">
+                              Net Wt. Difference : (Qtl){" "}
+                              <span className="text-red-500">*</span>
+                              <span className="ml-1 text-[10px] font-normal opacity-70">
+                                (auto)
+                              </span>
+                            </label>
+                            <input
+                              type="number"
+                              name="netWtDiff"
+                              value={inwardFormData.netWtDiff}
+                              readOnly
+                              title="Auto: Required Net Wt − Net at Mill"
+                              className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-blue-400 font-bold outline-none opacity-90 cursor-not-allowed"
+                            />
+                            {inwardErrors.netWtDiff && (
+                              <span className="text-red-500 text-[10px] mt-1 block">
+                                {inwardErrors.netWtDiff}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
+                              Net Wt. at Party : (Qtl){" "}
+                              <span className="text-red-500">*</span>
+                              <span className="ml-1 text-[10px] text-[#e67e00]">
+                                (manual entry)
+                              </span>
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              name="netWtParty"
+                              value={inwardFormData.netWtParty}
+                              onChange={handleInwardChange}
+                              className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
+                            />
+                            {inwardErrors.netWtParty && (
+                              <span className="text-red-500 text-[10px] mt-1 block">
+                                {inwardErrors.netWtParty}
+                              </span>
+                            )}
+                          </div>
+                          <div className="sm:col-span-2">
                             <label
-                              className={`flex items-start gap-2 text-xs ${bagsLessEnabled ? "cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
+                              className={`flex items-start gap-2 text-xs ${parseFloat(inwardFormData.netWtDiff) < 0 ? "cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
                             >
                               <input
                                 type="checkbox"
-                                name="informBaujiBagsLess"
-                                disabled={!bagsLessEnabled}
+                                name="informBaujiExcessWeight"
+                                disabled={
+                                  !(parseFloat(inwardFormData.netWtDiff) < 0)
+                                }
                                 checked={
-                                  !!inwardFormData.informBaujiBagsLess ||
-                                  !!inwardFormData.bagsRecLessThanAgencyGp
+                                  !!inwardFormData.informBaujiExcessWeight
                                 }
                                 onChange={(e) =>
                                   setInwardFormData((prev: any) => ({
                                     ...prev,
-                                    informBaujiBagsLess: e.target.checked,
-                                    bagsRecLessThanAgencyGp: e.target.checked,
+                                    informBaujiExcessWeight: e.target.checked,
                                   }))
                                 }
                                 className="accent-red-500 w-4 h-4 mt-0.5 shrink-0"
                               />
                               <span className="leading-snug">
+                                {/* Lead line — light grey; Inform Bauji — red */}
                                 <span className="block text-gray-400 font-normal">
-                                  Entry as per weight, Bags Received less than
-                                  Agency GP
+                                  Excess Weight Received Against Shortage
                                 </span>
                                 <span
                                   className={
-                                    bagsLessEnabled
+                                    parseFloat(inwardFormData.netWtDiff) < 0
                                       ? "text-red-500 font-semibold"
                                       : "text-gray-500 font-semibold"
                                   }
@@ -5256,345 +5887,8 @@ export const ProcurementManagement = () => {
                               </span>
                             </label>
                           </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                    );
-                  })()}
-
-                  {/* 6. Weight Details */}
-                  {(() => {
-                    const excessWtFlag = !!inwardFormData.informBaujiExcessWeight;
-                    return (
-                  <div
-                    className={`bg-[var(--bg-panel-alt)] rounded-xl overflow-hidden flex flex-col border ${
-                      excessWtFlag
-                        ? "border-rose-500 ring-2 ring-rose-500/40 shadow-[0_0_0_1px_rgba(244,63,94,0.25)]"
-                        : "border-[var(--border-subtle-alt)]"
-                    }`}
-                  >
-                    <div
-                      className={`px-4 py-2 border-b font-bold text-sm flex flex-wrap items-center justify-between gap-2 ${
-                        excessWtFlag
-                          ? "bg-rose-500/20 border-rose-500/40 text-rose-300"
-                          : "bg-blue-900/10 border-[var(--border-subtle-alt)] text-blue-400"
-                      }`}
-                    >
-                      <span>6. Weight Details</span>
-                      <div className="flex items-center gap-2">
-                        {excessWtFlag && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-500 text-white">
-                            FLAG · Excess Weight Consideration
-                          </span>
-                        )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!inwardFormData.truckNo) {
-                            useUiStore
-                              .getState()
-                              .addToast("Select truck number first", "error");
-                            return;
-                          }
-                          fetchWeighbridgeForTruck(
-                            inwardFormData.truckNo,
-                            false,
-                          );
-                        }}
-                        className="text-[10px] font-bold uppercase tracking-wide text-[#e67e00] hover:text-white transition-colors flex items-center gap-1"
-                        title="Re-fetch Gross / Tare / Net Mill from weighbridge"
-                      >
-                        <svg
-                          className="w-3.5 h-3.5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                          />
-                        </svg>
-                        Fetch WB
-                      </button>
-                    </div>
-                    </div>
-                    <div className={`p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 content-start ${excessWtFlag ? "bg-rose-500/5" : ""}`}>
-                      <p className="sm:col-span-2 text-[10px] text-[var(--text-muted-alt)] -mt-1 mb-1">
-                        Gross and Tare can be{" "}
-                        <span className="text-[var(--text-main)] font-medium">
-                          fetched from weighbridge
-                        </span>{" "}
-                        or{" "}
-                        <span className="text-[var(--text-main)] font-medium">
-                          punched manually
-                        </span>
-                        {autoUpdateDateTime
-                          ? " (allowed even when Auto Update Date & Time is ON)"
-                          : " (Auto Update Date & Time is OFF — Date/Time fields are also manual)"}
-                        . Net at Mill = Gross − Tare. Only{" "}
-                        <span className="text-[var(--text-main)] font-medium">
-                          Net Wt. at Party
-                        </span>{" "}
-                        is always typed separately.
-                      </p>
-                      <div>
-                        <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
-                          Gross Weight (Qtl){" "}
-                          <span className="text-red-500">*</span>
-                          <span className="ml-1 text-[10px] opacity-70">
-                            {canManualWeighbridgePunch
-                              ? "(weighbridge / manual)"
-                              : "(weighbridge)"}
-                          </span>
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.001"
-                          name="grossWeight"
-                          value={inwardFormData.grossWeight}
-                          readOnly={!canManualWeighbridgePunch}
-                          onChange={
-                            canManualWeighbridgePunch
-                              ? handleInwardChange
-                              : undefined
-                          }
-                          title={
-                            canManualWeighbridgePunch
-                              ? "Fetch from weighbridge or punch manually"
-                              : "Auto-fetched from mill weighbridge"
-                          }
-                          className={`w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${
-                            canManualWeighbridgePunch
-                              ? "focus:border-[#e67e00]"
-                              : "opacity-90 cursor-not-allowed"
-                          }`}
-                        />
-                        {inwardErrors.grossWeight && (
-                          <span className="text-red-500 text-[10px] mt-1 block">
-                            {inwardErrors.grossWeight}
-                          </span>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
-                          Tare Weight (Qtl)
-                          <span className="ml-1 text-[10px] opacity-70">
-                            {canManualWeighbridgePunch
-                              ? "(weighbridge / manual)"
-                              : "(weighbridge)"}
-                          </span>
-                        </label>
-                        <div className="flex gap-2 items-start">
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.001"
-                            name="tareWeight"
-                            value={inwardFormData.tareWeight}
-                            readOnly={!canManualWeighbridgePunch}
-                            onChange={
-                              canManualWeighbridgePunch
-                                ? handleInwardChange
-                                : undefined
-                            }
-                            title={
-                              canManualWeighbridgePunch
-                                ? "Fetch from weighbridge or punch manually"
-                                : "Auto-fetched from mill weighbridge"
-                            }
-                            className={`flex-1 bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none ${
-                              canManualWeighbridgePunch
-                                ? "focus:border-[#e67e00]"
-                                : "opacity-90 cursor-not-allowed"
-                            }`}
-                          />
-                          <button
-                            type="button"
-                            title="Supervisor fingerprint during tare — stamps Entry Completion (and GP Complete when Auto Update ON)"
-                            onClick={async () => {
-                              try {
-                                const xml =
-                                  await biometricService.captureAndVerifyLoggedInUser();
-                                setInwardFormData((p: any) =>
-                                  applySupervisorFingerprintStamps(p, xml),
-                                );
-                                useUiStore
-                                  .getState()
-                                  .addToast(
-                                    autoUpdateDateTime
-                                      ? "Tare fingerprint — GP Complete & Entry Completion stamped"
-                                      : "Tare fingerprint — Entry Completion stamped",
-                                    "success",
-                                  );
-                              } catch (e: any) {
-                                useUiStore
-                                  .getState()
-                                  .addToast(e.message, "error");
-                              }
-                            }}
-                            className={`shrink-0 px-2.5 py-2 rounded border text-xs font-bold flex items-center gap-1 ${
-                              inwardFormData.biometricData
-                                ? "bg-green-900/20 border-green-500/40 text-green-400"
-                                : "bg-blue-600 border-blue-500 text-white hover:bg-blue-700"
-                            }`}
-                          >
-                            <ShieldCheck size={14} />
-                            {inwardFormData.biometricData ? "OK" : "Scan"}
-                          </button>
                         </div>
-                        <p className="text-[10px] text-[var(--text-muted-alt)] mt-1">
-                          Supervisor fingerprint at tare stamps Entry Completion
-                          {autoUpdateDateTime
-                            ? " + GP Complete Date & Time Out"
-                            : ""}
-                          .
-                        </p>
                       </div>
-                      <div>
-                        <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
-                          Net Weight (WB) : (Qtl)
-                          <span className="ml-1 text-[10px] opacity-70">
-                            (Gross − Tare)
-                          </span>
-                        </label>
-                        <input
-                          type="number"
-                          name="netWeightWb"
-                          value={inwardFormData.netWeightWb}
-                          readOnly
-                          className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed"
-                          title="Gross − Tare from weighbridge"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
-                          Required Nt Wt. : (Qtl)
-                          <span className="block text-[10px] opacity-80">
-                            (agency + shortage bags)
-                          </span>
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          name="reqNetWt"
-                          value={inwardFormData.reqNetWt}
-                          disabled
-                          className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none opacity-70 cursor-not-allowed"
-                          title="Auto calculated"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
-                          <span>
-                            Net Wt. at Mill : (Qtl){" "}
-                            <span className="text-red-500">*</span>
-                            <span className="ml-1 text-[10px] opacity-70">
-                              (weighbridge)
-                            </span>
-                          </span>
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          name="netWtMill"
-                          value={inwardFormData.netWtMill}
-                          readOnly
-                          title="Gross − Tare (auto). Gross/Tare may be fetched or punched manually."
-                          className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] font-bold outline-none opacity-90 cursor-not-allowed"
-                        />
-                        {inwardErrors.netWtMill && (
-                          <span className="text-red-500 text-[10px] mt-1 block">
-                            {inwardErrors.netWtMill}
-                          </span>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-[var(--text-main)] font-bold text-xs mb-1">
-                          Net Wt. Difference : (Qtl){" "}
-                          <span className="text-red-500">*</span>
-                          <span className="ml-1 text-[10px] font-normal opacity-70">
-                            (auto)
-                          </span>
-                        </label>
-                        <input
-                          type="number"
-                          name="netWtDiff"
-                          value={inwardFormData.netWtDiff}
-                          readOnly
-                          title="Auto: Required Net Wt − Net at Mill"
-                          className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-blue-400 font-bold outline-none opacity-90 cursor-not-allowed"
-                        />
-                        {inwardErrors.netWtDiff && (
-                          <span className="text-red-500 text-[10px] mt-1 block">
-                            {inwardErrors.netWtDiff}
-                          </span>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-[var(--text-muted-alt)] text-xs mb-1">
-                          Net Wt. at Party : (Qtl){" "}
-                          <span className="text-red-500">*</span>
-                          <span className="ml-1 text-[10px] text-[#e67e00]">
-                            (manual entry)
-                          </span>
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          name="netWtParty"
-                          value={inwardFormData.netWtParty}
-                          onChange={handleInwardChange}
-                          className="w-full bg-[var(--bg-base)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none focus:border-[#e67e00]"
-                        />
-                        {inwardErrors.netWtParty && (
-                          <span className="text-red-500 text-[10px] mt-1 block">
-                            {inwardErrors.netWtParty}
-                          </span>
-                        )}
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label
-                          className={`flex items-start gap-2 text-xs ${parseFloat(inwardFormData.netWtDiff) < 0 ? "cursor-pointer" : "opacity-50 cursor-not-allowed"}`}
-                        >
-                          <input
-                            type="checkbox"
-                            name="informBaujiExcessWeight"
-                            disabled={
-                              !(parseFloat(inwardFormData.netWtDiff) < 0)
-                            }
-                            checked={!!inwardFormData.informBaujiExcessWeight}
-                            onChange={(e) =>
-                              setInwardFormData((prev: any) => ({
-                                ...prev,
-                                informBaujiExcessWeight: e.target.checked,
-                              }))
-                            }
-                            className="accent-red-500 w-4 h-4 mt-0.5 shrink-0"
-                          />
-                          <span className="leading-snug">
-                            {/* Lead line — light grey; Inform Bauji — red */}
-                            <span className="block text-gray-400 font-normal">
-                              Excess Weight Received Against Shortage
-                            </span>
-                            <span
-                              className={
-                                parseFloat(inwardFormData.netWtDiff) < 0
-                                  ? "text-red-500 font-semibold"
-                                  : "text-gray-500 font-semibold"
-                              }
-                            >
-                              Inform Bauji
-                            </span>
-                          </span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
                     );
                   })()}
                 </div>
@@ -5719,17 +6013,17 @@ export const ProcurementManagement = () => {
                             Calculated Shortage
                           </span>
                           <span className="text-[10px] text-[var(--text-muted-alt)]">
-                            Based on Standard Bag Weight (
-                            {plants.find((p) => p.id === activePlant?.id)
-                              ?.standardBagWeight || 0.382}{" "}
-                            Qtl)
+                            {selectedInwardArtia
+                              ? `Based on Artia bag weight (A ${artiaAClassWt} / B ${artiaBClassWt} Qtl)`
+                              : `Select Artia — bag weight is Artia-wise (avg ${Number(plantBagWt).toFixed(3)} Qtl)`}
                           </span>
                         </div>
                         <div className="text-[10px] text-[var(--text-muted)] text-right space-y-0.5">
                           <div>
                             Required Weight:{" "}
                             <span className="font-mono text-[var(--text-main)]">
-                              {Number(inwardFormData.reqNetWt || 0).toFixed(3)} Qtl
+                              {Number(inwardFormData.reqNetWt || 0).toFixed(3)}{" "}
+                              Qtl
                             </span>
                           </div>
                           <div>
@@ -5794,7 +6088,9 @@ export const ProcurementManagement = () => {
                                 ) < -0.0005 ? (
                                   <span className="block text-[10px] text-emerald-400 font-medium mt-0.5">
                                     Excess vs Required Weight{" "}
-                                    {Number(inwardFormData.reqNetWt || 0).toFixed(3)}{" "}
+                                    {Number(
+                                      inwardFormData.reqNetWt || 0,
+                                    ).toFixed(3)}{" "}
                                     Qtl (Inform Bauji) — negative
                                   </span>
                                 ) : Number(
@@ -5802,15 +6098,21 @@ export const ProcurementManagement = () => {
                                   ) > 0.0005 ? (
                                   <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
                                     Relative to Required Weight{" "}
-                                    {Number(inwardFormData.reqNetWt || 0).toFixed(3)}{" "}
+                                    {Number(
+                                      inwardFormData.reqNetWt || 0,
+                                    ).toFixed(3)}{" "}
                                     Qtl · Mill Net{" "}
-                                    {Number(inwardFormData.netWtMill || 0).toFixed(3)}{" "}
+                                    {Number(
+                                      inwardFormData.netWtMill || 0,
+                                    ).toFixed(3)}{" "}
                                     Qtl
                                   </span>
                                 ) : (
                                   <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
                                     vs Required Weight{" "}
-                                    {Number(inwardFormData.reqNetWt || 0).toFixed(3)}{" "}
+                                    {Number(
+                                      inwardFormData.reqNetWt || 0,
+                                    ).toFixed(3)}{" "}
                                     Qtl
                                   </span>
                                 )}
@@ -5865,8 +6167,8 @@ export const ProcurementManagement = () => {
                                             inwardFormData.origBClassAg,
                                           ) || 0),
                                     )}{" "}
-                                    − Mill bags (excl. shortage) · × {plantBagWt}{" "}
-                                    Qtl
+                                    − Mill bags (excl. shortage) · ×{" "}
+                                    {plantBagWt} Qtl
                                   </span>
                                 ) : (
                                   <span className="block text-[10px] text-[var(--text-muted-alt)] font-normal mt-0.5">
@@ -6517,7 +6819,13 @@ export const ProcurementManagement = () => {
             <div className="mt-6 pt-4 border-t border-[var(--border-subtle)] flex justify-end gap-3 shrink-0">
               <button
                 type="button"
-                onClick={() => setInwardFormData(defaultInwardFormData)}
+                onClick={() =>
+                  setInwardFormData(
+                    withSupervisorUnloaderDefaults({
+                      ...defaultInwardFormData,
+                    }),
+                  )
+                }
                 className="px-6 py-2.5 border border-[var(--border-subtle)] rounded-lg text-[var(--text-main)] font-bold hover:bg-[var(--glass-bg)]"
               >
                 Cancel
@@ -6556,7 +6864,8 @@ export const ProcurementManagement = () => {
                 </>
               ) : (
                 <p className="text-sm text-[var(--text-muted-alt)] self-center">
-                  This role can view Paddy Inward. Add or Edit is required to save.
+                  This role can view Paddy Inward. Add or Edit is required to
+                  save.
                 </p>
               )}
             </div>
@@ -7194,10 +7503,10 @@ export const ProcurementManagement = () => {
                                 are locked and stamp on fingerprint. When{" "}
                                 <b>OFF</b>, supervisors may enter Date/Time
                                 manually for that form. For Stack ↔ Hoodi /
-                                Dryer Bharai, OFF also allows punching Gross/Tare
-                                manually; ON requires Fetch WB or a pending truck.
-                                Paddy Inward Gross/Tare can always be punched or
-                                fetched.
+                                Dryer Bharai, OFF also allows punching
+                                Gross/Tare manually; ON requires Fetch WB or a
+                                pending truck. Paddy Inward Gross/Tare can
+                                always be punched or fetched.
                               </p>
                             </div>
 
@@ -7217,7 +7526,8 @@ export const ProcurementManagement = () => {
                                 },
                                 {
                                   key: "allowManualDateTimeStackTransfer",
-                                  label: "Stack ↔ Hoodi / Dryer Bharai Transfer",
+                                  label:
+                                    "Stack ↔ Hoodi / Dryer Bharai Transfer",
                                 },
                               ] as const
                             ).map((row) => {
@@ -7470,11 +7780,11 @@ export const ProcurementManagement = () => {
 
                       const exportData = data.map((item: any) => {
                         const row: Record<string, any> = {
-                        Party: item.partyMandi,
-                        Date: item.date,
-                        Bags: item.bags,
-                        "Govt Rate": item.govtRate,
-                        Rate: item.rate,
+                          Party: item.partyMandi,
+                          Date: item.date,
+                          Bags: item.bags,
+                          "Govt Rate": item.govtRate,
+                          Rate: item.rate,
                         };
                         if (!hidePaymentHisab) {
                           row.Diff = item.diff;
@@ -7518,21 +7828,21 @@ export const ProcurementManagement = () => {
                       </th>
                       {!hidePaymentHisab && (
                         <>
-                      <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">
-                        Diff
-                      </th>
-                      <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">
-                        Payment
-                      </th>
+                          <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">
+                            Diff
+                          </th>
+                          <th className="border-b border-[var(--border-subtle)] p-3 text-right font-medium">
+                            Payment
+                          </th>
                         </>
                       )}
                       <th className="border-b border-[var(--border-subtle)] p-3 text-left font-medium">
                         Note
                       </th>
                       {!hidePaymentHisab && (
-                      <th className="border-b border-[var(--border-subtle)] p-3 text-right text-[#e67e00] font-bold">
-                        Final Hisab Amt
-                      </th>
+                        <th className="border-b border-[var(--border-subtle)] p-3 text-right text-[#e67e00] font-bold">
+                          Final Hisab Amt
+                        </th>
                       )}
                       <th className="border-b border-[var(--border-subtle)] p-3 text-center font-medium">
                         Action
@@ -7581,19 +7891,19 @@ export const ProcurementManagement = () => {
                         </td>
                         {!hidePaymentHisab && (
                           <>
-                        <td className="p-3 text-right text-red-400 font-medium">
-                          {p.diff}
-                        </td>
-                        <td className="p-3 text-right">{p.payment}</td>
+                            <td className="p-3 text-right text-red-400 font-medium">
+                              {p.diff}
+                            </td>
+                            <td className="p-3 text-right">{p.payment}</td>
                           </>
                         )}
                         <td className="p-3 text-[var(--text-muted-alt)]">
                           {p.note}
                         </td>
                         {!hidePaymentHisab && (
-                        <td className="p-3 text-right font-bold text-[#e67e00]">
-                          {p.finalHisabAmt}
-                        </td>
+                          <td className="p-3 text-right font-bold text-[#e67e00]">
+                            {p.finalHisabAmt}
+                          </td>
                         )}
                         <td className="p-3 text-center">
                           {canSettleHisab ? (
@@ -8039,14 +8349,18 @@ export const ProcurementManagement = () => {
                                     {d.bags}
                                   </td>
                                   <td className="p-3 border-r border-[var(--border-subtle)]">
-                                    {d.moisture != null ? `${d.moisture}%` : "—"}
+                                    {d.moisture != null
+                                      ? `${d.moisture}%`
+                                      : "—"}
                                   </td>
                                   <td className="p-3 border-r border-[var(--border-subtle)] font-mono">
                                     {d.netWeight != null
                                       ? Number(d.netWeight).toFixed(3)
                                       : "—"}
                                   </td>
-                                  <td className="p-3 font-mono">{d.rstNo || "—"}</td>
+                                  <td className="p-3 font-mono">
+                                    {d.rstNo || "—"}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -8149,7 +8463,7 @@ export const ProcurementManagement = () => {
                     supplierId: e.target.value,
                   })
                 }
-                options={activeSuppliers}
+                options={partyOptionsWithMandi}
                 valueKey="id"
                 placeholder="Select Arthiya"
                 className="bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)] outline-none"
@@ -8567,7 +8881,8 @@ export const ProcurementManagement = () => {
               onClick={async () => {
                 setIsScanningFingerprint(true);
                 try {
-                  const xml = await biometricService.captureAndVerifyLoggedInUser();
+                  const xml =
+                    await biometricService.captureAndVerifyLoggedInUser();
                   setPaddyPurchaseModal((prev: any) => ({
                     ...prev,
                     biometricData: xml,
@@ -8686,21 +9001,13 @@ export const ProcurementManagement = () => {
 
       <CustomModal
         isOpen={addSupplierModal.isOpen}
-        onClose={() =>
-          setAddSupplierModal({
-            isOpen: false,
-            name: "",
-            firmNames: "",
-            mandi: "",
-            contact: "",
-            plantId: "",
-            biometricData: "",
-          })
-        }
+        onClose={() => setAddSupplierModal(emptyAddSupplierModal())}
         title={
-          isSupervisor
-            ? "Add New Arthiya (needs Admin confirmation)"
-            : "Add New Arthiya"
+          addSupplierModal.id
+            ? "Edit Arthiya (bag weights)"
+            : isSupervisor
+              ? "Add New Arthiya (needs Admin confirmation)"
+              : "Add New Arthiya"
         }
       >
         <form onSubmit={handleAddSupplier} className="space-y-4">
@@ -8820,7 +9127,51 @@ export const ProcurementManagement = () => {
               className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
             />
           </div>
-          {isSupervisor && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
+                A Class Weight (Qtl)
+              </label>
+              <input
+                type="number"
+                step="0.001"
+                min="0.001"
+                value={addSupplierModal.aClassBagWeight}
+                onChange={(e) =>
+                  setAddSupplierModal({
+                    ...addSupplierModal,
+                    aClassBagWeight: e.target.value,
+                  })
+                }
+                className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-[var(--text-muted-alt)] mb-1">
+                B Class Weight (Qtl)
+              </label>
+              <input
+                type="number"
+                step="0.001"
+                min="0.001"
+                value={addSupplierModal.bClassBagWeight}
+                onChange={(e) =>
+                  setAddSupplierModal({
+                    ...addSupplierModal,
+                    bClassBagWeight: e.target.value,
+                  })
+                }
+                className="w-full bg-[var(--bg-panel-alt)] border border-[var(--border-subtle)] rounded px-3 py-2 text-[var(--text-main)]"
+                required
+              />
+            </div>
+          </div>
+          <p className="text-[10px] text-[var(--text-muted-alt)] -mt-2">
+            Bag weight is Artia-wise. Paddy Inward uses these A / B values for
+            the selected party.
+          </p>
+          {!addSupplierModal.id && isSupervisor && (
             <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3 space-y-2">
               <label className="block text-sm text-[var(--text-muted-alt)]">
                 Supervisor fingerprint (match){" "}
@@ -8852,17 +9203,7 @@ export const ProcurementManagement = () => {
           <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border-subtle)] mt-4">
             <button
               type="button"
-              onClick={() =>
-                setAddSupplierModal({
-                  isOpen: false,
-                  name: "",
-                  firmNames: "",
-                  mandi: "",
-                  contact: "",
-                  plantId: "",
-                  biometricData: "",
-                })
-              }
+              onClick={() => setAddSupplierModal(emptyAddSupplierModal())}
               className="px-4 py-2 text-[var(--text-muted-alt)] hover:text-[var(--text-main)]"
             >
               Cancel
@@ -8871,15 +9212,19 @@ export const ProcurementManagement = () => {
               type="submit"
               disabled={
                 addSupplierLock.pending ||
-                (isSupervisor && !addSupplierModal.biometricData)
+                (!addSupplierModal.id &&
+                  isSupervisor &&
+                  !addSupplierModal.biometricData)
               }
               className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold hover:bg-[#cc7000] transition-colors disabled:opacity-50"
             >
               {addSupplierLock.pending
                 ? "Saving..."
-                : isSupervisor
-                  ? "Submit for Admin Approval"
-                  : "Add Arthiya"}
+                : addSupplierModal.id
+                  ? "Update Arthiya"
+                  : isSupervisor
+                    ? "Submit for Admin Approval"
+                    : "Add Arthiya"}
             </button>
           </div>
         </form>
@@ -9093,13 +9438,13 @@ export const ProcurementManagement = () => {
                 Cancel
               </button>
               {canSettleHisab && (
-              <button
-                type="submit"
-                disabled={settleHisabLock.pending}
-                className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold hover:bg-[#cc7000] transition-colors disabled:opacity-50"
-              >
-                {settleHisabLock.pending ? "Submitting..." : "Settle Hisab"}
-              </button>
+                <button
+                  type="submit"
+                  disabled={settleHisabLock.pending}
+                  className="px-4 py-2 bg-[#e67e00] text-black rounded font-bold hover:bg-[#cc7000] transition-colors disabled:opacity-50"
+                >
+                  {settleHisabLock.pending ? "Submitting..." : "Settle Hisab"}
+                </button>
               )}
             </div>
           </form>

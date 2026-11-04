@@ -20,6 +20,7 @@ const steps = [
   ['F50 Loose paddy bags', 'apply-f50-migration.js'],
   ['F51 Safai Dust and Patal wastage', 'apply-f51-migration.js'],
   ['F53 Labour Work Order', 'apply-f53-migration.js'],
+  ['Artia A/B Class bag weights', 'apply-artia-bag-weights.js'],
 ];
 
 let failed = 0;

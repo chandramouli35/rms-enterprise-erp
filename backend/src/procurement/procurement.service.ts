@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { FingerprintVerifyService } from '../auth/fingerprint-verify.service';
@@ -17,12 +21,19 @@ export class ProcurementService {
     return String(user?.role?.name || user?.role || '');
   }
 
-  private isAdminRole(user: any) {
-    return /SUPER_ADMIN|PLANT_MANAGER|ADMIN/i.test(this.roleName(user));
-  }
-
   private isSupervisorRole(user: any) {
     return /SUPERVISOR/i.test(this.roleName(user));
+  }
+
+  /** Admin / Plant Manager only — never Supervisor (even if role text is odd). */
+  private isAdminRole(user: any) {
+    if (this.isSupervisorRole(user)) return false;
+    const role = this.roleName(user);
+    return (
+      /SUPER_ADMIN/i.test(role) ||
+      /PLANT_MANAGER/i.test(role) ||
+      /^ADMIN$/i.test(role.trim())
+    );
   }
 
   /**
@@ -52,7 +63,9 @@ export class ProcurementService {
   ): number {
     return lines.reduce((sum, line) => {
       const finalBags =
-        override && line.id === override.id ? override.finalBags : line.finalBags;
+        override && line.id === override.id
+          ? override.finalBags
+          : line.finalBags;
       return (
         sum +
         this.artiaBagCount({
@@ -111,7 +124,10 @@ export class ProcurementService {
         unloader: d.allocateUnloader || d.unloaderName || null,
       });
     }
-    if (partBags > 0 && (d?.partIsHoodi || String(d?.secondPartStackNo || '').trim())) {
+    if (
+      partBags > 0 &&
+      (d?.partIsHoodi || String(d?.secondPartStackNo || '').trim())
+    ) {
       const isHoodi = !!d.partIsHoodi;
       const stackNo = isHoodi ? 'Hoodi' : String(d.secondPartStackNo).trim();
       points.push({
@@ -160,8 +176,14 @@ export class ProcurementService {
         where: { plantId_stackNo: { plantId, stackNo } },
       });
       if (!existingNeg) return;
-      const newTotalBags = Math.max(0, Number(existingNeg.totalBags || 0) + bags);
-      const newTotalWt = Math.max(0, Number(existingNeg.totalWeight || 0) + weightQtl);
+      const newTotalBags = Math.max(
+        0,
+        Number(existingNeg.totalBags || 0) + bags,
+      );
+      const newTotalWt = Math.max(
+        0,
+        Number(existingNeg.totalWeight || 0) + weightQtl,
+      );
       await tx.paddyStack.update({
         where: { id: existingNeg.id },
         data: {
@@ -186,8 +208,8 @@ export class ProcurementService {
       const newTotalWt = Number(existing.totalWeight || 0) + weightQtl;
       const newAvgMoisture =
         newTotalWt > 0
-          ? ((Number(existing.averageMoisture || 0) *
-              Number(existing.totalWeight || 0)) +
+          ? (Number(existing.averageMoisture || 0) *
+              Number(existing.totalWeight || 0) +
               moistureVal * weightQtl) /
             newTotalWt
           : moistureVal;
@@ -239,12 +261,28 @@ export class ProcurementService {
   }
 
   async savePurchase(data: any) {
-    const { 
-      plantId, supplierId, gatePassId, weighbridgeId, 
-      netWeight, ratePerQuintal, transportCharges, otherCharges,
-      moisture, broken, discoloration, foreignMatter, inspectedBy,
-      category, purchaseType, bugs, godown, biometricData,
-      mandiType, boliRate, boliChecklist
+    const {
+      plantId,
+      supplierId,
+      gatePassId,
+      weighbridgeId,
+      netWeight,
+      ratePerQuintal,
+      transportCharges,
+      otherCharges,
+      moisture,
+      broken,
+      discoloration,
+      foreignMatter,
+      inspectedBy,
+      category,
+      purchaseType,
+      bugs,
+      godown,
+      biometricData,
+      mandiType,
+      boliRate,
+      boliChecklist,
     } = data;
 
     await this.assertSupplierUsable(supplierId);
@@ -267,7 +305,9 @@ export class ProcurementService {
         select: { mandiEgNo: true, id: true },
         orderBy: { createdAt: 'desc' },
       });
-      const dup = recent.find((r) => normalizeGpKey(r.mandiEgNo || '') === mandiGpKey);
+      const dup = recent.find(
+        (r) => normalizeGpKey(r.mandiEgNo || '') === mandiGpKey,
+      );
       if (dup) {
         throw new BadRequestException(
           `Duplicate Mandi Gate Pass blocked (normalized match). Value: ${data.mandiEgpNo || data.mandiEgNo}`,
@@ -276,7 +316,9 @@ export class ProcurementService {
       const manuals = await this.prisma.manualAgencyGp.findMany({
         select: { agencyGp: true },
       });
-      const dupManual = manuals.find((m) => normalizeGpKey(m.agencyGp) === mandiGpKey);
+      const dupManual = manuals.find(
+        (m) => normalizeGpKey(m.agencyGp) === mandiGpKey,
+      );
       if (dupManual) {
         throw new BadRequestException(
           `Agency GP ${data.mandiEgpNo || data.mandiEgNo} is already used on a Direct Agency GP entry`,
@@ -286,9 +328,18 @@ export class ProcurementService {
 
     // Auto Update OFF: GP Complete Date & Time Out cannot be before Date & Time In;
     // also enforce minimum 30-minute gap (GP In → GP Out)
-    if (data.status === 'CONFIRMED' || (data.gpCompleteDate && data.timeOut && data.date && data.timeIn)) {
-      const inMs = this.combineDateTimeMs(data.date || data.entryDate, data.timeIn);
-      const outMs = this.combineDateTimeMs(data.gpCompleteDate || data.date || data.entryDate, data.timeOut);
+    if (
+      data.status === 'CONFIRMED' ||
+      (data.gpCompleteDate && data.timeOut && data.date && data.timeIn)
+    ) {
+      const inMs = this.combineDateTimeMs(
+        data.date || data.entryDate,
+        data.timeIn,
+      );
+      const outMs = this.combineDateTimeMs(
+        data.gpCompleteDate || data.date || data.entryDate,
+        data.timeOut,
+      );
       if (inMs != null && outMs != null) {
         if (outMs < inMs) {
           throw new BadRequestException(
@@ -304,14 +355,14 @@ export class ProcurementService {
     }
 
     // Feedback 33 — vehicle duplicate while processing (Hold still blocks same truck plate)
-    const truckNo = String(data.truckNo || '').trim().toUpperCase();
+    const truckNo = String(data.truckNo || '')
+      .trim()
+      .toUpperCase();
     if (truckNo) {
       const activeElsewhere = await this.prisma.paddyInwardDetails.findFirst({
         where: {
           truckNo: { equals: truckNo, mode: 'insensitive' },
-          ...(data.id
-            ? { procurementBatchId: { not: data.id } }
-            : {}),
+          ...(data.id ? { procurementBatchId: { not: data.id } } : {}),
           procurementBatch: {
             status: { in: ['DRAFT', 'PENDING', 'ACTIVE', 'UNLOADING'] },
           },
@@ -357,7 +408,9 @@ export class ProcurementService {
     if (placingHold) {
       const reason = String(data.holdReason || '').trim();
       if (!reason) {
-        throw new BadRequestException('Hold reason is required when Hold is selected');
+        throw new BadRequestException(
+          'Hold reason is required when Hold is selected',
+        );
       }
       if (data.status !== 'CONFIRMED') {
         data.status = 'DRAFT';
@@ -396,7 +449,8 @@ export class ProcurementService {
         }
         // Keep locked values even if client omits them
         if (prevMain) {
-          data.allocateUnloader = existingHold.allocateUnloader || existingHold.unloaderName;
+          data.allocateUnloader =
+            existingHold.allocateUnloader || existingHold.unloaderName;
           data.unloaderName = data.allocateUnloader;
         }
         const prevPart = String(existingHold.partUnloaderName || '').trim();
@@ -414,7 +468,9 @@ export class ProcurementService {
 
     // Feedback 39 — while actively unloading (not on Hold), unloader cannot take another truck
     if (!placingHold) {
-      const mainName = String(data.allocateUnloader || data.unloaderName || '').trim();
+      const mainName = String(
+        data.allocateUnloader || data.unloaderName || '',
+      ).trim();
       const partName = String(data.partUnloaderName || '').trim();
       const thisStarting =
         !!data.unloadingStartTime &&
@@ -487,7 +543,10 @@ export class ProcurementService {
     }
 
     // Feedback 33 — 30 min min unload duration (covered by F39; keep as fast-fail for HH:mm-only)
-    if (data.unloadingStartTime && (data.unloadingFinishTime || data.unloadingEndTime)) {
+    if (
+      data.unloadingStartTime &&
+      (data.unloadingFinishTime || data.unloadingEndTime)
+    ) {
       // F39 assert above is authoritative when dates resolve; HH:mm-only fallback:
       const start = String(data.unloadingStartTime);
       const end = String(data.unloadingFinishTime || data.unloadingEndTime);
@@ -507,19 +566,28 @@ export class ProcurementService {
     }
 
     // Feedback 33 — Hoodi cannot be N.A. when allocation is Hoodi
-    if (data.allocationType === 'Hoodi' && (data.hoodiUpload === 'N.A.' || data.hoodiUpload === 'NA')) {
-      throw new BadRequestException('Upload at Hoodi Register cannot be N.A. when Allocation Type is Hoodi');
+    if (
+      data.allocationType === 'Hoodi' &&
+      (data.hoodiUpload === 'N.A.' || data.hoodiUpload === 'NA')
+    ) {
+      throw new BadRequestException(
+        'Upload at Hoodi Register cannot be N.A. when Allocation Type is Hoodi',
+      );
     }
 
-    const parsedNetWeight = parseFloat(netWeight) || parseFloat(data.netWtMill) || parseFloat(data.netWeightWb) || 0;
+    const parsedNetWeight =
+      parseFloat(netWeight) ||
+      parseFloat(data.netWtMill) ||
+      parseFloat(data.netWeightWb) ||
+      0;
     const parsedRate = parseFloat(ratePerQuintal) || 0;
     const parsedTransport = parseFloat(transportCharges) || 0;
     const parsedOther = parseFloat(otherCharges) || 0;
     const parsedMoisture = parseFloat(moisture) || 0;
     const parsedBugs = parseFloat(bugs) || 0;
-    
+
     let finalRate = parsedRate;
-    
+
     // Boli Rate Calculation Engine — MC deduction uses plant benchmark × M/C Point
     if (purchaseType === 'PADDY_BOLI') {
       const plant = await this.prisma.plant.findUnique({
@@ -540,7 +608,7 @@ export class ProcurementService {
           this.calcMcDeduction(parsedMoisture, benchmark, mcPoint) ?? 0;
       }
       let bugsDeduction = parsedBugs * 5; // example: 5 INR per 1% bugs
-      
+
       finalRate = parsedRate - moistureDeduction - bugsDeduction;
     }
 
@@ -551,8 +619,13 @@ export class ProcurementService {
     const totalAmount = baseAmount + parsedTransport + parsedOther;
 
     // Phase 4: Chronological Enforcements (RST and Mandi Parchi)
-    const incomingRstNum = data.rstNo ? parseInt(data.rstNo.replace(/\D/g, ''), 10) : null;
-    const incomingMandiNum = (data.mandiEgpNo || data.mandiEgNo) ? parseInt((data.mandiEgpNo || data.mandiEgNo).replace(/\D/g, ''), 10) : null;
+    const incomingRstNum = data.rstNo
+      ? parseInt(data.rstNo.replace(/\D/g, ''), 10)
+      : null;
+    const incomingMandiNum =
+      data.mandiEgpNo || data.mandiEgNo
+        ? parseInt((data.mandiEgpNo || data.mandiEgNo).replace(/\D/g, ''), 10)
+        : null;
 
     if (incomingRstNum || incomingMandiNum) {
       // Get the latest inward details for this plant
@@ -564,20 +637,25 @@ export class ProcurementService {
           },
         },
         orderBy: {
-          createdAt: 'desc'
-        }
+          createdAt: 'desc',
+        },
       });
 
       if (latestInward) {
         if (incomingRstNum && latestInward.rstNo) {
-          const latestRstNum = parseInt(latestInward.rstNo.replace(/\D/g, ''), 10);
+          const latestRstNum = parseInt(
+            latestInward.rstNo.replace(/\D/g, ''),
+            10,
+          );
           if (!isNaN(latestRstNum) && !isNaN(incomingRstNum)) {
             if (incomingRstNum <= latestRstNum) {
-              throw new BadRequestException(`RST Number must be in chronological sequence. Incoming: ${data.rstNo}, Last Saved: ${latestInward.rstNo}`);
+              throw new BadRequestException(
+                `RST Number must be in chronological sequence. Incoming: ${data.rstNo}, Last Saved: ${latestInward.rstNo}`,
+              );
             }
           }
         }
-        
+
         if (!egpLate && incomingMandiNum) {
           // Last real Agency GP — skip e-GP Late rows so a blank late entry
           // does not drop the sequence for the next normal inward.
@@ -610,13 +688,20 @@ export class ProcurementService {
             }
           }
         }
-        
-        const incomingParchiNum = data.mandiParchiNo ? parseInt(data.mandiParchiNo.replace(/\D/g, ''), 10) : null;
+
+        const incomingParchiNum = data.mandiParchiNo
+          ? parseInt(data.mandiParchiNo.replace(/\D/g, ''), 10)
+          : null;
         if (incomingParchiNum && latestInward.mandiParchiNo) {
-          const latestParchiNum = parseInt(latestInward.mandiParchiNo.replace(/\D/g, ''), 10);
+          const latestParchiNum = parseInt(
+            latestInward.mandiParchiNo.replace(/\D/g, ''),
+            10,
+          );
           if (!isNaN(latestParchiNum) && !isNaN(incomingParchiNum)) {
             if (incomingParchiNum <= latestParchiNum) {
-              throw new BadRequestException(`Mandi Parchi Number must be in chronological sequence. Incoming: ${data.mandiParchiNo}, Last Saved: ${latestInward.mandiParchiNo}`);
+              throw new BadRequestException(
+                `Mandi Parchi Number must be in chronological sequence. Incoming: ${data.mandiParchiNo}, Last Saved: ${latestInward.mandiParchiNo}`,
+              );
             }
           }
         }
@@ -628,15 +713,21 @@ export class ProcurementService {
     // Credit / generate serial ONLY when Net Weight Paddy Inward is submitted (CONFIRMED).
     // Do NOT assign during draft / Hold / active unloading.
     if (data.status === 'CONFIRMED' && plantId) {
-      const mainName = String(data.allocateUnloader || data.unloaderName || '').trim();
+      const mainName = String(
+        data.allocateUnloader || data.unloaderName || '',
+      ).trim();
       if (!mainName) {
         throw new BadRequestException(
           'Allocate Main Unloader is required to link this truck entry',
         );
       }
-      const partStackNo = String(data.secondPartStackNo || data.partStackNo || '').trim();
+      const partStackNo = String(
+        data.secondPartStackNo || data.partStackNo || '',
+      ).trim();
       const partBagsRaw = data.bagsInSecondPartStack ?? data.bagsInPartStack;
-      const partIsHoodi = !!(data.partIsHoodi || data.partDestination === 'HOODI');
+      const partIsHoodi = !!(
+        data.partIsHoodi || data.partDestination === 'HOODI'
+      );
       const hasPartStack =
         partIsHoodi ||
         !!partStackNo ||
@@ -675,7 +766,9 @@ export class ProcurementService {
         !!data.showThirdPartStack ||
         !!data.thirdPartIsHoodi ||
         !!String(data.thirdPartStackNo || '').trim() ||
-        (thirdBagsRaw != null && thirdBagsRaw !== '' && Number(thirdBagsRaw) > 0);
+        (thirdBagsRaw != null &&
+          thirdBagsRaw !== '' &&
+          Number(thirdBagsRaw) > 0);
       if (hasThird && !thirdName) {
         throw new BadRequestException(
           'Unloader 3 is required when a 3rd part stack is recorded',
@@ -688,9 +781,15 @@ export class ProcurementService {
       const partBagTotal = data.noPartStack
         ? 0
         : parseFloat(data.bagsInSecondPartStack ?? data.bagsInPartStack) || 0;
-      const thirdBagTotal = hasThird ? parseFloat(data.bagsInThirdPartStack) || 0 : 0;
+      const thirdBagTotal = hasThird
+        ? parseFloat(data.bagsInThirdPartStack) || 0
+        : 0;
       const splitBagTotal = mainBagTotal + partBagTotal + thirdBagTotal;
-      if (millBagTotal > 0 && splitBagTotal > 0 && Math.abs(splitBagTotal - millBagTotal) > 0.01) {
+      if (
+        millBagTotal > 0 &&
+        splitBagTotal > 0 &&
+        Math.abs(splitBagTotal - millBagTotal) > 0.01
+      ) {
         throw new BadRequestException(
           `Unloader bags (Main ${mainBagTotal} + Part ${partBagTotal} + 3rd ${thirdBagTotal} = ${splitBagTotal}) must match Bags Rec. @ Mill (${millBagTotal})`,
         );
@@ -719,7 +818,9 @@ export class ProcurementService {
 
       if (mandiGpKey) {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`agency-gp:${mandiGpKey}`})::bigint)`;
-        const manuals = await tx.manualAgencyGp.findMany({ select: { agencyGp: true } });
+        const manuals = await tx.manualAgencyGp.findMany({
+          select: { agencyGp: true },
+        });
         if (manuals.some((m) => normalizeGpKey(m.agencyGp) === mandiGpKey)) {
           throw new BadRequestException(
             `Agency GP ${data.mandiEgpNo || data.mandiEgNo} is already used on a Direct Agency GP entry`,
@@ -732,12 +833,18 @@ export class ProcurementService {
           where: { id: data.id },
           include: { paddyInwardDetails: true },
         });
-        if (!existing) throw new BadRequestException('Inward record not found for update');
+        if (!existing)
+          throw new BadRequestException('Inward record not found for update');
         wasDraft = existing.status === 'DRAFT';
         if (!wasDraft && existing.status !== 'PENDING') {
           // Allow completing DRAFT/PENDING; block re-edit of confirmed
-          if (existing.status === 'CONFIRMED' || existing.status === 'COMPLETED') {
-            throw new BadRequestException('Confirmed inward cannot be edited. Create a new entry if needed.');
+          if (
+            existing.status === 'CONFIRMED' ||
+            existing.status === 'COMPLETED'
+          ) {
+            throw new BadRequestException(
+              'Confirmed inward cannot be edited. Create a new entry if needed.',
+            );
           }
         }
         batch = await tx.procurementBatch.update({
@@ -749,38 +856,49 @@ export class ProcurementService {
             weighbridgeId: weighbridgeId || null,
             netWeight: parsedNetWeight,
             category: category || existing.category || 'OPERATIONAL',
-            purchaseType: purchaseType || existing.purchaseType || 'PADDY_NORMAL',
+            purchaseType:
+              purchaseType || existing.purchaseType || 'PADDY_NORMAL',
             baseRate: parsedRate,
             finalRate,
             amount: baseAmount,
             deductions: parsedRate - finalRate,
             netAmount: totalAmount,
             biometricData: biometricData || existing.biometricData || null,
-            status: data.status === 'DRAFT' ? 'DRAFT' : data.status === 'CONFIRMED' ? 'CONFIRMED' : existing.status,
+            status:
+              data.status === 'DRAFT'
+                ? 'DRAFT'
+                : data.status === 'CONFIRMED'
+                  ? 'CONFIRMED'
+                  : existing.status,
           },
         });
       } else {
-      // 1. Create ProcurementBatch
+        // 1. Create ProcurementBatch
         batch = await tx.procurementBatch.create({
-        data: {
-          plantId,
-          supplierId: supplierId || null,
-          gatePassId: gatePassId || null,
-          weighbridgeId: weighbridgeId || null,
-          netWeight: parsedNetWeight,
-          category: category || 'OPERATIONAL',
-          purchaseType: purchaseType || 'PADDY_NORMAL',
-          baseRate: parsedRate,
-          finalRate: finalRate,
-          amount: baseAmount,
+          data: {
+            plantId,
+            supplierId: supplierId || null,
+            gatePassId: gatePassId || null,
+            weighbridgeId: weighbridgeId || null,
+            netWeight: parsedNetWeight,
+            category: category || 'OPERATIONAL',
+            purchaseType: purchaseType || 'PADDY_NORMAL',
+            baseRate: parsedRate,
+            finalRate: finalRate,
+            amount: baseAmount,
             deductions: parsedRate - finalRate,
-          netAmount: totalAmount,
-          biometricData: biometricData || null,
-            status: data.status === 'DRAFT' ? 'DRAFT' : data.status === 'CONFIRMED' ? 'CONFIRMED' : 'PENDING',
-          paddyInwardDetails: {
-            create: {
-              mandiType: mandiType || null,
-              boliRate: boliRate ? parseFloat(boliRate) : null,
+            netAmount: totalAmount,
+            biometricData: biometricData || null,
+            status:
+              data.status === 'DRAFT'
+                ? 'DRAFT'
+                : data.status === 'CONFIRMED'
+                  ? 'CONFIRMED'
+                  : 'PENDING',
+            paddyInwardDetails: {
+              create: {
+                mandiType: mandiType || null,
+                boliRate: boliRate ? parseFloat(boliRate) : null,
                 boliChecklist: false,
               },
             },
@@ -789,7 +907,9 @@ export class ProcurementService {
       }
 
       // 2. Save Quality Inspection (create once)
-      const existingQi = await tx.qualityInspection.findFirst({ where: { procurementBatchId: batch.id } });
+      const existingQi = await tx.qualityInspection.findFirst({
+        where: { procurementBatchId: batch.id },
+      });
       if (existingQi) {
         await tx.qualityInspection.update({
           where: { id: existingQi.id },
@@ -801,17 +921,17 @@ export class ProcurementService {
           },
         });
       } else {
-      await tx.qualityInspection.create({
-        data: {
-          procurementBatchId: batch.id,
-          moisture: parseFloat(moisture) || 0,
-          broken: parseFloat(broken) || 0,
-          discoloration: parseFloat(discoloration) || 0,
-          foreignMatter: parseFloat(foreignMatter) || 0,
-          status: 'PENDING',
+        await tx.qualityInspection.create({
+          data: {
+            procurementBatchId: batch.id,
+            moisture: parseFloat(moisture) || 0,
+            broken: parseFloat(broken) || 0,
+            discoloration: parseFloat(discoloration) || 0,
+            foreignMatter: parseFloat(foreignMatter) || 0,
+            status: 'PENDING',
             inspectedBy: inspectedBy || null,
           },
-      });
+        });
       }
 
       // 3a. Update PaddyStack / split weights (confirm only — avoid double-count on edit)
@@ -832,17 +952,17 @@ export class ProcurementService {
           parseFloat(data.netWtMill) ||
           parseFloat(data.netWeightWb) ||
           0;
-        const noPart = !!(data.noPartStack);
-        const partIsHoodi = !!(data.partIsHoodi || data.partDestination === 'HOODI');
-        const thirdIsHoodi = !!(data.thirdPartIsHoodi);
+        const noPart = !!data.noPartStack;
+        const partIsHoodi = !!(
+          data.partIsHoodi || data.partDestination === 'HOODI'
+        );
+        const thirdIsHoodi = !!data.thirdPartIsHoodi;
         const showThird =
           !!data.showThirdPartStack ||
           thirdBagsEarly > 0 ||
           !!String(data.thirdPartUnloaderName || '').trim();
         let mainBags = parseFloat(data.bagsInMainStack);
-        let partBags = noPart
-          ? 0
-          : parseFloat(data.bagsInSecondPartStack) || 0;
+        let partBags = noPart ? 0 : parseFloat(data.bagsInSecondPartStack) || 0;
         let thirdBags = showThird ? thirdBagsEarly : 0;
         if (!Number.isFinite(mainBags) || mainBags < 0) {
           mainBags = Math.max(0, totalBags - partBags - thirdBags);
@@ -863,7 +983,11 @@ export class ProcurementService {
         const isAClass =
           data.bagType === 'NEW' && data.originalBardanaClass === 'A_Class';
 
-        if (data.allocationType === 'Stacking' && data.stackNo && mainBags > 0) {
+        if (
+          data.allocationType === 'Stacking' &&
+          data.stackNo &&
+          mainBags > 0
+        ) {
           await this.applyStackReceipt(
             tx,
             plantId,
@@ -884,7 +1008,7 @@ export class ProcurementService {
         ) {
           await this.applyStackReceipt(
             tx,
-              plantId,
+            plantId,
             String(data.secondPartStackNo).trim(),
             partBags,
             partWt,
@@ -913,28 +1037,50 @@ export class ProcurementService {
 
       // 3. Update Inventory (skip draft; only once when confirming)
       if (data.status !== 'DRAFT' && (!data.id || wasDraft)) {
-      await this.inventoryService.adjustStock({
-        plantId,
-        itemType: 'PADDY',
-        quantityChange: parsedNetWeight,
-        transactionType: 'IN',
-        referenceId: batch.id,
-        remarks: `Purchase entry ${batch.id.substring(0, 8)}`,
+        await this.inventoryService.adjustStock({
+          plantId,
+          itemType: 'PADDY',
+          quantityChange: parsedNetWeight,
+          transactionType: 'IN',
+          referenceId: batch.id,
+          remarks: `Purchase entry ${batch.id.substring(0, 8)}`,
           godown: godown || data.stackNo || 'Main Yard',
-        category: category || 'OPERATIONAL',
-        stockValueChange: totalAmount
-      });
+          category: category || 'OPERATIONAL',
+          stockValueChange: totalAmount,
+        });
       }
 
-      // 4. Shortage composition (Feedback 33 + 34 ledger / narrations)
+      // 4. Shortage composition — Artia A/B bag weights (not plant-wise)
+      const artiaSupplierId = supplierId || data.supplierId || null;
+      const artia = artiaSupplierId
+        ? await this.prisma.supplier.findUnique({
+            where: { id: artiaSupplierId },
+            select: { aClassBagWeight: true, bClassBagWeight: true },
+          })
+        : null;
       const plantRow = plantId
         ? await this.prisma.plant.findUnique({
             where: { id: plantId },
             select: { standardBagWeight: true },
           })
         : null;
+      const aWt = this.parseArtiaBagWeight(artia?.aClassBagWeight, 0.38);
+      const bWt = this.parseArtiaBagWeight(artia?.bClassBagWeight, 0.385);
+      const agencyABags = parseFloat(data.origAClassAg) || 0;
+      const agencyBBags = parseFloat(data.origBClassAg) || 0;
+      const shortABags = parseFloat(data.shortageAClass) || 0;
+      const shortBBags = parseFloat(data.shortageBClass) || 0;
+      const totalArtiaBags =
+        agencyABags + agencyBBags + shortABags + shortBBags;
+      const artiaWeighted =
+        totalArtiaBags > 0
+          ? ((agencyABags + shortABags) * aWt +
+              (agencyBBags + shortBBags) * bWt) /
+            totalArtiaBags
+          : aWt;
       const bagWt =
         parseFloat(data.standardBagWeight) ||
+        (artia ? artiaWeighted : 0) ||
         Number(plantRow?.standardBagWeight) ||
         0.382;
       const qualityCutType = data.qualityCutType || 'NONE';
@@ -951,7 +1097,8 @@ export class ProcurementService {
       const millBagsExShort =
         (parseFloat(data.origAClass) || 0) + (parseFloat(data.origBClass) || 0);
       const agencyBags =
-        (parseFloat(data.origAClassAg) || 0) + (parseFloat(data.origBClassAg) || 0);
+        (parseFloat(data.origAClassAg) || 0) +
+        (parseFloat(data.origBClassAg) || 0);
       const bagsLess = Math.max(0, agencyBags - millBagsExShort);
       const bagsLessQtl = bagsLess * bagWt;
       // Client: Inform Bauji only when shortfall > 10% of Required Agency Bags
@@ -961,15 +1108,18 @@ export class ProcurementService {
       const informBaujiBagsLess =
         !!data.informBaujiBagsLess && bagsShortfallExceeds10Pct;
 
-      const reqNet = parseFloat(data.reqNetWt) || parseFloat(data.requiredNetWt) || 0;
+      const reqNet =
+        parseFloat(data.reqNetWt) || parseFloat(data.requiredNetWt) || 0;
       const millNet = parseFloat(data.netWtMill) || parsedNetWeight || 0;
       const weightDiff = reqNet - millNet; // >0 shortage, <0 excess
       const weightShortageQtl = weightDiff > 0 ? weightDiff : 0;
 
       // Feedback 34 — Section 5 shortage bags received → reduce Artia liability
       const shortageBagsReceived =
-        (parseFloat(data.shortageAClass) || 0) + (parseFloat(data.shortageBClass) || 0);
-      const shortageBagsReceivedQtl = shortageBagsReceived > 0 ? shortageBagsReceived * bagWt : 0;
+        (parseFloat(data.shortageAClass) || 0) +
+        (parseFloat(data.shortageBClass) || 0);
+      const shortageBagsReceivedQtl =
+        shortageBagsReceived > 0 ? shortageBagsReceived * bagWt : 0;
 
       type LedgerEntry = {
         type: string;
@@ -1017,8 +1167,13 @@ export class ProcurementService {
         0,
         weightShortageQtl - (informBaujiBagsLess ? 0 : bagsLessShortageQtl),
       );
-      if (residualWeightShortage > 0.0005 || (weightShortageQtl > 0 && informBaujiBagsLess)) {
-        const wAmt = informBaujiBagsLess ? weightShortageQtl : residualWeightShortage;
+      if (
+        residualWeightShortage > 0.0005 ||
+        (weightShortageQtl > 0 && informBaujiBagsLess)
+      ) {
+        const wAmt = informBaujiBagsLess
+          ? weightShortageQtl
+          : residualWeightShortage;
         if (wAmt > 0.0005) {
           ledger.push({
             type: 'WEIGHT_SHORTAGE',
@@ -1065,9 +1220,14 @@ export class ProcurementService {
       });
       // Manual recovery beyond auto credits (user punched extra)
       let manualExtra = 0;
-      if (existingDetails?.shortageLedger && Array.isArray(existingDetails.shortageLedger)) {
+      if (
+        existingDetails?.shortageLedger &&
+        Array.isArray(existingDetails.shortageLedger)
+      ) {
         const prevAuto = (existingDetails.shortageLedger as any[])
-          .filter((e) => e.direction === 'CREDIT' && e.type !== 'MANUAL_RECOVERY')
+          .filter(
+            (e) => e.direction === 'CREDIT' && e.type !== 'MANUAL_RECOVERY',
+          )
           .reduce((s, e) => s + (Number(e.amountQtl) || 0), 0);
         const prevTotal = existingDetails.shortageRecoveryQtl || 0;
         manualExtra = Math.max(0, prevTotal - prevAuto);
@@ -1089,10 +1249,15 @@ export class ProcurementService {
         data.autoNarration !== 0;
       const shortageNarration = autoNarrationOn
         ? ledger.map((e) => e.narration).join('; ')
-        : String(data.shortageNarration || ledger.map((e) => e.narration).join('; '));
+        : String(
+            data.shortageNarration || ledger.map((e) => e.narration).join('; '),
+          );
 
       const supplierForParty = supplierId
-        ? await tx.supplier.findUnique({ where: { id: supplierId }, select: { name: true } })
+        ? await tx.supplier.findUnique({
+            where: { id: supplierId },
+            select: { name: true },
+          })
         : null;
       const resolvedPartyName =
         (data.partyName && String(data.partyName).trim()) ||
@@ -1113,10 +1278,13 @@ export class ProcurementService {
           safaiType: data.safai || data.safaiType,
           mandiType: mandiType || data.mandiType || null,
           boliRate: boliRate ? parseFloat(boliRate) : null,
-          intimationToMandi: !!(data.mandiIntimation === 'Yes' || data.mandiIntimation === 'N.A.'),
+          intimationToMandi: !!(
+            data.mandiIntimation === 'Yes' || data.mandiIntimation === 'N.A.'
+          ),
           mandiQualityAlert: data.mandiIntimation === 'Yes',
           remarks: data.remarks != null ? String(data.remarks) : null,
-          discrepancy: data.discrepancy != null ? String(data.discrepancy) : null,
+          discrepancy:
+            data.discrepancy != null ? String(data.discrepancy) : null,
           allocationType: data.allocationType,
           stackNo: data.stackNo,
           bagType: data.bagType,
@@ -1128,10 +1296,14 @@ export class ProcurementService {
               ? 0
               : parseFloat(data.bagsAtAgencyGp) || 0,
           egpLate: data.egpLate === true || data.egpLate === 'true',
-          netWtAtMill: parseFloat(data.netWtMill) || parseFloat(data.netWtAtMill) || 0,
-          requiredNetWt: parseFloat(data.reqNetWt) || parseFloat(data.requiredNetWt) || 0,
-          netWtDifference: parseFloat(data.netWtDiff) || parseFloat(data.netWtDifference) || 0,
-          netWtAtParty: parseFloat(data.netWtParty) || parseFloat(data.netWtAtParty) || 0,
+          netWtAtMill:
+            parseFloat(data.netWtMill) || parseFloat(data.netWtAtMill) || 0,
+          requiredNetWt:
+            parseFloat(data.reqNetWt) || parseFloat(data.requiredNetWt) || 0,
+          netWtDifference:
+            parseFloat(data.netWtDiff) || parseFloat(data.netWtDifference) || 0,
+          netWtAtParty:
+            parseFloat(data.netWtParty) || parseFloat(data.netWtAtParty) || 0,
           shortageType: data.shortageType,
           shortageAClass: parseFloat(data.shortageAClass) || 0,
           shortageBClass: parseFloat(data.shortageBClass) || 0,
@@ -1149,10 +1321,15 @@ export class ProcurementService {
           shortageLedger: ledger,
           govtRate: data.govtRate ? parseFloat(data.govtRate) : null,
           standardBagWeight: bagWt,
-          totalBagsCalculated: data.totalBagsCalculated ? parseFloat(data.totalBagsCalculated) : null,
-          standardWeightCalculated: data.standardWeightCalculated ? parseFloat(data.standardWeightCalculated) : null,
+          totalBagsCalculated: data.totalBagsCalculated
+            ? parseFloat(data.totalBagsCalculated)
+            : null,
+          standardWeightCalculated: data.standardWeightCalculated
+            ? parseFloat(data.standardWeightCalculated)
+            : null,
           actualWeightReceived:
-            data.actualWeightReceived !== undefined && data.actualWeightReceived !== null
+            data.actualWeightReceived !== undefined &&
+            data.actualWeightReceived !== null
               ? parseFloat(data.actualWeightReceived)
               : parseFloat(data.netWtMill) || null,
           shortageQtl: totalShortageQtl > 0 ? totalShortageQtl : 0,
@@ -1166,7 +1343,9 @@ export class ProcurementService {
             data.origAClass != null || data.aClassReceived != null
               ? parseFloat(data.origAClass ?? data.aClassReceived) || 0
               : null,
-          aClassPending: data.aClassPending ? parseFloat(data.aClassPending) : null,
+          aClassPending: data.aClassPending
+            ? parseFloat(data.aClassPending)
+            : null,
           bClassGiven:
             data.origBClassAg != null || data.bClassGiven != null
               ? parseFloat(data.origBClassAg ?? data.bClassGiven) || 0
@@ -1175,14 +1354,23 @@ export class ProcurementService {
             data.origBClass != null || data.bClassReceived != null
               ? parseFloat(data.origBClass ?? data.bClassReceived) || 0
               : null,
-          bClassPending: data.bClassPending ? parseFloat(data.bClassPending) : null,
-          autoConvertedToBClass: data.autoConvertedToBClass ? parseFloat(data.autoConvertedToBClass) : null,
+          bClassPending: data.bClassPending
+            ? parseFloat(data.bClassPending)
+            : null,
+          autoConvertedToBClass: data.autoConvertedToBClass
+            ? parseFloat(data.autoConvertedToBClass)
+            : null,
           bagsRecLessThanAgencyGp: !!informBaujiBagsLess,
-          plusWtConsiderInShortageRecovery: !!(data.plusWtConsiderInShortageRecovery || data.informBaujiExcessWeight),
+          plusWtConsiderInShortageRecovery: !!(
+            data.plusWtConsiderInShortageRecovery ||
+            data.informBaujiExcessWeight
+          ),
           informBaujiBagsLess: !!informBaujiBagsLess,
           informBaujiExcessWeight: !!data.informBaujiExcessWeight,
-          grossWeight: data.grossWeight != null ? parseFloat(data.grossWeight) : null,
-          tareWeight: data.tareWeight != null ? parseFloat(data.tareWeight) : null,
+          grossWeight:
+            data.grossWeight != null ? parseFloat(data.grossWeight) : null,
+          tareWeight:
+            data.tareWeight != null ? parseFloat(data.tareWeight) : null,
           netWeightWb:
             data.netWeightWb != null
               ? parseFloat(data.netWeightWb)
@@ -1207,7 +1395,8 @@ export class ProcurementService {
             ? null
             : data.secondPartStackNo || data.partStackNo || null,
           bagsInSecondPartStack:
-            data.bagsInSecondPartStack != null && data.bagsInSecondPartStack !== ''
+            data.bagsInSecondPartStack != null &&
+            data.bagsInSecondPartStack !== ''
               ? parseFloat(data.bagsInSecondPartStack)
               : data.bagsInPartStack != null && data.bagsInPartStack !== ''
                 ? parseFloat(data.bagsInPartStack)
@@ -1234,12 +1423,14 @@ export class ProcurementService {
             ? null
             : data.thirdPartStackNo || null,
           bagsInThirdPartStack:
-            data.bagsInThirdPartStack != null && data.bagsInThirdPartStack !== ''
+            data.bagsInThirdPartStack != null &&
+            data.bagsInThirdPartStack !== ''
               ? parseFloat(data.bagsInThirdPartStack)
               : null,
           thirdPartIsHoodi: !!data.thirdPartIsHoodi,
           thirdPartUnloadWeight:
-            data.thirdPartUnloadWeight != null && data.thirdPartUnloadWeight !== ''
+            data.thirdPartUnloadWeight != null &&
+            data.thirdPartUnloadWeight !== ''
               ? parseFloat(data.thirdPartUnloadWeight)
               : null,
           thirdPartUnloaderName: data.thirdPartUnloaderName || null,
@@ -1250,10 +1441,14 @@ export class ProcurementService {
               ? parseFloat(data.thirdPartUnloaderTruckCount)
               : null,
           meterNotWorking: !!data.meterNotWorking,
-          newTruckReading: data.newTruckReading != null ? parseFloat(data.newTruckReading) : null,
+          newTruckReading:
+            data.newTruckReading != null
+              ? parseFloat(data.newTruckReading)
+              : null,
           moisture: parsedMoisture,
           driverName: data.driverName || null,
-          driverMobileNumber: data.mobileNumber || data.driverMobileNumber || null,
+          driverMobileNumber:
+            data.mobileNumber || data.driverMobileNumber || null,
           isUploadedToHoodiRegister: data.hoodiUpload === 'Yes',
           allocateUnloader: data.allocateUnloader || null,
           labourType: data.labour || data.labourType || null,
@@ -1311,16 +1506,29 @@ export class ProcurementService {
       });
 
       if (informBaujiBagsLess || data.informBaujiExcessWeight) {
-        const action = data.informBaujiExcessWeight ? 'INFORM_BAUJI_EXCESS_WEIGHT' : 'INFORM_BAUJI_BAGS_LESS';
+        const action = data.informBaujiExcessWeight
+          ? 'INFORM_BAUJI_EXCESS_WEIGHT'
+          : 'INFORM_BAUJI_BAGS_LESS';
         const details = data.informBaujiExcessWeight
           ? `Excess weight Inform Bauji for truck ${data.truckNo}. Diff: ${data.netWtDiff || data.shortageQtl}`
           : `Bags less than Agency GP Inform Bauji for truck ${data.truckNo} (mill ${millBagsExShort} vs agency ${agencyBags}, shortfall > 10%)`;
-        await this.notifyAdmin(tx, data.userId, action, details, batch.id, plantId);
+        await this.notifyAdmin(
+          tx,
+          data.userId,
+          action,
+          details,
+          batch.id,
+          plantId,
+        );
       }
 
       // Client: notify Admin when bags shortfall exceeds 10% of Agency GP
       // (skip if Inform Bauji already raised its own alert)
-      if (bagsShortfallExceeds10Pct && !informBaujiBagsLess && data.status !== 'DRAFT') {
+      if (
+        bagsShortfallExceeds10Pct &&
+        !informBaujiBagsLess &&
+        data.status !== 'DRAFT'
+      ) {
         const pct =
           agencyBags > 0
             ? (((agencyBags - millBagsExShort) / agencyBags) * 100).toFixed(1)
@@ -1337,7 +1545,10 @@ export class ProcurementService {
       }
 
       // Audit trail: routine + backdated inward entries on supervisor fingerprint / confirm
-      if (data.status !== 'DRAFT' && (data.biometricData || data.entryCompletionAt)) {
+      if (
+        data.status !== 'DRAFT' &&
+        (data.biometricData || data.entryCompletionAt)
+      ) {
         const isBackdated = this.computeIsBackdated(
           data.date || data.entryDate,
           data.timeIn,
@@ -1354,18 +1565,21 @@ export class ProcurementService {
         await this.notifyAdmin(
           tx,
           data.userId,
-          isBackdated ? 'PADDY_INWARD_BACKDATED_ENTRY' : 'PADDY_INWARD_ENTRY_AUDIT',
+          isBackdated
+            ? 'PADDY_INWARD_BACKDATED_ENTRY'
+            : 'PADDY_INWARD_ENTRY_AUDIT',
           `${isBackdated ? 'BACKDATED' : 'ROUTINE'} inward entry by ${who} at ${whenIso}. ` +
             `Recorded In: ${data.date || '-'} ${data.timeIn || '-'}; ` +
             `GP Complete: ${data.gpCompleteDate || '-'} ${data.timeOut || '-'}; ` +
             `Truck: ${data.truckNo || '-'}; GP: ${data.gpNo || '-'}`,
           batch.id,
-            plantId,
+          plantId,
         );
       }
 
       // 5. Apply boli receive bags ONLY on first confirm — stored so delete can restore them
-      const isBoliMandi = String(mandiType || data.mandiType || '').toLowerCase() === 'boli';
+      const isBoliMandi =
+        String(mandiType || data.mandiType || '').toLowerCase() === 'boli';
       const applyBoli =
         data.status !== 'DRAFT' &&
         (!data.id || wasDraft) &&
@@ -1377,7 +1591,9 @@ export class ProcurementService {
         for (const [boliId, bagsRec] of Object.entries(data.boliInputs)) {
           const received = parseFloat(bagsRec as string);
           if (received > 0) {
-            const boli = await tx.paddyBoli.findUnique({ where: { id: boliId } });
+            const boli = await tx.paddyBoli.findUnique({
+              where: { id: boliId },
+            });
             if (!boli || boli.isCancelled) continue;
             // Already completed from this form: bags were added there. Still record
             // them so deleting this inward puts the same bags back.
@@ -1413,7 +1629,11 @@ export class ProcurementService {
       }
 
       // 8. Notification for Bags Received (confirm only — draft bags are incomplete)
-      if (data.status !== 'DRAFT' && data.bagsRecAtMill && parseFloat(data.bagsRecAtMill) > 0) {
+      if (
+        data.status !== 'DRAFT' &&
+        data.bagsRecAtMill &&
+        parseFloat(data.bagsRecAtMill) > 0
+      ) {
         await this.notifyAdmin(
           tx,
           data.userId,
@@ -1441,11 +1661,11 @@ export class ProcurementService {
           parseFloat(data.netWeightWb) ||
           0;
         const noPart = !!data.noPartStack;
-        const partIsHoodi = !!(data.partIsHoodi || data.partDestination === 'HOODI');
+        const partIsHoodi = !!(
+          data.partIsHoodi || data.partDestination === 'HOODI'
+        );
         let mainBags = parseFloat(data.bagsInMainStack);
-        let partBags = noPart
-          ? 0
-          : parseFloat(data.bagsInSecondPartStack) || 0;
+        let partBags = noPart ? 0 : parseFloat(data.bagsInSecondPartStack) || 0;
         const thirdBagsForSplit = parseFloat(data.bagsInThirdPartStack) || 0;
         if (!Number.isFinite(mainBags) || mainBags < 0) {
           mainBags = noPart
@@ -1470,23 +1690,23 @@ export class ProcurementService {
           },
         });
 
-      if (data.allocationType === 'Hoodi') {
+        if (data.allocationType === 'Hoodi') {
           // Entire truck unloaded at Hoodi
-        await tx.hoodiRecord.create({
-          data: {
-            plantId,
-            sourceType: 'DIRECT_INWARD',
-            date: new Date(),
-            gpNo: data.gpNo,
-            mandiGpNo: data.mandiEgpNo || data.mandiEgNo,
-            truckNo: data.truckNo,
-            supplierName: supplier?.name || null,
-            mandiName: data.mandi,
-            stackNo: 'Direct-Inward',
+          await tx.hoodiRecord.create({
+            data: {
+              plantId,
+              sourceType: 'DIRECT_INWARD',
+              date: new Date(),
+              gpNo: data.gpNo,
+              mandiGpNo: data.mandiEgpNo || data.mandiEgNo,
+              truckNo: data.truckNo,
+              supplierName: supplier?.name || null,
+              mandiName: data.mandi,
+              stackNo: 'Direct-Inward',
               bags: totalBags || parseFloat(data.bagsRecAtMill) || 0,
               netWeight: totalWt || null,
               rstNo: data.rstNo || null,
-            moisture: parsedMoisture,
+              moisture: parsedMoisture,
               unloadedBy:
                 data.allocateUnloader || data.unloaderName || 'System',
               partStackNo: null,
@@ -1522,8 +1742,7 @@ export class ProcurementService {
               partStackNo: data.stackNo || null,
               partIsHoodi: false,
               partBags: mainBags,
-              partUnloader:
-                data.allocateUnloader || data.unloaderName || null,
+              partUnloader: data.allocateUnloader || data.unloaderName || null,
               partWeight: mainWt,
               inwardId: batch.id,
             },
@@ -1532,7 +1751,8 @@ export class ProcurementService {
         const thirdBagsHoodi = parseFloat(data.bagsInThirdPartStack) || 0;
         const thirdIsHoodi = !!data.thirdPartIsHoodi;
         const thirdWtHoodi =
-          data.thirdPartUnloadWeight != null && data.thirdPartUnloadWeight !== ''
+          data.thirdPartUnloadWeight != null &&
+          data.thirdPartUnloadWeight !== ''
             ? parseFloat(data.thirdPartUnloadWeight)
             : this.unitaryWeight(totalWt, totalBags, thirdBagsHoodi);
         if (
@@ -1546,7 +1766,9 @@ export class ProcurementService {
               sourceType: 'PART_INWARD',
               date: new Date(),
               gpNo: data.gpNo,
-              mandiGpNo: data.egpLate ? null : data.mandiEgpNo || data.mandiEgNo,
+              mandiGpNo: data.egpLate
+                ? null
+                : data.mandiEgpNo || data.mandiEgNo,
               truckNo: data.truckNo,
               supplierName: supplier?.name || null,
               mandiName: data.mandi,
@@ -1610,7 +1832,6 @@ export class ProcurementService {
     return saved;
   }
 
-
   /** Lightweight draft list for Paddy Inward “Saved Drafts” table */
   async getDraftInwards(plantId: string) {
     const where: any = {
@@ -1640,7 +1861,9 @@ export class ProcurementService {
       return {
         id: b.id,
         status: b.status,
-        date: (d.entryDate || b.createdAt?.toISOString?.()?.slice(0, 10) || '').toString().slice(0, 10),
+        date: (d.entryDate || b.createdAt?.toISOString?.()?.slice(0, 10) || '')
+          .toString()
+          .slice(0, 10),
         timeIn: d.timeIn || null,
         timeOut: d.timeOut || null,
         gpCompleteDate: d.gpCompleteDate || null,
@@ -1660,7 +1883,9 @@ export class ProcurementService {
         moisture: d.moisture ?? b.quality?.moisture ?? null,
         grossWeight: d.grossWeight ?? null,
         millBags: aRec + bRec,
-        agencyBags: d.egpLate ? 0 : aGiven + bGiven || Number(d.bagsAtAgencyGp || 0),
+        agencyBags: d.egpLate
+          ? 0
+          : aGiven + bGiven || Number(d.bagsAtAgencyGp || 0),
         egpLate: !!d.egpLate,
         isHold: !!d.isHold,
         holdReason: d.holdReason || null,
@@ -1745,10 +1970,12 @@ export class ProcurementService {
           data: { sodaCompleted: false },
         });
       }
-      const confirmed = batch.status === 'CONFIRMED' || batch.status === 'COMPLETED';
+      const confirmed =
+        batch.status === 'CONFIRMED' || batch.status === 'COMPLETED';
       if (confirmed) {
         const moisture = Number(d.moisture || 0);
-        const isAClass = d.bagType === 'NEW' && d.originalBardanaClass === 'A_Class';
+        const isAClass =
+          d.bagType === 'NEW' && d.originalBardanaClass === 'A_Class';
         const reverse = async (
           stackNo: string | null | undefined,
           bags: number,
@@ -1765,7 +1992,11 @@ export class ProcurementService {
             isAClass,
           );
         };
-        await reverse(d.stackNo, Number(d.bagsInMainStack || 0), Number(d.mainUnloadWeight || 0));
+        await reverse(
+          d.stackNo,
+          Number(d.bagsInMainStack || 0),
+          Number(d.mainUnloadWeight || 0),
+        );
         if (!d.partIsHoodi) {
           await reverse(
             d.secondPartStackNo,
@@ -1821,10 +2052,18 @@ export class ProcurementService {
     });
   }
 
-  async getInwards(plantId: string, dateFrom?: string, dateTo?: string, mandi?: string, supplierId?: string, page?: string, limit?: string) {
+  async getInwards(
+    plantId: string,
+    dateFrom?: string,
+    dateTo?: string,
+    mandi?: string,
+    supplierId?: string,
+    page?: string,
+    limit?: string,
+  ) {
     const whereClause: any = plantId === 'global' ? {} : { plantId };
     whereClause.status = { not: 'CANCELLED' };
-    
+
     if (dateFrom || dateTo) {
       whereClause.createdAt = {};
       if (dateFrom) whereClause.createdAt.gte = new Date(dateFrom);
@@ -1834,15 +2073,15 @@ export class ProcurementService {
         whereClause.createdAt.lte = to;
       }
     }
-    
+
     // Add additional filters for Inwards
     if (mandi || supplierId) {
-       if (mandi) {
-         whereClause.paddyInwardDetails = {
-           mandi: { contains: mandi, mode: 'insensitive' },
-         };
-       }
-       if (supplierId) whereClause.supplierId = supplierId;
+      if (mandi) {
+        whereClause.paddyInwardDetails = {
+          mandi: { contains: mandi, mode: 'insensitive' },
+        };
+      }
+      if (supplierId) whereClause.supplierId = supplierId;
     }
 
     const pageNum = parseInt(page || '1', 10);
@@ -1857,33 +2096,39 @@ export class ProcurementService {
           supplier: true,
           paddyInwardDetails: true,
           weighbridge: true,
-          quality: true
+          quality: true,
         },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: limitNum
-      })
+        take: limitNum,
+      }),
     ]);
 
-    const mappedData = inwards.map(b => ({
+    const mappedData = inwards.map((b) => ({
       purchaseNo: b.id.substring(0, 8).toUpperCase(),
       date: b.createdAt.toISOString().split('T')[0],
       gpNo: b.paddyInwardDetails?.gpNo || '-',
       supplier: b.supplier?.name || 'Walk-in',
       mandiEgNo: b.paddyInwardDetails?.mandiEgNo || '-',
       rstNo: b.paddyInwardDetails?.rstNo || '-',
-      vehicleNo: b.weighbridge?.vehicleNo || b.paddyInwardDetails?.truckNo || '-',
+      vehicleNo:
+        b.weighbridge?.vehicleNo || b.paddyInwardDetails?.truckNo || '-',
       grossWt: b.paddyInwardDetails?.grossWeight || b.grossWeight || '-',
       tareWt: b.paddyInwardDetails?.tareWeight || b.tareWeight || '-',
-      netWt: b.netWeight || b.paddyInwardDetails?.netWtAtMill || b.paddyInwardDetails?.netWeightWb || '-',
+      netWt:
+        b.netWeight ||
+        b.paddyInwardDetails?.netWtAtMill ||
+        b.paddyInwardDetails?.netWeightWb ||
+        '-',
       status: b.status,
       // Feedback 33 list columns — Actual Received = mill bags excluding shortage bags
       actualReceivedBags:
-        ((b.paddyInwardDetails?.aClassReceived ?? 0) + (b.paddyInwardDetails?.bClassReceived ?? 0)) ||
-        null,
+        (b.paddyInwardDetails?.aClassReceived ?? 0) +
+          (b.paddyInwardDetails?.bClassReceived ?? 0) || null,
       bagsAtAgencyGp:
         (b.paddyInwardDetails?.bagsAtAgencyGp ??
-          ((b.paddyInwardDetails?.aClassGiven ?? 0) + (b.paddyInwardDetails?.bClassGiven ?? 0))) ||
+          (b.paddyInwardDetails?.aClassGiven ?? 0) +
+            (b.paddyInwardDetails?.bClassGiven ?? 0)) ||
         null,
       timeIn: b.paddyInwardDetails?.timeIn || null,
       timeOut: b.paddyInwardDetails?.timeOut || null,
@@ -1894,11 +2139,10 @@ export class ProcurementService {
       supplierDetails: b.supplier,
       batchStatus: b.status,
     }));
-    
+
     return { data: mappedData, total };
   }
 
-  
   async getInwardDetails(batchId: string) {
     const batch = await this.prisma.procurementBatch.findUnique({
       where: { id: batchId },
@@ -1907,15 +2151,21 @@ export class ProcurementService {
         paddyInwardDetails: true,
         weighbridge: true,
         quality: true,
-      }
+      },
     });
     if (!batch) throw new Error('Inward record not found');
     return batch;
   }
 
-  async getRecentPurchases(plantId: string, dateFrom?: string, dateTo?: string, page?: string, limit?: string) {
+  async getRecentPurchases(
+    plantId: string,
+    dateFrom?: string,
+    dateTo?: string,
+    page?: string,
+    limit?: string,
+  ) {
     const whereClause: any = plantId === 'global' ? {} : { plantId };
-    
+
     if (dateFrom || dateTo) {
       whereClause.createdAt = {};
       if (dateFrom) whereClause.createdAt.gte = new Date(dateFrom);
@@ -1941,9 +2191,9 @@ export class ProcurementService {
           supplier: true,
           quality: true,
           weighbridge: true,
-          paddyInwardDetails: true
-        }
-      })
+          paddyInwardDetails: true,
+        },
+      }),
     ]);
 
     const mappedData = batches.map((b: any) => ({
@@ -1954,29 +2204,44 @@ export class ProcurementService {
       vehicle: b.weighbridge?.vehicleNo || '-',
       netWeight: b.netWeight,
       moisture: b.quality?.moisture || 0,
-      rate: (b.amount / (b.netWeight * 10)) || 0,
+      rate: b.amount / (b.netWeight * 10) || 0,
       amount: b.netAmount,
       status: b.status,
       qcStatus: b.quality?.status || 'Pending',
-      inwardDetails: b.paddyInwardDetails || null
+      inwardDetails: b.paddyInwardDetails || null,
     }));
-    
+
     return { data: mappedData, total };
   }
 
   async getBatch(batchId: string) {
     return this.prisma.procurementBatch.findFirst({
       where: { id: { startsWith: batchId } },
-      include: { supplier: true, weighbridge: true, quality: true, paddyInwardDetails: true }
+      include: {
+        supplier: true,
+        weighbridge: true,
+        quality: true,
+        paddyInwardDetails: true,
+      },
     });
   }
 
   async updateQuality(batchId: string, data: any) {
-    const { moisture, broken, discoloration, foreignMatter, chalky, others, remarks, inspectedBy, status } = data;
+    const {
+      moisture,
+      broken,
+      discoloration,
+      foreignMatter,
+      chalky,
+      others,
+      remarks,
+      inspectedBy,
+      status,
+    } = data;
 
     const batch = await this.prisma.procurementBatch.findFirst({
       where: { id: { startsWith: batchId } },
-      select: { id: true }
+      select: { id: true },
     });
 
     if (!batch) {
@@ -1994,14 +2259,14 @@ export class ProcurementService {
           discoloration: parseFloat(discoloration) || 0,
           foreignMatter: parseFloat(foreignMatter) || 0,
           status: status, // 'APPROVED' or 'REJECTED'
-          inspectedBy: inspectedBy || null
-        }
+          inspectedBy: inspectedBy || null,
+        },
       });
 
       const batchStatus = status === 'APPROVED' ? 'COMPLETED' : 'QC_REJECTED';
       await tx.procurementBatch.update({
         where: { id: fullBatchId },
-        data: { status: batchStatus }
+        data: { status: batchStatus },
       });
 
       return qc;
@@ -2021,6 +2286,11 @@ export class ProcurementService {
     });
   }
 
+  private parseArtiaBagWeight(raw: unknown, fallback: number): number {
+    const n = typeof raw === 'number' ? raw : parseFloat(String(raw ?? ''));
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  }
+
   async createSupplier(
     data: {
       name: string;
@@ -2030,6 +2300,8 @@ export class ProcurementService {
       firmNames?: string[];
       mandi?: string;
       plantId?: string;
+      aClassBagWeight?: number | string;
+      bClassBagWeight?: number | string;
       biometricData?: string;
       isoTemplate?: string;
     },
@@ -2039,7 +2311,9 @@ export class ProcurementService {
     const cleanName = String(name || '').trim();
     if (!cleanName) throw new BadRequestException('Arthiya name is required');
     if (!plantId || plantId === 'global') {
-      throw new BadRequestException('Mill (plantId) is required — Arthiya is mill-scoped');
+      throw new BadRequestException(
+        'Mill (plantId) is required — Arthiya is mill-scoped',
+      );
     }
 
     const isSupervisor = this.isSupervisorRole(user);
@@ -2066,6 +2340,14 @@ export class ProcurementService {
 
     // Supervisor → pending Admin; Admin → active immediately
     const status = isSupervisor ? 'PENDING_APPROVAL' : 'ACTIVE';
+    const aClassBagWeight = this.parseArtiaBagWeight(
+      data.aClassBagWeight,
+      0.38,
+    );
+    const bClassBagWeight = this.parseArtiaBagWeight(
+      data.bClassBagWeight,
+      0.385,
+    );
 
     const supplier = await this.prisma.supplier.create({
       data: {
@@ -2075,6 +2357,8 @@ export class ProcurementService {
         address,
         firmNames: firmNames || [],
         mandi,
+        aClassBagWeight,
+        bClassBagWeight,
         status,
         plantId,
         biometricData: data.biometricData || null,
@@ -2124,7 +2408,62 @@ export class ProcurementService {
     return supplier;
   }
 
-  async approveSupplier(id: string, userId?: string) {
+  async updateSupplier(
+    id: string,
+    data: {
+      name?: string;
+      contact?: string;
+      email?: string;
+      address?: string;
+      firmNames?: string[];
+      mandi?: string;
+      aClassBagWeight?: number | string;
+      bClassBagWeight?: number | string;
+    },
+    user?: any,
+  ) {
+    if (!this.isAdminRole(user)) {
+      throw new BadRequestException('Only Admin can edit Arthiya bag weights');
+    }
+    const existing = await this.prisma.supplier.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Arthiya not found');
+
+    const patch: any = {};
+    if (data.name != null) {
+      const cleanName = String(data.name || '').trim();
+      if (!cleanName) throw new BadRequestException('Arthiya name is required');
+      patch.name = cleanName;
+    }
+    if (data.contact !== undefined) patch.contact = data.contact;
+    if (data.email !== undefined) patch.email = data.email;
+    if (data.address !== undefined) patch.address = data.address;
+    if (data.firmNames !== undefined) patch.firmNames = data.firmNames || [];
+    if (data.mandi !== undefined) patch.mandi = data.mandi;
+    if (data.aClassBagWeight !== undefined) {
+      patch.aClassBagWeight = this.parseArtiaBagWeight(
+        data.aClassBagWeight,
+        existing.aClassBagWeight ?? 0.38,
+      );
+    }
+    if (data.bClassBagWeight !== undefined) {
+      patch.bClassBagWeight = this.parseArtiaBagWeight(
+        data.bClassBagWeight,
+        existing.bClassBagWeight ?? 0.385,
+      );
+    }
+
+    return this.prisma.supplier.update({
+      where: { id },
+      data: patch,
+      include: { plant: { select: { id: true, name: true, code: true } } },
+    });
+  }
+
+  async approveSupplier(id: string, user?: any) {
+    if (!this.isAdminRole(user)) {
+      throw new BadRequestException('Only Admin can approve Arthiya');
+    }
+    const userId = user?.id as string | undefined;
     const existing = await this.prisma.supplier.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Arthiya not found');
     if (existing.status === 'ACTIVE') return existing;
@@ -2160,7 +2499,11 @@ export class ProcurementService {
     return supplier;
   }
 
-  async rejectSupplier(id: string, userId?: string) {
+  async rejectSupplier(id: string, user?: any) {
+    if (!this.isAdminRole(user)) {
+      throw new BadRequestException('Only Admin can decline Arthiya');
+    }
+    const userId = user?.id as string | undefined;
     const supplier = await this.prisma.supplier.findUnique({ where: { id } });
     if (!supplier) throw new NotFoundException('Arthiya not found');
     if (supplier.status === 'ACTIVE') {
@@ -2200,18 +2543,18 @@ export class ProcurementService {
     const batches = await this.prisma.paddyInwardDetails.findMany({
       where: {
         stackNo: { not: null },
-        procurementBatch: { plantId, category: 'OPERATIONAL' }
+        procurementBatch: { plantId, category: 'OPERATIONAL' },
       },
       include: {
         procurementBatch: {
-          include: { quality: true }
-        }
-      }
+          include: { quality: true },
+        },
+      },
     });
 
     const stackMap: Record<string, any> = {};
 
-    batches.forEach(b => {
+    batches.forEach((b) => {
       const stack = b.stackNo;
       if (!stack) return;
 
@@ -2224,12 +2567,12 @@ export class ProcurementService {
           minMoisture: 999,
           type: b.bagType || 'NEW',
           capacity: 2467,
-          moisture: 0
+          moisture: 0,
         };
       }
 
       stackMap[stack].bags += b.bagsRecAtMill || 0;
-      
+
       const m = b.procurementBatch?.quality?.moisture;
       if (m) {
         stackMap[stack].totalMoisture += m;
@@ -2239,14 +2582,18 @@ export class ProcurementService {
       }
     });
 
-    Object.keys(stackMap).forEach(key => {
+    Object.keys(stackMap).forEach((key) => {
       if (stackMap[key].moistureCount > 0) {
-        stackMap[key].moisture = Number((stackMap[key].totalMoisture / stackMap[key].moistureCount).toFixed(2));
+        stackMap[key].moisture = Number(
+          (stackMap[key].totalMoisture / stackMap[key].moistureCount).toFixed(
+            2,
+          ),
+        );
       } else {
         stackMap[key].minMoisture = 0;
       }
       if (stackMap[key].minMoisture === 999) stackMap[key].minMoisture = 0;
-      
+
       delete stackMap[key].totalMoisture;
       delete stackMap[key].moistureCount;
     });
@@ -2262,28 +2609,34 @@ export class ProcurementService {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const [totalSuppliers, monthPurchases, monthAmount, pendingQty, todayPurchase] = await Promise.all([
+    const [
+      totalSuppliers,
+      monthPurchases,
+      monthAmount,
+      pendingQty,
+      todayPurchase,
+    ] = await Promise.all([
       this.prisma.supplier.count({ where: { status: 'Active' } }),
-      
+
       this.prisma.procurementBatch.aggregate({
         where: { plantId, createdAt: { gte: startOfMonth } },
-        _sum: { netWeight: true }
+        _sum: { netWeight: true },
       }),
-      
+
       this.prisma.procurementBatch.aggregate({
         where: { plantId, createdAt: { gte: startOfMonth } },
-        _sum: { netAmount: true }
+        _sum: { netAmount: true },
       }),
 
       this.prisma.procurementBatch.aggregate({
         where: { plantId, status: 'PENDING' },
-        _sum: { netWeight: true }
+        _sum: { netWeight: true },
       }),
 
       this.prisma.procurementBatch.aggregate({
         where: { plantId, createdAt: { gte: startOfDay } },
-        _sum: { netWeight: true }
-      })
+        _sum: { netWeight: true },
+      }),
     ]);
 
     return {
@@ -2291,7 +2644,7 @@ export class ProcurementService {
       totalPurchaseMT: monthPurchases._sum.netWeight || 0,
       totalAmount: monthAmount._sum.netAmount || 0,
       pendingQtyMT: pendingQty._sum.netWeight || 0,
-      todayPurchaseMT: todayPurchase._sum.netWeight || 0
+      todayPurchaseMT: todayPurchase._sum.netWeight || 0,
     };
   }
 
@@ -2304,7 +2657,7 @@ export class ProcurementService {
       end.setHours(23, 59, 59, 999);
       where.createdAt = { gte: new Date(startDate), lte: end };
     }
-    
+
     if (supplierId && supplierId !== 'All Suppliers') {
       where.supplierId = supplierId;
     }
@@ -2324,8 +2677,13 @@ export class ProcurementService {
         orderBy: { createdAt: 'desc' },
         skip,
         take: limitNum,
-        include: { supplier: true, quality: true, weighbridge: true, paddyInwardDetails: true }
-      })
+        include: {
+          supplier: true,
+          quality: true,
+          weighbridge: true,
+          paddyInwardDetails: true,
+        },
+      }),
     ]);
 
     const mappedData = batches.map((b: any) => ({
@@ -2336,28 +2694,36 @@ export class ProcurementService {
       netWeight: b.netWeight,
       amount: b.netAmount,
       status: b.status,
-      inwardDetails: b.paddyInwardDetails || null
+      inwardDetails: b.paddyInwardDetails || null,
     }));
-    
+
     return { data: mappedData, total };
   }
 
   // Next-Day Correction Guard
-  async updateBoliRate(batchId: string, newRate: number, arhtiaCorrection: number) {
+  async updateBoliRate(
+    batchId: string,
+    newRate: number,
+    arhtiaCorrection: number,
+  ) {
     const batch = await this.prisma.procurementBatch.findUnique({
-      where: { id: batchId }
+      where: { id: batchId },
     });
 
     if (!batch) throw new BadRequestException('Batch not found');
-    if (batch.purchaseType !== 'PADDY_BOLI') throw new BadRequestException('Can only update rates for Boli purchases');
-    if (!batch.baseRate) throw new BadRequestException('Base rate not found for this batch');
+    if (batch.purchaseType !== 'PADDY_BOLI')
+      throw new BadRequestException('Can only update rates for Boli purchases');
+    if (!batch.baseRate)
+      throw new BadRequestException('Base rate not found for this batch');
 
     // Strict validation: variance cannot exceed 20% of base rate
     const variance = Math.abs(batch.baseRate - newRate);
-    const maxAllowedVariance = batch.baseRate * 0.20;
+    const maxAllowedVariance = batch.baseRate * 0.2;
 
     if (variance > maxAllowedVariance) {
-      throw new BadRequestException(`Rate correction exceeds maximum allowed 20% variance. Max allowed variance is ${maxAllowedVariance}.`);
+      throw new BadRequestException(
+        `Rate correction exceeds maximum allowed 20% variance. Max allowed variance is ${maxAllowedVariance}.`,
+      );
     }
 
     return this.prisma.procurementBatch.update({
@@ -2365,8 +2731,8 @@ export class ProcurementService {
       data: {
         finalRate: newRate,
         arhtiaCorrection,
-        nextDayCorrection: variance
-      }
+        nextDayCorrection: variance,
+      },
     });
   }
 
@@ -2375,7 +2741,10 @@ export class ProcurementService {
   // ---------------------------------------------------------------------------
 
   /** Combine YYYY-MM-DD + HH:mm into epoch ms (local). Also accepts ISO datetime in `time`. */
-  private combineDateTimeMs(date?: string | null, time?: string | null): number | null {
+  private combineDateTimeMs(
+    date?: string | null,
+    time?: string | null,
+  ): number | null {
     if (time) {
       const raw = String(time).trim();
       if (raw.includes('T') || /^\d{4}-\d{2}-\d{2}/.test(raw)) {
@@ -2460,7 +2829,11 @@ export class ProcurementService {
     if (inMs == null) return false;
     const made = entryCompletionAt ? new Date(entryCompletionAt) : new Date();
     if (!Number.isFinite(made.getTime())) return false;
-    const madeDayStart = new Date(made.getFullYear(), made.getMonth(), made.getDate()).getTime();
+    const madeDayStart = new Date(
+      made.getFullYear(),
+      made.getMonth(),
+      made.getDate(),
+    ).getTime();
     return inMs < madeDayStart;
   }
 
@@ -2471,7 +2844,11 @@ export class ProcurementService {
    * Mandi Today Rate is never used for payment / diff.
    * e.g. (2441 − 2100) × (120 × 0.375) = 341 × 45 = 15345
    */
-  private calcBoliPayment(govtRate: number, boliRate: number, finalBags: number | null | undefined) {
+  private calcBoliPayment(
+    govtRate: number,
+    boliRate: number,
+    finalBags: number | null | undefined,
+  ) {
     if (finalBags == null || !Number.isFinite(Number(finalBags))) return 0;
     const bags = Number(finalBags);
     const diff = (Number(govtRate) || 0) - (Number(boliRate) || 0);
@@ -2481,10 +2858,7 @@ export class ProcurementService {
   }
 
   /** Soda Govt Rate if punched; otherwise mill (plant) Govt Paddy Rate. */
-  private resolveGovtRate(
-    sodaGovt?: number | null,
-    plantGovt?: number | null,
-  ) {
+  private resolveGovtRate(sodaGovt?: number | null, plantGovt?: number | null) {
     const s = Number(sodaGovt);
     if (Number.isFinite(s) && s > 0) return s;
     const p = Number(plantGovt);
@@ -2508,7 +2882,8 @@ export class ProcurementService {
     mcPoint: number | null | undefined,
   ): number | null {
     if (mcPoint == null || !Number.isFinite(Number(mcPoint))) return null;
-    if (currentMoisture == null || !Number.isFinite(Number(currentMoisture))) return null;
+    if (currentMoisture == null || !Number.isFinite(Number(currentMoisture)))
+      return null;
     const benchmark =
       benchmarkMoisture != null && Number.isFinite(Number(benchmarkMoisture))
         ? Number(benchmarkMoisture)
@@ -2527,7 +2902,8 @@ export class ProcurementService {
     mcDeduction: number | null | undefined,
   ): number | null {
     if (baseRate == null || !Number.isFinite(Number(baseRate))) return null;
-    if (mcDeduction == null || !Number.isFinite(Number(mcDeduction))) return null;
+    if (mcDeduction == null || !Number.isFinite(Number(mcDeduction)))
+      return null;
     return Math.round((Number(baseRate) - Number(mcDeduction)) * 100) / 100;
   }
 
@@ -2560,7 +2936,10 @@ export class ProcurementService {
       select: { code: true, nextBoliSeq: true },
     });
     const seq = plant.nextBoliSeq - 1;
-    const code = (plant.code || 'MILL').replace(/\s+/g, '').toUpperCase().slice(0, 8);
+    const code = (plant.code || 'MILL')
+      .replace(/\s+/g, '')
+      .toUpperCase()
+      .slice(0, 8);
     return `${code}-B${String(seq).padStart(4, '0')}`;
   }
 
@@ -2595,8 +2974,7 @@ export class ProcurementService {
 
   /** Assign / normalize: one Boli No. per soda for all lines */
   private async backfillMissingBoliNos(plantId?: string) {
-    const sodaWhere: any =
-      plantId && plantId !== 'global' ? { plantId } : {};
+    const sodaWhere: any = plantId && plantId !== 'global' ? { plantId } : {};
     const sodas = await this.prisma.paddySodaPending.findMany({
       where: sodaWhere,
       include: {
@@ -2635,7 +3013,14 @@ export class ProcurementService {
     });
   }
 
-  private async notifyAdmin(tx: any, userId: string | undefined, action: string, details: string, entityId?: string, plantId?: string) {
+  private async notifyAdmin(
+    tx: any,
+    userId: string | undefined,
+    action: string,
+    details: string,
+    entityId?: string,
+    plantId?: string,
+  ) {
     const db = tx || this.prisma;
     if (userId) {
       try {
@@ -2649,15 +3034,21 @@ export class ProcurementService {
             plantId,
           },
         });
-      } catch { /* audit optional if userId invalid */ }
+      } catch {
+        /* audit optional if userId invalid */
+      }
     }
     // Fingerprint entry audits are log-only (no admin bell spam)
-    if (action === 'PADDY_INWARD_ENTRY_AUDIT' || action === 'PADDY_INWARD_BACKDATED_ENTRY') {
+    if (
+      action === 'PADDY_INWARD_ENTRY_AUDIT' ||
+      action === 'PADDY_INWARD_BACKDATED_ENTRY'
+    ) {
       return;
     }
     // Feedback 32/33 — real Admin bell notifications (not audit-only)
     const title =
-      action === 'INFORM_BAUJI_EXCESS_WEIGHT' || action === 'INFORM_BAUJI_BAGS_LESS'
+      action === 'INFORM_BAUJI_EXCESS_WEIGHT' ||
+      action === 'INFORM_BAUJI_BAGS_LESS'
         ? 'Inform Bauji — Admin Alert'
         : action === 'BAGS_SHORTFALL_OVER_10PCT'
           ? 'Paddy Inward — Bags shortfall > 10%'
@@ -2674,22 +3065,39 @@ export class ProcurementService {
             role,
           },
         });
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
   }
 
   /** Feedback 32 — same supervisor fingerprint: require successful capture + same RD device */
-  private assertSameSupervisorFingerprint(existingBio: string | null | undefined, incomingBio: string | undefined, isAdmin: boolean) {
+  private assertSameSupervisorFingerprint(
+    existingBio: string | null | undefined,
+    incomingBio: string | undefined,
+    isAdmin: boolean,
+  ) {
     if (isAdmin && (!incomingBio || incomingBio === 'ADMIN_BYPASS')) return;
     if (!incomingBio || incomingBio === 'ADMIN_BYPASS') {
-      throw new BadRequestException("Require the supervisor's fingerprint who filled the Estimate Purchase");
+      throw new BadRequestException(
+        "Require the supervisor's fingerprint who filled the Estimate Purchase",
+      );
     }
-    if (!String(incomingBio).includes('errCode="0"') && !String(incomingBio).includes("errCode='0'")) {
+    if (
+      !String(incomingBio).includes('errCode="0"') &&
+      !String(incomingBio).includes("errCode='0'")
+    ) {
       // Allow non-XML admin test tokens only for admins (handled above)
-      if (!isAdmin && !String(incomingBio).includes('<Pid') && !String(incomingBio).includes('<Resp')) {
+      if (
+        !isAdmin &&
+        !String(incomingBio).includes('<Pid') &&
+        !String(incomingBio).includes('<Resp')
+      ) {
         // Still accept raw PID XML without errCode attr if DeviceInfo present
         if (!/dc=|mi=|DeviceInfo|hmac/i.test(String(incomingBio))) {
-          throw new BadRequestException('Invalid fingerprint capture — please scan again');
+          throw new BadRequestException(
+            'Invalid fingerprint capture — please scan again',
+          );
         }
       }
     }
@@ -2723,13 +3131,20 @@ export class ProcurementService {
 
   private isSameCalendarDay(a?: Date | null, b?: Date | null) {
     if (!a || !b) return false;
-    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
   }
 
   async getSodaPendingById(id: string) {
     const p = await this.prisma.paddySodaPending.findUnique({
       where: { id },
-      include: { supplier: true, bolis: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] } },
+      include: {
+        supplier: true,
+        bolis: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
+      },
     });
     if (!p) throw new BadRequestException('Estimate Purchase not found');
     return {
@@ -2789,7 +3204,9 @@ export class ProcurementService {
       }
     }
     if (opts.mandi) {
-      whereSoda.supplier = { mandi: { equals: opts.mandi, mode: 'insensitive' } };
+      whereSoda.supplier = {
+        mandi: { equals: opts.mandi, mode: 'insensitive' },
+      };
     }
 
     const sodas = await this.prisma.paddySodaPending.findMany({
@@ -2815,7 +3232,10 @@ export class ProcurementService {
 
     const rows: any[] = [];
     for (const s of sodas) {
-      const govtRate = this.resolveGovtRate(s.govtRate, plantGovtById.get(s.plantId));
+      const govtRate = this.resolveGovtRate(
+        s.govtRate,
+        plantGovtById.get(s.plantId),
+      );
       const bolis = s.bolis || [];
 
       // Per-line Payment from Final Bags formula; Final Hisab = total Payment for this Boli No.
@@ -2826,9 +3246,9 @@ export class ProcurementService {
         }
         return b.payment ?? 0;
       });
-      const boliNoTotalPayment = Math.round(
-        linePayments.reduce((sum, p) => sum + (p || 0), 0) * 100,
-      ) / 100;
+      const boliNoTotalPayment =
+        Math.round(linePayments.reduce((sum, p) => sum + (p || 0), 0) * 100) /
+        100;
 
       bolis.forEach((b, idx) => {
         const finalBags = b.finalBags;
@@ -2856,10 +3276,13 @@ export class ProcurementService {
           /** Purchase Boli Rate − Base Boli Rate (positive = above base / overpriced) */
           rateVsBase:
             b.baseBoliRate != null && b.rate != null
-              ? Math.round((Number(b.rate) - Number(b.baseBoliRate)) * 100) / 100
+              ? Math.round((Number(b.rate) - Number(b.baseBoliRate)) * 100) /
+                100
               : null,
           priceStatus: this.classifyPriceStatus(b.rate, b.baseBoliRate),
-          diff: hideMoney ? null : this.paymentDiffFromGovt(govtRate, b.rate || 0),
+          diff: hideMoney
+            ? null
+            : this.paymentDiffFromGovt(govtRate, b.rate || 0),
           payment: hideMoney ? null : payment,
           // Same total on every line of this Boli No.
           finalHisabAmt: hideMoney ? null : boliNoTotalPayment,
@@ -2872,7 +3295,9 @@ export class ProcurementService {
           note: s.note || '',
           supervisorName: s.supervisorName || '',
           riceCategory: s.riceCategory,
-          sodaCompleted: bolis.length > 0 && bolis.every((x) => x.isCompleted || x.isCancelled || x.bags === 0),
+          sodaCompleted:
+            bolis.length > 0 &&
+            bolis.every((x) => x.isCompleted || x.isCancelled || x.bags === 0),
         });
       });
     }
@@ -2914,10 +3339,15 @@ export class ProcurementService {
     });
 
     const active = (all || []).filter(
-      (r: any) => !r.isCancelled && r.priceStatus && r.priceStatus !== 'AT_BASE',
+      (r: any) =>
+        !r.isCancelled && r.priceStatus && r.priceStatus !== 'AT_BASE',
     );
-    const overpriced = active.filter((r: any) => r.priceStatus === 'OVERPRICED');
-    const underpriced = active.filter((r: any) => r.priceStatus === 'UNDERPRICED');
+    const overpriced = active.filter(
+      (r: any) => r.priceStatus === 'OVERPRICED',
+    );
+    const underpriced = active.filter(
+      (r: any) => r.priceStatus === 'UNDERPRICED',
+    );
 
     type Bucket = {
       mandi: string;
@@ -3016,7 +3446,8 @@ export class ProcurementService {
         .map((r) => Number(r.moisture))
         .filter((n) => Number.isFinite(n) && n > 0)
         .map((n) => round2(n));
-      if (!mcs.length) return { min: null as number | null, max: null as number | null };
+      if (!mcs.length)
+        return { min: null as number | null, max: null as number | null };
       return { min: Math.min(...mcs), max: Math.max(...mcs) };
     };
 
@@ -3025,10 +3456,16 @@ export class ProcurementService {
         overpricedCount: overpriced.length,
         underpricedCount: underpriced.length,
         overpricedDeltaSum: round2(
-          overpriced.reduce((s: number, r: any) => s + (Number(r.rateVsBase) || 0), 0),
+          overpriced.reduce(
+            (s: number, r: any) => s + (Number(r.rateVsBase) || 0),
+            0,
+          ),
         ),
         underpricedDeltaSum: round2(
-          underpriced.reduce((s: number, r: any) => s + (Number(r.rateVsBase) || 0), 0),
+          underpriced.reduce(
+            (s: number, r: any) => s + (Number(r.rateVsBase) || 0),
+            0,
+          ),
         ),
       },
       byMandi: byMandi.map((m) => ({
@@ -3151,16 +3588,17 @@ export class ProcurementService {
       highBoliNo: agg.highBoliNo,
       lowBoliNo: agg.lowBoliNo,
       highMoisture:
-        agg.highMoisture > 0
-          ? Math.round(agg.highMoisture * 100) / 100
-          : null,
+        agg.highMoisture > 0 ? Math.round(agg.highMoisture * 100) / 100 : null,
       lowMoisture:
         agg.lowMoisture !== Infinity
           ? Math.round(agg.lowMoisture * 100) / 100
           : null,
       highMoistureBoliNo: agg.highMoistureBoliNo,
       lowMoistureBoliNo: agg.lowMoistureBoliNo,
-      spread: agg.count && agg.low !== Infinity ? Math.round((agg.high - agg.low) * 100) / 100 : 0,
+      spread:
+        agg.count && agg.low !== Infinity
+          ? Math.round((agg.high - agg.low) * 100) / 100
+          : 0,
     });
 
     // Artia-wise
@@ -3197,7 +3635,9 @@ export class ProcurementService {
         mandi: a.mandi,
         ...finalize(a),
       }))
-      .sort((x, y) => y.high - x.high || x.partyName.localeCompare(y.partyName));
+      .sort(
+        (x, y) => y.high - x.high || x.partyName.localeCompare(y.partyName),
+      );
 
     // Mandi-wise
     const mandiMap = new Map<string, TrendAgg & { mandi: string }>();
@@ -3342,7 +3782,10 @@ export class ProcurementService {
   }
 
   /** Admin: list Mandi Daily Rate history (Date | Mandi | Today Rate | M/C Point) */
-  async listMandiDailyRates(plantId: string, opts?: { dateFrom?: string; dateTo?: string }) {
+  async listMandiDailyRates(
+    plantId: string,
+    opts?: { dateFrom?: string; dateTo?: string },
+  ) {
     const where: any = {};
     if (plantId && plantId !== 'global') where.plantId = plantId;
     if (opts?.dateFrom || opts?.dateTo) {
@@ -3456,7 +3899,7 @@ export class ProcurementService {
         const payment =
           b.finalBags != null
             ? this.calcBoliPayment(govtRate, b.rate, b.finalBags)
-            : b.payment ?? 0;
+            : (b.payment ?? 0);
         if (b.finalBags != null) {
           sodaHadFinal = true;
           sodaPayment += payment || 0;
@@ -3464,7 +3907,11 @@ export class ProcurementService {
         } else {
           sodaPayment += payment || 0;
         }
-        const mcDeduction = this.calcMcDeduction(b.moisture, benchmark, mcPoint);
+        const mcDeduction = this.calcMcDeduction(
+          b.moisture,
+          benchmark,
+          mcPoint,
+        );
         await this.prisma.paddyBoli.update({
           where: { id: b.id },
           data: {
@@ -3508,7 +3955,9 @@ export class ProcurementService {
     user?: any,
   ) {
     if (!this.isAdminRole(user)) {
-      throw new BadRequestException('Only Admin can maintain Mandi Today Rate / M/C Point');
+      throw new BadRequestException(
+        'Only Admin can maintain Mandi Today Rate / M/C Point',
+      );
     }
     const mandi = String(data.mandi || '').trim();
     if (!mandi) throw new BadRequestException('Mandi is required');
@@ -3521,7 +3970,8 @@ export class ProcurementService {
       throw new BadRequestException('M/C Point must be a non-negative number');
     }
     const day = this.mandiDayStart(data.date);
-    const plantId = data.plantId && data.plantId !== 'global' ? data.plantId : null;
+    const plantId =
+      data.plantId && data.plantId !== 'global' ? data.plantId : null;
 
     let row: any;
     if (data.id) {
@@ -3566,113 +4016,74 @@ export class ProcurementService {
 
   async deleteMandiDailyRate(id: string, user?: any) {
     if (!this.isAdminRole(user)) {
-      throw new BadRequestException('Only Admin can delete Mandi Today Rate rows');
+      throw new BadRequestException(
+        'Only Admin can delete Mandi Today Rate rows',
+      );
     }
     await this.prisma.mandiDailyRate.delete({ where: { id } });
     return { deleted: true };
   }
 
+  /**
+   * Paddy Inward Supervisor dropdown — exclusive mill only.
+   * Never returns supervisors from other plants / global list.
+   */
   async getSupervisorsForPlant(plantId: string) {
-    const isSupervisorUser = (u: {
-      isActive?: boolean;
-      deletedAt?: Date | null;
-      role?: { name?: string | null } | null;
-    }) =>
-      !!u?.isActive &&
-      !u.deletedAt &&
-      /supervisor/i.test(u.role?.name || '');
-    const toOption = (u: {
-      id: string;
-      username: string;
-      role?: { name?: string | null } | null;
-    }) => ({
+    if (!plantId || plantId === 'global' || plantId === 'all') {
+      return [];
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        deletedAt: null,
+        role: { name: { contains: 'supervisor', mode: 'insensitive' } },
+        plantAccess: { some: { plantId } },
+      },
+      include: { role: true },
+      orderBy: { username: 'asc' },
+    });
+
+    return users.map((u) => ({
       id: u.id,
       username: u.username,
       name: u.username,
       role: u.role?.name || '',
-    });
-
-    const universal = !plantId || plantId === 'global' || plantId === 'all';
-    if (universal) {
-      const users = await this.prisma.user.findMany({
-        where: {
-          isActive: true,
-          deletedAt: null,
-          role: { name: { contains: 'supervisor', mode: 'insensitive' } },
-        },
-        include: { role: true },
-        orderBy: { username: 'asc' },
-      });
-      return users.filter(isSupervisorUser).map(toOption);
-    }
-    const access = await this.prisma.userPlantAccess.findMany({
-      where: { plantId },
-      include: {
-        user: { include: { role: true } },
-      },
-    });
-    return access
-      .map((a) => a.user)
-      .filter(isSupervisorUser)
-      .map(toOption);
+      plantId,
+    }));
   }
 
   /**
    * Names for Paddy Inward Allocate Unloader dropdown.
-   * Merges Staff (UNLOADER), Labour, and active plant users so newly added people appear.
+   * Exclusive mill only: Staff Master rows with UNLOADER role for this plant.
+   * Labour and other roles are never included.
    */
   async getUnloadersForPlant(plantId: string) {
     if (!plantId || plantId === 'global') return [];
 
-    const [staffRows, labourRows, access] = await Promise.all([
-      this.prisma.staffMaster.findMany({
-        where: { plantId },
-        orderBy: { name: 'asc' },
-      }),
-      this.prisma.labourMaster.findMany({
-        where: { plantId, isActive: true },
-        orderBy: { name: 'asc' },
-      }),
-      this.prisma.userPlantAccess.findMany({
-        where: { plantId },
-        include: { user: { include: { role: true } } },
-      }),
-    ]);
+    const staffRows = await this.prisma.staffMaster.findMany({
+      where: {
+        plantId,
+        role: { contains: 'UNLOADER', mode: 'insensitive' },
+      },
+      orderBy: { name: 'asc' },
+    });
 
-    const byName = new Map<string, { id: string; name: string; source: string }>();
+    const byName = new Map<
+      string,
+      { id: string; name: string; source: string }
+    >();
 
-    const add = (id: string, name: string, source: string) => {
-      const label = String(name || '').trim();
-      if (!label) return;
+    for (const s of staffRows) {
+      const role = String(s.role || '');
+      // Exclusive mill unloaders only — never labour
+      if (/labour|labor/i.test(role)) continue;
+      if (!/unloader/i.test(role)) continue;
+      const label = String(s.name || '').trim();
+      if (!label) continue;
       const key = label.toLowerCase();
-      if (byName.has(key)) return;
-      byName.set(key, { id, name: label, source });
-    };
-
-    // Prefer explicit UNLOADER staff first
-    for (const s of staffRows) {
-      if (/UNLOADER/i.test(s.role || '')) {
-        add(s.id, s.name, 'staff');
-      }
-    }
-    // Other staff (in case role not set to UNLOADER)
-    for (const s of staffRows) {
-      if (!/UNLOADER/i.test(s.role || '')) {
-        add(s.id, s.name, 'staff');
-      }
-    }
-    for (const l of labourRows) {
-      add(l.id, l.name, 'labour');
-    }
-    for (const a of access) {
-      const u = a.user;
-      if (!u || !u.isActive || u.deletedAt) continue;
-      // Skip pure admins from unloader list unless they are the only option
-      const role = u.role?.name || '';
-      if (/SUPER_ADMIN|ADMINISTRATOR|^ADMIN$/i.test(role.replace(/[\s-]+/g, '_'))) {
-        continue;
-      }
-      add(u.id, u.username, 'user');
+      if (byName.has(key)) continue;
+      byName.set(key, { id: s.id, name: label, source: 'staff' });
     }
 
     return Array.from(byName.values()).sort((a, b) =>
@@ -3688,8 +4099,7 @@ export class ProcurementService {
   async getOpenBolisForFinal(plantId: string) {
     await this.backfillMissingBoliNos(plantId);
 
-    const plantFilter =
-      plantId === 'global' ? undefined : { plantId };
+    const plantFilter = plantId === 'global' ? undefined : { plantId };
 
     const openLines = await this.prisma.paddyBoli.findMany({
       where: {
@@ -3756,12 +4166,15 @@ export class ProcurementService {
       include: { sodaPending: { include: { supplier: true } } },
     });
     if (!boli) throw new BadRequestException('Boli not found');
-    if (boli.isCompleted) throw new BadRequestException('Completed boli cannot be cancelled');
+    if (boli.isCompleted)
+      throw new BadRequestException('Completed boli cannot be cancelled');
     if (boli.isCancelled || boli.bags === 0) {
       throw new BadRequestException('Boli is already cancelled');
     }
     if (boli.finalBags != null) {
-      throw new BadRequestException('Final Bags already submitted — ask Admin to cancel');
+      throw new BadRequestException(
+        'Final Bags already submitted — ask Admin to cancel',
+      );
     }
 
     const soda = boli.sodaPending;
@@ -3811,10 +4224,13 @@ export class ProcurementService {
     if (!soda) throw new BadRequestException('Soda / Estimate not found');
 
     const cancellable = soda.bolis.filter(
-      (b) => !b.isCompleted && !b.isCancelled && b.bags > 0 && b.finalBags == null,
+      (b) =>
+        !b.isCompleted && !b.isCancelled && b.bags > 0 && b.finalBags == null,
     );
     if (cancellable.length === 0) {
-      throw new BadRequestException('No open bolis left to cancel on this soda');
+      throw new BadRequestException(
+        'No open bolis left to cancel on this soda',
+      );
     }
 
     const prevCancel = soda.cancelCount || 0;
@@ -3853,27 +4269,49 @@ export class ProcurementService {
         soda.id,
         soda.plantId,
       );
-      return { ok: true, sodaId, cancelled: cancellable.length, cancelCount: newCount };
+      return {
+        ok: true,
+        sodaId,
+        cancelled: cancellable.length,
+        cancelCount: newCount,
+      };
     });
   }
 
   async submitFinalBoli(boliId: string, data: any, user?: any) {
-    const artiaBillChecked = data.artiaBillChecked === true || data.artiaBillChecked === 'Yes' || data.artiaBillChecked === 'yes';
+    const artiaBillChecked =
+      data.artiaBillChecked === true ||
+      data.artiaBillChecked === 'Yes' ||
+      data.artiaBillChecked === 'yes';
     if (!artiaBillChecked) {
-      throw new BadRequestException('Artia Bill must be Checked and Matched (Yes) before submitting Final Bags');
+      throw new BadRequestException(
+        'Artia Bill must be Checked and Matched (Yes) before submitting Final Bags',
+      );
     }
     if (!data.biometricData) {
       if (this.isAdminRole(user)) {
         data.biometricData = 'ADMIN_BYPASS';
       } else {
-        throw new BadRequestException('Fingerprint is required to submit Final Boli');
+        throw new BadRequestException(
+          'Fingerprint is required to submit Final Boli',
+        );
       }
     }
 
     const finalBagsRaw = data.finalBags;
-    const finalBags = typeof finalBagsRaw === 'number' ? finalBagsRaw : parseInt(String(finalBagsRaw), 10);
-    if (!Number.isFinite(finalBags) || finalBags < 0 || finalBags > 999 || String(finalBagsRaw).includes('.')) {
-      throw new BadRequestException('Final Bags must be a whole number from 0 to 999');
+    const finalBags =
+      typeof finalBagsRaw === 'number'
+        ? finalBagsRaw
+        : parseInt(String(finalBagsRaw), 10);
+    if (
+      !Number.isFinite(finalBags) ||
+      finalBags < 0 ||
+      finalBags > 999 ||
+      String(finalBagsRaw).includes('.')
+    ) {
+      throw new BadRequestException(
+        'Final Bags must be a whole number from 0 to 999',
+      );
     }
 
     const boli = await this.prisma.paddyBoli.findUnique({
@@ -3881,8 +4319,12 @@ export class ProcurementService {
       include: { sodaPending: { include: { supplier: true } } },
     });
     if (!boli) throw new BadRequestException('Boli not found');
-    if (boli.isCancelled || boli.bags === 0) throw new BadRequestException('Cancelled boli cannot receive Final Bags');
-    if (boli.finalBags != null) throw new BadRequestException('Final Bags already submitted for this Boli');
+    if (boli.isCancelled || boli.bags === 0)
+      throw new BadRequestException('Cancelled boli cannot receive Final Bags');
+    if (boli.finalBags != null)
+      throw new BadRequestException(
+        'Final Bags already submitted for this Boli',
+      );
 
     // Final Bags = 0 → cancel this line (replaces separate "Cancel this Boli")
     if (finalBags === 0) {
@@ -3942,7 +4384,8 @@ export class ProcurementService {
       !this.isAdminRole(user) &&
       boli.sodaPending.supervisorName &&
       data.supervisorName &&
-      String(data.supervisorName).toLowerCase() !== String(boli.sodaPending.supervisorName).toLowerCase()
+      String(data.supervisorName).toLowerCase() !==
+        String(boli.sodaPending.supervisorName).toLowerCase()
     ) {
       throw new BadRequestException(
         'Final Boli must be submitted by the same supervisor who filled the Estimate Purchase',
@@ -3958,7 +4401,8 @@ export class ProcurementService {
     const govtRate = this.resolveGovtRate(boli.sodaPending.govtRate, plantGovt);
     const payment = this.calcBoliPayment(govtRate, boli.rate, finalBags);
     const estimated = boli.bags || 0;
-    const variance = estimated > 0 ? Math.abs(finalBags - estimated) / estimated : 0;
+    const variance =
+      estimated > 0 ? Math.abs(finalBags - estimated) / estimated : 0;
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.paddyBoli.update({
@@ -3976,7 +4420,10 @@ export class ProcurementService {
       });
       const sodaPayment = siblings.reduce((sum, b) => {
         const bags = b.id === boliId ? finalBags : b.finalBags;
-        const pay = b.id === boliId ? payment : (b.payment ?? this.calcBoliPayment(govtRate, b.rate, bags));
+        const pay =
+          b.id === boliId
+            ? payment
+            : (b.payment ?? this.calcBoliPayment(govtRate, b.rate, bags));
         return sum + (pay || 0);
       }, 0);
       const sodaBags = this.sumArtiaBags(siblings, { id: boliId, finalBags });
@@ -3988,7 +4435,8 @@ export class ProcurementService {
           payment: sodaPayment,
           finalHisabAmt: sodaPayment,
           biometricData: data.biometricData,
-          supervisorName: data.supervisorName || boli.sodaPending.supervisorName,
+          supervisorName:
+            data.supervisorName || boli.sodaPending.supervisorName,
         },
       });
 
@@ -4010,11 +4458,18 @@ export class ProcurementService {
   /** Feedback 32 — Admin can edit Payment / Note (and optional Final Bags) on Table 01 */
   async adminUpdateBoliRecord(
     boliId: string,
-    data: { payment?: number; note?: string; finalBags?: number; rate?: number },
+    data: {
+      payment?: number;
+      note?: string;
+      finalBags?: number;
+      rate?: number;
+    },
     user?: any,
   ) {
     if (!this.isAdminRole(user)) {
-      throw new BadRequestException('Only Admin can edit Payment / Hisab / Note on Boli Record Table 01');
+      throw new BadRequestException(
+        'Only Admin can edit Payment / Hisab / Note on Boli Record Table 01',
+      );
     }
     const boli = await this.prisma.paddyBoli.findUnique({
       where: { id: boliId },
@@ -4036,11 +4491,14 @@ export class ProcurementService {
           ? Number(data.finalBags)
           : boli.finalBags;
       const nextRate =
-        data.rate != null && Number.isFinite(Number(data.rate)) ? Number(data.rate) : boli.rate;
+        data.rate != null && Number.isFinite(Number(data.rate))
+          ? Number(data.rate)
+          : boli.rate;
       let payment =
         data.payment != null && Number.isFinite(Number(data.payment))
           ? Number(data.payment)
-          : boli.payment ?? this.calcBoliPayment(govtRate, nextRate, nextFinal);
+          : (boli.payment ??
+            this.calcBoliPayment(govtRate, nextRate, nextFinal));
       // If admin changed finalBags/rate but not payment, recalculate payment from formula
       if (
         (data.finalBags != null || data.rate != null) &&
@@ -4073,7 +4531,8 @@ export class ProcurementService {
         const pay =
           b.id === boliId
             ? payment
-            : b.payment ?? this.calcBoliPayment(govtRate, b.rate, b.finalBags);
+            : (b.payment ??
+              this.calcBoliPayment(govtRate, b.rate, b.finalBags));
         return sum + (pay || 0);
       }, 0);
       const sodaBags = this.sumArtiaBags(siblings, {
@@ -4101,13 +4560,19 @@ export class ProcurementService {
       include: { sodaPending: { include: { supplier: true } } },
     });
     if (!boli) throw new BadRequestException('Boli not found');
-    if (boli.isCompleted) throw new BadRequestException('Boli already completed');
-    if (boli.isCancelled || boli.bags === 0) throw new BadRequestException('Cancelled boli cannot be completed');
-    if (boli.finalBags == null) throw new BadRequestException('Final Bags must be set before completing Boli');
+    if (boli.isCompleted)
+      throw new BadRequestException('Boli already completed');
+    if (boli.isCancelled || boli.bags === 0)
+      throw new BadRequestException('Cancelled boli cannot be completed');
+    if (boli.finalBags == null)
+      throw new BadRequestException(
+        'Final Bags must be set before completing Boli',
+      );
 
     const extraToday = parseFloat(data.bagsRecToday) || 0;
     // bagsRecToday is ONLY the extra not yet applied via inward confirm; default 0 when completing after inward already updated bagsReceived
-    const totalReceived = (boli.bagsReceived || 0) + (extraToday > 0 ? extraToday : 0);
+    const totalReceived =
+      (boli.bagsReceived || 0) + (extraToday > 0 ? extraToday : 0);
     const finalBags = boli.finalBags;
     const balance = finalBags - totalReceived;
     const tolerance = 0.05 * finalBags;
@@ -4138,9 +4603,14 @@ export class ProcurementService {
       });
 
       // View-only sodaCompleted: true when all non-cancelled bolis are completed
-      const siblings = await tx.paddyBoli.findMany({ where: { sodaPendingId: boli.sodaPendingId } });
+      const siblings = await tx.paddyBoli.findMany({
+        where: { sodaPendingId: boli.sodaPendingId },
+      });
       const allDone = siblings.every(
-        (b) => (b.id === boliId ? true : b.isCompleted) || b.isCancelled || b.bags === 0,
+        (b) =>
+          (b.id === boliId ? true : b.isCompleted) ||
+          b.isCancelled ||
+          b.bags === 0,
       );
       if (allDone) {
         await tx.paddySodaPending.update({
@@ -4174,8 +4644,9 @@ export class ProcurementService {
     const whereClause: any = plantId === 'global' ? {} : { plantId };
 
     if (supplierId) whereClause.supplierId = supplierId;
-    if (mandi) whereClause.supplier = { mandi: { equals: mandi, mode: 'insensitive' } };
-    
+    if (mandi)
+      whereClause.supplier = { mandi: { equals: mandi, mode: 'insensitive' } };
+
     if (dateFrom || dateTo) {
       whereClause.date = {};
       if (dateFrom) whereClause.date.gte = new Date(dateFrom);
@@ -4194,7 +4665,10 @@ export class ProcurementService {
       this.prisma.paddySodaPending.count({ where: whereClause }),
       this.prisma.paddySodaPending.findMany({
         where: whereClause,
-        include: { supplier: true, bolis: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] } },
+        include: {
+          supplier: true,
+          bolis: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
+        },
         orderBy: [{ supplier: { name: 'asc' } }, { date: 'asc' }],
         skip,
         take: limitNum,
@@ -4206,24 +4680,25 @@ export class ProcurementService {
         ...b,
         estimatedBags: b.bags,
         bagsRecInSoda: b.bagsReceived,
-        balanceBags: b.finalBags != null ? b.finalBags - (b.bagsReceived || 0) : null,
+        balanceBags:
+          b.finalBags != null ? b.finalBags - (b.bagsReceived || 0) : null,
         isCancelled: b.isCancelled || b.bags === 0,
       }));
       return {
-      id: p.id,
-      supplierId: p.supplierId,
-      partyMandi: p.supplier.name,
+        id: p.id,
+        supplierId: p.supplierId,
+        partyMandi: p.supplier.name,
         mandi: p.supplier.mandi || '',
-      date: p.date,
-      mc: p.moisture,
-      bags: p.bags,
-      rate: p.rate,
+        date: p.date,
+        mc: p.moisture,
+        bags: p.bags,
+        rate: p.rate,
         govtRate: p.govtRate,
         bolis,
-      diff: p.diff,
-      payment: p.payment,
-      note: p.note,
-      finalHisabAmt: p.finalHisabAmt,
+        diff: p.diff,
+        payment: p.payment,
+        note: p.note,
+        finalHisabAmt: p.finalHisabAmt,
         riceCategory: p.riceCategory,
         sodaCompleted: p.sodaCompleted,
         isCompleted: p.sodaCompleted,
@@ -4232,7 +4707,7 @@ export class ProcurementService {
         dailyUpdateCount: p.dailyUpdateCount,
       };
     });
-    
+
     return { data: mappedData, total };
   }
 
@@ -4243,7 +4718,9 @@ export class ProcurementService {
       if (this.isAdminRole(user)) {
         data.biometricData = 'ADMIN_BYPASS';
       } else {
-        throw new BadRequestException('Fingerprint is required to submit Estimate Purchase');
+        throw new BadRequestException(
+          'Fingerprint is required to submit Estimate Purchase',
+        );
       }
     }
     if (!data.supervisorName) {
@@ -4254,16 +4731,25 @@ export class ProcurementService {
     // Skip empty rows; allow fewer than 4
     const bolisData = rawBolis
       .map((b: any) => {
-        const bagsStr = b.bags === '' || b.bags == null ? null : String(b.bags).trim();
-        const rateStr = b.rate === '' || b.rate == null ? null : String(b.rate).trim();
+        const bagsStr =
+          b.bags === '' || b.bags == null ? null : String(b.bags).trim();
+        const rateStr =
+          b.rate === '' || b.rate == null ? null : String(b.rate).trim();
         if (bagsStr != null && /[.]/.test(bagsStr)) {
-          throw new BadRequestException('Bags & Rate must be whole numbers (decimals not allowed)');
+          throw new BadRequestException(
+            'Bags & Rate must be whole numbers (decimals not allowed)',
+          );
         }
         if (rateStr != null && /[.]/.test(rateStr)) {
-          throw new BadRequestException('Bags & Rate must be whole numbers (decimals not allowed)');
+          throw new BadRequestException(
+            'Bags & Rate must be whole numbers (decimals not allowed)',
+          );
         }
         return {
-          moisture: b.moisture === '' || b.moisture == null ? null : parseFloat(b.moisture),
+          moisture:
+            b.moisture === '' || b.moisture == null
+              ? null
+              : parseFloat(b.moisture),
           bags: bagsStr == null ? null : parseInt(bagsStr, 10),
           rate: rateStr == null ? null : parseInt(rateStr, 10),
           todayRate:
@@ -4272,25 +4758,45 @@ export class ProcurementService {
               : Number(b.todayRate),
         };
       })
-      .filter((b: any) => b.moisture != null || b.bags != null || b.rate != null);
+      .filter(
+        (b: any) => b.moisture != null || b.bags != null || b.rate != null,
+      );
 
     if (bolisData.length === 0) {
       throw new BadRequestException('At least one Boli row is required');
     }
 
     for (const b of bolisData) {
-      if (b.bags == null || b.bags < 0 || b.bags > 999 || !Number.isInteger(b.bags)) {
-        throw new BadRequestException('Bags must be a whole number 0–999 (use 0 to cancel a boli)');
+      if (
+        b.bags == null ||
+        b.bags < 0 ||
+        b.bags > 999 ||
+        !Number.isInteger(b.bags)
+      ) {
+        throw new BadRequestException(
+          'Bags must be a whole number 0–999 (use 0 to cancel a boli)',
+        );
       }
       if (b.rate == null || b.rate < 0 || !Number.isInteger(b.rate)) {
-        throw new BadRequestException('Rate must be a whole number (no decimals)');
+        throw new BadRequestException(
+          'Rate must be a whole number (no decimals)',
+        );
       }
-      if (b.moisture == null || !Number.isFinite(b.moisture) || b.moisture < 0 || b.moisture > 99.99) {
-        throw new BadRequestException('Moisture must be at most 2 digits with up to 2 decimals');
+      if (
+        b.moisture == null ||
+        !Number.isFinite(b.moisture) ||
+        b.moisture < 0 ||
+        b.moisture > 99.99
+      ) {
+        throw new BadRequestException(
+          'Moisture must be at most 2 digits with up to 2 decimals',
+        );
       }
       const mStr = String(b.moisture);
       if (!/^\d{1,2}(\.\d{1,2})?$/.test(mStr)) {
-        throw new BadRequestException('Moisture format invalid (max 2 digits, 2 decimals)');
+        throw new BadRequestException(
+          'Moisture format invalid (max 2 digits, 2 decimals)',
+        );
       }
     }
 
@@ -4310,21 +4816,32 @@ export class ProcurementService {
         undefined,
         data.plantId,
       );
-      throw new BadRequestException('Maximum 3 boli cancellations allowed. Message sent to Admin for further cancels.');
+      throw new BadRequestException(
+        'Maximum 3 boli cancellations allowed. Message sent to Admin for further cancels.',
+      );
     }
 
     const activeBolis = bolisData.filter((b: any) => b.bags > 0);
-    const totalBags = activeBolis.reduce((sum: number, b: any) => sum + b.bags, 0);
+    const totalBags = activeBolis.reduce(
+      (sum: number, b: any) => sum + b.bags,
+      0,
+    );
     const avgMoisture =
       activeBolis.length > 0
-        ? activeBolis.reduce((sum: number, b: any) => sum + b.moisture, 0) / activeBolis.length
+        ? activeBolis.reduce((sum: number, b: any) => sum + b.moisture, 0) /
+          activeBolis.length
         : bolisData[0].moisture;
     const avgRate =
       activeBolis.length > 0
-        ? activeBolis.reduce((sum: number, b: any) => sum + b.rate, 0) / activeBolis.length
+        ? activeBolis.reduce((sum: number, b: any) => sum + b.rate, 0) /
+          activeBolis.length
         : bolisData[0].rate;
 
-    if (data.updatePlantGovtRate && data.govtRate != null && data.govtRate !== '') {
+    if (
+      data.updatePlantGovtRate &&
+      data.govtRate != null &&
+      data.govtRate !== ''
+    ) {
       await this.prisma.plant.update({
         where: { id: data.plantId },
         data: { govtRate: parseFloat(data.govtRate) },
@@ -4372,25 +4889,25 @@ export class ProcurementService {
       }
 
       const pending = await tx.paddySodaPending.create({
-      data: {
-        plantId: data.plantId,
-        supplierId: data.supplierId,
-        date: data.date ? new Date(data.date) : new Date(),
-        moisture: avgMoisture,
-        bags: totalBags,
-        rate: avgRate,
-        govtRate: sodaGovtRate,
-        todayRate:
-          data.todayRate != null && Number.isFinite(Number(data.todayRate))
-            ? Number(data.todayRate)
-            : null,
-        mcPoint: this.parseMcPoint(data.mcPoint),
-        // Payment difference always on Govt Paddy Rate only (ignore client todayRate-based diffs)
-        diff: this.paymentDiffFromGovt(sodaGovtRate, avgRate),
+        data: {
+          plantId: data.plantId,
+          supplierId: data.supplierId,
+          date: data.date ? new Date(data.date) : new Date(),
+          moisture: avgMoisture,
+          bags: totalBags,
+          rate: avgRate,
+          govtRate: sodaGovtRate,
+          todayRate:
+            data.todayRate != null && Number.isFinite(Number(data.todayRate))
+              ? Number(data.todayRate)
+              : null,
+          mcPoint: this.parseMcPoint(data.mcPoint),
+          // Payment difference always on Govt Paddy Rate only (ignore client todayRate-based diffs)
+          diff: this.paymentDiffFromGovt(sodaGovtRate, avgRate),
           payment: 0,
           finalHisabAmt: 0,
-        note: data.note || '',
-        riceCategory: data.riceCategory || 'ANY',
+          note: data.note || '',
+          riceCategory: data.riceCategory || 'ANY',
           supervisorName: data.supervisorName,
           supervisorUserId: data.supervisorUserId || user?.id || null,
           biometricData: data.biometricData,
@@ -4428,32 +4945,45 @@ export class ProcurementService {
     const roleName = String(user?.role?.name || user?.role || '');
     // Feedback 32 — only SUPERVISOR (or admin) may edit; supervisor = current day only
     if (!isAdmin && !/SUPERVISOR/i.test(roleName)) {
-      throw new BadRequestException('Only Supervisor or Admin can update Estimate Purchase');
+      throw new BadRequestException(
+        'Only Supervisor or Admin can update Estimate Purchase',
+      );
     }
     const recordDate = new Date(existing.date);
     const today = this.startOfToday();
     if (!isAdmin && !this.isSameCalendarDay(recordDate, today)) {
-      throw new BadRequestException('Supervisor can only edit current-day entries');
+      throw new BadRequestException(
+        'Supervisor can only edit current-day entries',
+      );
     }
 
     if (!data.biometricData) {
       if (this.isAdminRole(user)) {
         data.biometricData = 'ADMIN_BYPASS';
       } else {
-        throw new BadRequestException("Require the supervisor's fingerprint who filled the Estimate Purchase when updating");
+        throw new BadRequestException(
+          "Require the supervisor's fingerprint who filled the Estimate Purchase when updating",
+        );
       }
     }
 
-    this.assertSameSupervisorFingerprint(existing.biometricData, data.biometricData, isAdmin);
+    this.assertSameSupervisorFingerprint(
+      existing.biometricData,
+      data.biometricData,
+      isAdmin,
+    );
 
     // Same supervisor who owns the estimate (or admin)
     if (
       !isAdmin &&
       existing.supervisorName &&
       data.supervisorName &&
-      String(data.supervisorName).toLowerCase() !== String(existing.supervisorName).toLowerCase()
+      String(data.supervisorName).toLowerCase() !==
+        String(existing.supervisorName).toLowerCase()
     ) {
-      throw new BadRequestException('Update must be submitted by the same supervisor who filled the Estimate Purchase');
+      throw new BadRequestException(
+        'Update must be submitted by the same supervisor who filled the Estimate Purchase',
+      );
     }
 
     // Max 2 updates per day
@@ -4463,7 +4993,9 @@ export class ProcurementService {
       dailyCount = 0;
     }
     if (!isAdmin && dailyCount >= 2) {
-      throw new BadRequestException('Artia Boli record can be updated at most 2 times in one day');
+      throw new BadRequestException(
+        'Artia Boli record can be updated at most 2 times in one day',
+      );
     }
 
     // Feedback 32/33 — Estimate update cannot set Final Bags / Received / Complete
@@ -4473,31 +5005,54 @@ export class ProcurementService {
       .map((b: any) => ({
         id: b.id,
         boliNo: b.boliNo,
-        moisture: b.moisture === '' || b.moisture == null ? null : parseFloat(b.moisture),
-        bags: b.bags === '' || b.bags == null ? null : parseInt(String(b.bags), 10),
-        rate: b.rate === '' || b.rate == null ? null : parseInt(String(b.rate), 10),
+        moisture:
+          b.moisture === '' || b.moisture == null
+            ? null
+            : parseFloat(b.moisture),
+        bags:
+          b.bags === '' || b.bags == null ? null : parseInt(String(b.bags), 10),
+        rate:
+          b.rate === '' || b.rate == null ? null : parseInt(String(b.rate), 10),
         todayRate:
-          b.todayRate === '' || b.todayRate == null ? null : Number(b.todayRate),
+          b.todayRate === '' || b.todayRate == null
+            ? null
+            : Number(b.todayRate),
       }))
-      .filter((b: any) => b.moisture != null || b.bags != null || b.rate != null || b.id);
+      .filter(
+        (b: any) =>
+          b.moisture != null || b.bags != null || b.rate != null || b.id,
+      );
 
     if (bolisData.length === 0) {
       throw new BadRequestException('At least one Boli row is required');
     }
 
     for (const b of bolisData) {
-      if (b.bags == null || b.bags < 0 || b.bags > 999 || !Number.isInteger(b.bags)) {
-        throw new BadRequestException('Bags must be a whole number 0–999 (use 0 to cancel)');
+      if (
+        b.bags == null ||
+        b.bags < 0 ||
+        b.bags > 999 ||
+        !Number.isInteger(b.bags)
+      ) {
+        throw new BadRequestException(
+          'Bags must be a whole number 0–999 (use 0 to cancel)',
+        );
       }
       if (b.rate == null || !Number.isInteger(b.rate)) {
-        throw new BadRequestException('Rate must be a whole number (no decimals)');
+        throw new BadRequestException(
+          'Rate must be a whole number (no decimals)',
+        );
       }
       if (b.moisture == null || b.moisture < 0 || b.moisture > 99.99) {
-        throw new BadRequestException('Moisture must be at most 2 digits with up to 2 decimals');
+        throw new BadRequestException(
+          'Moisture must be at most 2 digits with up to 2 decimals',
+        );
       }
       const mStr = String(b.moisture);
       if (!/^\d{1,2}(\.\d{1,2})?$/.test(mStr)) {
-        throw new BadRequestException('Moisture format invalid (max 2 digits, 2 decimals)');
+        throw new BadRequestException(
+          'Moisture format invalid (max 2 digits, 2 decimals)',
+        );
       }
     }
 
@@ -4509,7 +5064,10 @@ export class ProcurementService {
         'Supervisors cannot cancel boli in Estimate Purchase. Use Cancel in Add Final Boli instead.',
       );
     }
-    if (newCancelCount > 3 || (newCancelCount > prevCancel && prevCancel >= 3)) {
+    if (
+      newCancelCount > 3 ||
+      (newCancelCount > prevCancel && prevCancel >= 3)
+    ) {
       await this.notifyAdmin(
         this.prisma,
         user?.id,
@@ -4518,20 +5076,28 @@ export class ProcurementService {
         id,
         existing.plantId,
       );
-      throw new BadRequestException('Max 3 boli cancellations reached. Message sent to Admin for further cancels.');
+      throw new BadRequestException(
+        'Max 3 boli cancellations reached. Message sent to Admin for further cancels.',
+      );
     }
 
     const activeBolis = bolisData.filter((b: any) => b.bags > 0);
     const avgMoisture =
       activeBolis.length > 0
-        ? activeBolis.reduce((sum: number, b: any) => sum + b.moisture, 0) / activeBolis.length
+        ? activeBolis.reduce((sum: number, b: any) => sum + b.moisture, 0) /
+          activeBolis.length
         : bolisData[0].moisture;
     const avgRate =
       activeBolis.length > 0
-        ? activeBolis.reduce((sum: number, b: any) => sum + b.rate, 0) / activeBolis.length
+        ? activeBolis.reduce((sum: number, b: any) => sum + b.rate, 0) /
+          activeBolis.length
         : bolisData[0].rate;
 
-    if (data.updatePlantGovtRate && data.govtRate != null && data.govtRate !== '') {
+    if (
+      data.updatePlantGovtRate &&
+      data.govtRate != null &&
+      data.govtRate !== ''
+    ) {
       await this.prisma.plant.update({
         where: { id: data.plantId || existing.plantId },
         data: { govtRate: parseFloat(data.govtRate) },
@@ -4551,7 +5117,7 @@ export class ProcurementService {
     const sodaMcPoint =
       data.mcPoint !== undefined
         ? this.parseMcPoint(data.mcPoint)
-        : existing.mcPoint ?? null;
+        : (existing.mcPoint ?? null);
 
     return this.prisma.$transaction(async (tx) => {
       const existingById = new Map(existing.bolis.map((b) => [b.id, b]));
@@ -4571,7 +5137,9 @@ export class ProcurementService {
         // Prefer explicit id; else match by position to preserve UUIDs
         const matched =
           (b.id && existingById.get(b.id)) ||
-          (!b.id && existing.bolis[i] && !keptIds.has(existing.bolis[i].id) ? existing.bolis[i] : null);
+          (!b.id && existing.bolis[i] && !keptIds.has(existing.bolis[i].id)
+            ? existing.bolis[i]
+            : null);
 
         const existingBoli = matched || null;
 
@@ -4581,14 +5149,16 @@ export class ProcurementService {
         const isCompleted = !!existingBoli?.isCompleted;
         const artiaBillChecked = !!existingBoli?.artiaBillChecked;
         const payment =
-          finalBags != null ? this.calcBoliPayment(govtRate, b.rate, finalBags) : existingBoli?.payment || 0;
+          finalBags != null
+            ? this.calcBoliPayment(govtRate, b.rate, finalBags)
+            : existingBoli?.payment || 0;
 
         const lineTodayRate =
           b.todayRate != null && Number.isFinite(Number(b.todayRate))
             ? Number(b.todayRate)
             : data.todayRate != null && Number.isFinite(Number(data.todayRate))
               ? Number(data.todayRate)
-              : existingBoli?.todayRate ?? null;
+              : (existingBoli?.todayRate ?? null);
         const mcDeduction = this.calcMcDeduction(
           b.moisture,
           benchmarkMoisture,
@@ -4631,23 +5201,28 @@ export class ProcurementService {
       }
 
       // Remove bolis dropped from the form (only those not kept)
-      const toDelete = existing.bolis.filter((b) => !keptIds.has(b.id)).map((b) => b.id);
+      const toDelete = existing.bolis
+        .filter((b) => !keptIds.has(b.id))
+        .map((b) => b.id);
       if (toDelete.length) {
         await tx.paddyBoli.deleteMany({ where: { id: { in: toDelete } } });
       }
 
-      const sodaPayment = upserted.reduce((sum, b) => sum + (b.payment || 0), 0);
+      const sodaPayment = upserted.reduce(
+        (sum, b) => sum + (b.payment || 0),
+        0,
+      );
       const sodaBags = this.sumArtiaBags(upserted);
 
       return tx.paddySodaPending.update({
-      where: { id },
-      data: {
+        where: { id },
+        data: {
           plantId: data.plantId || existing.plantId,
           supplierId: data.supplierId || existing.supplierId,
-        date: data.date ? new Date(data.date) : undefined,
-        moisture: avgMoisture,
-        bags: sodaBags,
-        rate: avgRate,
+          date: data.date ? new Date(data.date) : undefined,
+          moisture: avgMoisture,
+          bags: sodaBags,
+          rate: avgRate,
           govtRate,
           todayRate:
             data.todayRate != null && Number.isFinite(Number(data.todayRate))
@@ -4675,7 +5250,14 @@ export class ProcurementService {
   }
 
   /** Admin-only adjustment — Payment/Hisab normally driven from Final Bags (Table 01) */
-  async settleHisab(data: { id: string; payment: number; note: string; finalHisabAmt: number; userId?: string; user?: any }) {
+  async settleHisab(data: {
+    id: string;
+    payment: number;
+    note: string;
+    finalHisabAmt: number;
+    userId?: string;
+    user?: any;
+  }) {
     if (!this.isAdminRole(data.user)) {
       throw new BadRequestException(
         'Settle Hisab is Admin-only. Payment and Final Hisab are calculated from Final Bags (Add Final Boli).',
@@ -4711,25 +5293,25 @@ export class ProcurementService {
         });
       }
 
-        return updated;
-      });
-    }
+      return updated;
+    });
+  }
 
   async getPaddyStockReport(plantId: string) {
     const inwards = await this.prisma.procurementBatch.findMany({
       where: {
         plantId: plantId === 'global' ? undefined : plantId,
         paddyInwardDetails: {
-          isNot: null
+          isNot: null,
         },
       },
       include: {
         supplier: true,
         gatePass: true,
         quality: true,
-        paddyInwardDetails: true
+        paddyInwardDetails: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
     const dryPaddyOutputs = await this.prisma.byProduct.findMany({
@@ -4737,18 +5319,18 @@ export class ProcurementService {
         name: 'Dry Paddy',
         targetStack: { not: null },
         batch: {
-          plantId: plantId === 'global' ? undefined : plantId
-        }
+          plantId: plantId === 'global' ? undefined : plantId,
+        },
       },
       include: {
-        batch: true
+        batch: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
     const reportData: any[] = [];
 
-    inwards.forEach(inward => {
+    inwards.forEach((inward) => {
       const details = inward.paddyInwardDetails;
       const gp = inward.gatePass;
       if (!details || !details.stackNo) return; // Only with stackNo
@@ -4757,19 +5339,27 @@ export class ProcurementService {
         id: inward.id,
         date: inward.createdAt,
         marka: (gp as any)?.variety || (details as any)?.marka || 'N/A',
-        partyName: details?.partyName || (gp as any)?.partyName || inward.supplier?.name || 'N/A',
+        partyName:
+          details?.partyName ||
+          (gp as any)?.partyName ||
+          inward.supplier?.name ||
+          'N/A',
         brokerName: 'N/A', // No broker in gate pass usually, fallback to N/A
         totalBags: gp?.noOfBags || details?.totalBagsReceived || 0,
         wtPerBag: (details as any)?.weightPerBag || (gp as any)?.wtPerBag || 0,
-        totalWtQtls: inward.netWeight ? inward.netWeight * 10 : 0, 
-        moisture: details?.moisture || inward.quality?.moisture || (gp as any)?.moisture || 0,
+        totalWtQtls: inward.netWeight ? inward.netWeight * 10 : 0,
+        moisture:
+          details?.moisture ||
+          inward.quality?.moisture ||
+          (gp as any)?.moisture ||
+          0,
         totalWtMt: inward.netWeight || 0,
         stackNo: details.stackNo,
-        type: 'INWARD'
+        type: 'INWARD',
       });
     });
 
-    dryPaddyOutputs.forEach(dp => {
+    dryPaddyOutputs.forEach((dp) => {
       reportData.push({
         id: dp.id,
         date: dp.createdAt,
@@ -4782,11 +5372,13 @@ export class ProcurementService {
         moisture: dp.moisture || 0,
         totalWtMt: dp.quantity || 0,
         stackNo: dp.targetStack,
-        type: 'DRY_PADDY'
+        type: 'DRY_PADDY',
       });
     });
 
-    return reportData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return reportData.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
   }
 
   async getShortageSummaryReport(
@@ -4807,7 +5399,7 @@ export class ProcurementService {
       if (mandiId) where.supplier.mandi = mandiId;
       if (supplierId) where.supplier.id = supplierId;
     }
-    
+
     if (dateFrom && dateTo) {
       where.createdAt = {
         gte: new Date(`${dateFrom}T00:00:00`),
@@ -4832,7 +5424,7 @@ export class ProcurementService {
 
     const bagWtDefault = 0.382;
     const reportData: any[] = [];
-    
+
     const explodeLedger = (r: any) => {
       const details = r.paddyInwardDetails;
       if (!details) return;
@@ -4851,7 +5443,9 @@ export class ProcurementService {
         plantId: r.plantId,
       };
 
-      let ledger: any[] = Array.isArray(details.shortageLedger) ? (details.shortageLedger as any[]) : [];
+      let ledger: any[] = Array.isArray(details.shortageLedger)
+        ? (details.shortageLedger as any[])
+        : [];
       if (!ledger.length) {
         // Backward-compatible explode from scalar fields
         if (details.qualityCutQtl > 0) {
@@ -4896,7 +5490,10 @@ export class ProcurementService {
         // Excess weight recovery only for the remainder after auto shortage-bags credit
         if (details.informBaujiExcessWeight) {
           const autoCredit = shortBags * bagWt;
-          const excessOnly = Math.max(0, (details.shortageRecoveryQtl || 0) - autoCredit);
+          const excessOnly = Math.max(
+            0,
+            (details.shortageRecoveryQtl || 0) - autoCredit,
+          );
           if (excessOnly > 0.001) {
             ledger.push({
               type: 'EXCESS_WEIGHT',
@@ -4941,14 +5538,17 @@ export class ProcurementService {
       ledger.forEach((entry, idx) => {
         const amountQtl = Number(entry.amountQtl) || 0;
         const signed = entry.direction === 'CREDIT' ? -amountQtl : amountQtl;
-      reportData.push({
+        reportData.push({
           id: `${details.id}:${entry.type || idx}`,
           ...base,
           entryType: entry.type,
           direction: entry.direction,
           amountQtl: parseFloat(amountQtl.toFixed(2)),
           amountBags: parseFloat(
-            (entry.amountBags != null ? Number(entry.amountBags) : amountQtl / bagWt).toFixed(2),
+            (entry.amountBags != null
+              ? Number(entry.amountBags)
+              : amountQtl / bagWt
+            ).toFixed(2),
           ),
           shortageNarration: entry.narration || '',
           // Compat fields for older UI
@@ -4961,8 +5561,8 @@ export class ProcurementService {
           netShortageBags: parseFloat((signed / bagWt).toFixed(2)),
           informBaujiBagsLess: !!details.informBaujiBagsLess,
           informBaujiExcessWeight: !!details.informBaujiExcessWeight,
+        });
       });
-    });
     };
 
     records.forEach(explodeLedger);
@@ -4971,9 +5571,7 @@ export class ProcurementService {
 
   /** Feedback 34 — till-date Artia shortage balances (qtl + bags) per mill */
   async getArtiaShortageBalances(asOfDate?: string) {
-    const asOf = asOfDate
-      ? new Date(`${asOfDate}T23:59:59.999`)
-      : new Date();
+    const asOf = asOfDate ? new Date(`${asOfDate}T23:59:59.999`) : new Date();
     const records = await this.prisma.procurementBatch.findMany({
       where: {
         // Production: only confirmed/completed inwards — never PENDING drafts
@@ -5003,7 +5601,9 @@ export class ProcurementService {
         });
       }
       const row = map.get(key);
-      const ledger = Array.isArray(d.shortageLedger) ? (d.shortageLedger as any[]) : null;
+      const ledger = Array.isArray(d.shortageLedger)
+        ? (d.shortageLedger as any[])
+        : null;
       if (ledger?.length) {
         for (const e of ledger) {
           const amt = Number(e.amountQtl) || 0;
@@ -5019,7 +5619,9 @@ export class ProcurementService {
     return Array.from(map.values())
       .map((r) => {
         const wt = Number(r.bagWt) || 0.382;
-        const balanceQtl = parseFloat((r.shortageQtl - r.recoveryQtl).toFixed(2));
+        const balanceQtl = parseFloat(
+          (r.shortageQtl - r.recoveryQtl).toFixed(2),
+        );
         return {
           ...r,
           shortageQtl: parseFloat(r.shortageQtl.toFixed(2)),
@@ -5029,7 +5631,11 @@ export class ProcurementService {
         };
       })
       .filter((r) => Math.abs(r.balanceQtl) > 0.001 || r.shortageQtl > 0)
-      .sort((a, b) => a.millName.localeCompare(b.millName) || a.artia.localeCompare(b.artia));
+      .sort(
+        (a, b) =>
+          a.millName.localeCompare(b.millName) ||
+          a.artia.localeCompare(b.artia),
+      );
   }
 
   /** Feedback 34 — daily consolidated multi-mill (Goyal / Beas / Rajoa) till-date balances */
@@ -5075,12 +5681,18 @@ export class ProcurementService {
           shortageQtl: b.balanceQtl,
           shortageBags: b.balanceBags,
         }));
-      const totalQtl = parseFloat(rows.reduce((s, r) => s + r.shortageQtl, 0).toFixed(2));
-      const totalBags = parseFloat(rows.reduce((s, r) => s + r.shortageBags, 0).toFixed(2));
+      const totalQtl = parseFloat(
+        rows.reduce((s, r) => s + r.shortageQtl, 0).toFixed(2),
+      );
+      const totalBags = parseFloat(
+        rows.reduce((s, r) => s + r.shortageBags, 0).toFixed(2),
+      );
       return { ...m, rows, totalQtl, totalBags };
     });
 
-    const others = balances.filter((b) => !mills.some((m) => m.match.test(b.millName || '')));
+    const others = balances.filter(
+      (b) => !mills.some((m) => m.match.test(b.millName || '')),
+    );
     const otherGroups: Record<string, any[]> = {};
     for (const b of others) {
       const name = b.millName || 'Other';
@@ -5100,16 +5712,24 @@ export class ProcurementService {
         label: name,
         match: /$/,
         rows,
-        totalQtl: parseFloat(rows.reduce((s, r) => s + r.shortageQtl, 0).toFixed(2)),
-        totalBags: parseFloat(rows.reduce((s, r) => s + r.shortageBags, 0).toFixed(2)),
+        totalQtl: parseFloat(
+          rows.reduce((s, r) => s + r.shortageQtl, 0).toFixed(2),
+        ),
+        totalBags: parseFloat(
+          rows.reduce((s, r) => s + r.shortageBags, 0).toFixed(2),
+        ),
       });
     }
 
     return {
       date: asOf,
       columns,
-      grandTotalQtl: parseFloat(balances.reduce((s, b) => s + b.balanceQtl, 0).toFixed(2)),
-      grandTotalBags: parseFloat(balances.reduce((s, b) => s + b.balanceBags, 0).toFixed(2)),
+      grandTotalQtl: parseFloat(
+        balances.reduce((s, b) => s + b.balanceQtl, 0).toFixed(2),
+      ),
+      grandTotalBags: parseFloat(
+        balances.reduce((s, b) => s + b.balanceBags, 0).toFixed(2),
+      ),
       artiaCount: balances.length,
       updatedAt: new Date().toISOString(),
       fromSnapshot: false,
@@ -5158,7 +5778,11 @@ export class ProcurementService {
       },
     });
 
-    return { message: 'Daily shortage report submitted', snapshot: snap, report: payload };
+    return {
+      message: 'Daily shortage report submitted',
+      snapshot: snap,
+      report: payload,
+    };
   }
 
   /** Feedback 34 — which mill shortages are increasing (daily net debit trend) */
@@ -5188,7 +5812,9 @@ export class ProcurementService {
       const mill = r.plant?.name || 'Unknown';
       millNames.add(mill);
       let net = 0;
-      const ledger = Array.isArray(d.shortageLedger) ? (d.shortageLedger as any[]) : null;
+      const ledger = Array.isArray(d.shortageLedger)
+        ? (d.shortageLedger as any[])
+        : null;
       if (ledger?.length) {
         for (const e of ledger) {
           const amt = Number(e.amountQtl) || 0;
@@ -5245,13 +5871,9 @@ export class ProcurementService {
     let start: Date;
 
     if (dateFrom || dateTo) {
-      end = dateTo
-        ? new Date(`${dateTo}T23:59:59.999`)
-        : new Date();
+      end = dateTo ? new Date(`${dateTo}T23:59:59.999`) : new Date();
       end.setHours(23, 59, 59, 999);
-      start = dateFrom
-        ? new Date(`${dateFrom}T00:00:00`)
-        : new Date(end);
+      start = dateFrom ? new Date(`${dateFrom}T00:00:00`) : new Date(end);
       if (!dateFrom) {
         start.setDate(start.getDate() - (days - 1));
         start.setHours(0, 0, 0, 0);
@@ -5286,7 +5908,9 @@ export class ProcurementService {
           : r.supplier?.name || 'Walk-in';
       names.add(name);
       let net = 0;
-      const ledger = Array.isArray(d.shortageLedger) ? (d.shortageLedger as any[]) : null;
+      const ledger = Array.isArray(d.shortageLedger)
+        ? (d.shortageLedger as any[])
+        : null;
       if (ledger?.length) {
         for (const e of ledger) {
           const amt = Number(e.amountQtl) || 0;
@@ -5342,7 +5966,10 @@ export class ProcurementService {
     };
   }
 
-  async updateShortageRecovery(inwardDetailsId: string, shortageRecoveryQtl: number) {
+  async updateShortageRecovery(
+    inwardDetailsId: string,
+    shortageRecoveryQtl: number,
+  ) {
     const details = await this.prisma.paddyInwardDetails.findUnique({
       where: { id: inwardDetailsId },
     });
@@ -5385,7 +6012,8 @@ export class ProcurementService {
   async transferStackToHoodi(plantId: string, data: any, user?: any) {
     const transferBags = parseFloat(data.bags) || 0;
     if (!data.stackNo) throw new BadRequestException('Stack No. is required');
-    if (transferBags <= 0) throw new BadRequestException('Bags must be greater than 0');
+    if (transferBags <= 0)
+      throw new BadRequestException('Bags must be greater than 0');
     if (!data.rstNo || !String(data.rstNo).trim()) {
       throw new BadRequestException('RST No. is required');
     }
@@ -5406,7 +6034,8 @@ export class ProcurementService {
       (gross as number) >= 0 &&
       (tare as number) >= 0
     ) {
-      netWeight = Math.round(((gross as number) - (tare as number)) * 1000) / 1000;
+      netWeight =
+        Math.round(((gross as number) - (tare as number)) * 1000) / 1000;
     }
     if (!Number.isFinite(netWeight) || netWeight <= 0) {
       throw new BadRequestException(
@@ -5416,7 +6045,10 @@ export class ProcurementService {
 
     const isAdmin = this.isAdminRole(user);
     if (this.isSupervisorRole(user) && !isAdmin) {
-      if (!user?.id) throw new BadRequestException('Login required for Stack to Hoodi transfer');
+      if (!user?.id)
+        throw new BadRequestException(
+          'Login required for Stack to Hoodi transfer',
+        );
       if (!data.biometricData) {
         throw new BadRequestException('Supervisor fingerprint is required');
       }
@@ -5455,7 +6087,9 @@ export class ProcurementService {
           moisture: parseFloat(data.moisture) || null,
           unloadedBy: data.unloadedBy || user?.name || 'System',
           truckNo: data.truckNo ? String(data.truckNo).trim() : null,
-          grossWeight: Number.isFinite(gross as number) ? (gross as number) : null,
+          grossWeight: Number.isFinite(gross as number)
+            ? (gross as number)
+            : null,
           tareWeight: Number.isFinite(tare as number) ? (tare as number) : null,
           netWeight,
           rstNo: String(data.rstNo).trim(),
@@ -5490,7 +6124,8 @@ export class ProcurementService {
       (gross as number) >= 0 &&
       (tare as number) >= 0
     ) {
-      netWeight = Math.round(((gross as number) - (tare as number)) * 1000) / 1000;
+      netWeight =
+        Math.round(((gross as number) - (tare as number)) * 1000) / 1000;
     }
     if (!Number.isFinite(netWeight) || netWeight <= 0) {
       throw new BadRequestException(
@@ -5500,7 +6135,10 @@ export class ProcurementService {
 
     const isAdmin = this.isAdminRole(user);
     if (this.isSupervisorRole(user) && !isAdmin) {
-      if (!user?.id) throw new BadRequestException('Login required for Dryer Bharai to Stack');
+      if (!user?.id)
+        throw new BadRequestException(
+          'Login required for Dryer Bharai to Stack',
+        );
       if (!data.biometricData) {
         throw new BadRequestException('Supervisor fingerprint is required');
       }
@@ -5522,7 +6160,9 @@ export class ProcurementService {
           bags,
           moisture: Number.isFinite(moistureVal) ? moistureVal : null,
           truckNo: data.truckNo ? String(data.truckNo).trim() : null,
-          grossWeight: Number.isFinite(gross as number) ? (gross as number) : null,
+          grossWeight: Number.isFinite(gross as number)
+            ? (gross as number)
+            : null,
           tareWeight: Number.isFinite(tare as number) ? (tare as number) : null,
           netWeight,
           rstNo: String(data.rstNo).trim(),
@@ -5541,7 +6181,8 @@ export class ProcurementService {
         const newTotalWt = Number(existing.totalWeight || 0) + netWeight;
         const newAvgMoisture =
           newTotalWt > 0
-            ? ((Number(existing.averageMoisture || 0) * Number(existing.totalWeight || 0)) +
+            ? (Number(existing.averageMoisture || 0) *
+                Number(existing.totalWeight || 0) +
                 moistureVal * netWeight) /
               newTotalWt
             : moistureVal;
@@ -5584,7 +6225,7 @@ export class ProcurementService {
 
   async getHoodiReport(plantId: string, dateFrom?: string, dateTo?: string) {
     const whereClause: any = plantId === 'global' ? {} : { plantId };
-    
+
     if (dateFrom || dateTo) {
       whereClause.date = {};
       if (dateFrom) whereClause.date.gte = new Date(dateFrom);
@@ -5601,7 +6242,9 @@ export class ProcurementService {
     });
 
     const inwardIds = [
-      ...new Set(records.map((r) => r.inwardId).filter((id): id is string => !!id)),
+      ...new Set(
+        records.map((r) => r.inwardId).filter((id): id is string => !!id),
+      ),
     ];
     const batches = inwardIds.length
       ? await this.prisma.procurementBatch.findMany({
@@ -5628,7 +6271,9 @@ export class ProcurementService {
         claimedHoodi.set(row.inwardId, taken);
       }
       const partPoints = (
-        current ? points.filter((p) => p !== current) : points.filter((p) => !p.isHoodi)
+        current
+          ? points.filter((p) => p !== current)
+          : points.filter((p) => !p.isHoodi)
       ).map((p) => ({
         label: p.label,
         isHoodi: p.isHoodi,
@@ -5651,7 +6296,9 @@ export class ProcurementService {
       return {
         ...row,
         netWeight:
-          current && Number(current.weight) > 0 ? current.weight : row.netWeight,
+          current && Number(current.weight) > 0
+            ? current.weight
+            : row.netWeight,
         rstNo: row.rstNo || (d as any)?.rstNo || null,
         partPoints,
         partStackNo: first?.stackNo ?? row.partStackNo,
@@ -5669,7 +6316,7 @@ export class ProcurementService {
   async getStackLayout(plantId: string) {
     return this.prisma.paddyStack.findMany({
       where: { plantId },
-      orderBy: { stackNo: 'asc' }
+      orderBy: { stackNo: 'asc' },
     });
   }
 
@@ -5678,12 +6325,12 @@ export class ProcurementService {
     const activeStacks = await this.prisma.paddyStack.findMany({
       where: {
         plantId,
-        status: { notIn: ['COMPLETED', 'EMPTY'] }
+        status: { notIn: ['COMPLETED', 'EMPTY'] },
       },
-      select: { stackNo: true }
+      select: { stackNo: true },
     });
 
-    const activeStackNumbers = activeStacks.map(s => s.stackNo);
+    const activeStackNumbers = activeStacks.map((s) => s.stackNo);
 
     if (activeStackNumbers.length === 0) return [];
 
@@ -5691,17 +6338,17 @@ export class ProcurementService {
     return this.prisma.procurementBatch.findMany({
       where: {
         plantId,
-        paddyInwardDetails: { 
-          stackNo: { in: activeStackNumbers } 
-        }
+        paddyInwardDetails: {
+          stackNo: { in: activeStackNumbers },
+        },
       },
       include: {
         paddyInwardDetails: true,
         quality: true,
-        supplier: true
+        supplier: true,
       },
       orderBy: { createdAt: 'desc' },
-      take: 50 // Limit to recent 50 active trucks to prevent UI overload
+      take: 50, // Limit to recent 50 active trucks to prevent UI overload
     });
   }
 
@@ -5791,12 +6438,15 @@ export class ProcurementService {
       throw new BadRequestException('Select a mill first');
     }
     if (!stackNo) throw new BadRequestException('Stack No. is required');
-    if (!unloaderName) throw new BadRequestException('Unloader Name is required');
+    if (!unloaderName)
+      throw new BadRequestException('Unloader Name is required');
     if (!['A_CLASS', 'B_CLASS'].includes(bagClass)) {
       throw new BadRequestException('Bag Class must be A Class or B Class');
     }
     if (!Number.isInteger(bags) || bags <= 0) {
-      throw new BadRequestException('Bags must be a whole number greater than 0');
+      throw new BadRequestException(
+        'Bags must be a whole number greater than 0',
+      );
     }
     const entryDate = this.plantDayKey();
     const isAClass = bagClass === 'A_CLASS';
@@ -5825,7 +6475,16 @@ export class ProcurementService {
           submittedByName: user?.name || user?.username || user?.email || null,
         },
       });
-      await this.applyStackReceipt(tx, plantId, stackNo, bags, 0, 0, isAClass, false);
+      await this.applyStackReceipt(
+        tx,
+        plantId,
+        stackNo,
+        bags,
+        0,
+        0,
+        isAClass,
+        false,
+      );
       return row;
     });
   }
@@ -5833,7 +6492,7 @@ export class ProcurementService {
   async markStackComplete(plantId: string, stackNo: string) {
     return this.prisma.paddyStack.update({
       where: { plantId_stackNo: { plantId, stackNo } },
-      data: { status: 'COMPLETED' }
+      data: { status: 'COMPLETED' },
     });
   }
 
@@ -5845,17 +6504,13 @@ export class ProcurementService {
     );
     let totalBags = 0;
     let totalWt = 0;
-    
+
     inwards.forEach((record: any) => {
       totalBags += Number(
-        record.stackView?.bags ??
-          record.paddyInwardDetails?.bagsRecAtMill ??
-          0,
+        record.stackView?.bags ?? record.paddyInwardDetails?.bagsRecAtMill ?? 0,
       );
       totalWt += Number(
-        record.stackView?.weight ??
-          record.paddyInwardDetails?.netWtAtMill ??
-          0,
+        record.stackView?.weight ?? record.paddyInwardDetails?.netWtAtMill ?? 0,
       );
     });
 
@@ -5898,7 +6553,7 @@ export class ProcurementService {
     // 3. Mark stack as empty
     return this.prisma.paddyStack.update({
       where: { plantId_stackNo: { plantId, stackNo } },
-      data: { 
+      data: {
         status: 'EMPTY',
         totalBags: 0,
         totalWeight: 0,
@@ -5920,28 +6575,40 @@ export class ProcurementService {
     const shortB = Number(d.shortageBClass || 0);
     const millBags = aRec + bRec; // excluding shortage
     const shortageBags = shortA + shortB;
-    const totalMillBags = millBags + shortageBags || Number(d.bagsRecAtMill || 0);
+    const totalMillBags =
+      millBags + shortageBags || Number(d.bagsRecAtMill || 0);
     const egpLate = !!d.egpLate;
-    const agencyBags = egpLate ? 0 : aGiven + bGiven || Number(d.bagsAtAgencyGp || 0);
-    const millNetActual = Number(d.netWtAtMill || b.netWeight || d.netWeightWb || 0);
+    const agencyBags = egpLate
+      ? 0
+      : aGiven + bGiven || Number(d.bagsAtAgencyGp || 0);
+    const millNetActual = Number(
+      d.netWtAtMill || b.netWeight || d.netWeightWb || 0,
+    );
     const requiredNet = Number(d.requiredNetWt || 0);
-    const unloadAt =
-      d.unloadingEndTime ||
-      d.unloadingStartTime ||
-      b.createdAt;
+    const unloadAt = d.unloadingEndTime || d.unloadingStartTime || b.createdAt;
     // Prefer unload timestamp; fall back to entry date + timeOut / timeIn
     let unloadSort = unloadAt ? new Date(unloadAt).getTime() : 0;
     if (!unloadSort || Number.isNaN(unloadSort)) {
-      const day = (d.entryDate || b.createdAt?.toISOString?.()?.slice(0, 10) || '').toString().slice(0, 10);
+      const day = (
+        d.entryDate ||
+        b.createdAt?.toISOString?.()?.slice(0, 10) ||
+        ''
+      )
+        .toString()
+        .slice(0, 10);
       const tod = (d.timeOut || d.timeIn || '00:00').toString().slice(0, 5);
-      unloadSort = new Date(`${day}T${tod}:00`).getTime() || new Date(b.createdAt).getTime();
+      unloadSort =
+        new Date(`${day}T${tod}:00`).getTime() ||
+        new Date(b.createdAt).getTime();
     }
 
     return {
       id: b.id,
       status: b.status,
       isManualDirect: false,
-      date: (d.entryDate || b.createdAt?.toISOString?.()?.slice(0, 10) || '').toString().slice(0, 10),
+      date: (d.entryDate || b.createdAt?.toISOString?.()?.slice(0, 10) || '')
+        .toString()
+        .slice(0, 10),
       rstNo: d.rstNo || '-',
       timeIn: d.timeIn || null,
       timeOut: d.timeOut || null,
@@ -5949,7 +6616,9 @@ export class ProcurementService {
       entryCompletionAt: d.entryCompletionAt || null,
       entryMadeByName: d.entryMadeByName || null,
       isBackdated: !!d.isBackdated,
-      informBaujiBagsLess: !!(d.informBaujiBagsLess || d.bagsRecLessThanAgencyGp),
+      informBaujiBagsLess: !!(
+        d.informBaujiBagsLess || d.bagsRecLessThanAgencyGp
+      ),
       informBaujiExcessWeight: !!(
         d.informBaujiExcessWeight || d.plusWtConsiderInShortageRecovery
       ),
@@ -6005,8 +6674,12 @@ export class ProcurementService {
     if (opts.mandi) where.mandi = { contains: opts.mandi, mode: 'insensitive' };
     if (opts.dateFrom || opts.dateTo) {
       where.date = {
-        ...(opts.dateFrom ? { gte: new Date(`${opts.dateFrom}T00:00:00`) } : {}),
-        ...(opts.dateTo ? { lte: new Date(`${opts.dateTo}T23:59:59.999`) } : {}),
+        ...(opts.dateFrom
+          ? { gte: new Date(`${opts.dateFrom}T00:00:00`) }
+          : {}),
+        ...(opts.dateTo
+          ? { lte: new Date(`${opts.dateTo}T23:59:59.999`) }
+          : {}),
       };
     }
     const rows = await this.prisma.manualAgencyGp.findMany({
@@ -6085,13 +6758,16 @@ export class ProcurementService {
       throw new BadRequestException('Bags Class must be A Class or B Class');
     }
     if (!Number.isInteger(bags) || bags <= 0) {
-      throw new BadRequestException('Bags must be a whole number greater than 0');
+      throw new BadRequestException(
+        'Bags must be a whole number greater than 0',
+      );
     }
 
     const isAdmin = this.isAdminRole(user);
     // Same rule as Stack to Hoodi: supervisor scan must match the logged-in user's enrolled fingerprints
     if (this.isSupervisorRole(user) && !isAdmin) {
-      if (!user?.id) throw new BadRequestException('Login required for Direct Agency GP');
+      if (!user?.id)
+        throw new BadRequestException('Login required for Direct Agency GP');
       if (!data.biometricData || data.biometricData === 'ADMIN_BYPASS') {
         throw new BadRequestException('Supervisor fingerprint is required');
       }
@@ -6202,7 +6878,9 @@ export class ProcurementService {
           supplierId: opts.supplierId,
           bagWt,
         });
-        const existingIds = new Set((payload.govt?.rows || []).map((r: any) => r.id));
+        const existingIds = new Set(
+          (payload.govt?.rows || []).map((r: any) => r.id),
+        );
         const govtRows = [
           ...(payload.govt?.rows || []),
           ...manualRows
@@ -6229,7 +6907,10 @@ export class ProcurementService {
         ].map((r: any, i: number) => ({ ...r, sno: i + 1 }));
         const agencyBags = govtRows.reduce(
           (s: number, r: any) =>
-            s + Number(r.agencyBags ?? Number(r.aClass || 0) + Number(r.bClass || 0)),
+            s +
+            Number(
+              r.agencyBags ?? Number(r.aClass || 0) + Number(r.bClass || 0),
+            ),
           0,
         );
         const directBags = govtRows
@@ -6245,11 +6926,20 @@ export class ProcurementService {
             inwardAgencyBags,
             directCount: govtRows.filter((r: any) => r.isManualDirect).length,
             inwardCount: govtRows.filter((r: any) => !r.isManualDirect).length,
-            directRatioPct: agencyBags > 0 ? Math.round((directBags / agencyBags) * 1000) / 10 : 0,
+            directRatioPct:
+              agencyBags > 0
+                ? Math.round((directBags / agencyBags) * 1000) / 10
+                : 0,
             inwardRatioPct:
-              agencyBags > 0 ? Math.round((inwardAgencyBags / agencyBags) * 1000) / 10 : 0,
+              agencyBags > 0
+                ? Math.round((inwardAgencyBags / agencyBags) * 1000) / 10
+                : 0,
           },
-          govt: { ...(payload.govt || {}), totalBags: agencyBags, rows: govtRows },
+          govt: {
+            ...(payload.govt || {}),
+            totalBags: agencyBags,
+            rows: govtRows,
+          },
           fromSnapshot: true,
           submittedAt: snap.submittedAt,
           submittedBy: snap.submittedBy,
@@ -6264,8 +6954,8 @@ export class ProcurementService {
     if (plantId !== 'global') where.plantId = plantId;
     if (opts.supplierId) where.supplierId = opts.supplierId;
 
-      // Feedback 35/39 — filter by inward entryDate (that day only for Net Weight completed entries)
-      const detailAnd: any[] = [];
+    // Feedback 35/39 — filter by inward entryDate (that day only for Net Weight completed entries)
+    const detailAnd: any[] = [];
     if (opts.mandi) {
       detailAnd.push({ mandi: { contains: opts.mandi, mode: 'insensitive' } });
     }
@@ -6300,14 +6990,22 @@ export class ProcurementService {
         const ta = a.unloadSort || 0;
         const tb = b.unloadSort || 0;
         if (ta !== tb) return ta - tb;
-        return String(a.millGp || '').localeCompare(String(b.millGp || ''), undefined, {
-          numeric: true,
-        });
+        return String(a.millGp || '').localeCompare(
+          String(b.millGp || ''),
+          undefined,
+          {
+            numeric: true,
+          },
+        );
       });
 
     // Main report rows = confirmed/completed Net Weight entries only (that day via entryDate filter)
-    const inwardRows = rowsAll.filter((r) => r.status === 'CONFIRMED' || r.status === 'COMPLETED');
-    const drafts = rowsAll.filter((r) => r.status === 'DRAFT' || r.status === 'PENDING');
+    const inwardRows = rowsAll.filter(
+      (r) => r.status === 'CONFIRMED' || r.status === 'COMPLETED',
+    );
+    const drafts = rowsAll.filter(
+      (r) => r.status === 'DRAFT' || r.status === 'PENDING',
+    );
 
     // Feedback 48 — merge manual Direct Agency GP into Govt list
     const manualRows = await this.listManualAgencyGpRows({
@@ -6344,8 +7042,14 @@ export class ProcurementService {
       inwardAgencyBags,
       directCount: confirmed.filter((r) => r.isManualDirect).length,
       inwardCount: confirmed.filter((r) => !r.isManualDirect).length,
-      directRatioPct: agencyTotal > 0 ? Math.round((directBags / agencyTotal) * 1000) / 10 : 0,
-      inwardRatioPct: agencyTotal > 0 ? Math.round((inwardAgencyBags / agencyTotal) * 1000) / 10 : 0,
+      directRatioPct:
+        agencyTotal > 0
+          ? Math.round((directBags / agencyTotal) * 1000) / 10
+          : 0,
+      inwardRatioPct:
+        agencyTotal > 0
+          ? Math.round((inwardAgencyBags / agencyTotal) * 1000) / 10
+          : 0,
     };
 
     // Artia clusters — chronological within each artia; artias by earliest unload first
@@ -6357,10 +7061,16 @@ export class ProcurementService {
     }
     const artiaClusters = Object.entries(byArtia)
       .sort(([, listA], [, listB]) => {
-        const minA = Math.min(...listA.map((r) => r.unloadSort || Number.MAX_SAFE_INTEGER));
-        const minB = Math.min(...listB.map((r) => r.unloadSort || Number.MAX_SAFE_INTEGER));
+        const minA = Math.min(
+          ...listA.map((r) => r.unloadSort || Number.MAX_SAFE_INTEGER),
+        );
+        const minB = Math.min(
+          ...listB.map((r) => r.unloadSort || Number.MAX_SAFE_INTEGER),
+        );
         if (minA !== minB) return minA - minB;
-        return String(listA[0]?.artiaName || '').localeCompare(String(listB[0]?.artiaName || ''));
+        return String(listA[0]?.artiaName || '').localeCompare(
+          String(listB[0]?.artiaName || ''),
+        );
       })
       .map(([artiaName, list]) => {
         const sorted = [...list].sort((a, b) => {
@@ -6409,7 +7119,9 @@ export class ProcurementService {
           ...(plantId !== 'global' ? { plantId } : {}),
         },
       });
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     return {
       date: asOf,
@@ -6476,7 +7188,9 @@ export class ProcurementService {
     };
     if (plantId && plantId !== 'global') whereBatch.plantId = plantId;
 
-    const inwardActive = await this.prisma.procurementBatch.count({ where: whereBatch });
+    const inwardActive = await this.prisma.procurementBatch.count({
+      where: whereBatch,
+    });
 
     let gatePassActive = 0;
     try {
@@ -6486,7 +7200,9 @@ export class ProcurementService {
           ...(plantId && plantId !== 'global' ? { plantId } : {}),
         },
       });
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     // Prefer inward active count (ops reality); fall back to max so neither source hides activity
     return {
@@ -6509,11 +7225,15 @@ export class ProcurementService {
     const isAdmin = this.isAdminRole(opts.user);
     this.assertSameSupervisorFingerprint(null, opts.biometricData, isAdmin);
     if (!opts.biometricData) {
-      throw new BadRequestException('Fingerprint authentication is required to submit evening inward lists.');
+      throw new BadRequestException(
+        'Fingerprint authentication is required to submit evening inward lists.',
+      );
     }
     // Supervisors cannot use ADMIN_BYPASS
     if (!isAdmin && opts.biometricData === 'ADMIN_BYPASS') {
-      throw new BadRequestException('Supervisor fingerprint scan is required (admin bypass not allowed).');
+      throw new BadRequestException(
+        'Supervisor fingerprint scan is required (admin bypass not allowed).',
+      );
     }
     const plantId = opts.plantId || 'global';
     const reportDate = opts.date || new Date().toISOString().slice(0, 10);
@@ -6532,7 +7252,11 @@ export class ProcurementService {
       preferSnapshot: false,
       date: reportDate,
     });
-    const summary = await this.buildDailyInwardSummary(plantId, reportDate, opts.bagWt);
+    const summary = await this.buildDailyInwardSummary(
+      plantId,
+      reportDate,
+      opts.bagWt,
+    );
     const payload = {
       ...live,
       summary,
@@ -6571,19 +7295,31 @@ export class ProcurementService {
         preferSnapshot: false,
         date: reportDate,
       });
-      const globalSummary = await this.buildDailyInwardSummary('global', reportDate, opts.bagWt);
+      const globalSummary = await this.buildDailyInwardSummary(
+        'global',
+        reportDate,
+        opts.bagWt,
+      );
       await this.prisma.dailyInwardListSnapshot.upsert({
         where: { reportDate_plantId: { reportDate, plantId: 'global' } },
         create: {
           reportDate,
           plantId: 'global',
-          payload: { ...globalLive, summary: globalSummary, fromSnapshot: true },
+          payload: {
+            ...globalLive,
+            summary: globalSummary,
+            fromSnapshot: true,
+          },
           submittedBy: opts.supervisorName || null,
           biometricOk: true,
           source: opts.source || 'EVENING_SUBMIT',
         },
         update: {
-          payload: { ...globalLive, summary: globalSummary, fromSnapshot: true },
+          payload: {
+            ...globalLive,
+            summary: globalSummary,
+            fromSnapshot: true,
+          },
           submittedBy: opts.supervisorName || null,
           biometricOk: true,
           source: opts.source || 'EVENING_SUBMIT',
@@ -6608,8 +7344,12 @@ export class ProcurementService {
       const plantLabel =
         plantId === 'global'
           ? 'All Mills'
-          : (await this.prisma.plant.findUnique({ where: { id: plantId }, select: { name: true } }))
-              ?.name || plantId;
+          : (
+              await this.prisma.plant.findUnique({
+                where: { id: plantId },
+                select: { name: true },
+              })
+            )?.name || plantId;
       const msg = `Daily Paddy / Inward Summary for ${reportDate} (${plantLabel}) is ready under Procurement → Reports → Daily Inward Summary. Submitted by ${opts.supervisorName || 'Supervisor'}.`;
       await this.prisma.notification.create({
         data: {
@@ -6627,10 +7367,13 @@ export class ProcurementService {
           role: 'PLANT_MANAGER',
         },
       });
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     return {
-      message: 'Evening inward lists submitted. Daily shortage report also updated.',
+      message:
+        'Evening inward lists submitted. Daily shortage report also updated.',
       reportDate,
       plantId,
       submittedAt: snap.submittedAt,
@@ -6655,7 +7398,14 @@ export class ProcurementService {
     for (const r of confirmed) {
       const m = r.mandi || 'Unknown';
       if (!byMandi[m]) {
-        byMandi[m] = { mandi: m, trucks: 0, agencyBags: 0, millBags: 0, shortageBags: 0, totalBags: 0 };
+        byMandi[m] = {
+          mandi: m,
+          trucks: 0,
+          agencyBags: 0,
+          millBags: 0,
+          shortageBags: 0,
+          totalBags: 0,
+        };
       }
       byMandi[m].trucks += 1;
       byMandi[m].agencyBags += r.agencyBags;
@@ -6668,7 +7418,9 @@ export class ProcurementService {
       plantId,
       totals: report.totals,
       activeGps: report.activeGps,
-      mandiRows: Object.values(byMandi).sort((a: any, b: any) => a.mandi.localeCompare(b.mandi)),
+      mandiRows: Object.values(byMandi).sort((a: any, b: any) =>
+        a.mandi.localeCompare(b.mandi),
+      ),
       truckCount: confirmed.length,
       bagWt,
     };
@@ -6776,7 +7528,11 @@ export class ProcurementService {
     const liftCompletedAt = (b: any): Date => {
       const gp = b.gatePass;
       if (gp?.gpCompleteDate) return new Date(gp.gpCompleteDate);
-      if (gp && (gp.status === 'CLOSED' || gp.status === 'COMPLETED') && gp.updatedAt) {
+      if (
+        gp &&
+        (gp.status === 'CLOSED' || gp.status === 'COMPLETED') &&
+        gp.updatedAt
+      ) {
         return new Date(gp.updatedAt);
       }
       const d = b.paddyInwardDetails || {};
@@ -6797,11 +7553,15 @@ export class ProcurementService {
       const plantBatches = batches.filter(
         (b) =>
           isCompletedLift(b) &&
-          (m.plantId ? b.plantId === m.plantId : m.match.test(b.plant?.name || '')),
+          (m.plantId
+            ? b.plantId === m.plantId
+            : m.match.test(b.plant?.name || '')),
       );
       const rows = mandiNames.map((mandiName) => {
         const forMandi = plantBatches.filter(
-          (b) => (b.paddyInwardDetails?.mandi || '').toLowerCase() === mandiName.toLowerCase(),
+          (b) =>
+            (b.paddyInwardDetails?.mandi || '').toLowerCase() ===
+            mandiName.toLowerCase(),
         );
         const opening = forMandi
           .filter((b) => liftCompletedAt(b) < dayStart)
@@ -6866,18 +7626,36 @@ export class ProcurementService {
     const day = this.plantDayKey(date);
     const name = String(unloaderName || '').trim();
     if (!name || !plantId) {
-      return { nextCount: 1, completedToday: 0, date: day, kind, unloaderName: name };
+      return {
+        nextCount: 1,
+        completedToday: 0,
+        date: day,
+        kind,
+        unloaderName: name,
+      };
     }
 
     const nameMatch =
       kind === 'part'
         ? { partUnloaderName: { equals: name, mode: 'insensitive' as const } }
         : kind === 'third'
-          ? { thirdPartUnloaderName: { equals: name, mode: 'insensitive' as const } }
+          ? {
+              thirdPartUnloaderName: {
+                equals: name,
+                mode: 'insensitive' as const,
+              },
+            }
           : {
               OR: [
-                { allocateUnloader: { equals: name, mode: 'insensitive' as const } },
-                { unloaderName: { equals: name, mode: 'insensitive' as const } },
+                {
+                  allocateUnloader: {
+                    equals: name,
+                    mode: 'insensitive' as const,
+                  },
+                },
+                {
+                  unloaderName: { equals: name, mode: 'insensitive' as const },
+                },
               ],
             };
 
@@ -6951,7 +7729,7 @@ export class ProcurementService {
 
     const bagOf = (b: any) =>
       Number(b.paddyInwardDetails?.bagsInMainStack || 0) +
-      Number(b.paddyInwardDetails?.bagsInSecondPartStack || 0) ||
+        Number(b.paddyInwardDetails?.bagsInSecondPartStack || 0) ||
       Number(b.paddyInwardDetails?.totalBagsReceived || 0) ||
       0;
 
@@ -6961,7 +7739,9 @@ export class ProcurementService {
     });
     const looseToday = Number(looseTodayAgg._sum.bags || 0);
     const atStack = todayBatches.reduce((s, b) => s + bagOf(b), 0) + looseToday;
-    const active = stacks.filter((s) => !['COMPLETED', 'EMPTY'].includes(s.status));
+    const active = stacks.filter(
+      (s) => !['COMPLETED', 'EMPTY'].includes(s.status),
+    );
 
     const [dryerRows, hoodiRows] = await Promise.all([
       this.prisma.dryerBharaiToStack.findMany({
@@ -7144,8 +7924,7 @@ export class ProcurementService {
       const truckNo = d.truckNo || b.weighbridge?.vehicleNo || '-';
       const partyName = d.partyName || b.supplier?.name || '-';
       const alloc = (d.allocationType || '').toLowerCase();
-      const isHoodi =
-        alloc.includes('hoodi') || !!d.isUploadedToHoodiRegister;
+      const isHoodi = alloc.includes('hoodi') || !!d.isUploadedToHoodiRegister;
       const sortKey =
         (d.unloadingStartTime
           ? new Date(d.unloadingStartTime).toISOString()
@@ -7275,11 +8054,16 @@ export class ProcurementService {
         orderBy: { date: 'asc' },
       }),
       this.prisma.plant.findMany({
-        where: plantId && plantId !== 'global' ? { id: plantId } : { deletedAt: null },
+        where:
+          plantId && plantId !== 'global'
+            ? { id: plantId }
+            : { deletedAt: null },
         select: { id: true, name: true },
       }),
     ]);
-    const plantNameById = Object.fromEntries(plantsMap.map((p) => [p.id, p.name]));
+    const plantNameById = Object.fromEntries(
+      plantsMap.map((p) => [p.id, p.name]),
+    );
 
     const pushTransfer = (opts: {
       plantId: string;
@@ -7419,8 +8203,13 @@ export class ProcurementService {
     const unloaders = Object.values(byUnloader)
       .map((u) => ({
         unloaderName: u.unloaderName,
-        days: Object.values(u.days).sort((a, b) => a.date.localeCompare(b.date)),
-        totalTrucks: Object.values(u.days).reduce((s, d) => s + d.totals.trucks, 0),
+        days: Object.values(u.days).sort((a, b) =>
+          a.date.localeCompare(b.date),
+        ),
+        totalTrucks: Object.values(u.days).reduce(
+          (s, d) => s + d.totals.trucks,
+          0,
+        ),
       }))
       .sort((a, b) => a.unloaderName.localeCompare(b.unloaderName));
 
@@ -7430,17 +8219,19 @@ export class ProcurementService {
         plantId: plantId && plantId !== 'global' ? plantId : undefined,
         reportDate: { gte: from, lte: to },
         ...(unloaderName?.trim()
-          ? { unloaderName: { equals: unloaderName.trim(), mode: 'insensitive' } }
+          ? {
+              unloaderName: {
+                equals: unloaderName.trim(),
+                mode: 'insensitive',
+              },
+            }
           : {}),
       },
     });
     const snapKey = (d: string, n: string) =>
       `${d}|${String(n).trim().toLowerCase()}`;
     const snapMap = new Map(
-      snaps.map((s) => [
-        snapKey(s.reportDate, s.unloaderName),
-        s,
-      ]),
+      snaps.map((s) => [snapKey(s.reportDate, s.unloaderName), s]),
     );
 
     const unloadersWithSubmit = unloaders.map((u) => ({
@@ -7465,11 +8256,7 @@ export class ProcurementService {
       excludedIncompleteCount = await this.prisma.paddyInwardDetails.count({
         where: {
           entryDate: { gte: from, lte: to },
-          OR: [
-            { unloadingEndTime: null },
-            { timeOut: null },
-            { timeOut: '' },
-          ],
+          OR: [{ unloadingEndTime: null }, { timeOut: null }, { timeOut: '' }],
           procurementBatch: {
             plantId,
             status: { in: ['DRAFT', 'PENDING', 'ACTIVE', 'UNLOADING'] },
@@ -7551,7 +8338,8 @@ export class ProcurementService {
         `No completed unload trucks for ${name} on ${reportDate} — nothing to submit`,
       );
     }
-    const dayPayload = sheet.days.find((d: any) => d.date === reportDate) || sheet.days[0];
+    const dayPayload =
+      sheet.days.find((d: any) => d.date === reportDate) || sheet.days[0];
 
     const snap = await this.prisma.dailyUnloaderReportSnapshot.upsert({
       where: {

@@ -5,6 +5,7 @@ import { Layers } from 'lucide-react';
 import { usePlantStore } from '../store/plantStore';
 import { useUiStore } from '../store/uiStore';
 import { hasModulePermission } from '../utils/modulePermissions';
+import { groupStacksBySection } from '../utils/stackSections';
 
 interface PaddyStack {
   id: string;
@@ -329,53 +330,82 @@ export default function StackLayoutView({ plantId }: StackLayoutViewProps) {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-            {/* Render actual active stacks */}
-            {stacks.map((stack) => {
-              const isCrossed = stack.status === 'EMPTY' || stack.totalBags <= 0;
-              const colorClass = getMoistureColor(stack.averageMoisture, stack.status, stack.totalBags);
-              
-              return (
-                <div 
-                  key={stack.id}
-                  onClick={() => {
-                    if (chooseStack(stack.stackNo)) return;
-                    setSelectedStack(stack.stackNo);
-                  }}
-                  className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-transform hover:scale-105 ${colorClass}`}
-                >
-                  {/* Cross out if empty */}
-                  {isCrossed && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-full h-0.5 bg-gray-500 rotate-45 absolute"></div>
-                      <div className="w-full h-0.5 bg-gray-500 -rotate-45 absolute"></div>
-                    </div>
-                  )}
-
-                  {/* New Class A Indicator */}
-                  {stack.isNewAClass && !isCrossed && (
-                    <div className="absolute top-1 left-2 text-xs font-bold text-[#e67e00]">
-                      N*
-                    </div>
-                  )}
-
-                  <span className="text-lg font-black tracking-wider mb-1 z-10">{stack.stackNo}</span>
-                  <div className="flex flex-col items-center text-xs opacity-90 z-10">
-                    <span>{stack.totalBags} bags</span>
-                    {stack.averageMoisture > 0 && <span>{stack.averageMoisture.toFixed(1)}% Mo</span>}
-                  </div>
+          <div className="space-y-6">
+            {groupStacksBySection(
+              stacks.length > 0
+                ? stacks.map((s) => s.stackNo)
+                : Array.from({ length: 24 }, (_, i) => String(i + 1)),
+            ).map(({ section, stacks: sectionNos }) => (
+              <div key={section}>
+                <div className="mb-3 flex items-center gap-2 border-b border-[var(--border-subtle)] pb-1">
+                  <span className="text-xs font-black uppercase tracking-widest text-amber-500">
+                    {section}
+                  </span>
+                  <span className="text-[10px] text-[var(--text-muted-alt)]">
+                    Stack Nos {sectionNos[0]}
+                    {sectionNos.length > 1
+                      ? `–${sectionNos[sectionNos.length - 1]}`
+                      : ''}
+                  </span>
                 </div>
-              );
-            })}
-            
-            {/* Render Empty Placeholders to visually simulate a physical plant grid layout */}
-            {Array.from({ length: Math.max(0, 24 - stacks.length) }).map((_, i) => (
-              <div 
-                key={`empty-slot-${i}`}
-                className="relative flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-[var(--border-subtle)] bg-[var(--bg-panel-hover)] opacity-40 select-none"
-              >
-                <span className="text-sm font-medium text-[var(--text-muted-alt)] mb-1">Empty Plot</span>
-                <span className="text-[10px] text-[var(--text-muted-alt)]">Available</span>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+                  {sectionNos.map((stackNo) => {
+                    const stack = stacks.find((s) => s.stackNo === stackNo);
+                    if (!stack) {
+                      return (
+                        <div
+                          key={`empty-${section}-${stackNo}`}
+                          className="relative flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-[var(--border-subtle)] bg-[var(--bg-panel-hover)] opacity-40 select-none"
+                        >
+                          <span className="text-lg font-black tracking-wider mb-1">
+                            {stackNo}
+                          </span>
+                          <span className="text-[10px] text-[var(--text-muted-alt)]">
+                            Available
+                          </span>
+                        </div>
+                      );
+                    }
+                    const isCrossed =
+                      stack.status === 'EMPTY' || stack.totalBags <= 0;
+                    const colorClass = getMoistureColor(
+                      stack.averageMoisture,
+                      stack.status,
+                      stack.totalBags,
+                    );
+                    return (
+                      <div
+                        key={stack.id}
+                        onClick={() => {
+                          if (chooseStack(stack.stackNo)) return;
+                          setSelectedStack(stack.stackNo);
+                        }}
+                        className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-transform hover:scale-105 ${colorClass}`}
+                      >
+                        {isCrossed && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="w-full h-0.5 bg-gray-500 rotate-45 absolute"></div>
+                            <div className="w-full h-0.5 bg-gray-500 -rotate-45 absolute"></div>
+                          </div>
+                        )}
+                        {stack.isNewAClass && !isCrossed && (
+                          <div className="absolute top-1 left-2 text-xs font-bold text-[#e67e00]">
+                            N*
+                          </div>
+                        )}
+                        <span className="text-lg font-black tracking-wider mb-1 z-10">
+                          {stack.stackNo}
+                        </span>
+                        <div className="flex flex-col items-center text-xs opacity-90 z-10">
+                          <span>{stack.totalBags} bags</span>
+                          {stack.averageMoisture > 0 && (
+                            <span>{stack.averageMoisture.toFixed(1)}% Mo</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </div>

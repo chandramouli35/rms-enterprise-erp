@@ -206,6 +206,10 @@ model Supplier {
   contact   String?
   email     String?
   address   String?
+  /// Artia-wise A Class bag weight (qtl) — not plant-wise
+  aClassBagWeight Float @default(0.380)
+  /// Artia-wise B Class bag weight (qtl) — not plant-wise
+  bClassBagWeight Float @default(0.385)
   /// ACTIVE | PENDING_APPROVAL — supervisor create needs Admin confirm
   status    String   @default("ACTIVE")
   /// Supervisor fingerprint at create (match logged-in user)

@@ -3,6 +3,7 @@ import { X, AlertTriangle } from 'lucide-react';
 import { CustomModal } from './CustomModal';
 import api from '../api/axios';
 import { useSubmitLock } from '../hooks/useSubmitLock';
+import { groupStacksBySection } from '../utils/stackSections';
 
 interface StackData {
   moisture: number;
@@ -63,6 +64,12 @@ export default function StackSelectionModal({
     // Fallback numbered plots for mills without Beas drawing / empty layout
     return Array.from({ length: 32 }, (_, i) => String(i + 1));
   }, [layoutStacks, occupiedStacks]);
+
+  /** Temporary: show stack nos grouped under Section A / B / C… */
+  const plantStackSections = useMemo(
+    () => groupStacksBySection(plantStackList),
+    [plantStackList],
+  );
 
   if (!isOpen) return null;
 
@@ -141,7 +148,9 @@ export default function StackSelectionModal({
         className="relative flex flex-col items-center"
         onMouseEnter={() => setHoveredStack(stack)}
       >
-        <span className="text-[10px] font-bold text-[var(--text-muted-alt)] mb-1">{stack}</span>
+        <span className="text-xs font-black text-[var(--text-main)] mb-1 tracking-wide">
+          {stack}
+        </span>
         <button
           type="button"
           onClick={() => handleStackClick(stack)}
@@ -240,23 +249,38 @@ export default function StackSelectionModal({
               </div>
             </div>
           ) : isRajoa ? (
-            <div className="border-2 border-[var(--border-subtle)] rounded-lg relative min-w-[980px] h-[720px] mx-auto bg-[var(--bg-panel-alt)] shadow-inner overflow-visible">
-              <div className="absolute left-6 top-4 font-bold text-lg text-[var(--text-muted)] tracking-widest">
-                RAJOA AGRO — YARD
+            <div className="border-2 border-[var(--border-subtle)] rounded-lg p-4 min-w-[720px] mx-auto bg-[var(--bg-panel-alt)] shadow-inner">
+              <div className="mb-3 font-bold text-lg text-[var(--text-muted)] tracking-widest">
+                RAJOA AGRO — YARD (section-wise)
               </div>
-              <div className="absolute left-8 top-16 grid grid-cols-8 gap-3">
-                {Array.from({ length: 24 }, (_, i) => String(i + 1)).map((s) =>
-                  renderStack(s),
-                )}
+              <div className="space-y-5 mb-6">
+                {groupStacksBySection(
+                  Array.from({ length: 24 }, (_, i) => String(i + 1)),
+                ).map(({ section, stacks }) => (
+                  <div key={section}>
+                    <div className="mb-2 flex items-center gap-2 border-b border-[var(--border-subtle)] pb-1">
+                      <span className="text-xs font-black uppercase tracking-widest text-amber-500">
+                        {section}
+                      </span>
+                      <span className="text-[10px] text-[var(--text-muted-alt)]">
+                        Stack Nos {stacks[0]}
+                        {stacks.length > 1 ? `–${stacks[stacks.length - 1]}` : ''}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-8 gap-3">
+                      {stacks.map((s) => renderStack(s))}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="absolute left-8 bottom-8 right-8 grid grid-cols-3 gap-4">
-                <div className="h-24 border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] uppercase bg-[var(--bg-base)]">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="h-20 border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] uppercase bg-[var(--bg-base)]">
                   Weighbridge
                 </div>
-                <div className="h-24 border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] uppercase bg-[var(--bg-base)]">
+                <div className="h-20 border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] uppercase bg-[var(--bg-base)]">
                   Godown
                 </div>
-                <div className="h-24 border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] uppercase bg-[var(--bg-base)]">
+                <div className="h-20 border-2 border-[var(--border-subtle-alt)] flex items-center justify-center text-xs font-bold text-[var(--text-muted)] uppercase bg-[var(--bg-base)]">
                   Dryer Bay
                 </div>
               </div>
@@ -264,10 +288,25 @@ export default function StackSelectionModal({
           ) : (
             <div className="border-2 border-[var(--border-subtle)] rounded-lg p-4 bg-[var(--bg-panel-alt)]">
               <div className="mb-3 text-sm font-bold text-[var(--text-main)]">
-                {plantName || 'Mill'} — Select stack (plant-scoped)
+                {plantName || 'Mill'} — Select stack (section-wise)
               </div>
-              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
-                {plantStackList.map((s) => renderStack(s))}
+              <div className="space-y-5">
+                {plantStackSections.map(({ section, stacks }) => (
+                  <div key={section}>
+                    <div className="mb-2 flex items-center gap-2 border-b border-[var(--border-subtle)] pb-1">
+                      <span className="text-xs font-black uppercase tracking-widest text-amber-500">
+                        {section}
+                      </span>
+                      <span className="text-[10px] text-[var(--text-muted-alt)]">
+                        Stack Nos {stacks[0]}
+                        {stacks.length > 1 ? `–${stacks[stacks.length - 1]}` : ''}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
+                      {stacks.map((s) => renderStack(s))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

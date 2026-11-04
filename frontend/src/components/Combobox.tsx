@@ -45,6 +45,12 @@ export default function Combobox({
     return opt.name || opt.truckNumber || opt.id || String(opt);
   };
 
+  /** Secondary line shown small (e.g. Mandi next to Artia / party name). */
+  const getOptionSecondary = (opt: any) => {
+    const mandi = String(opt?.mandi || opt?.secondary || '').trim();
+    return mandi;
+  };
+
   const findOptionByValue = (val: string) => {
     if (!valueKey || val == null || val === '') return undefined;
     return options.find((opt) => String(opt[valueKey]) === String(val));
@@ -145,9 +151,14 @@ export default function Combobox({
   const filteredOptions =
     selectOnly || isShowingSelectedLabel || !inputNorm
       ? options
-      : options.filter((opt) =>
-          getOptionLabel(opt).toLowerCase().includes(inputNorm),
-        );
+      : options.filter((opt) => {
+          const label = getOptionLabel(opt).toLowerCase();
+          const secondary = getOptionSecondary(opt).toLowerCase();
+          return (
+            label.includes(inputNorm) ||
+            (!!secondary && secondary.includes(inputNorm))
+          );
+        });
 
   const createSyntheticEvent = (val: string) => {
     return {
@@ -187,9 +198,8 @@ export default function Combobox({
   };
 
   const handleOptionClick = (opt: any) => {
-    const label = getOptionLabel(opt);
-    setInputValue(label);
-    const emitVal = valueKey ? opt[valueKey] : label;
+    setInputValue(getOptionLabel(opt));
+    const emitVal = valueKey ? opt[valueKey] : getOptionLabel(opt);
     onChange(createSyntheticEvent(String(emitVal ?? '')) as any);
     setIsOpen(false);
   };
@@ -197,9 +207,9 @@ export default function Combobox({
   const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     // Restore label from selected value; discard typed filter text
     if (valueKey && value) {
-      const selectedOpt = findOptionByValue(value);
-      if (selectedOpt) {
-        setInputValue(getOptionLabel(selectedOpt));
+      const selected = findOptionByValue(value);
+      if (selected) {
+        setInputValue(getOptionLabel(selected));
       }
     } else if (selectOnly) {
       if (value) {
@@ -226,22 +236,34 @@ export default function Combobox({
           className={`overflow-y-auto overscroll-contain bg-[var(--bg-panel)] border border-[var(--border-subtle)] rounded-lg shadow-2xl text-sm text-[var(--text-main)] ${listMaxHeightClass}`}
         >
           {filteredOptions.length > 0 ? (
-            filteredOptions.map((opt, idx) => (
+            filteredOptions.map((opt, idx) => {
+              const secondary = getOptionSecondary(opt);
+              return (
               <li
                 key={opt.id || idx}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleOptionClick(opt)}
                 className="px-3 py-1.5 cursor-pointer hover:bg-amber-500/10 hover:text-amber-500 transition-colors"
               >
-                {getOptionLabel(opt)}
-                {opt.transportCategory === 'COMPANY' && (
-                  <span className="ml-2 text-xs text-blue-400">(Company)</span>
-                )}
-                {opt.transportCategory === 'PARTY' && (
-                  <span className="ml-2 text-xs text-amber-400">(Party)</span>
-                )}
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="font-medium leading-tight">
+                    {getOptionLabel(opt)}
+                  </span>
+                  {opt.transportCategory === 'COMPANY' && (
+                    <span className="text-xs text-blue-400">(Company)</span>
+                  )}
+                  {opt.transportCategory === 'PARTY' && (
+                    <span className="text-xs text-amber-400">(Party)</span>
+                  )}
+                </div>
+                {secondary ? (
+                  <div className="text-[10px] leading-tight text-[var(--text-muted-alt)] mt-0.5">
+                    {secondary}
+                  </div>
+                ) : null}
               </li>
-            ))
+              );
+            })
           ) : (
             <li className="px-3 py-2 text-[var(--text-muted-alt)] italic">
               {selectOnly || valueKey
@@ -253,6 +275,10 @@ export default function Combobox({
         document.body,
       )
     : null;
+
+  const selectedSecondary = selectedOpt
+    ? getOptionSecondary(selectedOpt)
+    : '';
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
@@ -290,6 +316,11 @@ export default function Combobox({
           <ChevronDown size={16} />
         </button>
       </div>
+      {selectedSecondary ? (
+        <div className="mt-0.5 text-[10px] leading-tight text-[var(--text-muted-alt)] pl-0.5">
+          {selectedSecondary}
+        </div>
+      ) : null}
       {menu}
     </div>
   );
