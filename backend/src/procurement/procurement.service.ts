@@ -245,17 +245,22 @@ export class ProcurementService {
     }
   }
 
-  /** Block operational use of Arthiya until Admin confirms. */
-  async assertSupplierUsable(supplierId?: string | null) {
+  /** Block operational use of Arthiya until Admin confirms, and keep it on its mill. */
+  async assertSupplierUsable(supplierId?: string | null, plantId?: string | null) {
     if (!supplierId) return;
     const s = await this.prisma.supplier.findUnique({
       where: { id: supplierId },
-      select: { id: true, name: true, status: true },
+      select: { id: true, name: true, status: true, plantId: true },
     });
     if (!s) throw new BadRequestException('Arthiya / supplier not found');
     if (s.status && s.status !== 'ACTIVE') {
       throw new BadRequestException(
         `Arthiya "${s.name}" is pending Admin approval. You can use it only after Admin confirms.`,
+      );
+    }
+    if (plantId && plantId !== 'global' && s.plantId && s.plantId !== plantId) {
+      throw new BadRequestException(
+        `Arthiya "${s.name}" belongs to another mill and cannot be used here`,
       );
     }
   }
@@ -285,7 +290,7 @@ export class ProcurementService {
       boliChecklist,
     } = data;
 
-    await this.assertSupplierUsable(supplierId);
+    await this.assertSupplierUsable(supplierId, plantId);
 
     // Feedback 33 — normalize Mandi GP for duplicate bypass (case / spaces / specials)
     const normalizeGpKey = (raw?: string) =>
@@ -2273,14 +2278,17 @@ export class ProcurementService {
     });
   }
 
-  async getSuppliers(_plantId?: string, opts?: { activeOnly?: boolean }) {
-    // Suppliers are shared by every mill. A plant filter must not hide them on Demo 3.
-    const where: any = {};
+  async getSuppliers(plantId?: string, opts?: { activeOnly?: boolean }) {
+    // Arthiya stays on the mill it was created for — never a shared cross-mill list.
+    if (!plantId || plantId === 'global' || plantId === 'all') {
+      return [];
+    }
+    const where: any = { plantId };
     if (opts?.activeOnly) {
       where.status = 'ACTIVE';
     }
     return this.prisma.supplier.findMany({
-      where: Object.keys(where).length ? where : undefined,
+      where,
       include: { plant: { select: { id: true, name: true, code: true } } },
       orderBy: [{ status: 'asc' }, { name: 'asc' }],
     });
@@ -4712,7 +4720,7 @@ export class ProcurementService {
   }
 
   async createSodaPending(data: any, user?: any) {
-    await this.assertSupplierUsable(data.supplierId);
+    await this.assertSupplierUsable(data.supplierId, data.plantId);
 
     if (!data.biometricData) {
       if (this.isAdminRole(user)) {

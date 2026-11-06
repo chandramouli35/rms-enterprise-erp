@@ -132,7 +132,10 @@ export const WeighbridgeManagement = () => {
       }
       try {
         const res = await api.get("/api/procurement/suppliers", {
-          params: { activeOnly: "true" },
+          params: {
+            activeOnly: "true",
+            plantId: plantId && plantId !== "global" ? plantId : undefined,
+          },
         });
         const rows = Array.isArray(res.data)
           ? res.data
@@ -146,7 +149,7 @@ export const WeighbridgeManagement = () => {
       }
     };
     fetchTrucksAndSuppliers();
-  }, [activePlant?.id, activeTab]);
+  }, [activePlant?.id, plantId, activeTab]);
 
   useEffect(() => {
     if (!selectedSodaId && pendingSodas.length > 0) {

@@ -304,3 +304,4 @@ export const PlantsList: React.FC = () => {
     </div>
   );
 };
+

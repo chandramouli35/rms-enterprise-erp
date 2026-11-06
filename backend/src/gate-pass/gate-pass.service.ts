@@ -301,6 +301,18 @@ export class GatePassService {
         sodaNumberLabel = String(hit.sodaNumber);
       }
 
+      if (!isTransfer && supplierId) {
+        const sup = await tx.supplier.findUnique({
+          where: { id: supplierId },
+          select: { name: true, plantId: true },
+        });
+        if (sup?.plantId && sup.plantId !== plantId) {
+          throw new BadRequestException(
+            `Arthiya "${sup.name}" belongs to another mill and cannot be used here`,
+          );
+        }
+      }
+
       return tx.gatePass.create({
       data: {
         plantId,

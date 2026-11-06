@@ -2196,11 +2196,18 @@ export const ProcurementManagement = () => {
     }
   };
 
-  const fetchSuppliers = async (_plantIdOverride?: string) => {
+  const fetchSuppliers = async (plantIdOverride?: string) => {
     try {
-      // Suppliers are shared across mills. Demo 3 and every other mill see the same list.
-      const res = await api.get(`/api/procurement/suppliers`);
-      setSuppliers(Array.isArray(res.data) ? res.data : []);
+      const pid = plantIdOverride || activePlant?.id;
+      if (!pid || pid === "global") {
+        setSuppliers([]);
+        return;
+      }
+      const res = await api.get(`/api/procurement/suppliers`, {
+        params: { plantId: pid },
+      });
+      const rows = Array.isArray(res.data) ? res.data : [];
+      setSuppliers(rows.filter((s: any) => s.plantId === pid));
     } catch (error) {
       console.error("Error fetching suppliers", error);
     }
@@ -3570,7 +3577,7 @@ export const ProcurementManagement = () => {
                         colSpan={canApproveArtia ? 9 : 8}
                         className="p-6 text-center text-[var(--text-muted-alt)]"
                       >
-                        No Arthiya found. Add one — it is shared by every mill.
+                        No Arthiya for this mill. Add one — it stays on this mill only.
                       </td>
                     </tr>
                   )}

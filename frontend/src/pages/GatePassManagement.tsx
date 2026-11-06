@@ -2454,7 +2454,7 @@ const generateQrDataString = (pass: any, plants: any[], activeTab: string) => {
     // Fetch suppliers independently so dropdown always populates even if analytics fail
     try {
       const resSuppliers = await api.get(`/api/procurement/suppliers`, {
-        params: { activeOnly: true },
+        params: { activeOnly: true, plantId: pid },
       });
       setSuppliers(resSuppliers.data);
     } catch (error) {
